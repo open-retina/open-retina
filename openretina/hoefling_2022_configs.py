@@ -54,7 +54,7 @@ dataset_config = {
     "keys": ("ventral1", "ventral2", "ventral1", "ventral2"),
     "dataset_idxss": ([1, 2], [1, 2, 3, 4, 5], [1], [1, 2, 3]),
     "stim_id": 5,
-    "stim_hash": "8c18928c21901a1a4af8b7458655a736",
+    "stim_hash": "8c18928c21901a1a4af8b7458655a736",  # identifier to retrieve from DJ movie stim
     "detrend_param_set_id": 2,
     "quality_threshold_movie": 0,
     "quality_threshold_chirp": 0.35,

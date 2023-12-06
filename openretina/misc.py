@@ -1,3 +1,8 @@
+"""
+Miscellaneous utility functions and classes.
+"""
+
+
 import os
 import pprint
 import random
@@ -38,10 +43,40 @@ def set_seed(seed=None, seed_torch=True):
 
 
 class CustomPrettyPrinter(pprint.PrettyPrinter):
+    """
+    A custom pretty printer that provides specialized formatting for certain types of objects.
+
+    Args:
+        indent (int): Number of spaces for each indentation level.
+        width (int): Maximum number of characters per line.
+        depth (int): Maximum depth to print nested structures.
+        stream (file-like object): Stream to write the formatted output to.
+
+    Attributes:
+        indent (int): Number of spaces for each indentation level.
+        width (int): Maximum number of characters per line.
+        depth (int): Maximum depth to print nested structures.
+        stream (file-like object): Stream to write the formatted output to.
+
+    Methods:
+        _format(object, stream, indent, allowance, context, level):
+            Formats the given object and writes the formatted output to the stream.
+
+    Example:
+        printer = CustomPrettyPrinter()
+        printer.pprint(np.array([1, 2, 3]))
+        # Output: numpy.ndarray(shape=(3,))
+    """
+
     def _format(self, object, stream, indent, allowance, context, level):
         if isinstance(object, np.ndarray):
             # Print the shape of the array instead of its contents
             stream.write(f"numpy.ndarray(shape={object.shape})")
+        elif isinstance(object, torch.Tensor):
+            # Print the shape of the tensor instead of its contents
+            stream.write(f"torch.Tensor(shape={list(object.shape)})")
+        elif isinstance(object, list) and len(object) > 10:
+            stream.write(f"list(len={len(object)})")
         else:
             # Use the standard pretty printing for other types
             super()._format(object, stream, indent, allowance, context, level)
