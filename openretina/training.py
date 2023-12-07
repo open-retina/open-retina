@@ -36,7 +36,7 @@ def standard_early_stop_trainer(
     min_lr: float = 0.0001,  # lr scheduler args
     detach_core: bool = False,
     cb=None,
-    **kwargs
+    **kwargs,
 ):
     # Defines objective function; criterion is resolved to the loss_function that is passed as input
     def full_objective(model, data_key, inputs, targets, detach_core):
@@ -124,7 +124,7 @@ def standard_early_stop_trainer(
         optimizer.zero_grad()
         #         with torch.autograd.detect_anomaly():
         for batch_no, (data_key, data) in tqdm(
-            enumerate(LongCycler(trainloaders)), total=n_iterations, desc="Epoch {}".format(epoch)
+            enumerate(LongCycler(trainloaders)), total=n_iterations, desc=f"Epoch {epoch}", position=0, leave=False
         ):
             loss = full_objective(model, data_key, *data, detach_core)
             loss.backward()
@@ -141,6 +141,6 @@ def standard_early_stop_trainer(
     avg_test_corr = metrics.corr_stop3d(model, testloaders, avg=True, device=device)
 
     # return the whole tracker output as a dict
-    output = {k: v for k, v in tracker.log.items()}
+    output = tracker.asdict()
 
     return avg_test_corr, avg_val_corr, output, model.state_dict()

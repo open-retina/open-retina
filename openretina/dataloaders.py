@@ -31,7 +31,10 @@ class MovieDataSet(Dataset):
             )
 
     def __len__(self):
-        return len(self.samples[0])
+        return self.samples[1].shape[1]
+
+    def __str__(self):
+        return f"MovieDataSet with {len(self)} neuron responses to a movie of shape {list(self.samples[0].shape)}."
 
 
 class MovieSampler(Sampler):

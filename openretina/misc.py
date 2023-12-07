@@ -77,6 +77,9 @@ class CustomPrettyPrinter(pprint.PrettyPrinter):
             stream.write(f"torch.Tensor(shape={list(object.shape)})")
         elif isinstance(object, list) and len(object) > 10:
             stream.write(f"list(len={len(object)})")
+        elif isinstance(object, torch.utils.data.DataLoader):
+            # Print the dataset name instead of the DataLoader object
+            stream.write(f"torch.utils.data.DataLoader(Dataset: {object.dataset})")
         else:
             # Use the standard pretty printing for other types
             super()._format(object, stream, indent, allowance, context, level)
