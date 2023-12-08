@@ -68,6 +68,7 @@ def get_movie_dataloader(
     **kwargs,
 ):
     # for right movie: flip second frame size axis!
+    print(split)
     if split == "train":
         dataset = MovieDataSet(
             movies[scan_sequence_idx], responses, roi_ids, roi_coords, group_assignment, split, chunk_size
@@ -79,18 +80,18 @@ def get_movie_dataloader(
     return DataLoader(dataset, sampler=sampler, batch_size=batch_size)
 
 
-def dataloaders_from_dictionaries(dataloaders_dict: Dict, movies_dict: Dict, batchsize: int = 32, chunk_size: int = 50):
+def dataloaders_from_dictionaries(dataloaders_dict: Dict, movies_dict: Dict, batchsize: int = 32):
     dataloaders = {}
     for split in dataloaders_dict.keys():
         dataloaders[split] = {}
         for session_key in dataloaders_dict[split].keys():
-            eye = dataloaders_dict[split][session_key]["movies_keys"]["eye"]
-            dataloader_args = deepcopy(dataloaders_dict[split][session_key])
+            # eye = dataloaders_dict[split][session_key]["movies_keys"]["eye"]
+            eye = dataloaders_dict[split][session_key]["eye"]
+            dataloader_args = dataloaders_dict[split][session_key]
             dataloaders[split][session_key] = get_movie_dataloader(
                 movies_dict[eye][split],
                 **dataloader_args,
                 batch_size=batchsize,
-                chunk_size=chunk_size,
             )
     return dataloaders
 
