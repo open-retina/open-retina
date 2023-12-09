@@ -1,5 +1,10 @@
 from functools import partial
 
+try:
+    import wandb
+except ImportError:
+    print("wandb not installed, not logging to wandb")
+
 import numpy as np
 import torch
 from neuralpredictors.training import (
@@ -35,6 +40,7 @@ def standard_early_stop_trainer(
     lr_decay_factor: float = 0.3,
     min_lr: float = 0.0001,  # lr scheduler args
     detach_core: bool = False,
+    wandb_logger=None,
     cb=None,
     **kwargs,
 ):
@@ -96,19 +102,25 @@ def standard_early_stop_trainer(
     tracker = MultipleObjectiveTracker(**tracker_dict)
 
     # train over epochs
-    for epoch, val_obj in early_stopping(
-        model,
-        stop_closure,
-        interval=interval,
-        patience=patience,
-        start=epoch,
-        max_iter=max_iter,
-        maximize=maximize,
-        tolerance=tolerance,
-        restore_best=restore_best,
-        tracker=tracker,
-        scheduler=scheduler,
-        lr_decay_steps=lr_decay_steps,
+    for epoch, val_obj in tqdm(
+        early_stopping(
+            model,
+            stop_closure,
+            interval=interval,
+            patience=patience,
+            start=epoch,
+            max_iter=max_iter,
+            maximize=maximize,
+            tolerance=tolerance,
+            restore_best=restore_best,
+            tracker=tracker,
+            scheduler=scheduler,
+            lr_decay_steps=lr_decay_steps,
+        ),
+        desc="Epochs",
+        total=max_iter,
+        position=0,
+        leave=True,
     ):
         # print the quantities from tracker
         if verbose and tracker is not None:
@@ -122,15 +134,30 @@ def standard_early_stop_trainer(
 
         # train over batches
         optimizer.zero_grad()
-        #         with torch.autograd.detect_anomaly():
         for batch_no, (data_key, data) in tqdm(
-            enumerate(LongCycler(trainloaders)), total=n_iterations, desc=f"Epoch {epoch}", position=0, leave=False
+            enumerate(LongCycler(trainloaders)),
+            total=n_iterations,
+            desc=f"Epoch {epoch}",
+            position=1,
+            leave=True,
+            disable=not verbose,
         ):
             loss = full_objective(model, data_key, *data, detach_core)
             loss.backward()
             if (batch_no + 1) % optim_step_count == 0:
                 optimizer.step()
                 optimizer.zero_grad()
+        if wandb_logger is not None:
+            tracker_info = tracker.asdict(make_copy=True)
+            wandb.log(
+                {
+                    "train_loss": loss.item(),
+                    "epoch": epoch,
+                    "val_corr": tracker_info["val_correlation"][-1],
+                    "val_poisson_loss": tracker_info["val_poisson_loss"][-1],
+                    "val_MSE_loss": tracker_info["val_MSE_loss"][-1],
+                }
+            )
 
     ##### Model evaluation ####################################################################################################
     model.eval()

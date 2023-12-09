@@ -68,7 +68,6 @@ def get_movie_dataloader(
     **kwargs,
 ):
     # for right movie: flip second frame size axis!
-    print(split)
     if split == "train":
         dataset = MovieDataSet(
             movies[scan_sequence_idx], responses, roi_ids, roi_coords, group_assignment, split, chunk_size
