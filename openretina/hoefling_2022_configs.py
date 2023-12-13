@@ -11,14 +11,14 @@ model_config = dict(
     spatial_kernel_size=(
         11,
         5,
-    ),  # size of spatial kernels (in pixels) in each hidden layer
+    ),  # size of square spatial kernels (in pixels) in each hidden layer
     input_padding=False,
     hidden_padding=True,
     readout_positive=True,
     readout_scale=True,
     core_bias=True,
     gaussian_masks=True,
-    stack=-1,
+    stack=-1,  # read responses from which layer (or list of layers)
     gaussian_mean_scale=6.0,  # these are scaling and regularisation parameters
     gaussian_var_scale=4.0,
     batch_adaptation=True,
@@ -28,6 +28,8 @@ model_config = dict(
     gamma_in_sparse=1.0,
     gamma_hidden=0.0,
     gamma_temporal=40.0,
+    nonlinearity="ELU",
+    conv_type="custom_separable",
 )
 
 trainer_config = {
@@ -66,4 +68,12 @@ dataset_config = {
     "cell_types": (),
     "cell_type_crit": "exclude",
     "qi_link": "or",
+}
+
+postprocessing_config = {
+    "norm": 30,
+    "x_min_green": -0.654,
+    "x_max_green": 6.269,
+    "x_min_uv": -0.913,
+    "x_max_uv": 6.269,
 }

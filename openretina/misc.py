@@ -3,9 +3,11 @@ Miscellaneous utility functions and classes.
 """
 
 
+import contextlib
 import os
 import pprint
 import random
+import sys
 
 import numpy as np
 import torch
@@ -83,3 +85,16 @@ class CustomPrettyPrinter(pprint.PrettyPrinter):
         else:
             # Use the standard pretty printing for other types
             super()._format(object, stream, indent, allowance, context, level)
+
+
+@contextlib.contextmanager
+def redirect_stdout(file=open(os.devnull, "w")):
+    stdout_fd = sys.stdout.fileno()
+    stdout_fd_dup = os.dup(stdout_fd)
+    os.dup2(file.fileno(), stdout_fd)
+    file.close()
+    try:
+        yield
+    finally:
+        os.dup2(stdout_fd_dup, stdout_fd)
+        os.close(stdout_fd_dup)

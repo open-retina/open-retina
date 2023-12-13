@@ -1,11 +1,14 @@
 from collections import OrderedDict
 from collections.abc import Iterable
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Literal, Optional, Tuple, Union
 
 import numpy as np
 import torch
+import torch.distributions as dist
 import torch.nn as nn
 import torch.nn.functional as F
+from neuralpredictors.layers.affine import Bias3DLayer, Scale2DLayer, Scale3DLayer
+from neuralpredictors.regularizers import Laplace, Laplace1d, laplace3d
 from neuralpredictors.utils import get_module_output
 
 from .dataloaders import get_dims_for_loader_dict
@@ -46,6 +49,8 @@ def SFB3d_core_SxF3d_readout(
     readout_reg_avg: bool = False,
     use_avg_reg: bool = False,
     data_info: dict = None,
+    nonlinearity: str = "ELU",
+    conv_type: Literal["full", "separable", "custom_separable"] = "custom_separable",
 ):
     """
     Model class of a stacked2dCore (from mlutils) and a pointpooled (spatial transformer) readout
@@ -120,6 +125,8 @@ def SFB3d_core_SxF3d_readout(
         stack=stack,
         batch_adaptation=batch_adaptation,
         use_avg_reg=use_avg_reg,
+        nonlinearity=nonlinearity,
+        conv_type=conv_type,
     )
 
     readout = SpatialXFeature3dReadout(
@@ -156,6 +163,36 @@ def SFB3d_core_SxF3d_readout(
     return model
 
 
+class Core:
+    def initialize(self):
+        raise NotImplementedError("Not initializing")
+
+    def __repr__(self):
+        s = super().__repr__()
+        s += " [{} regularizers: ".format(self.__class__.__name__)
+        ret = []
+        for attr in filter(lambda x: "gamma" in x or "skip" in x, dir(self)):
+            ret.append("{} = {}".format(attr, getattr(self, attr)))
+        return s + "|".join(ret) + "]\n"
+
+
+class Core3d(Core):
+    def initialize(self, cuda=False):
+        self.apply(self.init_conv)
+        self.put_to_cuda(cuda=cuda)
+
+    def put_to_cuda(self, cuda):
+        if cuda:
+            self = self.cuda()
+
+    @staticmethod
+    def init_conv(m):
+        if isinstance(m, nn.Conv3d):
+            nn.init.xavier_normal_(m.weight.data)
+            if m.bias is not None:
+                m.bias.data.fill_(0)
+
+
 class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
     def __init__(
         self,
@@ -181,10 +218,21 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
         stack=None,
         batch_adaptation=True,
         use_avg_reg=False,
+        nonlinearity="ELU",
+        conv_type="full",
     ):
         super().__init__()
         self._input_weights_regularizer_spatial = FlatLaplaceL23dnorm(padding=laplace_padding)
         self._input_weights_regularizer_temporal = TimeLaplaceL23dnorm(padding=laplace_padding)
+
+        if conv_type == "separable":
+            self.conv_class = TorchSTSeparableConv3D
+        elif conv_type == "custom_separable":
+            self.conv_class = STSeparableBatchConv3d
+        elif conv_type == "full":
+            self.conv_class = TorchFullConv3D
+        else:
+            raise ValueError(f"Un-implemented conv_type {conv_type}")
 
         self.num_scans = num_scans
         self.layers = layers
@@ -202,12 +250,8 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
         else:
             self.stack = [range(self.layers)[stack]] if isinstance(stack, int) else stack
 
-        # make log_speeds a list/dict/whatever for every scan
-        # self.log_speeds = torch.nn.ParameterDict({})
         log_speed_dict = dict()
         for k in n_neurons_dict:
-            # self.log_speeds[k] = torch.nn.Parameter(data=torch.zeros(1),
-            #                                  requires_grad=batch_adaptation)
             var_name = "_".join(["log_speed", k])
             log_speed_val = torch.nn.Parameter(data=torch.zeros(1), requires_grad=batch_adaptation)
             setattr(self, var_name, log_speed_val)
@@ -234,7 +278,7 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
 
         # --- first layer
         layer = OrderedDict()
-        layer["conv"] = STSeparableBatchConv3d(
+        layer["conv"] = self.conv_class(
             input_channels,
             hidden_channels[0],
             log_speed_dict,
@@ -245,7 +289,6 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
             num_scans=self.num_scans,
         )
         if batch_norm:
-            #             layer["norm"] = KeywordIgnoringBatchNorm(hidden_channels[0], momentum=momentum, bias=bias, batch_norm_scale=batch_norm_scale)
             layer["norm"] = nn.BatchNorm3d(
                 hidden_channels[0], momentum=momentum, affine=bias and batch_norm_scale
             )  # ok or should we ensure same batch norm?
@@ -255,15 +298,14 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
             elif batch_norm_scale:
                 layer["scale"] = Scale3DLayer(hidden_channels[0])
         if final_nonlinearity:
-            #             layer["nonlin"] = KeywordIgnoringELU(inplace=True) #test ReLU instead of ELU
-            layer["nonlin"] = nn.ELU(inplace=True)
+            layer["nonlin"] = getattr(nn, nonlinearity)()  # TODO add back in place if necessary
         self.features.add_module("layer0", nn.Sequential(layer))
 
         # --- other layers
 
         for l in range(1, self.layers):
             layer = OrderedDict()
-            layer["conv"] = STSeparableBatchConv3d(
+            layer["conv"] = self.conv_class(
                 hidden_channels[l - 1],
                 hidden_channels[l],
                 log_speed_dict,
@@ -274,7 +316,6 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
                 num_scans=self.num_scans,
             )
             if batch_norm:
-                #                 layer["norm"] = KeywordIgnoringBatchNorm(hidden_channels[l], momentum=momentum, bias=bias, batch_norm_scale=batch_norm_scale)
                 layer["norm"] = nn.BatchNorm3d(hidden_channels[l], momentum=momentum, affine=bias and batch_norm_scale)
                 if bias:
                     if not batch_norm_scale:
@@ -282,17 +323,14 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
                 elif batch_norm_scale:
                     layer["scale"] = Scale2DLayer(hidden_channels[l])
             if final_nonlinearity or l < self.layers - 1:
-                #                 layer["nonlin"] = KeywordIgnoringELU(inplace=True)
-                layer["nonlin"] = nn.ELU(inplace=True)
+                layer["nonlin"] = getattr(nn, nonlinearity)()  # TODO add back in place if necessary
             self.features.add_module("layer{}".format(l), nn.Sequential(layer))
 
         self.apply(self.init_conv)
 
     def forward(self, input_, data_key=None):
         ret = []
-        # input_ = input_.repeat(1, self.num_scans, 1, 1, 1) #BS*CDHW
         for l, feat in enumerate(self.features):
-            #             do_skip = l >= 1 and self.skip > 1
             do_skip = False
             input_ = feat((input_ if not do_skip else torch.cat(ret[-min(self.skip, l) :], dim=1), data_key))
             ret.append(input_)
@@ -305,8 +343,6 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
     def group_sparsity(self):  # check if this is really what we want
         ret = 0
         for l in range(1, self.layers):
-            #             ret = ret + (self.features[l].conv.weight_temporal.pow(2).sum([2,3,4]).sqrt().sum(1) /
-            #                          torch.sqrt(1e-8 + self.features[l].conv.weight_temporal.pow(2).sum([1,2,3,4]))).sum()
             ret = (
                 ret
                 + (
@@ -323,7 +359,8 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
             self.features[0].conv.cos_weights,
             self.features[0].conv.temporal_kernel_size,
         )
-        weight = torch.einsum("oidab,oichw->oidhw", weight_temporal, self.features[0].conv.weight_spatial)
+        # abc are dummy dimensions
+        weight = torch.einsum("oitab,oichw->oithw", weight_temporal, self.features[0].conv.weight_spatial)
         ret = (weight.pow(2).sum([2, 3, 4]).sqrt().sum(1) / torch.sqrt(1e-8 + weight.pow(2).sum([1, 2, 3, 4]))).sum()
         return ret
 
@@ -334,12 +371,15 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
         return ret
 
     def regularizer(self):
-        return (
-            self.group_sparsity() * self.gamma_hidden
-            + self.gamma_input * self.spatial_laplace()
-            + self.gamma_temporal * self.temporal_smoothness()
-            + self.group_sparsity0() * self.gamma_in_sparse
-        )
+        if self.conv_class == STSeparableBatchConv3d:
+            return (
+                self.group_sparsity() * self.gamma_hidden
+                + self.gamma_input * self.spatial_laplace()
+                + self.gamma_temporal * self.temporal_smoothness()
+                + self.group_sparsity0() * self.gamma_in_sparse
+            )
+        else:
+            return 0
 
     @property
     def outchannels(self):
@@ -414,8 +454,23 @@ class SpatialXFeature3d(nn.Module):
         scale=False,
         bias=True,
         nonlinearity=True,
-        #         stop_grad=False
     ):
+        """
+        TODO write docstring
+
+        Args:
+            in_shape (tuple): The shape of the input tensor (c, t, w, h).
+            outdims (int): The number of output dimensions (usually the number of neurons in the session).
+            gaussian_masks (bool, optional): Whether to use Gaussian masks. Defaults to False.
+            gaussian_mean_scale (float, optional): The scale factor for the Gaussian mean. Defaults to 1e0.
+            gaussian_var_scale (float, optional): The scale factor for the Gaussian variance. Defaults to 1e0.
+            initialize_from_roi_masks (bool, optional): Whether to initialize from ROI masks. Defaults to False.
+            roi_mask (list, optional): The ROI mask. Defaults to an empty list.
+            positive (bool, optional): Whether the output should be positive. Defaults to False.
+            scale (bool, optional): Whether to include a scale parameter. Defaults to False.
+            bias (bool, optional): Whether to include a bias parameter. Defaults to True.
+            nonlinearity (bool, optional): Whether to include a nonlinearity. Defaults to True.
+        """
         super().__init__()
         self.in_shape = in_shape
         c, t, w, h = in_shape
@@ -426,7 +481,6 @@ class SpatialXFeature3d(nn.Module):
         self.positive = positive
         self.nonlinearity = nonlinearity
         self.initialize_from_roi_masks = initialize_from_roi_masks
-        # roi_mask = roi_mask.to(device="cuda")
 
         if gaussian_masks:
             """we train on the log var and transform to var in a separate step"""
@@ -459,8 +513,6 @@ class SpatialXFeature3d(nn.Module):
 
         self.initialize()
 
-    #         self.stop_grad = stop_grad
-
     def initialize(self, init_noise=1e-3, grid=True):
         if (not self.gaussian_masks) and (not self.initialize_from_roi_masks):
             self.masks.data.normal_(0.0, 0.01)
@@ -485,13 +537,11 @@ class SpatialXFeature3d(nn.Module):
                     torch.exp(self.mask_log_var * self.gaussian_var_scale)[..., subs_idx].mean()
                     + (self.mask_mean[..., subs_idx] * self.gaussian_mean_scale).pow(2).mean()
                 )
-            #                 return self.mask_var_[..., subs_idx].mean() + self.mask_mean[..., subs_idx].pow(2).mean()
             else:
                 return (
                     torch.exp(self.mask_log_var * self.gaussian_var_scale)[..., subs_idx].sum()
                     + (self.mask_mean[..., subs_idx] * self.gaussian_mean_scale).pow(2).sum()
                 )
-        #                 return self.mask_var_[..., subs_idx].sum() + self.mask_mean[..., subs_idx].pow(2).sum()
         else:
             if average:
                 return self.masks[..., subs_idx].abs().mean()
@@ -507,7 +557,7 @@ class SpatialXFeature3d(nn.Module):
         return grid.repeat([self.outdims, 1, 1, 1])
 
     def normal_pdf(self):
-        """Gets the actual mask values in terms of a PDF from the mean and SD (?)"""
+        """Gets the actual mask values in terms of a PDF from the mean and SD"""
         self.mask_var_ = torch.exp(self.mask_log_var * self.gaussian_var_scale).view(-1, 1, 1)
         pdf = self.grid - self.mask_mean.view(self.outdims, 1, 1, -1) * self.gaussian_mean_scale
         pdf = torch.sum(pdf**2, dim=-1) / self.mask_var_
@@ -515,21 +565,7 @@ class SpatialXFeature3d(nn.Module):
         pdf = pdf / torch.sum(pdf, dim=(1, 2), keepdim=True)
         return pdf
 
-    def get_normal_pdf_from_roi_mask(self):
-        self.mask_var_ = self.mask_var.view(-1, 1, 1)
-        pdf = self.grid - self.mask_mean.view(self.outdims, 1, 1, -1)
-        # print("mask var_ shape: {}".format(self.mask_var_.shape))
-        # print("grid shape: {}".format(self.grid.shape))
-        # print("mask mean shape: {}".format(self.mask_mean.view(
-        #     self.outdims, 1, 1, -1).shape))
-        pdf = torch.sum(pdf**2, dim=-1) / self.mask_var_
-        pdf = torch.exp(-0.5 * pdf)
-        pdf = pdf / torch.sum(pdf, dim=(1, 2), keepdim=True)
-        return pdf
-
     def forward(self, x, shift=None, subs_idx=None):
-        #         if self.stop_grad:
-        #             x = x.detach()
         if self.gaussian_masks:
             self.masks = self.normal_pdf().permute(1, 2, 0)
         else:
@@ -540,17 +576,14 @@ class SpatialXFeature3d(nn.Module):
 
         N, c, t, w, h = x.size()
         if subs_idx is not None:
-            feat = self.features[..., subs_idx]  # .contiguous()
-            masks = self.masks[..., subs_idx]  # .contiguous()
-            outdims = feat.size(-1)
-            # feat = feat.view(1, c, outdims)
-            # masks = masks.view(w, h, outdims)
-        else:
-            feat = self.features  # .view(1, c, self.outdims)
-            masks = self.masks
-            outdims = self.outdims
+            feat = self.features[..., subs_idx]
+            masks = self.masks[..., subs_idx]
 
-        y = torch.tensordot(x, masks, dims=([3, 4], [0, 1]))
+        else:
+            feat = self.features
+            masks = self.masks
+
+        y = torch.einsum("nctwh,whd->nctd", x, masks)
         y = (y * feat).sum(1)
 
         if self.scale is not None:
@@ -569,8 +602,6 @@ class SpatialXFeature3d(nn.Module):
         r = self.__class__.__name__ + " (" + "{} x {} x {}".format(c, w, h) + " -> " + str(self.outdims) + ")"
         if self.bias is not None:
             r += " with bias"
-        #         if self.stop_grad:
-        #             r += ", stop_grad=True"
         r += "\n"
 
         for ch in self.children():
@@ -602,3 +633,329 @@ class Encoder(nn.Module):
             x = x.detach()
         x = self.readout(x, data_key=data_key)
         return x
+
+
+def compute_temporal_kernel(log_speed, sin_weights, cos_weights, length):
+    """
+    Computes the temporal kernel for the convolution.
+
+    Args:
+        log_speed (torch.nn.Parameter): Logarithm of the speed factor.
+        sin_weights (torch.nn.Parameter): Sinusoidal weights.
+        cos_weights (torch.nn.Parameter): Cosine weights.
+        length (int): Length of the temporal kernel.
+
+    Returns:
+        torch.Tensor: The temporal kernel.
+    """
+    stretches = torch.exp(log_speed)
+    sines, cosines = STSeparableBatchConv3d.temporal_basis(stretches, length)
+    weights_temporal = torch.sum(sin_weights[:, :, :, None] * sines[None, None, ...], dim=2) + torch.sum(
+        cos_weights[:, :, :, None] * cosines[None, None, ...], dim=2
+    )
+    return weights_temporal[..., None, None]
+
+
+class TorchFullConv3D(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        log_speed_dict: dict,
+        temporal_kernel_size: int,
+        spatial_kernel_size: int,
+        spatial_kernel_size2: Optional[int] = None,
+        stride: int = 1,
+        padding: int = 0,
+        bias: bool = True,
+        num_scans=1,
+    ):
+        super().__init__()
+        # Store log speeds for each data key
+        for key, val in log_speed_dict.items():
+            setattr(self, key, val)
+
+        if spatial_kernel_size2 is None:
+            spatial_kernel_size2 = spatial_kernel_size
+
+        self.conv = nn.Conv3d(
+            in_channels,
+            out_channels,
+            (temporal_kernel_size, spatial_kernel_size, spatial_kernel_size2),
+            stride=stride,
+            padding=padding,
+            bias=bias,
+        )
+
+    def forward(self, input_):
+        x, data_key = input_
+
+        # Compute temporal kernel based on the provided data key
+        if data_key is None:
+            log_speed = torch.nn.Parameter(data=torch.zeros(1, device="cuda"), requires_grad=False)
+        else:
+            log_speed = getattr(self, "_".join(["log_speed", data_key]))
+
+        # TODO implement log speed use in full conv
+
+        return self.conv(x)
+
+
+class TorchSTSeparableConv3D(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        log_speed_dict: dict,
+        temporal_kernel_size: int,
+        spatial_kernel_size: int,
+        spatial_kernel_size2: Optional[int] = None,
+        stride: int = 1,
+        padding: int = 0,
+        bias: bool = True,
+        num_scans=1,
+    ):
+        super().__init__()
+        # Store log speeds for each data key
+        for key, val in log_speed_dict.items():
+            setattr(self, key, val)
+
+        if spatial_kernel_size2 is None:
+            spatial_kernel_size2 = spatial_kernel_size
+
+        self.space_conv = nn.Conv3d(
+            in_channels,
+            out_channels,
+            (1, spatial_kernel_size, spatial_kernel_size2),
+            stride=stride,
+            padding=padding,
+            bias=bias,
+        )
+        self.time_conv = nn.Conv3d(
+            out_channels, out_channels, (temporal_kernel_size, 1, 1), stride=stride, padding=padding, bias=bias
+        )
+
+    def forward(self, input_):
+        x, data_key = input_
+
+        # Compute temporal kernel based on the provided data key
+        if data_key is None:
+            log_speed = torch.nn.Parameter(data=torch.zeros(1, device="cuda"), requires_grad=False)
+        else:
+            log_speed = getattr(self, "_".join(["log_speed", data_key]))
+
+        space_conv = self.space_conv(x)
+
+        return torch.exp(log_speed) * self.time_conv(space_conv)
+
+
+class STSeparableBatchConv3d(nn.Module):
+    """
+    Spatio-temporal separable convolution layer for processing 3D data.
+
+    This layer applies convolution separately in the spatial and temporal dimensions,
+    which is efficient for spatio-temporal data like video or medical images.
+
+    Attributes:
+        in_channels (int): Number of input channels.
+        out_channels (int): Number of output channels.
+        temporal_kernel_size (int): Size of the kernel in the temporal dimension.
+        spatial_kernel_size (int): Size of the kernel in the spatial dimensions.
+        spatial_kernel_size2 (int): Size of the kernel in the second spatial dimension.
+        stride (int): Stride of the convolution.
+        padding (int): Padding added to all sides of the input.
+        num_scans (int): Number of scans for batch processing.
+        bias (bool): If True, adds a learnable bias to the output.
+    """
+
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        log_speed_dict,
+        temporal_kernel_size,
+        spatial_kernel_size,
+        spatial_kernel_size2=None,
+        stride=1,
+        padding=0,
+        num_scans=1,
+        bias=True,
+    ):
+        """
+        Initializes the STSeparableBatchConv3d layer.
+
+        Args:
+            in_channels (int): Number of channels in the input.
+            out_channels (int): Number of channels produced by the convolution.
+            log_speed_dict (dict): Dictionary mapping data keys to log speeds.
+            temporal_kernel_size (int): Size of the temporal kernel.
+            spatial_kernel_size (int): Size of the spatial kernel.
+            spatial_kernel_size2 (int, optional): Size of the second spatial dimension of the kernel.
+            stride (int, optional): Stride of the convolution. Defaults to 1.
+            padding (int, optional): Zero-padding added to all sides of the input. Defaults to 0.
+            num_scans (int, optional): Number of scans to process in batch. Defaults to 1.
+            bias (bool, optional): If True, adds a learnable bias to the output. Defaults to True.
+        """
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.temporal_kernel_size = temporal_kernel_size
+        self.spatial_kernel_size = spatial_kernel_size
+        self.spatial_kernel_size2 = spatial_kernel_size2 if spatial_kernel_size2 is not None else spatial_kernel_size
+        self.stride = stride
+        self.padding = padding
+        self.num_scans = num_scans
+
+        # Initialize temporal weights
+        self.sin_weights, self.cos_weights = self.temporal_weights(temporal_kernel_size, in_channels, out_channels)
+
+        # Initialize spatial weights
+        self.weight_spatial = nn.Parameter(
+            torch.randn(out_channels, in_channels, 1, self.spatial_kernel_size, self.spatial_kernel_size2) * 0.01
+        )
+
+        # Initialize bias if required
+        self.bias = nn.Parameter(torch.zeros(out_channels)) if bias else None
+
+        # Store log speeds for each data key
+        for key, val in log_speed_dict.items():
+            setattr(self, key, val)
+
+    def forward(self, input_):
+        """
+        Forward pass of the STSeparableBatchConv3d layer.
+
+        Args:
+            input_ (tuple): Tuple containing the input tensor and the data key.
+
+        Returns:
+            torch.Tensor: The output of the convolution.
+        """
+        x, data_key = input_
+
+        # Compute temporal kernel based on the provided data key
+        if data_key is None:
+            self.weight_temporal = compute_temporal_kernel(
+                torch.nn.Parameter(data=torch.zeros(1, device="cuda"), requires_grad=False),
+                self.sin_weights,
+                self.cos_weights,
+                self.temporal_kernel_size,
+            )
+        else:
+            log_speed = getattr(self, "_".join(["log_speed", data_key]))
+            self.weight_temporal = compute_temporal_kernel(
+                log_speed, self.sin_weights, self.cos_weights, self.temporal_kernel_size
+            )
+
+        # Assemble the complete weight tensor for convolution
+        # o - output channels, i - input channels, t - temporal kernel size
+        # x - empty dimension, h - spatial kernel size, w - second spatial kernel size
+        self.weight = torch.einsum("oitxx,oixhw->oithw", self.weight_temporal, self.weight_spatial)
+
+        # Perform the convolution
+        self.conv = F.conv3d(x, self.weight, bias=self.bias, stride=self.stride, padding=self.padding)
+        return self.conv
+
+    @staticmethod
+    def temporal_weights(length, num_channels, num_feat, scale=0.01):
+        """
+        Generates initial weights for the temporal components of the convolution.
+
+        Args:
+            length (int): Length of the temporal kernel.
+            num_channels (int): Number of input channels.
+            num_feat (int): Number of output features.
+            scale (float, optional): Scaling factor for weight initialization. Defaults to 0.01.
+
+        Returns:
+            tuple: Tuple containing sin and cos weights.
+        """
+        K = length // 3
+        sin_weights = torch.nn.Parameter(data=torch.randn(num_feat, num_channels, K) * scale, requires_grad=True)
+        cos_weights = torch.nn.Parameter(data=torch.randn(num_feat, num_channels, K) * scale, requires_grad=True)
+        return sin_weights, cos_weights
+
+    @staticmethod
+    def temporal_basis(stretches, T):
+        """
+        Generates the basis for the temporal component of the convolution.
+
+        Args:
+            stretches (torch.Tensor): Temporal stretches per ROI.
+            T (int): Length of the temporal kernel.
+
+        Returns:
+            tuple: Tuple containing sines and cosines tensors.
+        """
+        K = T // 3
+        time = torch.arange(T, dtype=torch.float, device=stretches.device) - T
+        stretched = stretches * time
+        freq = stretched * 2 * np.pi / T
+        mask = STSeparableBatchConv3d.mask_tf(time.T, stretches, T)
+        sines, cosines = [], []
+        for k in range(K):
+            sines.append(mask * torch.sin(freq * k))
+            cosines.append(mask * torch.cos(freq * k))
+        sines = torch.stack(sines, 0)
+        cosines = torch.stack(cosines, 0)
+        return sines, cosines
+
+    @staticmethod
+    def mask_tf(time, stretch, T):
+        """
+        Generates a mask for the temporal basis functions.
+
+        Args:
+            time (torch.Tensor): Time tensor.
+            stretch (torch.Tensor): Stretch tensor.
+            T (int): Length of the temporal kernel.
+
+        Returns:
+            torch.Tensor: The mask tensor.
+        """
+        mask = 1 / (1 + torch.exp(-time - int(T * 0.95) / stretch))
+        return mask.T
+
+
+class TimeLaplaceL23dnorm(nn.Module):
+    """
+    Normalized Laplace regularizer for the temporal component of a separable 3D convolutional layer.
+        returns |laplace(filters)| / |filters|
+    """
+
+    def __init__(self, padding=None):
+        super().__init__()
+        self.laplace = Laplace1d(padding=padding)
+
+    def forward(self, x, avg=False):
+        agg_fn = torch.mean if avg else torch.sum
+
+        oc, ic, k1, k2, k3 = x.size()
+        assert (k2, k3) == (1, 1), "space dimensions must be one"
+        return agg_fn(self.laplace(x.view(oc * ic, 1, k1)).pow(2)) / agg_fn(x.view(oc * ic, 1, k1).pow(2))
+
+
+class FlatLaplaceL23dnorm(nn.Module):
+    """
+    Normalized Laplace regularizer for the spatial component of a separable 3D convolutional layer.
+        returns |laplace(filters)| / |filters|
+    """
+
+    def __init__(self, padding=None):
+        super().__init__()
+        self.laplace = Laplace(padding=padding)
+
+    def forward(self, x, avg=False):
+        agg_fn = torch.mean if avg else torch.sum
+
+        oc, ic, k1, k2, k3 = x.size()
+        assert k1 == 1, "time dimension must be one"
+        return agg_fn(self.laplace(x.view(oc * ic, 1, k2, k3)).pow(2)) / agg_fn(x.view(oc * ic, 1, k2, k3).pow(2))
+
+
+def temporal_smoothing(sin, cos):
+    smoother = torch.linspace(0.1, 0.9, sin.shape[2], device=sin.device)[None, None, :]
+    F = float(sin.shape[0])
+    reg = torch.sum((smoother * sin) ** 2) / F
+    reg += torch.sum((smoother * cos) ** 2) / F
+    return reg

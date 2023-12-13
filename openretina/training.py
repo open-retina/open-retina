@@ -147,11 +147,14 @@ def standard_early_stop_trainer(
             if (batch_no + 1) % optim_step_count == 0:
                 optimizer.step()
                 optimizer.zero_grad()
+        if np.isnan(loss.item()):
+            raise ValueError("Loss is NaN, stopping training")
         if wandb_logger is not None:
             tracker_info = tracker.asdict(make_copy=True)
             wandb.log(
                 {
                     "train_loss": loss.item(),
+                    "lr": optimizer.param_groups[0]["lr"],
                     "epoch": epoch,
                     "val_corr": tracker_info["val_correlation"][-1],
                     "val_poisson_loss": tracker_info["val_poisson_loss"][-1],
