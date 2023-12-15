@@ -77,3 +77,11 @@ postprocessing_config = {
     "x_min_uv": -0.913,
     "x_max_uv": 6.269,
 }
+
+
+pre_normalisation_values = {
+    "channel_0_mean": 37.417128327480455,
+    "channel_0_std": 28.904812895781816,
+    "channel_1_mean": 36.13151406772875,
+    "channel_1_std": 39.84109959857139,
+}

@@ -48,3 +48,5 @@ RGC_GROUP_NAMES_DICT = {
     45: "ON local 1 AC",
     46: "ON local 2 AC",
 }
+
+SCENE_LENGTH = 150  # Frames

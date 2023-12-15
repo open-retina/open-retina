@@ -17,13 +17,11 @@ def undo_video_normalization(
     """
     Undo the normalization of the video.
     """
+    video = video.clone()
     video[0] = video[0] * values_dict["channel_0_std"] + values_dict["channel_0_mean"]
     video[1] = video[1] * values_dict["channel_1_std"] + values_dict["channel_1_mean"]
 
-    if isinstance(video, torch.Tensor):
-        return video.type(torch.int32)
-    else:
-        return video.astype(np.int32)
+    return video.type(torch.int)
 
 
 def update_video(video, ax, frame):
