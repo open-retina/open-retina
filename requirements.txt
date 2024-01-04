@@ -1,0 +1,11 @@
+IPython
+jaxtyping
+matplotlib
+numpy
+pandas
+scipy
+torch
+torchaudio
+torchvision
+wandb
+
