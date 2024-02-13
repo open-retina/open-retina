@@ -1,6 +1,6 @@
 import pickle
 from collections import defaultdict, namedtuple
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import numpy as np
 import torch
@@ -175,3 +175,150 @@ class NeuronGroupMembersStore:
 
     def __repr__(self):
         return self.__str__()
+
+
+class NeuronData:
+    def __init__(
+        self,
+        eye,
+        group_assignment,
+        key,
+        responses_final,
+        roi_coords,
+        roi_ids,
+        scan_sequence_idx,
+        stim_id,
+        traces,
+        tracestimes,
+        random_sequences,
+        val_clip_idx,
+        num_clips,
+        clip_length,
+    ):
+        """
+        Boilerplate class to store neuron data. Added for backwards compatibility with Hoefling et al., 2022.
+        """
+
+        self.eye = eye
+        self.group_assignment = group_assignment
+        self.key = key
+        self.responses_final = responses_final
+        self.roi_coords = roi_coords
+        self.roi_ids = roi_ids
+        self.scan_sequence_idx = scan_sequence_idx
+        self.stim_id = stim_id
+        self.traces = traces
+        self.tracestimes = tracestimes
+        self.clip_length = clip_length
+        self.num_clips = num_clips
+        self.random_sequences = random_sequences
+        self.val_clip_idx = val_clip_idx
+
+    #! this has to become a regular method in the future
+    @property
+    def response_dict(self):
+        num_neurons = self.responses_final.shape[0]
+        movie_ordering = (
+            np.arange(self.num_clips)
+            if len(self.random_sequences) == 0
+            else self.random_sequences[:, self.scan_sequence_idx]
+        )
+
+        if self.stim_id == 0:
+            self.responses_test = self.responses_final[:, : 10 * self.clip_length].T
+            self.responses_train = self.responses_final[:, 10 * self.clip_length :].T
+            self.test_responses_by_trial = None
+        else:
+            self.responses_test = np.zeros((5 * self.clip_length, num_neurons))
+            self.responses_train = np.zeros((self.num_clips * self.clip_length, num_neurons))
+            self.test_responses_by_trial = []
+            for roi in range(num_neurons):
+                tmp = np.vstack(
+                    (
+                        self.responses_final[roi, : 5 * self.clip_length],
+                        self.responses_final[roi, 59 * self.clip_length : 64 * self.clip_length],
+                        self.responses_final[roi, 118 * self.clip_length :],
+                    )
+                )
+                self.test_responses_by_trial.append(tmp)
+                self.responses_test[:, roi] = np.mean(tmp, 0)
+                self.responses_train[:, roi] = np.concatenate(
+                    (
+                        self.responses_final[roi, 5 * self.clip_length : 59 * self.clip_length],
+                        self.responses_final[roi, 64 * self.clip_length : 118 * self.clip_length],
+                    )
+                )
+            self.test_responses_by_trial = np.asarray(self.test_responses_by_trial)
+
+        if self.stim_id == 0:
+            self.responses_val = np.zeros([len(self.val_clip_idx), self.clip_length, num_neurons])
+            for i, ind in enumerate(self.val_clip_idx):
+                self.responses_val[i] = self.responses_train[ind * self.clip_length : (ind + 1) * self.clip_length, :]
+        else:
+            self.responses_val = np.zeros([len(self.val_clip_idx) * self.clip_length, num_neurons])
+            inv_order = np.argsort(movie_ordering)
+            for i, ind1 in enumerate(self.val_clip_idx):
+                ind2 = inv_order[ind1]
+                self.responses_val[i * self.clip_length : (i + 1) * self.clip_length, :] = self.responses_train[
+                    ind2 * self.clip_length : (ind2 + 1) * self.clip_length, :
+                ]
+
+        response_dict = {
+            "train": torch.tensor(self.responses_train).to(torch.float),
+            "validation": torch.tensor(self.responses_val).to(torch.float),
+            "test": {
+                "avg": torch.tensor(self.responses_test).to(torch.float),
+                "by_trial": torch.tensor(self.test_responses_by_trial),
+            },
+        }
+
+        return response_dict
+
+    def transform_roi_mask(self, roi_mask):
+        roi_coords = np.zeros((len(self.roi_ids), 2))
+        for i, roi_id in enumerate(self.roi_ids):
+            single_roi_mask = np.zeros_like(roi_mask)
+            single_roi_mask[roi_mask == -roi_id] = 1
+            roi_coords[i] = self.roi2readout(single_roi_mask)
+        return roi_coords
+
+    def roi2readout(
+        self,
+        single_roi_mask,
+        roi_mask_pixelsize=2,
+        readout_mask_pixelsize=50,
+        x_offset=2.75,
+        y_offset=2.75,
+    ):
+        """
+        Maps a roi mask of a single roi from recording coordinates to model
+        readout coordinates
+        :param single_roi_mask: 2d array with nonzero values indicating the pixels
+                of the current roi
+        :param roi_mask_pixelsize: size of a pixel in the roi mask in um
+        :param readout_mask_pixelsize: size of a pixel in the readout mask in um
+        :param x_offset: x offset indicating the start of the recording field in readout mask
+        :param y_offset: y offset indicating the start of the recording field in readout mask
+        :return:
+        """
+        pixel_factor = readout_mask_pixelsize / roi_mask_pixelsize
+        y, x = np.nonzero(single_roi_mask)
+        y_trans, x_trans = y / pixel_factor, x / pixel_factor
+        y_trans += y_offset
+        x_trans += x_offset
+        x_trans = x_trans.mean()
+        y_trans = y_trans.mean()
+        coords = np.asarray(
+            [
+                self.map_to_range(max=8, val=y_trans),
+                self.map_to_range(max=8, val=x_trans),
+            ],
+            dtype=np.float32,
+        )
+        return coords
+
+    def map_to_range(self, max, val):
+        val = val / max
+        val = val - 0.5
+        val = val * 2
+        return val
