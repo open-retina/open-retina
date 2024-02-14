@@ -96,25 +96,6 @@ def get_movie_dataloader(
     return DataLoader(dataset, sampler=sampler, batch_size=batch_size, drop_last=True if split == "train" else False)
 
 
-def dataloaders_from_dictionaries(
-    dataloaders_dict: dict, movies_dict: dict, batchsize: int = 32, train_chunk_size: Optional[int] = None
-):
-    dataloaders = {}
-    for split in dataloaders_dict.keys():
-        dataloaders[split] = {}
-        for session_key in dataloaders_dict[split].keys():
-            eye = dataloaders_dict[split][session_key]["eye"]
-            dataloader_args = deepcopy(dataloaders_dict[split][session_key])
-            if split == "train" and train_chunk_size is not None:
-                dataloader_args["chunk_size"] = train_chunk_size
-            dataloaders[split][session_key] = get_movie_dataloader(
-                movies_dict[eye][split],
-                **dataloader_args,
-                batch_size=batchsize,
-            )
-    return dataloaders
-
-
 def get_dims_for_loader_dict(dataloaders):
     """
     Borrowed from nnfabrik/utility/nn_helpers.py.
