@@ -1,32 +1,28 @@
 #!/usr/bin/env python3
 
-import collections.abc
+import os
 import pickle
-import pprint
 
 import numpy as np
-import torch
-import wandb
-
-from openretina.dataloaders import dataloaders_from_dictionaries
 from openretina.hoefling_2022_configs import model_config, trainer_config
+from openretina.hoefling_2022_data_io import natmov_dataloaders_v2
 from openretina.hoefling_2022_models import SFB3d_core_SxF3d_readout
-from openretina.misc import CustomPrettyPrinter
-from openretina.plotting import play_stimulus
 from openretina.training import standard_early_stop_trainer as trainer
 
 
 def main() -> None:
     print("Main")
 
-    dataloader_store_folder = "/gpfs01/euler/data/SharedFiles/projects/TP12/"
-    with open(dataloader_store_folder + "dataloaders_stim_8c18928_responses_99c71a0.pkl", "rb") as f:
-        stim_dataloaders_dict = pickle.load(f)
+    data_folder = "/gpfs01/euler/data/SharedFiles/projects/TP12/"
+    data_path = os.path.join(data_folder, "2024-01-11_neuron_data_stim_8c18928_responses_99c71a0.pkl")
+    movies_path = os.path.join(data_folder, "2024-01-11_movies_dict_8c18928.pkl")
+    with open(data_path, "rb") as f:
+        neuron_data_dict = pickle.load(f)
 
-    with open(dataloader_store_folder + "movies_8c18928.pkl", "rb") as f:
+    with open(movies_path + "movies_8c18928.pkl", "rb") as f:
         movies_dict = pickle.load(f)
 
-    dataloaders = dataloaders_from_dictionaries(stim_dataloaders_dict, movies_dict)
+    dataloaders = natmov_dataloaders_v2(neuron_data_dict, movies_dict)
     print("Initialized dataloaders")
 
     model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=dataloaders, seed=42)
@@ -44,4 +40,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

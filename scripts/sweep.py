@@ -1,22 +1,17 @@
-import collections.abc
 import os
 import pickle
-import pprint
 
 import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
 import seaborn as sns
 import torch
-import wandb
-from openretina.dataloaders import dataloaders_from_dictionaries
 from openretina.hoefling_2022_configs import model_config, trainer_config
+from openretina.hoefling_2022_data_io import natmov_dataloaders_v2
 from openretina.hoefling_2022_models import SFB3d_core_SxF3d_readout
-from openretina.misc import CustomPrettyPrinter
-from openretina.plotting import play_stimulus
 from openretina.training import standard_early_stop_trainer as trainer
 
-wandb.login(key="c66bf5a8dca908df0d982467196b2c04cd9f3891")
+import wandb
+
+wandb.login()
 
 
 sweep_configuration = {
@@ -47,13 +42,16 @@ def main():
     model_config["conv_type"] = wandb.config.conv_type
 
     # Load models and data
-    stim_dataloaders_dict = pickle.load(open("/Data/fd_export/dataloaders_stim_8c18928_responses_99c71a0.pkl", "rb"))
-    movies_dict = pickle.load(open("/Data/fd_export/movies_8c18928.pkl", "rb"))
+    base_folder = "/Data/fd_export"
+    data_path = os.path.join(base_folder, "2024-01-11_neuron_data_stim_8c18928_responses_99c71a0.pkl")
+    movies_path = os.path.join(base_folder, "2024-01-11_movies_dict_8c18928.pkl")
+    stim_dataloaders_dict = pickle.load(open(data_path, "rb"))
+    movies_dict = pickle.load(open(movies_path, "rb"))
 
-    dataloaders = dataloaders_from_dictionaries(
+    dataloaders = natmov_dataloaders_v2(
         stim_dataloaders_dict,
         movies_dict,
-        batchsize=wandb.config.batch_size,
+        batch_size=wandb.config.batch_size,
         train_chunk_size=wandb.config.train_chunk_size,
     )
     model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=dataloaders, seed=42)
