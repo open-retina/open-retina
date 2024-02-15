@@ -13,7 +13,7 @@ def optimize_stimulus(
     Optimize a stimulus to maximize a given objective while minimizing a regularizing function.
     The stimulus is modified in place.
     """
-    optimizer = optimizer_init_fn(stimulus)
+    optimizer = optimizer_init_fn([stimulus])
 
     # Could add early stopping interface,
     # e.g. from [pytorch_lightning](https://lightning.ai/docs/pytorch/stable/common/early_stopping.html)

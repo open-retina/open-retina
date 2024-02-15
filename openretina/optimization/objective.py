@@ -13,7 +13,7 @@ class AbstractObjective:
 class SingleNeuronObjective(AbstractObjective):
 
     def __init__(self, model, neuron_idx: int):
-        super.__init__(model)
+        super().__init__(model)
         self._neuron_idx = neuron_idx
 
     def forward(self, stimulus: torch.Tensor) -> torch.Tensor:

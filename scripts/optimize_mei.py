@@ -20,7 +20,7 @@ def main() -> None:
     with open(data_path, "rb") as f:
         neuron_data_dict = pickle.load(f)
 
-    with open(movies_path + "movies_8c18928.pkl", "rb") as f:
+    with open(movies_path, "rb") as f:
         movies_dict = pickle.load(f)
 
     dataloaders = natmov_dataloaders_v2(neuron_data_dict, movies_dict)
@@ -33,8 +33,10 @@ def main() -> None:
     print(f"Init model from {state_dict_path=}")
 
     objective = SingleNeuronObjective(model, neuron_idx=0)
-    stimulus = torch.rand(1, 3, 64, 64)
+    stimulus = torch.rand(1, 3, 64, 64).cuda()
     optimizer_init_fn = partial(torch.optim.SGD, lr=100.0)
+    # Throws: RuntimeError: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
+    # reason probably: not all model parameters are on gpu(?)
     optimize_stimulus(
         stimulus,
         optimizer_init_fn,
