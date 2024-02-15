@@ -32,26 +32,33 @@ def update_video(video, ax, frame):
     """
     ax.clear()
 
-    # Extract the two channels
-    green_channel = video[0, frame].numpy()
-    purple_channel = video[1, frame].numpy()
+    if video.shape[0] == 1:
+        current_frame = video[0, frame].numpy() / video[0, frame].max()
 
-    # Normalize the channels
-    green_normalized = green_channel / green_channel.max()
-    purple_normalized = purple_channel / purple_channel.max()
+    elif video.shape[0] == 2:
+        # Extract the two channels
+        green_channel = video[0, frame].numpy()
+        purple_channel = video[1, frame].numpy()
 
-    # Create an empty RGB image
-    rgb_image = np.zeros((*green_channel.shape, 3))
+        # Normalize the channels
+        green_normalized = green_channel / green_channel.max()
+        purple_normalized = purple_channel / purple_channel.max()
 
-    # Assign green channel to the green color in RGB
-    rgb_image[:, :, 1] = green_normalized
+        # Create an empty RGB image
+        current_frame = np.zeros((*green_channel.shape, 3))
 
-    # Assign purple channel to the blue and red color in RGB (to create purple)
-    rgb_image[:, :, 0] = purple_normalized  # Red
-    rgb_image[:, :, 2] = purple_normalized  # Blue
+        # Assign green channel to the green color in RGB
+        current_frame[:, :, 1] = green_normalized
+
+        # Assign purple channel to the blue and red color in RGB (to create purple)
+        current_frame[:, :, 0] = purple_normalized  # Red
+        current_frame[:, :, 2] = purple_normalized  # Blue
+
+    else:
+        raise NotImplementedError("Only 1 or 2 channels are supported")
 
     # Display the composite image
-    ax.imshow(rgb_image)
+    ax.imshow(current_frame, cmap="gray" if video.shape[0] == 1 else None)
     ax.axis("off")
 
 

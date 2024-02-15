@@ -4,13 +4,14 @@ import pickle
 import matplotlib.pyplot as plt
 import seaborn as sns
 import torch
-import wandb
 from openretina.hoefling_2022_configs import model_config, trainer_config
 from openretina.hoefling_2022_data_io import natmov_dataloaders_v2
 from openretina.hoefling_2022_models import SFB3d_core_SxF3d_readout
 from openretina.training import standard_early_stop_trainer as trainer
 
-wandb.login(key="c66bf5a8dca908df0d982467196b2c04cd9f3891")
+import wandb
+
+wandb.login()
 
 
 sweep_configuration = {
