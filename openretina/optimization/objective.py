@@ -12,12 +12,14 @@ class AbstractObjective:
 
 class SingleNeuronObjective(AbstractObjective):
 
-    def __init__(self, model, neuron_idx: int):
+    def __init__(self, model, neuron_idx: int, data_key: str):
         super().__init__(model)
         self._neuron_idx = neuron_idx
+        self._data_key = data_key
 
     def forward(self, stimulus: torch.Tensor) -> torch.Tensor:
-        responses = self._model.forward(stimulus)
+        responses = self._model.forward(stimulus, data_key=self._data_key)
         single_response = responses[self._neuron_idx]
         # average over time dimension
         single_score = torch.mean(single_response)
+        return single_score

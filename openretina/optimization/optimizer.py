@@ -5,7 +5,7 @@ from torch import Tensor
 def optimize_stimulus(
         stimulus: Tensor,
         optimizer_init_fn: Callable[[List[torch.Tensor]], torch.optim.Optimizer],
-        objective,
+        objective_object,
         stimulus_regularizing_fn: Optional[Callable[[List[torch.Tensor]], torch.Tensor]],
         max_iterations: int = 10,
 ) -> None:
@@ -18,7 +18,8 @@ def optimize_stimulus(
     # Could add early stopping interface,
     # e.g. from [pytorch_lightning](https://lightning.ai/docs/pytorch/stable/common/early_stopping.html)
     for i in range(max_iterations):
-        objective = objective.forward(stimulus)
+        print(f"Running {i}th iteration")
+        objective = objective_object.forward(stimulus)
         # Maximizing the objective, minimizing the regularization loss
         loss = -objective
         if stimulus_regularizing_fn is not None:

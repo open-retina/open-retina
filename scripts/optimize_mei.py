@@ -30,10 +30,13 @@ def main() -> None:
     state_dict_path = "model_state_dict.tmp"
     state_dict = torch.load(state_dict_path)
     model.load_state_dict(state_dict)
+    model.cuda()
     print(f"Init model from {state_dict_path=}")
 
-    objective = SingleNeuronObjective(model, neuron_idx=0)
-    stimulus = torch.rand(1, 3, 64, 64).cuda()
+    # Possible data keys: odict_keys(['1_ventral1_20210929', '2_ventral1_20210929', '1_ventral2_20210929', '2_ventral2_20210929', '3_ventral2_20210929', '4_ventral2_20210929', '5_ventral2_20210929', '1_ventral1_20210930', '1_ventral2_20210930', '2_ventral2_20210930', '3_ventral2_20210930'])
+    objective = SingleNeuronObjective(model, neuron_idx=0, data_key="2_ventral1_20210929")
+    # from controversial stimuli: (2, 50, 18, 16)
+    stimulus = torch.rand(1, 2, 50, 18, 16).cuda()
     optimizer_init_fn = partial(torch.optim.SGD, lr=100.0)
     # Throws: RuntimeError: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
     # reason probably: not all model parameters are on gpu(?)
@@ -42,6 +45,7 @@ def main() -> None:
         optimizer_init_fn,
         objective,
         stimulus_regularizing_fn=None,
+        max_iterations=100,
     )
 
 
