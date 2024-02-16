@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Optional
+from typing import Optional, Any, List
 
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle

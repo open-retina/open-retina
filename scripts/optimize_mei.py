@@ -38,7 +38,9 @@ def main() -> None:
     # Possible data keys: odict_keys(['1_ventral1_20210929', '2_ventral1_20210929', '1_ventral2_20210929', '2_ventral2_20210929', '3_ventral2_20210929', '4_ventral2_20210929', '5_ventral2_20210929', '1_ventral1_20210930', '1_ventral2_20210930', '2_ventral2_20210930', '3_ventral2_20210930'])
     objective = SingleNeuronObjective(model, neuron_idx=0, data_key="2_ventral1_20210929")
     # from controversial stimuli: (2, 50, 18, 16)
-    stimulus = torch.rand(1, 2, 50, 18, 16).cuda()
+    device = "cuda"
+    stimulus_shape = (1, 2, 50, 18, 16)
+    stimulus = torch.randn(stimulus_shape, requires_grad=True, device=device)
     optimizer_init_fn = partial(torch.optim.SGD, lr=100.0)
     # Throws: RuntimeError: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
     # reason probably: not all model parameters are on gpu(?)
@@ -49,9 +51,10 @@ def main() -> None:
         stimulus_regularizing_fn=None,
         max_iterations=100,
     )
+    stimulus_np = stimulus[0].cpu().numpy()
     fig, axes = plt.subplots(2, 2, figsize=(7 * 3, 12))
     plot_stimulus_composition(
-        stimulus=stimulus,
+        stimulus=stimulus_np,
         temporal_trace_ax=axes[0, 0],
         freq_ax=axes[0, 1],
         spatial_ax=axes[1, 0],

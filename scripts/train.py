@@ -28,7 +28,6 @@ def main() -> None:
 
     model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=dataloaders, seed=42)
     print("Init model")
-    trainer_config["max_iter"] = 75
 
     test_score, val_score, output, model_state = trainer(
         model=model,
