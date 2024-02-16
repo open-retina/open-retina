@@ -5,9 +5,11 @@ import pickle
 from functools import partial
 
 import torch
+import matplotlib.pyplot as plt
 from openretina.hoefling_2022_configs import model_config
 from openretina.hoefling_2022_data_io import natmov_dataloaders_v2
 from openretina.hoefling_2022_models import SFB3d_core_SxF3d_readout
+from openretina.plotting import plot_stimulus_composition
 
 from openretina.optimization.optimizer import optimize_stimulus
 from openretina.optimization.objective import SingleNeuronObjective
@@ -47,6 +49,16 @@ def main() -> None:
         stimulus_regularizing_fn=None,
         max_iterations=100,
     )
+    fig, axes = plt.subplots(2, 2, figsize=(7 * 3, 12))
+    plot_stimulus_composition(
+        stimulus=stimulus,
+        temporal_trace_ax=axes[0, 0],
+        freq_ax=axes[0, 1],
+        spatial_ax=axes[1, 0],
+        highlight_x_list=[(40, 49)],
+    )
+    img_path = f"mei_plot_tmp.pdf"
+    fig.savefig(img_path, bbox_inches="tight", facecolor="w", dpi=300)
 
 
 
