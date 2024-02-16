@@ -11,6 +11,7 @@ def no_op_regularizer(stimulus: torch.tensor) -> torch.tensor:
 
 
 """
+So far use the defaults for the mouse retina model
 postprocessing_config = {
     "norm": 30,
     "x_min_green": -0.654,
