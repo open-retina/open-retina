@@ -24,18 +24,22 @@ def range_regularizer_fn(
         stimulus: torch.tensor,
         min_max_values: List[Tuple[float, float]] = [(-0.654, 6.269), (-0.913, 6.269)],
         max_norm: float = 30.0,
-        factor: float = 10.0,
+        factor: float = 0.1,
 ) -> torch.tensor:
     """ Penalizes the stimulus if it is outside the range defined by min_max_values. """
     penalty = 0.0
     for i, (min_val, max_val) in enumerate(min_max_values):
         stimulus_i = stimulus[:, i]
-        penalty += torch.sum(torch.relu(stimulus_i - min_val))
-        penalty += torch.sum(torch.relu(-stimulus_i + max_val))
+        min_penalty = torch.sum(torch.relu(min_val - stimulus_i))
+        max_penalty = torch.sum(torch.relu(stimulus_i - max_val))
+        print(f"{i=} {min_penalty=} {max_penalty=}")
+        penalty += min_penalty + max_penalty
 
     # Add a penalty such that the norm of the stimulus is lower than max_norm
     norm_penalty = torch.relu(torch.norm(stimulus) - max_norm)
+    x_norm = torch.norm(stimulus.view(len(stimulus), -1), dim=-1)
     penalty += norm_penalty
+    print(f"{norm_penalty=}")
 
     penalty *= factor
     return penalty
