@@ -12,6 +12,7 @@ from openretina.hoefling_2022_models import SFB3d_core_SxF3d_readout
 from openretina.plotting import plot_stimulus_composition
 
 from openretina.optimization.optimizer import optimize_stimulus
+from openretina.optimization.regularizer import range_regularizer_fn
 from openretina.optimization.objective import SingleNeuronObjective
 
 
@@ -27,6 +28,7 @@ def main() -> None:
 
     dataloaders = natmov_dataloaders_v2(neuron_data_dict, movies_dict)
     print("Initialized dataloaders")
+    #
 
     model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=dataloaders, seed=42)
     state_dict_path = "model_state_dict.tmp"
@@ -37,16 +39,22 @@ def main() -> None:
 
     # Possible data keys: odict_keys(['1_ventral1_20210929', '2_ventral1_20210929', '1_ventral2_20210929', '2_ventral2_20210929', '3_ventral2_20210929', '4_ventral2_20210929', '5_ventral2_20210929', '1_ventral1_20210930', '1_ventral2_20210930', '2_ventral2_20210930', '3_ventral2_20210930'])
     objective = SingleNeuronObjective(model, neuron_idx=0, data_key="2_ventral1_20210929")
+
     # from controversial stimuli: (2, 50, 18, 16)
     stimulus = torch.rand(1, 2, 50, 18, 16).cuda()
     optimizer_init_fn = partial(torch.optim.SGD, lr=100.0)
+    stimulus_regularizing_fn = partial(
+        range_regularizer_fn,
+        min_max_values=[(0.0, 1.0)],
+        factor=0.1,
+    )
     # Throws: RuntimeError: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
     # reason probably: not all model parameters are on gpu(?)
     optimize_stimulus(
         stimulus,
         optimizer_init_fn,
         objective,
-        stimulus_regularizing_fn=None,
+        stimulus_regularizing_fn=stimulus_regularizing_fn,
         max_iterations=100,
     )
     fig, axes = plt.subplots(2, 2, figsize=(7 * 3, 12))
