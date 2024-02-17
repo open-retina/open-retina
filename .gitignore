@@ -163,3 +163,4 @@ api_keys.sh
 wandb
 data/
 *.tmp
+random.ipynb
