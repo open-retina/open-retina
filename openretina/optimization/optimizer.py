@@ -26,6 +26,7 @@ def optimize_stimulus(
         if stimulus_regularizing_fn is not None:
             regularizer_loss = stimulus_regularizing_fn(stimulus)
             loss += regularizer_loss
+            print(f"{objective=} {regularizer_loss=} {loss=}")
 
         optimizer.zero_grad()
         loss.backward()
