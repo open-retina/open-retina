@@ -36,8 +36,6 @@ def main() -> None:
     model.cuda()
     print(f"Init model from {state_dict_path=}")
 
-    # Possible data keys: odict_keys(['1_ventral1_20210929', '2_ventral1_20210929', '1_ventral2_20210929', '2_ventral2_20210929', '3_ventral2_20210929', '4_ventral2_20210929', '5_ventral2_20210929', '1_ventral1_20210930', '1_ventral2_20210930', '2_ventral2_20210930', '3_ventral2_20210930'])
-
     device = "cuda"
     # from controversial stimuli: (2, 50, 18, 16): (channels, time, height, width)
     stimulus_shape = (1, 2, 50, 18, 16)

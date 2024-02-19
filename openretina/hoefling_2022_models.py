@@ -826,7 +826,7 @@ class LocalEncoder(Encoder):
         return x
 
 
-# Batch adapation model
+# Batch adaption model
 def SFB3d_core_SxF3d_readout(
     dataloaders,
     seed,
