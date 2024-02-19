@@ -4,9 +4,6 @@ import numpy as np
 import scipy
 
 
-# kind of like mei.analysis but without db interactions and without dataframes
-# I'm also unsure if I'm too lazy to deal with dataframes, but I should learn how the analysis works
-# So coding it is a way to understand how everything works
 def butter_lowpass_filter(data: np.array, lowpass_cutoff: float, fs: float, order: int = 5):
     b, a = scipy.signal.butter(order, Wn=lowpass_cutoff, fs=fs, btype="low")
     y = scipy.signal.filtfilt(b, a, data)
@@ -54,8 +51,6 @@ def decompose_kernel(space_time_kernel: np.array, scaling_factor: float = 1.0) -
     abs_max_val = max(np.abs(spatial.min()), np.abs(spatial.max()))
     spatial = spatial / abs_max_val
     temporal = temporal * abs_max_val * scaling_factor
-    # min_peak = np.argmin(temporal)
-    # max_peak = np.argmax(temporal)
     reshaped_spatial = spatial.reshape((dy, dx))
     center_x, center_y = int(dy / 2), int(dx / 2)
     if np.mean(reshaped_spatial[center_x - 3 : center_x + 2, center_y - 3 : center_y + 2]) < 0:

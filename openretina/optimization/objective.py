@@ -19,7 +19,7 @@ class SingleNeuronObjective(AbstractObjective):
 
     def forward(self, stimulus: torch.Tensor) -> torch.Tensor:
         responses = self._model.forward(stimulus, data_key=self._data_key)
-        # responses.shape = (batch, time, neuron) (probably?)
+        # responses.shape = (batch, time, neuron)
         single_response = responses[:, :, self._neuron_idx]
         # average over time dimension
         single_score = torch.mean(single_response)
