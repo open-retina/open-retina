@@ -2,7 +2,6 @@
 Miscellaneous utility functions and classes.
 """
 
-
 import contextlib
 import os
 import pprint
@@ -118,7 +117,8 @@ def print_h5_structure(file_path):
     printer = CustomPrettyPrinter()
     printer.pprint(structure)
 
-def load_dataset_from_h5(file_path, dataset_path:str):
+
+def load_dataset_from_h5(file_path, dataset_path: str):
     """
     Loads a dataset from an HDF5 file.
 
@@ -134,5 +134,4 @@ def load_dataset_from_h5(file_path, dataset_path:str):
             data = file[dataset_path][()]
             return data
         else:
-            print(f"Dataset path {dataset_path} not found in the file.")
-            return None
+            raise FileNotFoundError(f"Dataset path {dataset_path} not found in the file.")

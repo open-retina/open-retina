@@ -4,6 +4,7 @@ from typing import Dict, List
 
 import numpy as np
 import torch
+from jaxtyping import Float
 
 from .constants import RGC_GROUP_NAMES_DICT
 
@@ -180,25 +181,41 @@ class NeuronGroupMembersStore:
 class NeuronData:
     def __init__(
         self,
-        eye,
-        group_assignment,
-        key,
-        responses_final,
-        roi_coords,
-        roi_ids,
-        scan_sequence_idx,
-        stim_id,
+        eye: str,
+        group_assignment: Float[np.ndarray, "n_neurons"],  # noqa
+        key: dict,
+        responses_final: Float[np.ndarray, "n_neurons n_timepoints"],  # noqa
+        roi_coords: Float[np.ndarray, "n_neurons 2"],  # noqa
+        roi_ids: Float[np.ndarray, "n_neurons"],  # noqa
+        scan_sequence_idx: int,
+        stim_id: int,
         traces,
         tracestimes,
-        random_sequences,
-        val_clip_idx,
-        num_clips,
-        clip_length,
+        random_sequences: Float[np.ndarray, "n_clips n_sequences"],  # noqa
+        val_clip_idx: List[int],
+        num_clips: int,
+        clip_length: int,
     ):
         """
+        Initialize the NeuronData object.
         Boilerplate class to store neuron data. Added for backwards compatibility with Hoefling et al., 2022.
-        """
 
+        Args:
+            eye (str): The eye from which the neuron data is recorded.
+            group_assignment (Float[np.ndarray, "n_neurons"]): The group assignment of neurons.
+            key (dict): The key information for the neuron data, includes date, exp_num, experimenter, field_id, stim_id.
+            responses_final (Float[np.ndarray, "n_neurons n_timepoints"]): The final responses of neurons.
+            roi_coords (Float[np.ndarray, "n_neurons 2"]): The coordinates of regions of interest (ROIs).
+            roi_ids (Float[np.ndarray, "n_neurons"]): The IDs of regions of interest (ROIs).
+            scan_sequence_idx (int): The index of the scan sequence.
+            stim_id (int): The ID of the stimulus. 5 is mouse natural scenes.
+            traces: The traces of the neuron data.
+            tracestimes: The timestamps of the traces.
+            random_sequences (Float[np.ndarray, "n_clips n_sequences"]): The random sequences of clips.
+            val_clip_idx (List[int]): The indices of validation clips.
+            num_clips (int): The number of clips.
+            clip_length (int): The length of each clip.
+        """
         self.eye = eye
         self.group_assignment = group_assignment
         self.key = key

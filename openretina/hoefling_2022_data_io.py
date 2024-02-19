@@ -226,16 +226,16 @@ def natmov_dataloaders_v2(
             if not (hasattr(neuron_data, "roi_coords")):
                 neuron_data.roi_mask = []
             dataloaders[fold][session_key] = get_movie_dataloader(
-                movies[neuron_data.eye][fold],
-                neuron_data.response_dict[fold],
-                neuron_data.roi_ids,
-                neuron_data.roi_coords,
-                neuron_data.group_assignment,
-                neuron_data.scan_sequence_idx,
-                fold,
-                clip_chunk_sizes[fold],
-                start_indices[fold],
-                batch_size,
+                movies=movies[neuron_data.eye][fold],
+                responses=neuron_data.response_dict[fold],
+                roi_ids=neuron_data.roi_ids,
+                roi_coords=neuron_data.roi_coords,
+                group_assignment=neuron_data.group_assignment,
+                scan_sequence_idx=neuron_data.scan_sequence_idx,
+                split=fold,
+                chunk_size=clip_chunk_sizes[fold],
+                start_indices=start_indices[fold],
+                batch_size=batch_size,
             )
 
     return dataloaders
