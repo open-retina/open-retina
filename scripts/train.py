@@ -3,6 +3,7 @@
 import os
 import pickle
 
+import torch
 import numpy as np
 from openretina.hoefling_2022_configs import model_config, trainer_config
 from openretina.hoefling_2022_data_io import natmov_dataloaders_v2
@@ -19,7 +20,7 @@ def main() -> None:
     with open(data_path, "rb") as f:
         neuron_data_dict = pickle.load(f)
 
-    with open(movies_path + "movies_8c18928.pkl", "rb") as f:
+    with open(movies_path, "rb") as f:
         movies_dict = pickle.load(f)
 
     dataloaders = natmov_dataloaders_v2(neuron_data_dict, movies_dict)
@@ -36,6 +37,11 @@ def main() -> None:
         wandb_logger=None,
     )
     print(f"Training finished with test_score: {test_score} and val_score: {val_score}")
+
+    state_dict = model.state_dict()
+    state_dict_path = "model_state_dict.tmp"
+    torch.save(model.state_dict(), state_dict_path)
+    print(f"Saved state dict to {state_dict_path}")
 
 
 if __name__ == "__main__":

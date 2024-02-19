@@ -15,154 +15,6 @@ from .dataloaders import get_dims_for_loader_dict
 from .misc import set_seed
 
 
-# Batch adapation model
-def SFB3d_core_SxF3d_readout(
-    dataloaders,
-    seed,
-    hidden_channels: Tuple[int] = (8,),  # core args
-    temporal_kernel_size: Tuple[int] = (21,),
-    spatial_kernel_size: Tuple[int] = (11,),
-    layers: int = 1,
-    gamma_hidden: float = 0,
-    gamma_input: float = 0.1,
-    gamma_temporal: float = 0.1,
-    gamma_in_sparse=0.0,
-    final_nonlinearity: bool = True,
-    core_bias: bool = False,
-    momentum: float = 0.1,
-    input_padding: bool = False,
-    hidden_padding: bool = True,
-    batch_norm: bool = True,
-    batch_norm_scale: bool = False,
-    laplace_padding=None,
-    batch_adaptation: bool = True,
-    readout_scale: bool = False,
-    readout_bias: bool = True,
-    gaussian_masks: bool = False,  # readout args,
-    gamma_readout: float = 0.1,
-    gamma_masks: float = 0,
-    gaussian_mean_scale: float = 1e0,
-    gaussian_var_scale: float = 1e0,
-    initialize_from_roi_masks: bool = False,
-    readout_positive: bool = False,
-    stack=None,
-    readout_reg_avg: bool = False,
-    use_avg_reg: bool = False,
-    data_info: dict = None,
-    nonlinearity: str = "ELU",
-    conv_type: Literal["full", "separable", "custom_separable"] = "custom_separable",
-):
-    """
-    Model class of a stacked2dCore (from mlutils) and a pointpooled (spatial transformer) readout
-    Args:
-        dataloaders: a dictionary of dataloaders, one loader per session
-            in the format {'data_key': dataloader object, .. }
-        seed: random seed
-        elu_offset: Offset for the output non-linearity [F.elu(x + self.offset)]
-        all other args: See Documentation of Stacked2dCore in mlutils.layers.cores and
-            PointPooled2D in mlutils.layers.readouts
-    Returns: An initialized model which consists of model.core and model.readout
-    """
-
-    # make sure trainloader is being used
-    if data_info is not None:
-        in_shapes_dict = {k: v["input_dimensions"] for k, v in data_info.items()}
-        input_channels = [v["input_channels"] for k, v in data_info.items()]
-        n_neurons_dict = {k: v["output_dimension"] for k, v in data_info.items()}
-        roi_masks = {k: torch.tensor(v["roi_coords"]) for k, v in data_info.items()}
-    else:
-        dataloaders = dataloaders.get("train", dataloaders)
-
-        # Obtain the named tuple fields from the first entry of the first dataloader in the dictionary
-        in_name, out_name, *_ = next(iter(list(dataloaders.values())[0]))._fields
-
-        session_shape_dict = get_dims_for_loader_dict(dataloaders)
-        print(session_shape_dict)
-        n_neurons_dict = {
-            k: v[out_name][-1] for k, v in session_shape_dict.items()
-        }  # dictionary containing # neurons per session
-        in_shapes_dict = {
-            k: v[in_name] for k, v in session_shape_dict.items()
-        }  # dictionary containing input shapes per session
-        input_channels = [v[in_name][1] for v in session_shape_dict.values()]  # gets the # of input channels
-        roi_masks = {k: dataloaders[k].dataset.roi_coords for k in dataloaders.keys()}
-    assert np.unique(input_channels).size == 1, "all input channels must be of equal size"
-
-    class LocalEncoder(Encoder):
-        def forward(self, x, data_key=None, detach_core=False, **kwargs):
-            self.detach_core = detach_core
-            if self.detach_core:
-                for name, param in self.core.features.named_parameters():
-                    if name.find("speed") < 0:
-                        param.requires_grad = False
-            x = self.core(x, data_key=data_key)
-            x = self.readout(x, data_key=data_key)
-            return x
-
-    set_seed(seed)
-
-    # get a stacked factorized 3d core from below
-    core = ParametricFactorizedBatchConv3dCore(
-        n_neurons_dict=n_neurons_dict,
-        input_channels=input_channels[0],
-        num_scans=len(n_neurons_dict.keys()),
-        hidden_channels=hidden_channels,
-        temporal_kernel_size=temporal_kernel_size,
-        spatial_kernel_size=spatial_kernel_size,
-        layers=layers,
-        gamma_hidden=gamma_hidden,
-        gamma_input=gamma_input,
-        gamma_in_sparse=gamma_in_sparse,
-        gamma_temporal=gamma_temporal,
-        final_nonlinearity=final_nonlinearity,
-        bias=core_bias,
-        momentum=momentum,
-        input_padding=input_padding,
-        hidden_padding=hidden_padding,
-        batch_norm=batch_norm,
-        batch_norm_scale=batch_norm_scale,
-        laplace_padding=laplace_padding,
-        stack=stack,
-        batch_adaptation=batch_adaptation,
-        use_avg_reg=use_avg_reg,
-        nonlinearity=nonlinearity,
-        conv_type=conv_type,
-    )
-
-    readout = SpatialXFeature3dReadout(
-        core,
-        in_shape_dict=in_shapes_dict,
-        n_neurons_dict=n_neurons_dict,
-        scale=readout_scale,
-        bias=readout_bias,
-        gaussian_masks=gaussian_masks,
-        gaussian_mean_scale=gaussian_mean_scale,
-        gaussian_var_scale=gaussian_var_scale,
-        positive=readout_positive,
-        initialize_from_roi_masks=initialize_from_roi_masks,
-        roi_masks=roi_masks,
-        gamma_readout=gamma_readout,
-        gamma_masks=gamma_masks,
-        readout_reg_avg=readout_reg_avg,
-    )
-
-    # initializing readout bias to mean response
-    if readout_bias == True:
-        if data_info is None:
-            for k in dataloaders:
-                readout[k].bias.data = dataloaders[k].dataset[:]._asdict()[out_name].mean(0)
-        else:
-            for k in data_info.keys():
-                readout[k].bias.data = torch.from_numpy(data_info[k]["mean_response"])
-
-    model = LocalEncoder(
-        core,
-        readout,
-    )
-
-    return model
-
-
 class Core:
     def initialize(self):
         raise NotImplementedError("Not initializing")
@@ -959,3 +811,157 @@ def temporal_smoothing(sin, cos):
     reg = torch.sum((smoother * sin) ** 2) / F
     reg += torch.sum((smoother * cos) ** 2) / F
     return reg
+
+
+class LocalEncoder(Encoder):
+
+    def forward(self, x, data_key=None, detach_core=False, **kwargs):
+        self.detach_core = detach_core
+        if self.detach_core:
+            for name, param in self.core.features.named_parameters():
+                if name.find("speed") < 0:
+                    param.requires_grad = False
+        x = self.core(x, data_key=data_key)
+        x = self.readout(x, data_key=data_key)
+        return x
+
+
+# Batch adaption model
+def SFB3d_core_SxF3d_readout(
+    dataloaders,
+    seed,
+    hidden_channels: Tuple[int] = (8,),  # core args
+    temporal_kernel_size: Tuple[int] = (21,),
+    spatial_kernel_size: Tuple[int] = (11,),
+    layers: int = 1,
+    gamma_hidden: float = 0,
+    gamma_input: float = 0.1,
+    gamma_temporal: float = 0.1,
+    gamma_in_sparse=0.0,
+    final_nonlinearity: bool = True,
+    core_bias: bool = False,
+    momentum: float = 0.1,
+    input_padding: bool = False,
+    hidden_padding: bool = True,
+    batch_norm: bool = True,
+    batch_norm_scale: bool = False,
+    laplace_padding=None,
+    batch_adaptation: bool = True,
+    readout_scale: bool = False,
+    readout_bias: bool = True,
+    gaussian_masks: bool = False,  # readout args,
+    gamma_readout: float = 0.1,
+    gamma_masks: float = 0,
+    gaussian_mean_scale: float = 1e0,
+    gaussian_var_scale: float = 1e0,
+    initialize_from_roi_masks: bool = False,
+    readout_positive: bool = False,
+    stack=None,
+    readout_reg_avg: bool = False,
+    use_avg_reg: bool = False,
+    data_info: dict = None,
+    nonlinearity: str = "ELU",
+    conv_type: Literal["full", "separable", "custom_separable"] = "custom_separable",
+):
+    """
+    Model class of a stacked2dCore (from mlutils) and a pointpooled (spatial transformer) readout
+    Args:
+        dataloaders: a dictionary of dataloaders, one loader per session
+            in the format {'data_key': dataloader object, .. }
+        seed: random seed
+        elu_offset: Offset for the output non-linearity [F.elu(x + self.offset)]
+        all other args: See Documentation of Stacked2dCore in mlutils.layers.cores and
+            PointPooled2D in mlutils.layers.readouts
+    Returns: An initialized model which consists of model.core and model.readout
+    """
+
+    # make sure trainloader is being used
+    if data_info is not None:
+        in_shapes_dict = {k: v["input_dimensions"] for k, v in data_info.items()}
+        input_channels = [v["input_channels"] for k, v in data_info.items()]
+        n_neurons_dict = {k: v["output_dimension"] for k, v in data_info.items()}
+        roi_masks = {k: torch.tensor(v["roi_coords"]) for k, v in data_info.items()}
+    else:
+        dataloaders = dataloaders.get("train", dataloaders)
+
+        # Obtain the named tuple fields from the first entry of the first dataloader in the dictionary
+        in_name, out_name, *_ = next(iter(list(dataloaders.values())[0]))._fields
+
+        session_shape_dict = get_dims_for_loader_dict(dataloaders)
+        print(session_shape_dict)
+        n_neurons_dict = {
+            k: v[out_name][-1] for k, v in session_shape_dict.items()
+        }  # dictionary containing # neurons per session
+        in_shapes_dict = {
+            k: v[in_name] for k, v in session_shape_dict.items()
+        }  # dictionary containing input shapes per session
+        input_channels = [v[in_name][1] for v in session_shape_dict.values()]  # gets the # of input channels
+        roi_masks = {k: dataloaders[k].dataset.roi_coords for k in dataloaders.keys()}
+    assert np.unique(input_channels).size == 1, "all input channels must be of equal size"
+
+
+    set_seed(seed)
+
+    # get a stacked factorized 3d core from below
+    core = ParametricFactorizedBatchConv3dCore(
+        n_neurons_dict=n_neurons_dict,
+        input_channels=input_channels[0],
+        num_scans=len(n_neurons_dict.keys()),
+        hidden_channels=hidden_channels,
+        temporal_kernel_size=temporal_kernel_size,
+        spatial_kernel_size=spatial_kernel_size,
+        layers=layers,
+        gamma_hidden=gamma_hidden,
+        gamma_input=gamma_input,
+        gamma_in_sparse=gamma_in_sparse,
+        gamma_temporal=gamma_temporal,
+        final_nonlinearity=final_nonlinearity,
+        bias=core_bias,
+        momentum=momentum,
+        input_padding=input_padding,
+        hidden_padding=hidden_padding,
+        batch_norm=batch_norm,
+        batch_norm_scale=batch_norm_scale,
+        laplace_padding=laplace_padding,
+        stack=stack,
+        batch_adaptation=batch_adaptation,
+        use_avg_reg=use_avg_reg,
+        nonlinearity=nonlinearity,
+        conv_type=conv_type,
+    )
+
+    readout = SpatialXFeature3dReadout(
+        core,
+        in_shape_dict=in_shapes_dict,
+        n_neurons_dict=n_neurons_dict,
+        scale=readout_scale,
+        bias=readout_bias,
+        gaussian_masks=gaussian_masks,
+        gaussian_mean_scale=gaussian_mean_scale,
+        gaussian_var_scale=gaussian_var_scale,
+        positive=readout_positive,
+        initialize_from_roi_masks=initialize_from_roi_masks,
+        roi_masks=roi_masks,
+        gamma_readout=gamma_readout,
+        gamma_masks=gamma_masks,
+        readout_reg_avg=readout_reg_avg,
+    )
+
+    # initializing readout bias to mean response
+    if readout_bias == True:
+        if data_info is None:
+            for k in dataloaders:
+                readout[k].bias.data = dataloaders[k].dataset[:]._asdict()[out_name].mean(0)
+        else:
+            for k in data_info.keys():
+                readout[k].bias.data = torch.from_numpy(data_info[k]["mean_response"])
+
+    model = LocalEncoder(
+        core,
+        readout,
+    )
+
+    return model
+
+
+
