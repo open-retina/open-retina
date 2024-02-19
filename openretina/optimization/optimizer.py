@@ -7,6 +7,7 @@ def optimize_stimulus(
         optimizer_init_fn: Callable[[List[torch.Tensor]], torch.optim.Optimizer],
         objective_object,
         stimulus_regularizing_fn: Optional[Callable[[List[torch.Tensor]], torch.Tensor]],
+        postprocess_stimulus_fn: Optional[Callable[[List[torch.Tensor]], torch.Tensor]],
         max_iterations: int = 10,
 ) -> None:
     """
@@ -29,4 +30,5 @@ def optimize_stimulus(
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        stimulus.data = postprocess_stimulus_fn(stimulus.data)
     stimulus.detach_()  # Detach the tensor from the computation graph

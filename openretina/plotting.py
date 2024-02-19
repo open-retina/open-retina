@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Optional, Any, List
+from typing import Optional, Any, List, Tuple
 
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
@@ -108,7 +108,7 @@ def plot_stimulus_composition(
     freq_ax: Optional[Any],
     spatial_ax,
     lowpass_cutoff: float = 10.0,
-    highlight_x_list: Optional[List[int]] = None,
+    highlight_x_list: Optional[List[Tuple[int, int]]] = None,
 ):
     color_array = ["darkgreen", "darkviolet"]
     color_channel_names_array = ("Green", "UV")

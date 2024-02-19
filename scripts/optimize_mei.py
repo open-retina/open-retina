@@ -12,7 +12,7 @@ from openretina.hoefling_2022_models import SFB3d_core_SxF3d_readout
 from openretina.plotting import plot_stimulus_composition
 
 from openretina.optimization.optimizer import optimize_stimulus
-from openretina.optimization.regularizer import range_regularizer_fn
+from openretina.optimization.regularizer import range_regularizer_fn, ChangeNormJointlyClipRangeSeparately
 from openretina.optimization.objective import SingleNeuronObjective
 
 
@@ -28,7 +28,6 @@ def main() -> None:
 
     dataloaders = natmov_dataloaders_v2(neuron_data_dict, movies_dict)
     print("Initialized dataloaders")
-    #
 
     model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=dataloaders, seed=42)
     state_dict_path = "model_state_dict.tmp"
@@ -44,6 +43,8 @@ def main() -> None:
     device = "cuda"
     stimulus_shape = (1, 2, 50, 18, 16)
     stimulus = torch.randn(stimulus_shape, requires_grad=True, device=device)
+    stimulus_postprocessor = ChangeNormJointlyClipRangeSeparately()
+    stimulus.data = stimulus_postprocessor.process(stimulus.data)
     optimizer_init_fn = partial(torch.optim.SGD, lr=100.0)
     stimulus_regularizing_fn = partial(
         range_regularizer_fn,
@@ -57,6 +58,7 @@ def main() -> None:
         optimizer_init_fn,
         objective,
         stimulus_regularizing_fn=stimulus_regularizing_fn,
+        postprocess_stimulus_fn=stimulus_postprocessor.process,
         max_iterations=100,
     )
     stimulus_np = stimulus[0].cpu().numpy()

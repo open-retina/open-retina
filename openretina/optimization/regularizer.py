@@ -1,4 +1,5 @@
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Iterable
+import abc
 
 import torch
 
@@ -30,8 +31,9 @@ def range_regularizer_fn(
     penalty = 0.0
     for i, (min_val, max_val) in enumerate(min_max_values):
         stimulus_i = stimulus[:, i]
-        penalty += torch.sum(torch.relu(stimulus_i - min_val))
-        penalty += torch.sum(torch.relu(-stimulus_i + max_val))
+        min_penalty = torch.sum(torch.relu(-stimulus_i + min_val))
+        max_penalty = torch.sum(torch.relu(stimulus_i - max_val))
+        penalty += min_penalty + max_penalty
 
     # Add a penalty such that the norm of the stimulus is lower than max_norm
     norm_penalty = torch.relu(torch.norm(stimulus) - max_norm)
@@ -40,5 +42,40 @@ def range_regularizer_fn(
     penalty *= factor
     return penalty
 
+class StimulusPostprocessor(abc.ABC):
+    """ Base class for stimulus clippers. """
+    @abc.abstractmethod
+    def process(self, x: torch.tensor) -> torch.tensor:
+        """ x.shape: batch x channels x time x n_rows x n_cols """
+        pass
 
+class NoOpStimulusPostprocessor(StimulusPostprocessor):
+    def process(self, x: torch.tensor) -> torch.tensor:
+        return x
 
+class ChangeNormJointlyClipRangeSeparately(StimulusPostprocessor):
+    """ First change the norm and afterward clip the value of x to some specified range """
+    def __init__(
+            self,
+            norm: float = 30.0,
+            min_max_values: Iterable[Tuple[Optional[float], Optional[float]]] = ((-0.654, 6.269), (-0.913, 6.269)),
+    ):
+        self._norm = norm
+        self._min_max_values = list(min_max_values)
+
+    def process(self, x):
+        assert x.shape[1] == len(self._min_max_values), \
+            f"Expected {len(self._min_max_values)} channels in dim 1, got {x.shape=}"
+
+        # Re-normalize
+        x_norm = torch.norm(x.view(len(x), -1), dim=-1)
+        renorm = x * (self._norm / x_norm).view(len(x), *[1] * (x.dim() - 1))
+
+        # Clip
+        clipped_array = []
+        for i, (min_val, max_val) in enumerate(self._min_max_values):
+            clipped = torch.clamp(renorm[:, i], min=min_val, max=max_val)
+            clipped_array.append(clipped)
+        result = torch.stack(clipped_array, dim=1)
+
+        return result
