@@ -19,14 +19,12 @@ def optimize_stimulus(
     # Could add early stopping interface,
     # e.g. from [pytorch_lightning](https://lightning.ai/docs/pytorch/stable/common/early_stopping.html)
     for i in range(max_iterations):
-        print(f"Running {i}th iteration")
         objective = objective_object.forward(stimulus)
         # Maximizing the objective, minimizing the regularization loss
         loss = -objective
         if stimulus_regularizing_fn is not None:
             regularizer_loss = stimulus_regularizing_fn(stimulus)
             loss += regularizer_loss
-            print(f"{objective=} {regularizer_loss=} {loss=}")
 
         optimizer.zero_grad()
         loss.backward()
