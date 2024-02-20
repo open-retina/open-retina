@@ -866,8 +866,10 @@ def SFB3d_core_SxF3d_readout(
     """
     Model class of a stacked2dCore (from mlutils) and a pointpooled (spatial transformer) readout
     Args:
-        dataloaders: a dictionary of dataloaders, one loader per session
-            in the format {'data_key': dataloader object, .. }
+        dataloaders: a dictionary of dataloaders, one loader per sessionin the format:
+            {'train': {'session1': dataloader1, 'session2': dataloader2, ...},
+             'validation': {'session1': dataloader1, 'session2': dataloader2, ...},
+             'test': {'session1': dataloader1, 'session2': dataloader2, ...}}
         seed: random seed
         elu_offset: Offset for the output non-linearity [F.elu(x + self.offset)]
         all other args: See Documentation of Stacked2dCore in mlutils.layers.cores and
@@ -898,7 +900,6 @@ def SFB3d_core_SxF3d_readout(
         input_channels = [v[in_name][1] for v in session_shape_dict.values()]  # gets the # of input channels
         roi_masks = {k: dataloaders[k].dataset.roi_coords for k in dataloaders.keys()}
     assert np.unique(input_channels).size == 1, "all input channels must be of equal size"
-
 
     set_seed(seed)
 
@@ -962,6 +963,3 @@ def SFB3d_core_SxF3d_readout(
     )
 
     return model
-
-
-

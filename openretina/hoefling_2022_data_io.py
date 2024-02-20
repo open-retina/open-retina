@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, TypedDict
 
 import numpy as np
 import torch
@@ -6,6 +6,12 @@ import torch
 from openretina.constants import CLIP_LENGTH, NUM_CLIPS, NUM_VAL_CLIPS
 from openretina.dataloaders import get_movie_dataloader
 from openretina.neuron_data_io import NeuronData
+
+
+class MoviesDict(TypedDict):
+    train: np.ndarray
+    test: np.ndarray
+    random_sequences: Optional[np.ndarray]
 
 
 def get_all_movie_combinations(
@@ -187,16 +193,18 @@ def optimized_gen_start_indices(random_sequences, val_clip_idx, clip_length, chu
 
 def natmov_dataloaders_v2(
     neuron_data_dictionary,
-    movies_dictionary,
+    movies_dictionary: MoviesDict,
     train_chunk_size: int = 50,
     batch_size: int = 32,
     seed: int = 42,
+    num_clips: int = NUM_CLIPS,
+    clip_length: int = CLIP_LENGTH,
+    num_val_clips: int = NUM_VAL_CLIPS,
 ):
     # make sure movies and responses arrive as torch tensors!!!
     rnd = np.random.RandomState(seed)  # make sure whether we want the validation set to depend on the seed
 
-    num_clips, clip_length = NUM_CLIPS, CLIP_LENGTH
-    val_clip_idx = list(rnd.choice(NUM_CLIPS, NUM_VAL_CLIPS, replace=False))
+    val_clip_idx = list(rnd.choice(num_clips, num_val_clips, replace=False))
 
     clip_chunk_sizes = {
         "train": train_chunk_size,
@@ -204,8 +212,11 @@ def natmov_dataloaders_v2(
         "test": 5 * clip_length,
     }
     dataloaders = {"train": {}, "validation": {}, "test": {}}
-    # draw validation indices so that a validation movie can be returned!
-    random_sequences = movies_dictionary["random_sequences"]
+
+    # Get the random sequences of movies presentatios for each session if available
+    random_sequences = movies_dictionary["random_sequences"] if hasattr(movies_dictionary, "random_sequences") else None
+
+    #! TODO handle possibly missing random sequences in movies_dictionary
     movies = get_all_movie_combinations(
         movies_dictionary["train"], movies_dictionary["test"], random_sequences, val_clip_idx=val_clip_idx
     )

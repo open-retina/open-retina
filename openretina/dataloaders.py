@@ -50,15 +50,16 @@ class MovieDataSet(Dataset):
 
 
 class MovieSampler(Sampler):
-    def __init__(self, start_indices, split, chunk_size):
+    def __init__(self, start_indices, split, chunk_size, scene_length=None):
         self.indices = start_indices
         self.split = split
         self.chunk_size = chunk_size
+        self.scene_length = SCENE_LENGTH if scene_length is None else scene_length
 
     def __iter__(self):
         if self.split == "train":
             # Always start the clip from a random point in the scene, within the chosen chunk size
-            shift = np.random.randint(0, min(SCENE_LENGTH - self.chunk_size, self.chunk_size))
+            shift = np.random.randint(0, min(self.scene_length - self.chunk_size, self.chunk_size))
 
             # Shuffle the indices
             indices_shuffling = np.random.permutation(len(self.indices))
@@ -83,6 +84,7 @@ def get_movie_dataloader(
     scan_sequence_idx: Optional[int] = None,
     chunk_size: int = 50,
     batch_size: int = 32,
+    scene_length: Optional[int] = None,
     **kwargs,
 ):
     # for right movie: flip second frame size axis!
@@ -90,10 +92,10 @@ def get_movie_dataloader(
         dataset = MovieDataSet(
             movies[scan_sequence_idx], responses, roi_ids, roi_coords, group_assignment, split, chunk_size
         )
-        sampler = MovieSampler(start_indices[scan_sequence_idx], split, chunk_size)
+        sampler = MovieSampler(start_indices[scan_sequence_idx], split, chunk_size, scene_length=scene_length)
     else:
         dataset = MovieDataSet(movies, responses, roi_ids, roi_coords, group_assignment, split, chunk_size)
-        sampler = MovieSampler(start_indices, split, chunk_size)
+        sampler = MovieSampler(start_indices, split, chunk_size, scene_length=scene_length)
 
     return DataLoader(dataset, sampler=sampler, batch_size=batch_size, drop_last=True if split == "train" else False)
 
