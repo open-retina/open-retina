@@ -1,6 +1,6 @@
 import pickle
 from collections import defaultdict, namedtuple
-from typing import Dict, List
+from typing import Dict, List, Literal, Optional
 
 import numpy as np
 import torch
@@ -181,20 +181,20 @@ class NeuronGroupMembersStore:
 class NeuronData:
     def __init__(
         self,
-        eye: str,
-        group_assignment: Float[np.ndarray, "n_neurons"],  # noqa
-        key: dict,
-        responses_final: Float[np.ndarray, "n_neurons n_timepoints"],  # noqa
-        roi_coords: Float[np.ndarray, "n_neurons 2"],  # noqa
-        roi_ids: Float[np.ndarray, "n_neurons"],  # noqa
-        scan_sequence_idx: int,
-        stim_id: int,
-        traces,
-        tracestimes,
-        random_sequences: Float[np.ndarray, "n_clips n_sequences"],  # noqa
+        responses_final: Float[np.ndarray, "n_neurons n_timepoints"] | dict,  # noqa
+        stim_id: Literal[5, "salamander_natural"],
         val_clip_idx: List[int],
         num_clips: int,
         clip_length: int,
+        roi_coords: Optional[Float[np.ndarray, "n_neurons 2"]] = None,  # noqa
+        roi_ids: Optional[Float[np.ndarray, "n_neurons"]] = None,  # noqa
+        traces: Optional[Float[np.ndarray, "n_neurons n_timepoints"]] = None,  # noqa
+        tracestimes: Optional[Float[np.ndarray, "n_timepoints"]] = None,  # noqa
+        scan_sequence_idx: Optional[int] = None,
+        random_sequences: Optional[Float[np.ndarray, "n_clips n_sequences"]] = None,  # noqa
+        eye: Optional[Literal["left", "right"]] = None,
+        group_assignment: Optional[Float[np.ndarray, "n_neurons"]] = None,  # noqa
+        key: Optional[dict] = None,
     ):
         """
         Initialize the NeuronData object.
@@ -204,7 +204,7 @@ class NeuronData:
             eye (str): The eye from which the neuron data is recorded.
             group_assignment (Float[np.ndarray, "n_neurons"]): The group assignment of neurons.
             key (dict): The key information for the neuron data, includes date, exp_num, experimenter, field_id, stim_id.
-            responses_final (Float[np.ndarray, "n_neurons n_timepoints"]): The final responses of neurons.
+            responses_final (Float[np.ndarray, "n_neurons n_timepoints"]) or dictionary with train and test responses of similar structure: The responses of neurons.
             roi_coords (Float[np.ndarray, "n_neurons 2"]): The coordinates of regions of interest (ROIs).
             roi_ids (Float[np.ndarray, "n_neurons"]): The IDs of regions of interest (ROIs).
             scan_sequence_idx (int): The index of the scan sequence.
@@ -216,10 +216,17 @@ class NeuronData:
             num_clips (int): The number of clips.
             clip_length (int): The length of each clip.
         """
-        self.eye = eye
+        self.neural_responses = responses_final
+
+        self.num_neurons = (
+            self.neural_responses.shape[0]
+            if not isinstance(self.neural_responses, dict)
+            else self.neural_responses["train"].shape[0]
+        )
+
+        self.eye = eye if eye is not None else "right"
         self.group_assignment = group_assignment
         self.key = key
-        self.responses_final = responses_final
         self.roi_coords = roi_coords
         self.roi_ids = roi_ids
         self.scan_sequence_idx = scan_sequence_idx
@@ -228,51 +235,51 @@ class NeuronData:
         self.tracestimes = tracestimes
         self.clip_length = clip_length
         self.num_clips = num_clips
-        self.random_sequences = random_sequences
+        self.random_sequences = random_sequences if random_sequences is not None else np.array([])
         self.val_clip_idx = val_clip_idx
 
     #! this has to become a regular method in the future
     @property
     def response_dict(self):
-        num_neurons = self.responses_final.shape[0]
         movie_ordering = (
             np.arange(self.num_clips)
-            if len(self.random_sequences) == 0
+            if (len(self.random_sequences) == 0 or self.scan_sequence_idx is None)
             else self.random_sequences[:, self.scan_sequence_idx]
         )
 
-        if self.stim_id == 0:
-            self.responses_test = self.responses_final[:, : 10 * self.clip_length].T
-            self.responses_train = self.responses_final[:, 10 * self.clip_length :].T
-            self.test_responses_by_trial = None
-        else:
-            self.responses_test = np.zeros((5 * self.clip_length, num_neurons))
-            self.responses_train = np.zeros((self.num_clips * self.clip_length, num_neurons))
+        if self.stim_id == "salamander_natural":
+            # Transpose the responses to have the shape (n_timepoints, n_neurons)
+            self.responses_test = self.neural_responses["test"].T
+            self.responses_train = self.neural_responses["train"].T
             self.test_responses_by_trial = []
-            for roi in range(num_neurons):
+        else:
+            self.responses_test = np.zeros((5 * self.clip_length, self.num_neurons))
+            self.responses_train = np.zeros((self.num_clips * self.clip_length, self.num_neurons))
+            self.test_responses_by_trial = []
+            for roi in range(self.num_neurons):
                 tmp = np.vstack(
                     (
-                        self.responses_final[roi, : 5 * self.clip_length],
-                        self.responses_final[roi, 59 * self.clip_length : 64 * self.clip_length],
-                        self.responses_final[roi, 118 * self.clip_length :],
+                        self.neural_responses[roi, : 5 * self.clip_length],
+                        self.neural_responses[roi, 59 * self.clip_length : 64 * self.clip_length],
+                        self.neural_responses[roi, 118 * self.clip_length :],
                     )
                 )
                 self.test_responses_by_trial.append(tmp)
                 self.responses_test[:, roi] = np.mean(tmp, 0)
                 self.responses_train[:, roi] = np.concatenate(
                     (
-                        self.responses_final[roi, 5 * self.clip_length : 59 * self.clip_length],
-                        self.responses_final[roi, 64 * self.clip_length : 118 * self.clip_length],
+                        self.neural_responses[roi, 5 * self.clip_length : 59 * self.clip_length],
+                        self.neural_responses[roi, 64 * self.clip_length : 118 * self.clip_length],
                     )
                 )
             self.test_responses_by_trial = np.asarray(self.test_responses_by_trial)
 
-        if self.stim_id == 0:
-            self.responses_val = np.zeros([len(self.val_clip_idx), self.clip_length, num_neurons])
+        if self.stim_id == "salamander_natural":
+            self.responses_val = np.zeros([len(self.val_clip_idx), self.clip_length, self.num_neurons])
             for i, ind in enumerate(self.val_clip_idx):
                 self.responses_val[i] = self.responses_train[ind * self.clip_length : (ind + 1) * self.clip_length, :]
         else:
-            self.responses_val = np.zeros([len(self.val_clip_idx) * self.clip_length, num_neurons])
+            self.responses_val = np.zeros([len(self.val_clip_idx) * self.clip_length, self.num_neurons])
             inv_order = np.argsort(movie_ordering)
             for i, ind1 in enumerate(self.val_clip_idx):
                 ind2 = inv_order[ind1]

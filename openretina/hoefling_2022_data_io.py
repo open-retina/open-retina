@@ -19,6 +19,9 @@ def get_all_movie_combinations(
     movie_test,
     random_sequences: np.ndarray,
     val_clip_idx: Optional[List[int]] = None,
+    num_clips: int = NUM_CLIPS,
+    num_val_clips: int = NUM_VAL_CLIPS,
+    clip_length: int = CLIP_LENGTH,
     seed=1000,
 ):
     """
@@ -39,14 +42,13 @@ def get_all_movie_combinations(
     """
     if val_clip_idx is None:
         rnd = np.random.RandomState(seed)
-        val_clip_idx = list(rnd.choice(NUM_CLIPS, NUM_VAL_CLIPS, replace=False))
+        val_clip_idx = list(rnd.choice(num_clips, num_val_clips, replace=False))
 
     # Convert movie data to tensors
     movie_train = torch.tensor(movie_train, dtype=torch.float)
     movie_test = torch.tensor(movie_test, dtype=torch.float)
 
-    channels, train_length, px_y, px_x = movie_train.shape
-    clip_length = train_length // random_sequences.shape[0]
+    channels, _, px_y, px_x = movie_train.shape
 
     # Prepare validation movie data
     movie_val = torch.zeros((channels, len(val_clip_idx) * clip_length, px_y, px_x), dtype=torch.float)
@@ -201,24 +203,40 @@ def natmov_dataloaders_v2(
     clip_length: int = CLIP_LENGTH,
     num_val_clips: int = NUM_VAL_CLIPS,
 ):
-    # make sure movies and responses arrive as torch tensors!!!
-    rnd = np.random.RandomState(seed)  # make sure whether we want the validation set to depend on the seed
+    assert isinstance(
+        neuron_data_dictionary, dict
+    ), "neuron_data_dictionary should be a dictionary of sessions and their corresponding neuron data."
+    assert (
+        isinstance(movies_dictionary, dict) and "train" in movies_dictionary and "test" in movies_dictionary
+    ), "movies_dictionary should be a dictionary with keys 'train' and 'test'."
+    assert all(
+        field in next(iter(neuron_data_dictionary.values())) for field in ["responses_final", "stim_id"]
+    ), "Check the neuron data dictionary sub-dictionaries for the minimal required fields: 'responses_final' and 'stim_id'."
 
+    # Draw validation clips based on the random seed
+    rnd = np.random.RandomState(seed)
     val_clip_idx = list(rnd.choice(num_clips, num_val_clips, replace=False))
 
     clip_chunk_sizes = {
         "train": train_chunk_size,
         "validation": clip_length,
-        "test": 5 * clip_length,
+        "test": movies_dictionary["test"].shape[1],
     }
     dataloaders = {"train": {}, "validation": {}, "test": {}}
 
     # Get the random sequences of movies presentatios for each session if available
-    random_sequences = movies_dictionary["random_sequences"] if hasattr(movies_dictionary, "random_sequences") else None
+    if "random_sequences" not in movies_dictionary or movies_dictionary["random_sequences"] is None:
+        movie_length = movies_dictionary["train"].shape[1]
+        random_sequences = np.arange(0, movie_length // clip_length)[:, np.newaxis]
+    else:
+        random_sequences = movies_dictionary["random_sequences"]
 
-    #! TODO handle possibly missing random sequences in movies_dictionary
     movies = get_all_movie_combinations(
-        movies_dictionary["train"], movies_dictionary["test"], random_sequences, val_clip_idx=val_clip_idx
+        movies_dictionary["train"],
+        movies_dictionary["test"],
+        random_sequences,
+        val_clip_idx=val_clip_idx,
+        clip_length=clip_length,
     )
     start_indices = gen_start_indices(random_sequences, val_clip_idx, clip_length, train_chunk_size, num_clips)
     for session_key, session_data in neuron_data_dictionary.items():
@@ -234,8 +252,6 @@ def natmov_dataloaders_v2(
         #     print("skipped: {}".format(session_key))
         #     break
         for fold in ["train", "validation", "test"]:
-            if not (hasattr(neuron_data, "roi_coords")):
-                neuron_data.roi_mask = []
             dataloaders[fold][session_key] = get_movie_dataloader(
                 movies=movies[neuron_data.eye][fold],
                 responses=neuron_data.response_dict[fold],
