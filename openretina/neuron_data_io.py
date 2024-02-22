@@ -274,18 +274,18 @@ class NeuronData:
                 )
             self.test_responses_by_trial = np.asarray(self.test_responses_by_trial)
 
-        if self.stim_id == "salamander_natural":
-            self.responses_val = np.zeros([len(self.val_clip_idx), self.clip_length, self.num_neurons])
-            for i, ind in enumerate(self.val_clip_idx):
-                self.responses_val[i] = self.responses_train[ind * self.clip_length : (ind + 1) * self.clip_length, :]
-        else:
-            self.responses_val = np.zeros([len(self.val_clip_idx) * self.clip_length, self.num_neurons])
-            inv_order = np.argsort(movie_ordering)
-            for i, ind1 in enumerate(self.val_clip_idx):
-                ind2 = inv_order[ind1]
-                self.responses_val[i * self.clip_length : (i + 1) * self.clip_length, :] = self.responses_train[
-                    ind2 * self.clip_length : (ind2 + 1) * self.clip_length, :
-                ]
+        # if self.stim_id == "salamander_natural":
+        #     self.responses_val = np.zeros([len(self.val_clip_idx), self.clip_length, self.num_neurons])
+        #     for i, ind in enumerate(self.val_clip_idx):
+        #         self.responses_val[i] = self.responses_train[ind * self.clip_length : (ind + 1) * self.clip_length, :]
+        # else:
+        self.responses_val = np.zeros([len(self.val_clip_idx) * self.clip_length, self.num_neurons])
+        inv_order = np.argsort(movie_ordering)
+        for i, ind1 in enumerate(self.val_clip_idx):
+            ind2 = inv_order[ind1]
+            self.responses_val[i * self.clip_length : (i + 1) * self.clip_length, :] = self.responses_train[
+                ind2 * self.clip_length : (ind2 + 1) * self.clip_length, :
+            ]
 
         response_dict = {
             "train": torch.tensor(self.responses_train).to(torch.float),

@@ -14,6 +14,8 @@ from neuralpredictors.utils import get_module_output
 from .dataloaders import get_dims_for_loader_dict
 from .misc import set_seed
 
+DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
+
 
 class Core:
     def initialize(self):
@@ -72,6 +74,7 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
         use_avg_reg=False,
         nonlinearity="ELU",
         conv_type="full",
+        device=DEVICE,
     ):
         super().__init__()
         self._input_weights_regularizer_spatial = FlatLaplaceL23dnorm(padding=laplace_padding)
@@ -139,6 +142,7 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
             bias=False,
             padding=input_pad,
             num_scans=self.num_scans,
+            device=device,
         )
         if batch_norm:
             layer["norm"] = nn.BatchNorm3d(
@@ -521,9 +525,11 @@ class TorchFullConv3D(nn.Module):
         padding: int = 0,
         bias: bool = True,
         num_scans=1,
+        device=DEVICE,
     ):
         super().__init__()
         # Store log speeds for each data key
+        self.device = device
         for key, val in log_speed_dict.items():
             setattr(self, key, val)
 
@@ -544,7 +550,7 @@ class TorchFullConv3D(nn.Module):
 
         # Compute temporal kernel based on the provided data key
         if data_key is None:
-            log_speed = torch.nn.Parameter(data=torch.zeros(1, device="cuda"), requires_grad=False)
+            log_speed = torch.nn.Parameter(data=torch.zeros(1, device=self.device), requires_grad=False)
         else:
             log_speed = getattr(self, "_".join(["log_speed", data_key]))
 
@@ -566,8 +572,10 @@ class TorchSTSeparableConv3D(nn.Module):
         padding: int = 0,
         bias: bool = True,
         num_scans=1,
+        device=DEVICE,
     ):
         super().__init__()
+        self.device = device
         # Store log speeds for each data key
         for key, val in log_speed_dict.items():
             setattr(self, key, val)
@@ -592,7 +600,7 @@ class TorchSTSeparableConv3D(nn.Module):
 
         # Compute temporal kernel based on the provided data key
         if data_key is None:
-            log_speed = torch.nn.Parameter(data=torch.zeros(1, device="cuda"), requires_grad=False)
+            log_speed = torch.nn.Parameter(data=torch.zeros(1, device=self.device), requires_grad=False)
         else:
             log_speed = getattr(self, "_".join(["log_speed", data_key]))
 
@@ -632,6 +640,7 @@ class STSeparableBatchConv3d(nn.Module):
         padding=0,
         num_scans=1,
         bias=True,
+        device=DEVICE,
     ):
         """
         Initializes the STSeparableBatchConv3d layer.
@@ -657,6 +666,7 @@ class STSeparableBatchConv3d(nn.Module):
         self.stride = stride
         self.padding = padding
         self.num_scans = num_scans
+        self.device = device
 
         # Initialize temporal weights
         self.sin_weights, self.cos_weights = self.temporal_weights(temporal_kernel_size, in_channels, out_channels)
@@ -688,7 +698,7 @@ class STSeparableBatchConv3d(nn.Module):
         # Compute temporal kernel based on the provided data key
         if data_key is None:
             self.weight_temporal = compute_temporal_kernel(
-                torch.nn.Parameter(data=torch.zeros(1, device="cuda"), requires_grad=False),
+                torch.nn.Parameter(data=torch.zeros(1, device=self.device), requires_grad=False),
                 self.sin_weights,
                 self.cos_weights,
                 self.temporal_kernel_size,
@@ -862,6 +872,7 @@ def SFB3d_core_SxF3d_readout(
     data_info: dict = None,
     nonlinearity: str = "ELU",
     conv_type: Literal["full", "separable", "custom_separable"] = "custom_separable",
+    device=DEVICE,
 ):
     """
     Model class of a stacked2dCore (from mlutils) and a pointpooled (spatial transformer) readout
@@ -929,6 +940,7 @@ def SFB3d_core_SxF3d_readout(
         use_avg_reg=use_avg_reg,
         nonlinearity=nonlinearity,
         conv_type=conv_type,
+        device=device,
     )
 
     readout = SpatialXFeature3dReadout(

@@ -58,27 +58,29 @@ def get_all_movie_combinations(
         ]
 
     # Initialize movie dictionaries
+    multiple_train_movies = True if random_sequences.shape[1] > 1 else False
+
     movies = {
         "left": {
-            "train": {},
+            "train": {} if multiple_train_movies else torch.flip(movie_train, [-1]),
             "validation": torch.flip(movie_val, [-1]),
             "test": torch.flip(movie_test, [-1]),
         },
-        "right": {"train": {}, "validation": movie_val, "test": movie_test},
+        "right": {"train": {} if multiple_train_movies else movie_train, "validation": movie_val, "test": movie_test},
+        "val_clip_idx": val_clip_idx,
     }
 
-    # Process training movies for each random sequence
-    for i in range(random_sequences.shape[1]):
-        reordered_movie = torch.zeros_like(movie_train)
-        for k, ind in enumerate(random_sequences[:, i]):
-            reordered_movie[:, k * clip_length : (k + 1) * clip_length] = movie_train[
-                :, ind * clip_length : (ind + 1) * clip_length
-            ]
+    # Process training movies for each random sequence, if multiple
+    if multiple_train_movies:
+        for i in range(random_sequences.shape[1]):
+            reordered_movie = torch.zeros_like(movie_train)
+            for k, ind in enumerate(random_sequences[:, i]):
+                reordered_movie[:, k * clip_length : (k + 1) * clip_length] = movie_train[
+                    :, ind * clip_length : (ind + 1) * clip_length
+                ]
 
-        movies["right"]["train"][i] = reordered_movie
-        movies["left"]["train"][i] = torch.flip(reordered_movie, [-1])
-
-    movies["val_clip_idx"] = val_clip_idx
+            movies["right"]["train"][i] = reordered_movie
+            movies["left"]["train"][i] = torch.flip(reordered_movie, [-1])
 
     return movies
 
@@ -139,6 +141,9 @@ def gen_start_indices(random_sequences, val_clip_idx, clip_length, chunk_size, n
             idx = np.arange(start, start + length - chunk_size + 1, chunk_size)
             chunk_start_idx += list(idx[:-1])
         start_idx_dict["train"][i] = chunk_start_idx
+    
+    if len(start_idx_dict["train"]) == 1:
+        start_idx_dict["train"] = start_idx_dict["train"][0]
     return start_idx_dict
 
 
@@ -263,6 +268,7 @@ def natmov_dataloaders_v2(
                 chunk_size=clip_chunk_sizes[fold],
                 start_indices=start_indices[fold],
                 batch_size=batch_size,
+                scene_length=clip_length,
             )
 
     return dataloaders

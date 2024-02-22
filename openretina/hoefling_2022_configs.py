@@ -43,7 +43,6 @@ trainer_config = {
     "avg_loss": False,
     "loss_function": "PoissonLoss3d",
     "stop_function": "corr_stop3d",
-    "device": "cuda",
     "parallel": True,
 }
 
