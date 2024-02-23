@@ -12,8 +12,8 @@ from tqdm.auto import tqdm
 from . import measures, metrics
 from .cyclers import LongCycler
 from .early_stopping import early_stopping
-from .tracking import MultipleObjectiveTracker
 from .misc import set_seed
+from .tracking import MultipleObjectiveTracker
 
 
 def standard_early_stop_trainer(
@@ -51,10 +51,9 @@ def standard_early_stop_trainer(
             loss_scale = np.sqrt(m / k)
         else:
             loss_scale = 1.0
-        return (
-            loss_scale * criterion(model(inputs.to(device), data_key, detach_core=detach_core), targets.to(device))
-            + regularizers
-        )
+
+        predictions = model(inputs.to(device), data_key, detach_core=detach_core)
+        return loss_scale * criterion(predictions, targets.to(device)) + regularizers
 
     trainloaders = dataloaders["train"]
     valloaders = dataloaders.get("validation", dataloaders["val"] if "val" in dataloaders.keys() else None)
