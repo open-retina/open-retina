@@ -450,7 +450,7 @@ class SpatialXFeature3d(nn.Module):
             else:
                 y = y + self.bias[subs_idx]
         if self.nonlinearity:
-            y = torch.log(torch.exp(y) + 1)
+            y = F.softplus(y)
         return y
 
     def __repr__(self):
