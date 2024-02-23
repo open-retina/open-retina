@@ -102,7 +102,7 @@ def gen_start_indices(random_sequences, val_clip_idx, clip_length, chunk_size, n
     Returns:
         dict: A dictionary with keys "train", "validation", and "test", and index lists as values.
     """
-    val_start_idx = list(np.linspace(0, clip_length * (len(val_clip_idx) - 1), len(val_clip_idx), dtype=int))
+    val_start_idx = [val_clip_start * clip_length for val_clip_start in val_clip_idx]
 
     start_idx_dict = {"train": {}, "validation": val_start_idx, "test": [0]}
     for i in range(random_sequences.shape[1]):  # iterate over the 20 different movie permutations
@@ -141,7 +141,7 @@ def gen_start_indices(random_sequences, val_clip_idx, clip_length, chunk_size, n
             idx = np.arange(start, start + length - chunk_size + 1, chunk_size)
             chunk_start_idx += list(idx[:-1])
         start_idx_dict["train"][i] = chunk_start_idx
-    
+
     if len(start_idx_dict["train"]) == 1:
         start_idx_dict["train"] = start_idx_dict["train"][0]
     return start_idx_dict
@@ -252,6 +252,8 @@ def natmov_dataloaders_v2(
             num_clips=num_clips,
             clip_length=clip_length,
         )
+        print(val_clip_idx)
+        print(start_indices["validation"])
 
         # if neuron_data.responses_train.shape[-1] == 0:
         #     print("skipped: {}".format(session_key))
