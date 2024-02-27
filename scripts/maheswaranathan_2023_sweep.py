@@ -2,27 +2,29 @@ import os
 import pickle
 
 import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
 import torch
+
+import wandb
 from openretina.hoefling_2022_configs import model_config, trainer_config
 from openretina.hoefling_2022_data_io import natmov_dataloaders_v2
 from openretina.hoefling_2022_models import SFB3d_core_SxF3d_readout
+from openretina.maheswaranathan_2023_data_io import CLIP_LENGTH, load_all_sessions
 from openretina.training import standard_early_stop_trainer as trainer
-
-import wandb
 
 wandb.login()
 
 
 sweep_configuration = {
     "method": "bayes",
-    "name": "Hoefling 2022 sweep",
+    "name": "Maheswaranathan 2023 sweep",
     "metric": {"goal": "maximize", "name": "val_corr"},
     "parameters": {
         "batch_size": {"values": [16, 32, 64]},
         "lr_init": {"max": 0.1, "min": 0.0001},
         "lr_decay_steps": {"values": [1, 2, 3, 4, 5]},
-        "train_chunk_size": {"values": [50, 60, 90, 120]},
+        "train_chunk_size": {"values": [50, 60, 90]},
         "nonlinearity": {"values": ["ELU", "ReLU", "GELU", "Softplus"]},
         "conv_type": {"values": ["separable", "custom_separable", "full"]},
     },
@@ -42,17 +44,20 @@ def main():
     model_config["conv_type"] = wandb.config.conv_type
 
     # Load models and data
-    base_folder = "/Data/fd_export"
-    data_path = os.path.join(base_folder, "2024-01-11_neuron_data_stim_8c18928_responses_99c71a0.pkl")
-    movies_path = os.path.join(base_folder, "2024-01-11_movies_dict_8c18928.pkl")
-    stim_dataloaders_dict = pickle.load(open(data_path, "rb"))
-    movies_dict = pickle.load(open(movies_path, "rb"))
+    base_folder = "/Data/"
+    data_path = os.path.join(base_folder, "baccus_data/neural_code_data/ganglion_cell_data/")
+    neuron_data_dict, movies_dict = load_all_sessions(data_path, fr_normalization=1)
+
+    movie_length = movies_dict["train"].shape[1]
 
     dataloaders = natmov_dataloaders_v2(
-        stim_dataloaders_dict,
+        neuron_data_dict,
         movies_dict,
-        batch_size=wandb.config.batch_size,
-        train_chunk_size=wandb.config.train_chunk_size,
+        train_chunk_size=50,
+        batch_size=32,
+        clip_length=90,
+        num_clips=len(np.arange(0, movie_length // CLIP_LENGTH)),
+        num_val_clips=20,
     )
     model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=dataloaders, seed=42)
 
@@ -112,4 +117,5 @@ def main():
     wandb.log({"reconstruction": fig})
 
 
-wandb.agent(sweep_id, function=main, count=50)
+if __name__ == "__main__":
+    wandb.agent(sweep_id, function=main, count=50)
