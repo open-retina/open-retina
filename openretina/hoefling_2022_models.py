@@ -414,10 +414,12 @@ class SpatialXFeature3d(nn.Module):
 
     def normal_pdf(self):
         """Gets the actual mask values in terms of a PDF from the mean and SD"""
-        self.mask_var_ = torch.exp(self.mask_log_var * self.gaussian_var_scale).view(-1, 1, 1)
+        # self.mask_var_ = torch.exp(self.mask_log_var * self.gaussian_var_scale).view(-1, 1, 1)
+        scaled_log_var = self.mask_log_var * self.gaussian_var_scale
+        self.mask_var_ = torch.exp(torch.clamp(scaled_log_var, min=-20, max=20)).view(-1, 1, 1)
         pdf = self.grid - self.mask_mean.view(self.outdims, 1, 1, -1) * self.gaussian_mean_scale
         pdf = torch.sum(pdf**2, dim=-1) / (self.mask_var_ + 1e-8)
-        pdf = torch.exp(-0.5 * pdf)
+        pdf = torch.exp(-0.5 * torch.clamp(pdf, max=20))
         normalisation = torch.sum(pdf, dim=(1, 2), keepdim=True)
         pdf = torch.nan_to_num(pdf / normalisation)
         return pdf
