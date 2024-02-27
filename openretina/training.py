@@ -1,3 +1,5 @@
+import datetime
+import os
 from functools import partial
 
 try:
@@ -145,7 +147,7 @@ def standard_early_stop_trainer(
                 optimizer.step()
                 optimizer.zero_grad()
         if np.isnan(loss.item()):
-            raise ValueError("Loss is NaN, stopping training")
+            raise ValueError(f"Loss is NaN on batch {batch_no}, stopping training")
         if wandb_logger is not None:
             tracker_info = tracker.asdict(make_copy=True)
             wandb.log(
@@ -171,3 +173,27 @@ def standard_early_stop_trainer(
     output = tracker.asdict()
 
     return avg_test_corr, avg_val_corr, output, model.state_dict()
+
+
+def save_checkpoint(model, optimizer, epoch, loss, save_folder, model_name):
+    if not os.path.exists(save_folder):
+        # only create the lower level directory if it does not exist
+        os.mkdir(save_folder)
+    date = datetime.datetime.now().strftime("%Y-%m-%d")
+    torch.save(
+        {
+            "epoch": epoch,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "loss": loss,
+        },
+        os.path.join(save_folder, f"{model_name}_{date}_checkpoint.pt"),
+    )
+
+
+def save_model(model: torch.nn.Module, save_folder: str, model_name: str) -> None:
+    if not os.path.exists(save_folder):
+        # only create the lower level directory if it does not exist
+        os.mkdir(save_folder)
+    date = datetime.datetime.now().strftime("%Y-%m-%d")
+    torch.save(model.state_dict(), os.path.join(save_folder, f"{model_name}_{date}_model_weights.pt"))

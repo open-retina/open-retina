@@ -20,11 +20,12 @@ sweep_configuration = {
     "metric": {"goal": "maximize", "name": "val_corr"},
     "parameters": {
         "batch_size": {"values": [16, 32, 64]},
-        "lr_init": {"max": 0.1, "min": 0.0001},
-        "lr_decay_steps": {"values": [1, 2, 3, 4, 5]},
+        "lr_init": {"values": [0.05, 0.01, 0.005, 0.001]},
         "train_chunk_size": {"values": [50, 60, 90, 120]},
-        "nonlinearity": {"values": ["ELU", "ReLU", "GELU", "Softplus"]},
-        "conv_type": {"values": ["separable", "custom_separable", "full"]},
+        "nonlinearity": {"values": ["ELU", "ReLU", "GELU", "SiLU"]},
+        "conv_type": {"values": ["custom_separable", "full"]},
+        "loss_function": {"values": ["PoissonLoss3d", "MSE3d"]},
+        "patience": {"values": [5, 10, 15]},
     },
 }
 
@@ -37,7 +38,8 @@ def main():
     # note that we define values from `wandb.config`
     # instead of defining hard values
     trainer_config["lr_init"] = wandb.config.lr_init
-    trainer_config["lr_decay_steps"] = wandb.config.lr_decay_steps
+    trainer_config["patience"] = wandb.config.patience
+    trainer_config["loss_function"] = wandb.config.loss_function
     model_config["nonlinearity"] = wandb.config.nonlinearity
     model_config["conv_type"] = wandb.config.conv_type
 
@@ -53,6 +55,7 @@ def main():
         movies_dict,
         batch_size=wandb.config.batch_size,
         train_chunk_size=wandb.config.train_chunk_size,
+        seed=1000,
     )
     model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=dataloaders, seed=42)
 

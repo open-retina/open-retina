@@ -131,7 +131,7 @@ def load_dataset_from_h5(file_path, dataset_path: str):
     """
     with h5.File(file_path, "r") as file:
         if dataset_path in file:
-            data = file[dataset_path][()]
+            data = file[dataset_path][()]  # type: ignores
             return data
         else:
             raise FileNotFoundError(f"Dataset path {dataset_path} not found in the file.")
