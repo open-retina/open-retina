@@ -5,6 +5,8 @@ import numpy as np
 
 from .misc import load_dataset_from_h5
 
+CLIP_LENGTH = 90  # in frames @ 30 fps
+
 
 def load_all_sessions(base_data_path, response_type="firing_rate_20ms", stim_type="naturalscene", fr_normalization=1):
     """
