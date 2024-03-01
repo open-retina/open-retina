@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, TypedDict
 
 import numpy as np
 import torch
@@ -8,11 +8,20 @@ from openretina.dataloaders import get_movie_dataloader
 from openretina.neuron_data_io import NeuronData
 
 
+class MoviesDict(TypedDict):
+    train: np.ndarray
+    test: np.ndarray
+    random_sequences: Optional[np.ndarray]
+
+
 def get_all_movie_combinations(
     movie_train,
     movie_test,
     random_sequences: np.ndarray,
     val_clip_idx: Optional[List[int]] = None,
+    num_clips: int = NUM_CLIPS,
+    num_val_clips: int = NUM_VAL_CLIPS,
+    clip_length: int = CLIP_LENGTH,
     seed=1000,
 ):
     """
@@ -33,14 +42,13 @@ def get_all_movie_combinations(
     """
     if val_clip_idx is None:
         rnd = np.random.RandomState(seed)
-        val_clip_idx = list(rnd.choice(NUM_CLIPS, NUM_VAL_CLIPS, replace=False))
+        val_clip_idx = list(rnd.choice(num_clips, num_val_clips, replace=False))
 
     # Convert movie data to tensors
     movie_train = torch.tensor(movie_train, dtype=torch.float)
     movie_test = torch.tensor(movie_test, dtype=torch.float)
 
-    channels, train_length, px_y, px_x = movie_train.shape
-    clip_length = train_length // random_sequences.shape[0]
+    channels, _, px_y, px_x = movie_train.shape
 
     # Prepare validation movie data
     movie_val = torch.zeros((channels, len(val_clip_idx) * clip_length, px_y, px_x), dtype=torch.float)
@@ -50,27 +58,29 @@ def get_all_movie_combinations(
         ]
 
     # Initialize movie dictionaries
+    multiple_train_movies = True if random_sequences.shape[1] > 1 else False
+
     movies = {
         "left": {
-            "train": {},
+            "train": {} if multiple_train_movies else torch.flip(movie_train, [-1]),
             "validation": torch.flip(movie_val, [-1]),
             "test": torch.flip(movie_test, [-1]),
         },
-        "right": {"train": {}, "validation": movie_val, "test": movie_test},
+        "right": {"train": {} if multiple_train_movies else movie_train, "validation": movie_val, "test": movie_test},
+        "val_clip_idx": val_clip_idx,
     }
 
-    # Process training movies for each random sequence
-    for i in range(random_sequences.shape[1]):
-        reordered_movie = torch.zeros_like(movie_train)
-        for k, ind in enumerate(random_sequences[:, i]):
-            reordered_movie[:, k * clip_length : (k + 1) * clip_length] = movie_train[
-                :, ind * clip_length : (ind + 1) * clip_length
-            ]
+    # Process training movies for each random sequence, if multiple
+    if multiple_train_movies:
+        for i in range(random_sequences.shape[1]):
+            reordered_movie = torch.zeros_like(movie_train)
+            for k, ind in enumerate(random_sequences[:, i]):
+                reordered_movie[:, k * clip_length : (k + 1) * clip_length] = movie_train[
+                    :, ind * clip_length : (ind + 1) * clip_length
+                ]
 
-        movies["right"]["train"][i] = reordered_movie
-        movies["left"]["train"][i] = torch.flip(reordered_movie, [-1])
-
-    movies["val_clip_idx"] = val_clip_idx
+            movies["right"]["train"][i] = reordered_movie
+            movies["left"]["train"][i] = torch.flip(reordered_movie, [-1])
 
     return movies
 
@@ -92,6 +102,7 @@ def gen_start_indices(random_sequences, val_clip_idx, clip_length, chunk_size, n
     Returns:
         dict: A dictionary with keys "train", "validation", and "test", and index lists as values.
     """
+    # Validation clip indices are consecutive, because the validation clip and stimuli are already isolated in other functions.
     val_start_idx = list(np.linspace(0, clip_length * (len(val_clip_idx) - 1), len(val_clip_idx), dtype=int))
 
     start_idx_dict = {"train": {}, "validation": val_start_idx, "test": [0]}
@@ -131,6 +142,9 @@ def gen_start_indices(random_sequences, val_clip_idx, clip_length, chunk_size, n
             idx = np.arange(start, start + length - chunk_size + 1, chunk_size)
             chunk_start_idx += list(idx[:-1])
         start_idx_dict["train"][i] = chunk_start_idx
+
+    if len(start_idx_dict["train"]) == 1:
+        start_idx_dict["train"] = start_idx_dict["train"][0]
     return start_idx_dict
 
 
@@ -187,27 +201,48 @@ def optimized_gen_start_indices(random_sequences, val_clip_idx, clip_length, chu
 
 def natmov_dataloaders_v2(
     neuron_data_dictionary,
-    movies_dictionary,
+    movies_dictionary: MoviesDict,
     train_chunk_size: int = 50,
     batch_size: int = 32,
     seed: int = 42,
+    num_clips: int = NUM_CLIPS,
+    clip_length: int = CLIP_LENGTH,
+    num_val_clips: int = NUM_VAL_CLIPS,
 ):
-    # make sure movies and responses arrive as torch tensors!!!
-    rnd = np.random.RandomState(seed)  # make sure whether we want the validation set to depend on the seed
+    assert isinstance(
+        neuron_data_dictionary, dict
+    ), "neuron_data_dictionary should be a dictionary of sessions and their corresponding neuron data."
+    assert (
+        isinstance(movies_dictionary, dict) and "train" in movies_dictionary and "test" in movies_dictionary
+    ), "movies_dictionary should be a dictionary with keys 'train' and 'test'."
+    assert all(
+        field in next(iter(neuron_data_dictionary.values())) for field in ["responses_final", "stim_id"]
+    ), "Check the neuron data dictionary sub-dictionaries for the minimal required fields: 'responses_final' and 'stim_id'."
 
-    num_clips, clip_length = NUM_CLIPS, CLIP_LENGTH
-    val_clip_idx = list(rnd.choice(NUM_CLIPS, NUM_VAL_CLIPS, replace=False))
+    # Draw validation clips based on the random seed
+    rnd = np.random.RandomState(seed)
+    val_clip_idx = list(rnd.choice(num_clips, num_val_clips, replace=False))
 
     clip_chunk_sizes = {
         "train": train_chunk_size,
         "validation": clip_length,
-        "test": 5 * clip_length,
+        "test": movies_dictionary["test"].shape[1],
     }
     dataloaders = {"train": {}, "validation": {}, "test": {}}
-    # draw validation indices so that a validation movie can be returned!
-    random_sequences = movies_dictionary["random_sequences"]
+
+    # Get the random sequences of movies presentatios for each session if available
+    if "random_sequences" not in movies_dictionary or movies_dictionary["random_sequences"] is None:
+        movie_length = movies_dictionary["train"].shape[1]
+        random_sequences = np.arange(0, movie_length // clip_length)[:, np.newaxis]
+    else:
+        random_sequences = movies_dictionary["random_sequences"]
+
     movies = get_all_movie_combinations(
-        movies_dictionary["train"], movies_dictionary["test"], random_sequences, val_clip_idx=val_clip_idx
+        movies_dictionary["train"],
+        movies_dictionary["test"],
+        random_sequences,
+        val_clip_idx=val_clip_idx,
+        clip_length=clip_length,
     )
     start_indices = gen_start_indices(random_sequences, val_clip_idx, clip_length, train_chunk_size, num_clips)
     for session_key, session_data in neuron_data_dictionary.items():
@@ -223,19 +258,18 @@ def natmov_dataloaders_v2(
         #     print("skipped: {}".format(session_key))
         #     break
         for fold in ["train", "validation", "test"]:
-            if not (hasattr(neuron_data, "roi_coords")):
-                neuron_data.roi_mask = []
             dataloaders[fold][session_key] = get_movie_dataloader(
-                movies[neuron_data.eye][fold],
-                neuron_data.response_dict[fold],
-                neuron_data.roi_ids,
-                neuron_data.roi_coords,
-                neuron_data.group_assignment,
-                neuron_data.scan_sequence_idx,
-                fold,
-                clip_chunk_sizes[fold],
-                start_indices[fold],
-                batch_size,
+                movies=movies[neuron_data.eye][fold],
+                responses=neuron_data.response_dict[fold],
+                roi_ids=neuron_data.roi_ids,
+                roi_coords=neuron_data.roi_coords,
+                group_assignment=neuron_data.group_assignment,
+                scan_sequence_idx=neuron_data.scan_sequence_idx,
+                split=fold,
+                chunk_size=clip_chunk_sizes[fold],
+                start_indices=start_indices[fold],
+                batch_size=batch_size,
+                scene_length=clip_length,
             )
 
     return dataloaders

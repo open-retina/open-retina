@@ -14,6 +14,8 @@ from neuralpredictors.utils import get_module_output
 from .dataloaders import get_dims_for_loader_dict
 from .misc import set_seed
 
+DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
+
 
 class Core:
     def initialize(self):
@@ -72,6 +74,7 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
         use_avg_reg=False,
         nonlinearity="ELU",
         conv_type="full",
+        device=DEVICE,
     ):
         super().__init__()
         self._input_weights_regularizer_spatial = FlatLaplaceL23dnorm(padding=laplace_padding)
@@ -139,6 +142,7 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
             bias=False,
             padding=input_pad,
             num_scans=self.num_scans,
+            device=device,
         )
         if batch_norm:
             layer["norm"] = nn.BatchNorm3d(
@@ -410,11 +414,14 @@ class SpatialXFeature3d(nn.Module):
 
     def normal_pdf(self):
         """Gets the actual mask values in terms of a PDF from the mean and SD"""
-        self.mask_var_ = torch.exp(self.mask_log_var * self.gaussian_var_scale).view(-1, 1, 1)
+        # self.mask_var_ = torch.exp(self.mask_log_var * self.gaussian_var_scale).view(-1, 1, 1)
+        scaled_log_var = self.mask_log_var * self.gaussian_var_scale
+        self.mask_var_ = torch.exp(torch.clamp(scaled_log_var, min=-20, max=20)).view(-1, 1, 1)
         pdf = self.grid - self.mask_mean.view(self.outdims, 1, 1, -1) * self.gaussian_mean_scale
-        pdf = torch.sum(pdf**2, dim=-1) / self.mask_var_
-        pdf = torch.exp(-0.5 * pdf)
-        pdf = pdf / torch.sum(pdf, dim=(1, 2), keepdim=True)
+        pdf = torch.sum(pdf**2, dim=-1) / (self.mask_var_ + 1e-8)
+        pdf = torch.exp(-0.5 * torch.clamp(pdf, max=20))
+        normalisation = torch.sum(pdf, dim=(1, 2), keepdim=True)
+        pdf = torch.nan_to_num(pdf / normalisation)
         return pdf
 
     def forward(self, x, shift=None, subs_idx=None):
@@ -446,7 +453,7 @@ class SpatialXFeature3d(nn.Module):
             else:
                 y = y + self.bias[subs_idx]
         if self.nonlinearity:
-            y = torch.log(torch.exp(y) + 1)
+            y = F.softplus(y)
         return y
 
     def __repr__(self):
@@ -521,9 +528,11 @@ class TorchFullConv3D(nn.Module):
         padding: int = 0,
         bias: bool = True,
         num_scans=1,
+        device=DEVICE,
     ):
         super().__init__()
         # Store log speeds for each data key
+        self.device = device
         for key, val in log_speed_dict.items():
             setattr(self, key, val)
 
@@ -544,7 +553,7 @@ class TorchFullConv3D(nn.Module):
 
         # Compute temporal kernel based on the provided data key
         if data_key is None:
-            log_speed = torch.nn.Parameter(data=torch.zeros(1, device="cuda"), requires_grad=False)
+            log_speed = torch.nn.Parameter(data=torch.zeros(1, device=self.device), requires_grad=False)
         else:
             log_speed = getattr(self, "_".join(["log_speed", data_key]))
 
@@ -566,8 +575,10 @@ class TorchSTSeparableConv3D(nn.Module):
         padding: int = 0,
         bias: bool = True,
         num_scans=1,
+        device=DEVICE,
     ):
         super().__init__()
+        self.device = device
         # Store log speeds for each data key
         for key, val in log_speed_dict.items():
             setattr(self, key, val)
@@ -592,7 +603,7 @@ class TorchSTSeparableConv3D(nn.Module):
 
         # Compute temporal kernel based on the provided data key
         if data_key is None:
-            log_speed = torch.nn.Parameter(data=torch.zeros(1, device="cuda"), requires_grad=False)
+            log_speed = torch.nn.Parameter(data=torch.zeros(1, device=self.device), requires_grad=False)
         else:
             log_speed = getattr(self, "_".join(["log_speed", data_key]))
 
@@ -632,6 +643,7 @@ class STSeparableBatchConv3d(nn.Module):
         padding=0,
         num_scans=1,
         bias=True,
+        device=DEVICE,
     ):
         """
         Initializes the STSeparableBatchConv3d layer.
@@ -657,6 +669,7 @@ class STSeparableBatchConv3d(nn.Module):
         self.stride = stride
         self.padding = padding
         self.num_scans = num_scans
+        self.device = device
 
         # Initialize temporal weights
         self.sin_weights, self.cos_weights = self.temporal_weights(temporal_kernel_size, in_channels, out_channels)
@@ -688,7 +701,7 @@ class STSeparableBatchConv3d(nn.Module):
         # Compute temporal kernel based on the provided data key
         if data_key is None:
             self.weight_temporal = compute_temporal_kernel(
-                torch.nn.Parameter(data=torch.zeros(1, device="cuda"), requires_grad=False),
+                torch.nn.Parameter(data=torch.zeros(1, device=self.device), requires_grad=False),
                 self.sin_weights,
                 self.cos_weights,
                 self.temporal_kernel_size,
@@ -862,12 +875,15 @@ def SFB3d_core_SxF3d_readout(
     data_info: dict = None,
     nonlinearity: str = "ELU",
     conv_type: Literal["full", "separable", "custom_separable"] = "custom_separable",
+    device=DEVICE,
 ):
     """
     Model class of a stacked2dCore (from mlutils) and a pointpooled (spatial transformer) readout
     Args:
-        dataloaders: a dictionary of dataloaders, one loader per session
-            in the format {'data_key': dataloader object, .. }
+        dataloaders: a dictionary of dataloaders, one loader per sessionin the format:
+            {'train': {'session1': dataloader1, 'session2': dataloader2, ...},
+             'validation': {'session1': dataloader1, 'session2': dataloader2, ...},
+             'test': {'session1': dataloader1, 'session2': dataloader2, ...}}
         seed: random seed
         elu_offset: Offset for the output non-linearity [F.elu(x + self.offset)]
         all other args: See Documentation of Stacked2dCore in mlutils.layers.cores and
@@ -899,7 +915,6 @@ def SFB3d_core_SxF3d_readout(
         roi_masks = {k: dataloaders[k].dataset.roi_coords for k in dataloaders.keys()}
     assert np.unique(input_channels).size == 1, "all input channels must be of equal size"
 
-
     set_seed(seed)
 
     # get a stacked factorized 3d core from below
@@ -928,6 +943,7 @@ def SFB3d_core_SxF3d_readout(
         use_avg_reg=use_avg_reg,
         nonlinearity=nonlinearity,
         conv_type=conv_type,
+        device=device,
     )
 
     readout = SpatialXFeature3dReadout(
@@ -962,6 +978,3 @@ def SFB3d_core_SxF3d_readout(
     )
 
     return model
-
-
-
