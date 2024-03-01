@@ -51,8 +51,9 @@ def main(data_folder) -> None:
     )
 
     ## Plotting an example field
-    test_field = "15-10-07"
-    test_sample = next(iter(dataloaders["test"][test_field]))
+    sample_loader = dataloaders.get("train", dataloaders)
+    sample_session = list(sample_loader.keys())[0]
+    test_sample = next(iter(dataloaders["test"][sample_session]))
 
     input_samples = test_sample.inputs
     targets = test_sample.targets
@@ -61,7 +62,7 @@ def main(data_folder) -> None:
     model.cpu()
 
     with torch.no_grad():
-        reconstructions = model(input_samples.cpu(), test_field)
+        reconstructions = model(input_samples.cpu(), sample_session)
     reconstructions = reconstructions.cpu().numpy().squeeze()
 
     targets = targets.cpu().numpy().squeeze()
@@ -71,7 +72,7 @@ def main(data_folder) -> None:
     plt.plot(np.arange(30, window + 30), reconstructions[:window, neuron], label="prediction")
     plt.legend()
     sns.despine()
-    save_figure(os.path.join(data_folder, "figures"), "salamander_reconstruction_example.pdf")
+    save_figure("salamander_reconstruction_example.pdf", os.path.join(data_folder, "figures"))
 
 
 if __name__ == "__main__":
