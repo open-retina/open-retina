@@ -1,36 +1,27 @@
-model_config = dict(
-    layers=2,  # number of layers
-    hidden_channels=(
-        16,
-        16,
-    ),  # number of channels in each hidden layer (implies length must be equal to # layers)
-    temporal_kernel_size=(
-        21,
-        11,
-    ),  # size of temporal kernels (in frames) in each hidden layer
-    spatial_kernel_size=(
-        11,
-        5,
-    ),  # size of square spatial kernels (in pixels) in each hidden layer
-    input_padding=False,
-    hidden_padding=True,
-    readout_positive=True,
-    readout_scale=True,
-    core_bias=True,
-    gaussian_masks=True,
-    stack=-1,  # read responses from which layer (or list of layers)
-    gaussian_mean_scale=6.0,  # these are scaling and regularisation parameters
-    gaussian_var_scale=4.0,
-    batch_adaptation=True,
-    gamma_readout=0.4,
-    gamma_masks=0.1,
-    gamma_input=0.3,
-    gamma_in_sparse=1.0,
-    gamma_hidden=0.0,
-    gamma_temporal=40.0,
-    nonlinearity="ELU",
-    conv_type="custom_separable",
-)
+model_config = {
+    "layers": 2,
+    "hidden_channels": (16, 16),  # in each layer
+    "temporal_kernel_size": (21, 11),
+    "spatial_kernel_size": (11, 5),  # an int or tuple per layer
+    "input_padding": False,
+    "hidden_padding": True,
+    "readout_positive": True,
+    "readout_scale": True,
+    "core_bias": True,
+    "gaussian_masks": True,
+    "nonlinearity": "ELU",
+    "conv_type": "custom_separable",
+    "stack": -1,  # from which layer (or list of layers) to readout responses from
+    "gaussian_mean_scale": 6.0,  # from here on regularisation parameters
+    "gaussian_var_scale": 4.0,
+    "batch_adaptation": True,
+    "gamma_readout": 0.4,
+    "gamma_masks": 0.1,
+    "gamma_input": 0.3,
+    "gamma_in_sparse": 1.0,
+    "gamma_hidden": 0.0,
+    "gamma_temporal": 40.0,
+}
 
 trainer_config = {
     "max_iter": 500,
