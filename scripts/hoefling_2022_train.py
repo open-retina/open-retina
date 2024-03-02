@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import os
 import pickle
 
@@ -15,10 +16,7 @@ from openretina.training import save_model
 from openretina.training import standard_early_stop_trainer as trainer
 
 
-def main() -> None:
-    print("Main")
-
-    data_folder = "/gpfs01/euler/data/SharedFiles/projects/TP12/"
+def main(data_folder) -> None:
     data_path = os.path.join(data_folder, "2024-01-11_neuron_data_stim_8c18928_responses_99c71a0.pkl")
     movies_path = os.path.join(data_folder, "2024-01-11_movies_dict_8c18928.pkl")
     with open(data_path, "rb") as f:
@@ -74,4 +72,10 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Model training")
+
+    parser.add_argument("--data_folder", type=str, help="Path to the base data folder", default="/Data/fd_export")
+
+    args = parser.parse_args()
+
+    main(**vars(args))
