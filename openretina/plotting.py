@@ -3,6 +3,7 @@ import os
 from functools import partial
 from typing import Any, List, Optional, Tuple
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -15,6 +16,9 @@ from matplotlib.patches import Rectangle
 from .constants import FRAME_RATE_MODEL
 from .hoefling_2022_configs import pre_normalisation_values
 from .video_analysis import calculate_fft, decompose_kernel, weighted_main_frequency
+
+# Longer animations
+matplotlib.rcParams["animation.embed_limit"] = 2**128
 
 
 def undo_video_normalization(
@@ -84,7 +88,7 @@ def play_sample_batch(
 ):
     assert video.shape[1] == responses.shape[0], "Movie length and response length must match"
 
-    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+    fig, ax = plt.subplots(1, 2, figsize=(10, 5), gridspec_kw={"width_ratios": [1, 2]})
 
     def update_trace(frame):
         ax[1].clear()
