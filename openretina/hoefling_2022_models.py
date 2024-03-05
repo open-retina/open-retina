@@ -7,7 +7,6 @@ import torch
 import torch.distributions as dist
 import torch.nn as nn
 import torch.nn.functional as F
-
 from neuralpredictors.layers.affine import Bias3DLayer, Scale2DLayer, Scale3DLayer
 from neuralpredictors.regularizers import Laplace, Laplace1d, laplace3d
 from neuralpredictors.utils import get_module_output
@@ -797,7 +796,7 @@ class STSeparableBatchConv3d(nn.Module):
         time = torch.arange(T, dtype=torch.float, device=stretches.device) - T
         stretched = stretches * time
         freq = stretched * 2 * np.pi / T
-        mask = STSeparableBatchConv3d.mask_tf(time.T, stretches, T)
+        mask = STSeparableBatchConv3d.mask_tf(time, stretches, T)
         sines, cosines = [], []
         for k in range(K):
             sines.append(mask * torch.sin(freq * k))
