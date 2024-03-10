@@ -73,7 +73,7 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
         batch_adaptation=True,
         use_avg_reg=False,
         nonlinearity="ELU",
-        conv_type="full",
+        conv_type="custom_separable",
         device=DEVICE,
     ):
         super().__init__()
@@ -86,6 +86,8 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
             self.conv_class = STSeparableBatchConv3d
         elif conv_type == "full":
             self.conv_class = TorchFullConv3D
+        elif conv_type == "time_independent":
+            self.conv_class = TimeIndependentConv3D
         else:
             raise ValueError(f"Un-implemented conv_type {conv_type}")
 
@@ -179,7 +181,7 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
                 elif batch_norm_scale:
                     layer["scale"] = Scale2DLayer(hidden_channels[l])
             if final_nonlinearity or l < self.layers - 1:
-                layer["nonlin"] = getattr(nn, nonlinearity)()  # TODO add back in place if necessary
+                layer["nonlin"] = getattr(nn, nonlinearity)()
             self.features.add_module("layer{}".format(l), nn.Sequential(layer))
 
         self.apply(self.init_conv)
@@ -261,7 +263,7 @@ class SpatialXFeature3dReadout(nn.ModuleDict):
         readout_reg_avg=False,
     ):
         super().__init__()
-        for k in n_neurons_dict:  # iterate over sessions (?)
+        for k in n_neurons_dict:  # iterate over sessions
             in_shape = get_module_output(core, in_shape_dict[k])[1:]
             n_neurons = n_neurons_dict[k]
             self.add_module(
@@ -562,6 +564,44 @@ class TorchFullConv3D(nn.Module):
         return self.conv(x)
 
 
+class TimeIndependentConv3D(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        log_speed_dict: dict,
+        temporal_kernel_size: int,
+        spatial_kernel_size: int,
+        spatial_kernel_size2: Optional[int] = None,
+        stride: int = 1,
+        padding: int = 0,
+        bias: bool = True,
+        device=DEVICE,
+        **kwargs,
+    ):
+        super().__init__()
+        # Store log speeds for each data key
+        self.device = device
+        for key, val in log_speed_dict.items():
+            setattr(self, key, val)
+
+        if spatial_kernel_size2 is None:
+            spatial_kernel_size2 = spatial_kernel_size
+
+        self.conv = nn.Conv3d(
+            in_channels,
+            out_channels,
+            (1, spatial_kernel_size, spatial_kernel_size2),
+            stride=stride,
+            padding=padding,
+            bias=bias,
+        )
+
+    def forward(self, input_):
+        x, data_key = input_
+        return self.conv(x)
+
+
 class TorchSTSeparableConv3D(nn.Module):
     def __init__(
         self,
@@ -756,7 +796,7 @@ class STSeparableBatchConv3d(nn.Module):
         time = torch.arange(T, dtype=torch.float, device=stretches.device) - T
         stretched = stretches * time
         freq = stretched * 2 * np.pi / T
-        mask = STSeparableBatchConv3d.mask_tf(time.T, stretches, T)
+        mask = STSeparableBatchConv3d.mask_tf(time, stretches, T)
         sines, cosines = [], []
         for k in range(K):
             sines.append(mask * torch.sin(freq * k))
@@ -874,7 +914,7 @@ def SFB3d_core_SxF3d_readout(
     use_avg_reg: bool = False,
     data_info: dict = None,
     nonlinearity: str = "ELU",
-    conv_type: Literal["full", "separable", "custom_separable"] = "custom_separable",
+    conv_type: Literal["full", "separable", "custom_separable", "time_independent"] = "custom_separable",
     device=DEVICE,
 ):
     """
