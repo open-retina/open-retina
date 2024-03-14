@@ -2,6 +2,7 @@
 Photoreceptor layer code adapted from https://github.com/saadidrees/dynret/blob/main/models.py
 
 See https://www.biorxiv.org/content/10.1101/2023.06.20.545728v1 for the original paper.
+Also: https://www.biorxiv.org/content/10.1101/2021.02.13.431101v1.full for the original biophysical model.
 """
 
 import torch
@@ -10,55 +11,56 @@ import torch.nn as nn
 
 def fr_cones_trainable():
     pr_params = {
+        # Opsin decay rate constant
         "sigma": 2.2,
         "sigma_scaleFac": 10.0,
-        "sigma_trainable": True,
-        #
+        "sigma_trainable": False,
+        # PDE decay rate constant (in the original paper is constrained equal to sigma)
         "phi": 2.2,
         "phi_scaleFac": 10.0,
-        "phi_trainable": True,
-        #
+        "phi_trainable": False,
+        # PDE dark activation rate
         "eta": 2.0,
         "eta_scaleFac": 1000.0,
         "eta_trainable": True,
-        #
+        # Ca2+ extrusion rate constant
         "beta": 0.9,
         "beta_scaleFac": 10.0,
-        "beta_trainable": True,
-        #
+        "beta_trainable": False,
+        # cGMP-to-current constant
         "cgmp2cur": 0.01,
         "cgmp2cur_scaleFac": 1.0,
         "cgmp2cur_trainable": False,
-        #
+        # cGMP channel cooperativity
         "cgmphill": 3.0,
         "cgmphill_scaleFac": 1.0,
-        "cgmphill_trainable": False,
+        "cgmphill_trainable": True,
         #
         "cdark": 1.0,
         "cdark_scaleFac": 1.0,
-        "cdark_trainable": False,
-        #
-        "betaSlow": 0.0,
+        "cdark_trainable": True,
+        # Channel-feedback decay rate constant
+        "betaSlow": 0.4,
         "betaSlow_scaleFac": 1.0,
-        "betaSlow_trainable": False,
-        #
+        "betaSlow_trainable": True,
+        # Ca2+ GC-cooperativity
         "hillcoef": 4.0,
         "hillcoef_scaleFac": 1.0,
-        "hillcoef_trainable": False,
-        #
+        "hillcoef_trainable": True,
+        # Ca2+ GC-affinity
         "hillaffinity": 0.5,
         "hillaffinity_scaleFac": 1.0,
-        "hillaffinity_trainable": False,
-        #
+        "hillaffinity_trainable": True,
+        # Opsin gain
         "gamma": 1.0,
         "gamma_scaleFac": 10.0,
         "gamma_trainable": True,
         #
         "gdark": 0.35,
         "gdark_scaleFac": 100.0,
-        "gdark_trainable": False,
+        "gdark_trainable": True,
         #
-        "timeBin": 8,
+        "timeBin": 5,
     }
 
     return pr_params
@@ -73,31 +75,39 @@ class PhotoreceptorLayer(nn.Module):
         dtype = pr_params["dtype"] if "dtype" in pr_params else torch.float32
 
         self.sigma = nn.Parameter(
-            torch.tensor(pr_params["sigma"], dtype=dtype).expand(1, units), requires_grad=pr_params["sigma_trainable"]
+            torch.tensor(pr_params["sigma"], dtype=dtype).expand(1, units),
+            requires_grad=pr_params["sigma_trainable"],
         )
         self.sigma_scaleFac = nn.Parameter(
-            torch.tensor(pr_params["sigma_scaleFac"], dtype=dtype).expand(1, units), requires_grad=False
+            torch.tensor(pr_params["sigma_scaleFac"], dtype=dtype).expand(1, units),
+            requires_grad=False,
         )
 
         self.phi = nn.Parameter(
-            torch.tensor(pr_params["phi"], dtype=dtype).expand(1, units), requires_grad=pr_params["phi_trainable"]
+            torch.tensor(pr_params["phi"], dtype=dtype).expand(1, units),
+            requires_grad=pr_params["phi_trainable"],
         )
         self.phi_scaleFac = nn.Parameter(
-            torch.tensor(pr_params["phi_scaleFac"], dtype=dtype).expand(1, units), requires_grad=False
+            torch.tensor(pr_params["phi_scaleFac"], dtype=dtype).expand(1, units),
+            requires_grad=False,
         )
 
         self.eta = nn.Parameter(
-            torch.tensor(pr_params["eta"], dtype=dtype).expand(1, units), requires_grad=pr_params["eta_trainable"]
+            torch.tensor(pr_params["eta"], dtype=dtype).expand(1, units),
+            requires_grad=pr_params["eta_trainable"],
         )
         self.eta_scaleFac = nn.Parameter(
-            torch.tensor(pr_params["eta_scaleFac"], dtype=dtype).expand(1, units), requires_grad=False
+            torch.tensor(pr_params["eta_scaleFac"], dtype=dtype).expand(1, units),
+            requires_grad=False,
         )
 
         self.beta = nn.Parameter(
-            torch.tensor(pr_params["beta"], dtype=dtype).expand(1, units), requires_grad=pr_params["beta_trainable"]
+            torch.tensor(pr_params["beta"], dtype=dtype).expand(1, units),
+            requires_grad=pr_params["beta_trainable"],
         )
         self.beta_scaleFac = nn.Parameter(
-            torch.tensor(pr_params["beta_scaleFac"], dtype=dtype).expand(1, units), requires_grad=False
+            torch.tensor(pr_params["beta_scaleFac"], dtype=dtype).expand(1, units),
+            requires_grad=False,
         )
 
         self.cgmp2cur = nn.Parameter(
@@ -110,11 +120,13 @@ class PhotoreceptorLayer(nn.Module):
             requires_grad=pr_params["cgmphill_trainable"],
         )
         self.cgmphill_scaleFac = nn.Parameter(
-            torch.tensor(pr_params["cgmphill_scaleFac"], dtype=dtype).expand(1, units), requires_grad=False
+            torch.tensor(pr_params["cgmphill_scaleFac"], dtype=dtype).expand(1, units),
+            requires_grad=False,
         )
 
         self.cdark = nn.Parameter(
-            torch.tensor(pr_params["cdark"], dtype=dtype).expand(1, units), requires_grad=pr_params["cdark_trainable"]
+            torch.tensor(pr_params["cdark"], dtype=dtype).expand(1, units),
+            requires_grad=pr_params["cdark_trainable"],
         )
 
         self.betaSlow = nn.Parameter(
@@ -122,7 +134,8 @@ class PhotoreceptorLayer(nn.Module):
             requires_grad=pr_params["betaSlow_trainable"],
         )
         self.betaSlow_scaleFac = nn.Parameter(
-            torch.tensor(pr_params["betaSlow_scaleFac"], dtype=dtype).expand(1, units), requires_grad=False
+            torch.tensor(pr_params["betaSlow_scaleFac"], dtype=dtype).expand(1, units),
+            requires_grad=False,
         )
 
         self.hillcoef = nn.Parameter(
@@ -130,7 +143,8 @@ class PhotoreceptorLayer(nn.Module):
             requires_grad=pr_params["hillcoef_trainable"],
         )
         self.hillcoef_scaleFac = nn.Parameter(
-            torch.tensor(pr_params["hillcoef_scaleFac"], dtype=dtype).expand(1, units), requires_grad=False
+            torch.tensor(pr_params["hillcoef_scaleFac"], dtype=dtype).expand(1, units),
+            requires_grad=False,
         )
 
         self.hillaffinity = nn.Parameter(
@@ -138,21 +152,31 @@ class PhotoreceptorLayer(nn.Module):
             requires_grad=pr_params["hillaffinity_trainable"],
         )
         self.hillaffinity_scaleFac = nn.Parameter(
-            torch.tensor(pr_params["hillaffinity_scaleFac"], dtype=dtype).expand(1, units), requires_grad=False
+            torch.tensor(pr_params["hillaffinity_scaleFac"], dtype=dtype).expand(
+                1, units
+            ),
+            requires_grad=False,
         )
 
         self.gamma = nn.Parameter(
-            torch.tensor(pr_params["gamma"], dtype=dtype).expand(1, units), requires_grad=pr_params["gamma_trainable"]
+            torch.tensor(pr_params["gamma"], dtype=dtype).expand(1, units),
+            requires_grad=pr_params["gamma_trainable"],
         )
         self.gamma_scaleFac = nn.Parameter(
-            torch.tensor(pr_params["gamma_scaleFac"], dtype=dtype).expand(1, units), requires_grad=False
+            torch.tensor(pr_params["gamma_scaleFac"], dtype=dtype).expand(1, units),
+            requires_grad=False,
         )
 
         self.gdark = nn.Parameter(
-            torch.tensor(pr_params["gdark"], dtype=dtype).expand(1, units), requires_grad=pr_params["gdark_trainable"]
+            torch.tensor(pr_params["gdark"], dtype=dtype).expand(1, units),
+            requires_grad=pr_params["gdark_trainable"],
         )
         self.gdark_scaleFac = nn.Parameter(
-            torch.tensor(pr_params["gdark_scaleFac"], dtype=dtype).expand(1, units), requires_grad=False
+            torch.tensor(pr_params["gdark_scaleFac"], dtype=dtype).expand(1, units),
+            requires_grad=False,
+        )
+        self.timeBin = nn.Parameter(
+            torch.tensor(pr_params["timeBin"], dtype=dtype), requires_grad=True
         )
 
     def rieke_model(
@@ -178,8 +202,7 @@ class PhotoreceptorLayer(nn.Module):
         cur2ca = beta * cdark / darkCurrent
         smax = eta / phi * gdark * (1 + (cdark / hillaffinity) ** hillcoef)
 
-        tme = torch.arange(0, X_fun.shape[1], dtype=X_fun.dtype, device=X_fun.device) * TimeStep
-        NumPts = tme.shape[0]
+        num_points = X_fun.shape[1]
 
         g_prev = gdark + X_fun[:, 0, :] * 0
         s_prev = gdark * eta / phi + X_fun[:, 0, :] * 0
@@ -187,14 +210,20 @@ class PhotoreceptorLayer(nn.Module):
         r_prev = X_fun[:, 0, :] * gamma / sigma
         p_prev = (eta + r_prev) / phi
 
-        g = torch.zeros((X_fun.shape[0], NumPts, X_fun.shape[2]), dtype=X_fun.dtype, device=X_fun.device)
+        g = torch.zeros(
+            (X_fun.shape[0], num_points, X_fun.shape[2]),
+            dtype=X_fun.dtype,
+            device=X_fun.device,
+        )
         g[:, 0, :] = X_fun[:, 0, :] * 0
 
-        for pnt in range(1, NumPts):
+        for pnt in range(1, num_points):
             r_curr = r_prev + TimeStep * (-sigma * r_prev)
             r_curr = r_curr + gamma * X_fun[:, pnt - 1, :]
             p_curr = p_prev + TimeStep * (r_prev + eta - phi * p_prev)
-            c_curr = c_prev + TimeStep * (cur2ca * (cgmp2cur * g_prev**cgmphill) / 2 - beta * c_prev)
+            c_curr = c_prev + TimeStep * (
+                cur2ca * (cgmp2cur * g_prev**cgmphill) / 2 - beta * c_prev
+            )
             s_curr = smax / (1 + (c_curr / hillaffinity) ** hillcoef)
             g_curr = g_prev + TimeStep * (s_prev - p_prev * g_prev)
 
@@ -213,7 +242,7 @@ class PhotoreceptorLayer(nn.Module):
     def forward(self, inputs):
         X_fun = inputs
 
-        timeBin = float(self.pr_params["timeBin"])  # ms
+        timeBin = self.timeBin
         frameTime = timeBin  # ms
         # upSamp_fac = int(frameTime / timeBin)
         TimeStep = 1e-3 * timeBin

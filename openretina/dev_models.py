@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from neuralpredictors import regularizers
 from neuralpredictors.layers.affine import Bias3DLayer, Scale2DLayer, Scale3DLayer
 from neuralpredictors.layers.readouts import (
@@ -32,6 +33,7 @@ from .hoefling_2022_models import (
     temporal_smoothing,
 )
 from .misc import set_seed
+from .photoreceptor_layer_torch import PhotoreceptorLayer
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
@@ -326,6 +328,47 @@ class VideoEncoder(Encoder):
         return x
 
 
+class PhotorecVideoEncoder(Encoder):
+    def __init__(self, core, readout, **kwargs):
+        super().__init__(core, readout, **kwargs)
+        self.photoreceptor_layer = PhotoreceptorLayer(units=2)
+
+    def forward(self, x, data_key=None, detach_core=False, **kwargs):
+        self.detach_core = detach_core
+        if self.detach_core:
+            for name, param in self.core.features.named_parameters():
+                if name.find("speed") < 0:
+                    param.requires_grad = False
+
+        batch, chan, time, height, width = x.shape
+
+        x = x.view(batch, chan, time, height * width)
+
+        x = self.photoreceptor_layer(x)
+
+        x = x.view(batch, chan, time, height, width)
+
+        x = self.core(x, data_key=data_key)
+
+        # Make time the second dimension again for the readout
+        x = torch.transpose(x, 1, 2)
+
+        # Get dims for later reshaping
+        batch_size = x.shape[0]
+        time_points = x.shape[1]
+
+        # Treat time as an indipendent (batch) dimension for the readout
+        x = x.reshape(((-1,) + x.size()[2:]))
+        x = self.readout(x, data_key=data_key, **kwargs)
+
+        # Reshape back to the correct dimensions before returning
+        x = x.reshape(((batch_size, time_points) + x.size()[1:]))
+
+        # Add softplus as gaussian readout does not assure positive values
+        x = F.softplus(x)
+        return x
+
+
 class GRU_Module(nn.Module):
     def __init__(
         self,
@@ -530,7 +573,7 @@ def SFB3d_core_gaussian_readout(
             for k in data_info.keys():
                 readout[k].bias.data = torch.from_numpy(data_info[k]["mean_response"])
 
-    model = VideoEncoder(
+    model = PhotorecVideoEncoder(
         core,
         readout,
     )
