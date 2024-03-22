@@ -4,17 +4,17 @@ import numpy as np
 import scipy
 
 
-def butter_lowpass_filter(data: np.array, lowpass_cutoff: float, fs: float, order: int = 5):
+def butter_lowpass_filter(data: np.ndarray, lowpass_cutoff: float, fs: float, order: int = 5):
     b, a = scipy.signal.butter(order, Wn=lowpass_cutoff, fs=fs, btype="low")
     y = scipy.signal.filtfilt(b, a, data)
     return y
 
 
 def calculate_fft(
-    temporal_kernel: np.array,
+    temporal_kernel: np.ndarray,
     sampling_frequency: float = 30.0,
     lowpass_cutoff: float = 10.0,
-) -> Tuple[np.array, np.array]:
+) -> Tuple[np.ndarray, np.ndarray]:
     y = butter_lowpass_filter(temporal_kernel, lowpass_cutoff=lowpass_cutoff, fs=sampling_frequency)
     n_samples = temporal_kernel.shape[0]
     fft_frequencies = scipy.fft.fftfreq(n_samples, 1 / sampling_frequency)
@@ -26,13 +26,15 @@ def calculate_fft(
     return fft_frequencies, fft_weights
 
 
-def weighted_main_frequency(fft_frequencies: np.array, fft_weights: np.array) -> float:
+def weighted_main_frequency(fft_frequencies: np.ndarray, fft_weights: np.ndarray) -> float:
     assert len(fft_frequencies.shape) == 1
     assert fft_frequencies.shape == fft_weights.shape
     return np.average(fft_frequencies, weights=fft_weights)
 
 
-def decompose_kernel(space_time_kernel: np.array, scaling_factor: float = 1.0) -> Tuple[np.array, np.array, np.array]:
+def decompose_kernel(
+    space_time_kernel: np.ndarray, scaling_factor: float = 1.0
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Scale spatial and temporal components such that spatial component is in the range [-1, 1]
     Args:

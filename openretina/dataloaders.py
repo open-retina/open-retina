@@ -1,8 +1,9 @@
 from collections import namedtuple
 from copy import deepcopy
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, TypedDict, Union
 
 import numpy as np
+from jaxtyping import Float
 from torch.utils.data import DataLoader, Dataset, Sampler
 
 from .constants import SCENE_LENGTH
@@ -10,7 +11,8 @@ from .constants import SCENE_LENGTH
 
 class MovieDataSet(Dataset):
     def __init__(self, movies, responses, roi_ids, roi_coords, group_assignment, split, chunk_size):
-        if split == "test":
+        # Will only be a dictionary for certain types of datasets, i.e. Hoefling 2022
+        if split == "test" and isinstance(responses, dict):
             self.samples = tuple((movies, responses["avg"]))
             self.test_responses_by_trial = responses["by_trial"]
             self.roi_ids = roi_ids
@@ -48,15 +50,16 @@ class MovieDataSet(Dataset):
 
 
 class MovieSampler(Sampler):
-    def __init__(self, start_indices, split, chunk_size):
+    def __init__(self, start_indices, split, chunk_size, scene_length=None):
         self.indices = start_indices
         self.split = split
         self.chunk_size = chunk_size
+        self.scene_length = SCENE_LENGTH if scene_length is None else scene_length
 
     def __iter__(self):
         if self.split == "train":
             # Always start the clip from a random point in the scene, within the chosen chunk size
-            shift = np.random.randint(0, min(SCENE_LENGTH - self.chunk_size, self.chunk_size))
+            shift = np.random.randint(0, min(self.scene_length - self.chunk_size, self.chunk_size))
 
             # Shuffle the indices
             indices_shuffling = np.random.permutation(len(self.indices))
@@ -71,27 +74,28 @@ class MovieSampler(Sampler):
 
 
 def get_movie_dataloader(
-    movies,
-    responses,
-    roi_ids,
-    roi_coords,
-    group_assignment,
-    scan_sequence_idx,
-    split,
-    chunk_size,
-    start_indices,
-    batch_size,
+    movies: Union[np.ndarray, Dict[int, np.ndarray]],
+    responses: Float[np.ndarray, "n_neurons n_frames"],  # noqa
+    roi_ids: Float[np.ndarray, "n_neurons"],  # noqa
+    roi_coords: Float[np.ndarray, "n_neurons 2"],  # noqa
+    group_assignment: Float[np.ndarray, "n_neurons"],  # noqa
+    split: str,
+    start_indices: Union[List[int], Dict[int, List[int]]],
+    scan_sequence_idx: Optional[int] = None,
+    chunk_size: int = 50,
+    batch_size: int = 32,
+    scene_length: Optional[int] = None,
     **kwargs,
 ):
     # for right movie: flip second frame size axis!
-    if split == "train":
+    if split == "train" and isinstance(movies, dict) and scan_sequence_idx is not None:
         dataset = MovieDataSet(
             movies[scan_sequence_idx], responses, roi_ids, roi_coords, group_assignment, split, chunk_size
         )
-        sampler = MovieSampler(start_indices[scan_sequence_idx], split, chunk_size)
+        sampler = MovieSampler(start_indices[scan_sequence_idx], split, chunk_size, scene_length=scene_length)
     else:
         dataset = MovieDataSet(movies, responses, roi_ids, roi_coords, group_assignment, split, chunk_size)
-        sampler = MovieSampler(start_indices, split, chunk_size)
+        sampler = MovieSampler(start_indices, split, chunk_size, scene_length=scene_length)
 
     return DataLoader(dataset, sampler=sampler, batch_size=batch_size, drop_last=True if split == "train" else False)
 

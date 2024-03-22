@@ -1,18 +1,24 @@
+import datetime
+import os
 from functools import partial
-from typing import Optional, Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 
+import matplotlib
 import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
-from matplotlib.colors import Normalize
 import numpy as np
 import torch
 from IPython.display import HTML
 from jaxtyping import Float
 from matplotlib import animation
+from matplotlib.colors import Normalize
+from matplotlib.patches import Rectangle
 
 from .constants import FRAME_RATE_MODEL
-from .video_analysis import decompose_kernel, calculate_fft, weighted_main_frequency
 from .hoefling_2022_configs import pre_normalisation_values
+from .video_analysis import calculate_fft, decompose_kernel, weighted_main_frequency
+
+# Longer animations
+matplotlib.rcParams["animation.embed_limit"] = 2**128
 
 
 def undo_video_normalization(
@@ -82,7 +88,7 @@ def play_sample_batch(
 ):
     assert video.shape[1] == responses.shape[0], "Movie length and response length must match"
 
-    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+    fig, ax = plt.subplots(1, 2, figsize=(10, 5), gridspec_kw={"width_ratios": [1, 2]})
 
     def update_trace(frame):
         ax[1].clear()
@@ -169,3 +175,14 @@ def plot_stimulus_composition(
             x_0 = stimulus_time[x_0_idx]
             x_1 = stimulus_time[x_1_idx]
             temporal_trace_ax.fill_betweenx(temporal_trace_ax.get_ylim(), x_0, x_1, color="k", alpha=0.1)
+
+
+def save_figure(filename: str, folder: str, fig=None):
+    if not os.path.exists(folder):
+        os.makedirs(folder, exist_ok=True)
+    date = datetime.datetime.now().strftime("%Y-%m-%d")
+    filename = f"{date}_{filename}"
+    if fig is None:
+        fig = plt.gcf()
+    fig.savefig(os.path.join(folder, filename))
+    plt.close(fig)
