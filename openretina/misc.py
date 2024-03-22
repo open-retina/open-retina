@@ -109,6 +109,14 @@ def print_h5_structure(file_path):
                 items[key] = f"h5.Dataset(shape={item.shape}), {item.dtype}"
             elif isinstance(item, h5.Group):
                 items[key] = explore_group(item, f"{path}/{key}")
+
+        # Add group attributes to the dictionary
+        if group.attrs:
+            attributes = {}
+            for attr_name, attr_value in group.attrs.items():
+                attributes[attr_name] = attr_value
+            items["__attributes__"] = attributes
+
         return items
 
     with h5.File(file_path, "r") as file:
@@ -131,7 +139,7 @@ def load_dataset_from_h5(file_path, dataset_path: str):
     """
     with h5.File(file_path, "r") as file:
         if dataset_path in file:
-            data = file[dataset_path][()]  # type: ignores
+            data = file[dataset_path][()]  # type: ignore
             return data
         else:
             raise FileNotFoundError(f"Dataset path {dataset_path} not found in the file.")
