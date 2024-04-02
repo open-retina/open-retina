@@ -34,10 +34,8 @@ def load_h5_into_dict(file_path):
 
             # Add group attributes to the dictionary
             if group.attrs:
-                attributes = {}
                 for attr_name, attr_value in group.attrs.items():
-                    attributes[attr_name] = attr_value
-                items["__attributes__"] = attributes
+                    items[attr_name] = attr_value
         return items
 
     # First assert that we have enough space in RAM to load the entire file size
