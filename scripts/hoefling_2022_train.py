@@ -16,7 +16,16 @@ from openretina.training import save_model
 from openretina.training import standard_early_stop_trainer as trainer
 
 
-def main(data_folder) -> None:
+def parse_args():
+    parser = argparse.ArgumentParser(description="Model training")
+
+    parser.add_argument("--data_folder", type=str, help="Path to the base data folder", default="/Data/fd_export")
+    parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
+
+    return parser.parse_args()
+
+
+def main(data_folder: str, save_folder: str) -> None:
     data_path = os.path.join(data_folder, "2024-01-11_neuron_data_stim_8c18928_responses_99c71a0.pkl")
     movies_path = os.path.join(data_folder, "2024-01-11_movies_dict_8c18928.pkl")
     with open(data_path, "rb") as f:
@@ -42,7 +51,7 @@ def main(data_folder) -> None:
 
     save_model(
         model=model,
-        save_folder=os.path.join(data_folder, "models"),
+        save_folder=os.path.join(save_folder, "models"),
         model_name="SFB3d_core_SxF3d_readout_hoefling_2022",
     )
 
@@ -68,14 +77,9 @@ def main(data_folder) -> None:
     plt.plot(np.arange(30, window + 30), reconstructions[:window, neuron], label="prediction")
     plt.legend()
     sns.despine()
-    save_figure("mouse_reconstruction_example.pdf", os.path.join(data_folder, "figures"))
+    save_figure("mouse_reconstruction_example.pdf", os.path.join(save_folder, "figures"))
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Model training")
-
-    parser.add_argument("--data_folder", type=str, help="Path to the base data folder", default="/Data/fd_export")
-
-    args = parser.parse_args()
-
+    args = parse_args()
     main(**vars(args))
