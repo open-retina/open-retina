@@ -433,7 +433,11 @@ def make_final_responses(data_dict: dict, response_type="natural"):
         raise NotImplementedError(f"Conversion not yet implemented for response type {response_type}")
 
     for field in tqdm(data_dict.keys(), desc="Upsampling traces to get final responses"):
-        spikes = data_dict[field][f"{response_type}_inferred_spikes"]
+        try:
+            spikes = data_dict[field][f"{response_type}_inferred_spikes"]
+        except KeyError:
+            # For new data format
+            spikes = data_dict[field][f"{response_type}_spikes"]
         triggertimes = data_dict[field][f"{response_type}_trigger_times"][0]
         tracestimes = data_dict[field][f"{response_type}_traces_times"]
 
