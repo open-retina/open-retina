@@ -5,8 +5,9 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 from openretina.plotting import save_figure
+from openretina.constants import FRAME_RATE_MODEL
 
-from openretina.stimuli import load_moving_bar
+from openretina.stimuli import load_moving_bar_stack
 
 
 def parse_args():
@@ -24,7 +25,8 @@ def main(model_path: str, device: str) -> None:
     print(f"Initialized model from {model_path=}")
     # Begin evaluation
     model.eval()
-    stimulus = torch.Tensor(load_moving_bar())
+    mb_stack = load_moving_bar_stack()
+    stimulus = torch.Tensor(mb_stack.transpose(0, 4, 1, 2, 3))
     if args.device == "cuda":
         model.cuda()
         stimulus.cuda()
@@ -41,17 +43,22 @@ def main(model_path: str, device: str) -> None:
             responses = model.forward(stimulus, data_key=session_id)
             all_responses_array.append(responses.cpu().numpy())
     all_responses = np.concatenate(all_responses_array, axis=-1)
-    score_per_direction = np.max(all_responses, axis=1)
-    direction_pseudo_index = np.max(score_per_direction, axis=0) / np.min(score_per_direction, axis=0)
+    # The moving bars "next" to each other are always off by 180 degrees
+    # A direction selective cell should strongly respond to one direction, but not its opposing direction
+    direction_minus_opposing_direction = np.abs(all_responses[::2] - all_responses[1::2])
+    direction_pseudo_index = np.max(np.sum(direction_minus_opposing_direction, axis=1), axis=0)
     sorted_idc = np.argsort(direction_pseudo_index)
 
     best_neuron_response = all_responses[:, :, sorted_idc[-1]]
     for dir_id in range(all_responses.shape[0]):
-        plt.plot(best_neuron_response[dir_id], label=f"Dir{dir_id}")
+        resp = best_neuron_response[dir_id]
+        time = 1.0 + np.linspace(0, resp.shape[0] / FRAME_RATE_MODEL, resp.shape[0])
+        plt.plot(time, best_neuron_response[dir_id], label=f"Dir{dir_id}")
     plt.legend()
+    plt.xlabel("Time [s]")
+    plt.ylabel("Response")
 
-    save_figure("ds_neuron.pdf", ".")
-    # plt.show()
+    save_figure("ds_neuron.jpg", ".")
 
 
 if __name__ == "__main__":
