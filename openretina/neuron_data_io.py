@@ -5,6 +5,7 @@ from typing import Dict, List, Literal, Optional
 import numpy as np
 import torch
 from jaxtyping import Float
+from tqdm.auto import tqdm
 
 from .constants import RGC_GROUP_NAMES_DICT
 
@@ -34,7 +35,9 @@ class NeuronGroupMembersStore:
         validation_ratio: float = 0.1,
     ):
         self._all_neurons: List[SingleNeuronInfoStruct] = []
-        self._group_to_neuron_dict: Dict[int, List[SingleNeuronInfoStruct]] = defaultdict(list)
+        self._group_to_neuron_dict: Dict[
+            int, List[SingleNeuronInfoStruct]
+        ] = defaultdict(list)
         self._selection_keys = key
         self._train_ratio = train_ratio
         self._validation_ratio = validation_ratio
@@ -93,9 +96,13 @@ class NeuronGroupMembersStore:
                     )
                     new_neuron_list.append(neuron)
 
-        diff_neurons = set(n.neuron_id for n in self._all_neurons) - set(n.neuron_id for n in new_neuron_list)
+        diff_neurons = set(n.neuron_id for n in self._all_neurons) - set(
+            n.neuron_id for n in new_neuron_list
+        )
         if len(diff_neurons) > 0:
-            raise ValueError(f"Could not find mean and std for {len(diff_neurons)} neurons")
+            raise ValueError(
+                f"Could not find mean and std for {len(diff_neurons)} neurons"
+            )
         self.reset()
         self.initialize_groups(new_neuron_list)
 
@@ -108,7 +115,9 @@ class NeuronGroupMembersStore:
         neuron_list = self._group_to_neuron_dict[group_id]
         max_id = int(len(neuron_list) * self._train_ratio)
         neuron_list = neuron_list[:max_id]
-        neuron_list_filtered = [n for n in neuron_list if n.celltype_confidences.max() > min_confidence]
+        neuron_list_filtered = [
+            n for n in neuron_list if n.celltype_confidences.max() > min_confidence
+        ]
         if len(neuron_list_filtered) < min_neurons_per_group:
             neuron_list_filtered = []
         return neuron_list_filtered
@@ -118,25 +127,44 @@ class NeuronGroupMembersStore:
     ) -> List[SingleNeuronInfoStruct]:
         neuron_struct_list = self._group_to_neuron_dict[group_id]
         min_id = int(len(neuron_struct_list) * self._train_ratio)
-        max_id = int(len(neuron_struct_list) * (self._train_ratio + self._validation_ratio))
+        max_id = int(
+            len(neuron_struct_list) * (self._train_ratio + self._validation_ratio)
+        )
         neuron_struct_list = neuron_struct_list[min_id:max_id]
-        neuron_struct_list = [n for n in neuron_struct_list if n.celltype_confidences.max() > min_confidence]
+        neuron_struct_list = [
+            n
+            for n in neuron_struct_list
+            if n.celltype_confidences.max() > min_confidence
+        ]
         return neuron_struct_list
 
-    def get_test_samples_for_group(self, group_id: int, min_confidence: float = 0.0) -> List[SingleNeuronInfoStruct]:
+    def get_test_samples_for_group(
+        self, group_id: int, min_confidence: float = 0.0
+    ) -> List[SingleNeuronInfoStruct]:
         neuron_struct_list = self._group_to_neuron_dict[group_id]
-        min_id = int(len(neuron_struct_list) * (self._train_ratio + self._validation_ratio))
+        min_id = int(
+            len(neuron_struct_list) * (self._train_ratio + self._validation_ratio)
+        )
         neuron_struct_list = neuron_struct_list[min_id:]
-        neuron_struct_list = [n for n in neuron_struct_list if n.celltype_confidences.max() > min_confidence]
+        neuron_struct_list = [
+            n
+            for n in neuron_struct_list
+            if n.celltype_confidences.max() > min_confidence
+        ]
         return neuron_struct_list
 
     def get_all_training_samples(
-        self, list_of_ids: List[int], min_confidence: float = 0.0, min_neurons_per_group: int = 1
+        self,
+        list_of_ids: List[int],
+        min_confidence: float = 0.0,
+        min_neurons_per_group: int = 1,
     ) -> List[SingleNeuronInfoStruct]:
         training_samples = sum(
             (
                 self.get_training_samples_for_group(
-                    group_id, min_confidence=min_confidence, min_neurons_per_group=min_neurons_per_group
+                    group_id,
+                    min_confidence=min_confidence,
+                    min_neurons_per_group=min_neurons_per_group,
                 )
                 for group_id in list_of_ids
             ),
@@ -149,16 +177,24 @@ class NeuronGroupMembersStore:
     ) -> List[SingleNeuronInfoStruct]:
         valid_samples = sum(
             (
-                self.get_validation_samples_for_group(group_id, min_confidence=min_confidence)
+                self.get_validation_samples_for_group(
+                    group_id, min_confidence=min_confidence
+                )
                 for group_id in list_of_ids
             ),
             [],
         )
         return valid_samples
 
-    def get_all_test_samples(self, list_of_ids: List[int], min_confidence: float = 0.0) -> List[SingleNeuronInfoStruct]:
+    def get_all_test_samples(
+        self, list_of_ids: List[int], min_confidence: float = 0.0
+    ) -> List[SingleNeuronInfoStruct]:
         test_samples = sum(
-            (self.get_test_samples_for_group(group_id, min_confidence=min_confidence) for group_id in list_of_ids), []
+            (
+                self.get_test_samples_for_group(group_id, min_confidence=min_confidence)
+                for group_id in list_of_ids
+            ),
+            [],
         )
         return test_samples
 
@@ -195,6 +231,7 @@ class NeuronData:
         eye: Optional[Literal["left", "right"]] = None,
         group_assignment: Optional[Float[np.ndarray, "n_neurons"]] = None,  # noqa
         key: Optional[dict] = None,
+        **kwargs,
     ):
         """
         Initialize the NeuronData object.
@@ -235,7 +272,9 @@ class NeuronData:
         self.tracestimes = tracestimes
         self.clip_length = clip_length
         self.num_clips = num_clips
-        self.random_sequences = random_sequences if random_sequences is not None else np.array([])
+        self.random_sequences = (
+            random_sequences if random_sequences is not None else np.array([])
+        )
         self.val_clip_idx = val_clip_idx
 
     #! this has to become a regular method in the future
@@ -254,13 +293,17 @@ class NeuronData:
             self.test_responses_by_trial = []
         else:
             self.responses_test = np.zeros((5 * self.clip_length, self.num_neurons))
-            self.responses_train = np.zeros((self.num_clips * self.clip_length, self.num_neurons))
+            self.responses_train = np.zeros(
+                (self.num_clips * self.clip_length, self.num_neurons)
+            )
             self.test_responses_by_trial = []
             for roi in range(self.num_neurons):
                 tmp = np.vstack(
                     (
                         self.neural_responses[roi, : 5 * self.clip_length],
-                        self.neural_responses[roi, 59 * self.clip_length : 64 * self.clip_length],
+                        self.neural_responses[
+                            roi, 59 * self.clip_length : 64 * self.clip_length
+                        ],
                         self.neural_responses[roi, 118 * self.clip_length :],
                     )
                 )
@@ -268,8 +311,12 @@ class NeuronData:
                 self.responses_test[:, roi] = np.mean(tmp, 0)
                 self.responses_train[:, roi] = np.concatenate(
                     (
-                        self.neural_responses[roi, 5 * self.clip_length : 59 * self.clip_length],
-                        self.neural_responses[roi, 64 * self.clip_length : 118 * self.clip_length],
+                        self.neural_responses[
+                            roi, 5 * self.clip_length : 59 * self.clip_length
+                        ],
+                        self.neural_responses[
+                            roi, 64 * self.clip_length : 118 * self.clip_length
+                        ],
                     )
                 )
             self.test_responses_by_trial = np.asarray(self.test_responses_by_trial)
@@ -279,11 +326,15 @@ class NeuronData:
         #     for i, ind in enumerate(self.val_clip_idx):
         #         self.responses_val[i] = self.responses_train[ind * self.clip_length : (ind + 1) * self.clip_length, :]
         # else:
-        self.responses_val = np.zeros([len(self.val_clip_idx) * self.clip_length, self.num_neurons])
+        self.responses_val = np.zeros(
+            [len(self.val_clip_idx) * self.clip_length, self.num_neurons]
+        )
         inv_order = np.argsort(movie_ordering)
         for i, ind1 in enumerate(self.val_clip_idx):
             ind2 = inv_order[ind1]
-            self.responses_val[i * self.clip_length : (i + 1) * self.clip_length, :] = self.responses_train[
+            self.responses_val[
+                i * self.clip_length : (i + 1) * self.clip_length, :
+            ] = self.responses_train[
                 ind2 * self.clip_length : (ind2 + 1) * self.clip_length, :
             ]
 
@@ -346,3 +397,103 @@ class NeuronData:
         val = val - 0.5
         val = val * 2
         return val
+
+
+def upsample_traces(
+    triggertimes,
+    traces,
+    tracestimes,
+    stim_id,
+    stim_framerate: Optional[int] = None,
+    target_fs=15,
+):
+    """
+    Upsamples the traces based on the stimulus type.
+
+    Args:
+        triggertimes (list): List of trigger times.
+        traces (list): List of traces.
+        tracestimes (list): List of trace times.
+        stim_id (int): Stimulus ID.
+        stim_framerate (int, optional): Frame rate of the stimulus. Required for certain stimulus types like moving bar and chirp.
+        target_fs (int, optional): Target frame rate for upsampling. Default is 15.
+
+    Returns:
+        numpy.ndarray: Upsampled responses.
+
+    Raises:
+        NotImplementedError: If the stimulus ID is not implemented.
+    """
+    if stim_id == 5:
+        # if movie, upsample triggertimes to get 1 trigger per frame, (instead of just 1 trigger at the start of the sequence)
+        # 4.966666 is roughly the average time between triggers in the movie stimulus?
+        # TODO understand why 4.96666 and not 5
+        # 5 * 30 is 5 seconds at 30 fps for each clip
+        upsampled_triggertimes = [
+            np.linspace(t, t + 4.9666667, 5 * 30) for t in triggertimes
+        ]
+        upsampled_triggertimes = np.concatenate(upsampled_triggertimes)
+    elif stim_id == 0:
+        up_factor = int(target_fs / stim_framerate)
+        ifi = 1 / stim_framerate
+        upsampled_triggertimes = [
+            np.linspace(t, t + ifi, up_factor, endpoint=False) for t in triggertimes
+        ]
+        upsampled_triggertimes = np.concatenate(upsampled_triggertimes)
+    else:
+        raise NotImplementedError(f"Stimulus ID {stim_id} not implemented")
+
+    upsampled_responses = np.zeros((traces.shape[0], len(upsampled_triggertimes)))
+    for i in range(traces.shape[0]):
+        upsampled_responses[i] = np.interp(
+            upsampled_triggertimes, tracestimes[i].ravel(), traces[i].ravel()
+        )
+
+    upsampled_responses = upsampled_responses / np.std(
+        upsampled_responses, axis=1, keepdims=True
+    )  # normalize response std
+
+    return upsampled_responses
+
+
+def make_final_responses(data_dict: dict, response_type="natural"):
+    """
+    Converts inferred spikes into final responses by upsampling the traces.
+
+    Args:
+        data_dict (dict): A dictionary containing the data.
+        response_type (str, optional): The type of response. Defaults to "natural".
+
+    Returns:
+        dict: The updated data dictionary with final responses.
+    Raises:
+        NotImplementedError: If the conversion is not yet implemented for the given response type.
+    """
+    stim_id = 5 if response_type == "natural" else None
+    if stim_id is None:
+        raise NotImplementedError(
+            f"Conversion not yet implemented for response type {response_type}"
+        )
+
+    for field in tqdm(
+        data_dict.keys(), desc="Upsampling traces to get final responses"
+    ):
+        try:
+            spikes = data_dict[field][f"{response_type}_inferred_spikes"]
+        except KeyError:
+            # For new data format
+            spikes = data_dict[field][f"{response_type}_spikes"]
+        triggertimes = data_dict[field][f"{response_type}_trigger_times"][0]
+        tracestimes = data_dict[field][f"{response_type}_traces_times"]
+
+        upsampled_traces = upsample_traces(
+            triggertimes=triggertimes,
+            traces=spikes,
+            tracestimes=tracestimes,
+            stim_id=stim_id,
+        )
+
+        data_dict[field]["responses_final"] = upsampled_traces
+        data_dict[field]["stim_id"] = stim_id
+
+    return data_dict

@@ -4,7 +4,7 @@ from typing import Callable, Dict, List, Optional, Tuple, TypedDict, Union
 
 import numpy as np
 from jaxtyping import Float
-from torch.utils.data import DataLoader, Dataset, Sampler
+from torch.utils.data import DataLoader, Dataset, Sampler, default_collate
 
 from .constants import SCENE_LENGTH
 
@@ -97,7 +97,9 @@ def get_movie_dataloader(
         dataset = MovieDataSet(movies, responses, roi_ids, roi_coords, group_assignment, split, chunk_size)
         sampler = MovieSampler(start_indices, split, chunk_size, scene_length=scene_length)
 
-    return DataLoader(dataset, sampler=sampler, batch_size=batch_size, drop_last=True if split == "train" else False)
+    return DataLoader(
+        dataset, sampler=sampler, batch_size=batch_size, drop_last=True if split == "train" else False, **kwargs
+    )
 
 
 def get_dims_for_loader_dict(dataloaders):
@@ -145,3 +147,20 @@ def get_io_dims(data_loader):
         return {k: v.shape for k, v in items.items()}
     else:
         return (v.shape for v in items)
+
+
+def filter_nan_collate(batch):
+    """
+    Filters out batches containing NaN values and then calls the default_collate function.
+    Can happen for inferred spikes exported with CASCADE.
+    To be used as a collate_fn in a DataLoader.
+
+    Args:
+        batch (list): A list of tuples representing the batch.
+
+    Returns:
+        tuple of torch.Tensor: The collated batch after filtering out NaN values.
+
+    """
+    batch = list(filter(lambda x: not np.isnan(x[1]).any(), batch))
+    return default_collate(batch)
