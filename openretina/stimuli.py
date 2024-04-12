@@ -9,19 +9,11 @@ _CHIRP_PATH = _STIMULUS_FOLDER_PATH + "/RGC_Chirp_30Hz_18_16.pickle"
 _MOVING_BAR_PATH = _STIMULUS_FOLDER_PATH + "/RGC_MovingBar_30Hz_18_16.pickle"
 _FRAME_RATE = 30  # Hz
 
-_MEAN = 36.774321197604586  # from MovieStimulus.fetch("stimulus_info")
-_STD = 34.811117676511635  # from MovieStimulus.fetch("stimulus_info")
-
-_LENGTH_X = 18
-_LENGTH_Y = 16
-
 """
 There are three stimuli this module deals with:
-- noise stimulus: 
+- noise stimulus: todo
 - chirp stimulus: traces 32.9s, 0.128
 - moving bar stimulus: 8 directions, each 3.968s, in total
-
-
 """
 
 
@@ -136,8 +128,3 @@ def colored_stimulus(channel_idx: int, pad_front: int, stimulus_length: int, pad
     stimulus_5d = np.expand_dims(stimulus, 0)
 
     return stimulus_5d
-
-# chirp = load_chirp(trigger_times=np.array([ 31.91 ,  36.874,  64.902,  69.906,  97.934, 102.938, 130.966, 135.97 , 163.998, 169.002]))
-# print(chirp.shape)
-# mb = load_moving_bar_stack()
-# print(mb.shape)
