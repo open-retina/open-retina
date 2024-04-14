@@ -42,7 +42,7 @@ def get_all_movie_combinations(
     """
     if val_clip_idx is None:
         rnd = np.random.RandomState(seed)
-        val_clip_idx = list(rnd.choice(num_clips, num_val_clips, replace=False))
+        val_clip_idx = list(np.sort(rnd.choice(num_clips, num_val_clips, replace=False)))
 
     # Convert movie data to tensors
     movie_train = torch.tensor(movie_train, dtype=torch.float)
@@ -53,102 +53,58 @@ def get_all_movie_combinations(
     # Prepare validation movie data
     movie_val = torch.zeros((channels, len(val_clip_idx) * clip_length, px_y, px_x), dtype=torch.float)
     for i, ind in enumerate(val_clip_idx):
-        movie_val[:, i * clip_length : (i + 1) * clip_length] = movie_train[
-            :, ind * clip_length : (ind + 1) * clip_length
+        movie_val[:, i * clip_length : (i + 1) * clip_length, ...] = movie_train[
+            :, ind * clip_length : (ind + 1) * clip_length, ...
         ]
+
+    # Create a boolean mask to indicate which clips are not part of the validation set
+    # They are going to get removed
+    mask = np.ones(num_clips, dtype=bool)
+    mask[val_clip_idx] = False
+    train_clip_idx = np.arange(num_clips)[mask]
+
+    movie_train_subset = torch.cat(
+        [movie_train[:, i * clip_length : (i + 1) * clip_length] for i in train_clip_idx], dim=1
+    )
 
     # Initialize movie dictionaries
     multiple_train_movies = True if random_sequences.shape[1] > 1 else False
-
-    movies = {
-        "left": {
-            "train": {} if multiple_train_movies else torch.flip(movie_train, [-1]),
-            "validation": torch.flip(movie_val, [-1]),
-            "test": torch.flip(movie_test, [-1]),
-        },
-        "right": {"train": {} if multiple_train_movies else movie_train, "validation": movie_val, "test": movie_test},
-        "val_clip_idx": val_clip_idx,
-    }
+    if multiple_train_movies:
+        movies = {
+            "left": {"train": {}, "validation": torch.flip(movie_val, [-1]), "test": torch.flip(movie_test, [-1])},
+            "right": {"train": {}, "validation": movie_val, "test": movie_test},
+            "val_clip_idx": val_clip_idx,
+        }
+    else:
+        movies = {
+            "left": {
+                "train": torch.flip(movie_train_subset, [-1]),
+                "validation": torch.flip(movie_val, [-1]),
+                "test": torch.flip(movie_test, [-1]),
+            },
+            "right": {"train": movie_train_subset, "validation": movie_val, "test": movie_test},
+            "val_clip_idx": val_clip_idx,
+        }
 
     # Process training movies for each random sequence, if multiple
     if multiple_train_movies:
-        for i in range(random_sequences.shape[1]):
-            reordered_movie = torch.zeros_like(movie_train)
-            for k, ind in enumerate(random_sequences[:, i]):
-                reordered_movie[:, k * clip_length : (k + 1) * clip_length] = movie_train[
-                    :, ind * clip_length : (ind + 1) * clip_length
+        for sequence_index in range(random_sequences.shape[1]):
+            k = 0
+            reordered_movie = torch.zeros_like(movie_train_subset)
+            for clip_idx in random_sequences[:, sequence_index]:
+                if clip_idx in val_clip_idx:
+                    continue
+                reordered_movie[:, k * clip_length : (k + 1) * clip_length, ...] = movie_train[
+                    :, clip_idx * clip_length : (clip_idx + 1) * clip_length, ...
                 ]
-
-            movies["right"]["train"][i] = reordered_movie
-            movies["left"]["train"][i] = torch.flip(reordered_movie, [-1])
+                k += 1
+            movies["right"]["train"][sequence_index] = reordered_movie
+            movies["left"]["train"][sequence_index] = torch.flip(reordered_movie, [-1])
 
     return movies
 
 
-def gen_start_indices(random_sequences, val_clip_idx, clip_length, chunk_size, num_clips):  # 108 x 20 integer
-    """
-    Generates a list of indices into movie frames that can be used as start
-    indices for training chunks without including validation clips in the
-    training set.
-
-    Args:
-        random_sequences (np.ndarray): Integer array of shape (108, 20) giving the ordering of the
-                                       108 training clips for the 20 different sequences.
-        val_clip_idx (list): List of integers indicating the 15 clips to be used for validation.
-        clip_length (int): Clip length in frames (5s * 30 frames/s = 150 frames).
-        chunk_size (int): Temporal chunk size per sample in frames (50).
-        num_clips (int): Total number of training clips (108).
-
-    Returns:
-        dict: A dictionary with keys "train", "validation", and "test", and index lists as values.
-    """
-    # Validation clip indices are consecutive, because the validation clip and stimuli are already isolated in other functions.
-    val_start_idx = list(np.linspace(0, clip_length * (len(val_clip_idx) - 1), len(val_clip_idx), dtype=int))
-
-    start_idx_dict = {"train": {}, "validation": val_start_idx, "test": [0]}
-    for i in range(random_sequences.shape[1]):  # iterate over the 20 different movie permutations
-        start_idx = 0
-        current_idx = 0
-        seq_start_idx = []
-        seq_length = []
-        for k, ind in enumerate(random_sequences[: num_clips // 2, i]):  # over first half of the clips
-            if ind in val_clip_idx:
-                length = current_idx - start_idx
-                if length > 0:
-                    seq_start_idx.append(start_idx)
-                    seq_length.append(length)
-                start_idx = current_idx + clip_length
-            current_idx += clip_length
-        length = current_idx - start_idx
-        if length > 0:
-            seq_start_idx.append(start_idx)
-            seq_length.append(length)
-        start_idx = current_idx
-        for k, ind in enumerate(random_sequences[num_clips // 2 :, i]):  # over second half of the clips
-            if ind in val_clip_idx:
-                length = current_idx - start_idx
-                if length > 0:
-                    seq_start_idx.append(start_idx)
-                    seq_length.append(length)
-                start_idx = current_idx + clip_length
-            current_idx += clip_length
-        length = current_idx - start_idx
-        if length > 0:
-            seq_start_idx.append(start_idx)
-            seq_length.append(length)
-
-        chunk_start_idx = []
-        for start, length in zip(seq_start_idx, seq_length):
-            idx = np.arange(start, start + length - chunk_size + 1, chunk_size)
-            chunk_start_idx += list(idx[:-1])
-        start_idx_dict["train"][i] = chunk_start_idx
-
-    if len(start_idx_dict["train"]) == 1:
-        start_idx_dict["train"] = start_idx_dict["train"][0]
-    return start_idx_dict
-
-
-def optimized_gen_start_indices(random_sequences, val_clip_idx, clip_length, chunk_size, num_clips):
+def gen_start_indices(random_sequences, val_clip_idx, clip_length, chunk_size, num_clips):
     """
     Optimized function to generate a list of indices for training chunks while
     excluding validation clips.
@@ -163,38 +119,17 @@ def optimized_gen_start_indices(random_sequences, val_clip_idx, clip_length, chu
     :return: dict; with keys train, validation, and test, and index list as
              values
     """
-    val_clip_set = set(val_clip_idx)
+    # Validation clip indices are consecutive, because the validation clip and stimuli are already isolated in other functions.
     val_start_idx = list(np.linspace(0, clip_length * (len(val_clip_idx) - 1), len(val_clip_idx), dtype=int))
 
     start_idx_dict = {"train": {}, "validation": val_start_idx, "test": [0]}
 
+    num_train_clips = num_clips - len(val_clip_idx)
+
     for sequence_index in range(random_sequences.shape[1]):
-        start_idx = 0
-        current_idx = 0
-        seq_start_idx = []
-        seq_length = []
-
-        for clip_index in random_sequences[:, sequence_index]:
-            if clip_index in val_clip_set:
-                length = current_idx - start_idx
-                if length > 0:
-                    seq_start_idx.append(start_idx)
-                    seq_length.append(length)
-                start_idx = current_idx + clip_length
-            current_idx += clip_length
-
-        # Handling the last segment
-        length = current_idx - start_idx
-        if length > 0:
-            seq_start_idx.append(start_idx)
-            seq_length.append(length)
-
-        chunk_start_idx = [
-            idx
-            for start, length in zip(seq_start_idx, seq_length)
-            for idx in range(start, start + length - chunk_size + 1, chunk_size)[:-1]
-        ]
-        start_idx_dict["train"][sequence_index] = chunk_start_idx
+        start_idx_dict["train"][sequence_index] = list(
+            np.arange(0, clip_length * (num_train_clips - 1), chunk_size, dtype=int)
+        )
 
     return start_idx_dict
 

@@ -3,6 +3,7 @@ from copy import deepcopy
 from typing import Callable, Dict, List, Optional, Tuple, TypedDict, Union
 
 import numpy as np
+import torch
 from jaxtyping import Float
 from torch.utils.data import DataLoader, Dataset, Sampler, default_collate
 
@@ -22,6 +23,8 @@ class MovieDataSet(Dataset):
             self.roi_coords = roi_coords
         self.DataPoint = namedtuple("DataPoint", ("inputs", "targets"))
         self.chunk_size = chunk_size
+        # Calculate the mean response per neuron (used for bias init in the model)
+        self.mean_response = torch.mean(self.samples[1], dim=0)
 
     def __getitem__(self, idx):
         if isinstance(idx, slice):
@@ -43,7 +46,8 @@ class MovieDataSet(Dataset):
         return self.samples[1]
 
     def __len__(self):
-        return self.samples[1].shape[1]
+        # Returns the number of chunks of clips and responses used for training
+        return self.samples[1].shape[0] // self.chunk_size
 
     def __str__(self):
         return f"MovieDataSet with {len(self)} neuron responses to a movie of shape {list(self.samples[0].shape)}."
@@ -164,3 +168,26 @@ def filter_nan_collate(batch):
     """
     batch = list(filter(lambda x: not np.isnan(x[1]).any(), batch))
     return default_collate(batch)
+
+
+def filter_different_size(batch):
+    """
+    Filters out batches that do not have the same shape as most of the other batches.
+    """
+    # Get the shapes of all the elements in the batch
+    shapes = [element[1].shape for element in batch]
+
+    # Find the most common shape in the batch
+    most_common_shape = max(set(shapes), key=shapes.count)
+
+    # Filter out elements that do not have the most common shape
+    filtered_batch = [element for element in batch if element[1].shape == most_common_shape]
+
+    # If the filtered batch is empty, return None
+    if not filtered_batch:
+        return None
+
+    # Collate the filtered batch using the default collate function
+    collated_batch = default_collate(filtered_batch)
+
+    return collated_batch

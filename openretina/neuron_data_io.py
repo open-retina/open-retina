@@ -35,9 +35,7 @@ class NeuronGroupMembersStore:
         validation_ratio: float = 0.1,
     ):
         self._all_neurons: List[SingleNeuronInfoStruct] = []
-        self._group_to_neuron_dict: Dict[
-            int, List[SingleNeuronInfoStruct]
-        ] = defaultdict(list)
+        self._group_to_neuron_dict: Dict[int, List[SingleNeuronInfoStruct]] = defaultdict(list)
         self._selection_keys = key
         self._train_ratio = train_ratio
         self._validation_ratio = validation_ratio
@@ -96,13 +94,9 @@ class NeuronGroupMembersStore:
                     )
                     new_neuron_list.append(neuron)
 
-        diff_neurons = set(n.neuron_id for n in self._all_neurons) - set(
-            n.neuron_id for n in new_neuron_list
-        )
+        diff_neurons = set(n.neuron_id for n in self._all_neurons) - set(n.neuron_id for n in new_neuron_list)
         if len(diff_neurons) > 0:
-            raise ValueError(
-                f"Could not find mean and std for {len(diff_neurons)} neurons"
-            )
+            raise ValueError(f"Could not find mean and std for {len(diff_neurons)} neurons")
         self.reset()
         self.initialize_groups(new_neuron_list)
 
@@ -115,9 +109,7 @@ class NeuronGroupMembersStore:
         neuron_list = self._group_to_neuron_dict[group_id]
         max_id = int(len(neuron_list) * self._train_ratio)
         neuron_list = neuron_list[:max_id]
-        neuron_list_filtered = [
-            n for n in neuron_list if n.celltype_confidences.max() > min_confidence
-        ]
+        neuron_list_filtered = [n for n in neuron_list if n.celltype_confidences.max() > min_confidence]
         if len(neuron_list_filtered) < min_neurons_per_group:
             neuron_list_filtered = []
         return neuron_list_filtered
@@ -127,30 +119,16 @@ class NeuronGroupMembersStore:
     ) -> List[SingleNeuronInfoStruct]:
         neuron_struct_list = self._group_to_neuron_dict[group_id]
         min_id = int(len(neuron_struct_list) * self._train_ratio)
-        max_id = int(
-            len(neuron_struct_list) * (self._train_ratio + self._validation_ratio)
-        )
+        max_id = int(len(neuron_struct_list) * (self._train_ratio + self._validation_ratio))
         neuron_struct_list = neuron_struct_list[min_id:max_id]
-        neuron_struct_list = [
-            n
-            for n in neuron_struct_list
-            if n.celltype_confidences.max() > min_confidence
-        ]
+        neuron_struct_list = [n for n in neuron_struct_list if n.celltype_confidences.max() > min_confidence]
         return neuron_struct_list
 
-    def get_test_samples_for_group(
-        self, group_id: int, min_confidence: float = 0.0
-    ) -> List[SingleNeuronInfoStruct]:
+    def get_test_samples_for_group(self, group_id: int, min_confidence: float = 0.0) -> List[SingleNeuronInfoStruct]:
         neuron_struct_list = self._group_to_neuron_dict[group_id]
-        min_id = int(
-            len(neuron_struct_list) * (self._train_ratio + self._validation_ratio)
-        )
+        min_id = int(len(neuron_struct_list) * (self._train_ratio + self._validation_ratio))
         neuron_struct_list = neuron_struct_list[min_id:]
-        neuron_struct_list = [
-            n
-            for n in neuron_struct_list
-            if n.celltype_confidences.max() > min_confidence
-        ]
+        neuron_struct_list = [n for n in neuron_struct_list if n.celltype_confidences.max() > min_confidence]
         return neuron_struct_list
 
     def get_all_training_samples(
@@ -177,23 +155,16 @@ class NeuronGroupMembersStore:
     ) -> List[SingleNeuronInfoStruct]:
         valid_samples = sum(
             (
-                self.get_validation_samples_for_group(
-                    group_id, min_confidence=min_confidence
-                )
+                self.get_validation_samples_for_group(group_id, min_confidence=min_confidence)
                 for group_id in list_of_ids
             ),
             [],
         )
         return valid_samples
 
-    def get_all_test_samples(
-        self, list_of_ids: List[int], min_confidence: float = 0.0
-    ) -> List[SingleNeuronInfoStruct]:
+    def get_all_test_samples(self, list_of_ids: List[int], min_confidence: float = 0.0) -> List[SingleNeuronInfoStruct]:
         test_samples = sum(
-            (
-                self.get_test_samples_for_group(group_id, min_confidence=min_confidence)
-                for group_id in list_of_ids
-            ),
+            (self.get_test_samples_for_group(group_id, min_confidence=min_confidence) for group_id in list_of_ids),
             [],
         )
         return test_samples
@@ -272,9 +243,7 @@ class NeuronData:
         self.tracestimes = tracestimes
         self.clip_length = clip_length
         self.num_clips = num_clips
-        self.random_sequences = (
-            random_sequences if random_sequences is not None else np.array([])
-        )
+        self.random_sequences = random_sequences if random_sequences is not None else np.array([])
         self.val_clip_idx = val_clip_idx
 
     #! this has to become a regular method in the future
@@ -289,34 +258,26 @@ class NeuronData:
         if self.stim_id == "salamander_natural":
             # Transpose the responses to have the shape (n_timepoints, n_neurons)
             self.responses_test = self.neural_responses["test"].T
-            self.responses_train = self.neural_responses["train"].T
+            self.responses_train_and_val = self.neural_responses["train"].T
             self.test_responses_by_trial = []
         else:
             self.responses_test = np.zeros((5 * self.clip_length, self.num_neurons))
-            self.responses_train = np.zeros(
-                (self.num_clips * self.clip_length, self.num_neurons)
-            )
+            self.responses_train_and_val = np.zeros((self.num_clips * self.clip_length, self.num_neurons))
             self.test_responses_by_trial = []
             for roi in range(self.num_neurons):
                 tmp = np.vstack(
                     (
                         self.neural_responses[roi, : 5 * self.clip_length],
-                        self.neural_responses[
-                            roi, 59 * self.clip_length : 64 * self.clip_length
-                        ],
+                        self.neural_responses[roi, 59 * self.clip_length : 64 * self.clip_length],
                         self.neural_responses[roi, 118 * self.clip_length :],
                     )
                 )
                 self.test_responses_by_trial.append(tmp)
                 self.responses_test[:, roi] = np.mean(tmp, 0)
-                self.responses_train[:, roi] = np.concatenate(
+                self.responses_train_and_val[:, roi] = np.concatenate(
                     (
-                        self.neural_responses[
-                            roi, 5 * self.clip_length : 59 * self.clip_length
-                        ],
-                        self.neural_responses[
-                            roi, 64 * self.clip_length : 118 * self.clip_length
-                        ],
+                        self.neural_responses[roi, 5 * self.clip_length : 59 * self.clip_length],
+                        self.neural_responses[roi, 64 * self.clip_length : 118 * self.clip_length],
                     )
                 )
             self.test_responses_by_trial = np.asarray(self.test_responses_by_trial)
@@ -326,17 +287,19 @@ class NeuronData:
         #     for i, ind in enumerate(self.val_clip_idx):
         #         self.responses_val[i] = self.responses_train[ind * self.clip_length : (ind + 1) * self.clip_length, :]
         # else:
-        self.responses_val = np.zeros(
-            [len(self.val_clip_idx) * self.clip_length, self.num_neurons]
-        )
-        inv_order = np.argsort(movie_ordering)
+
+        base_movie_sorting = np.argsort(movie_ordering)
+
+        validation_mask = np.ones_like(self.responses_train_and_val, dtype=bool)
+        self.responses_val = np.zeros([len(self.val_clip_idx) * self.clip_length, self.num_neurons])
+
         for i, ind1 in enumerate(self.val_clip_idx):
-            ind2 = inv_order[ind1]
-            self.responses_val[
-                i * self.clip_length : (i + 1) * self.clip_length, :
-            ] = self.responses_train[
-                ind2 * self.clip_length : (ind2 + 1) * self.clip_length, :
+            grab_index = base_movie_sorting[ind1]
+            self.responses_val[i * self.clip_length : (i + 1) * self.clip_length, :] = self.responses_train_and_val[
+                grab_index * self.clip_length : (grab_index + 1) * self.clip_length, :
             ]
+            validation_mask[(grab_index * self.clip_length) : (grab_index + 1) * self.clip_length, :] = False
+        self.responses_train = self.responses_train_and_val[validation_mask].reshape(-1, self.num_neurons)
 
         response_dict = {
             "train": torch.tensor(self.responses_train).to(torch.float),
@@ -429,25 +392,19 @@ def upsample_traces(
         # 4.966666 is roughly the average time between triggers in the movie stimulus?
         # TODO understand why 4.96666 and not 5
         # 5 * 30 is 5 seconds at 30 fps for each clip
-        upsampled_triggertimes = [
-            np.linspace(t, t + 4.9666667, 5 * 30) for t in triggertimes
-        ]
+        upsampled_triggertimes = [np.linspace(t, t + 4.9666667, 5 * 30) for t in triggertimes]
         upsampled_triggertimes = np.concatenate(upsampled_triggertimes)
     elif stim_id == 0:
         up_factor = int(target_fs / stim_framerate)
         ifi = 1 / stim_framerate
-        upsampled_triggertimes = [
-            np.linspace(t, t + ifi, up_factor, endpoint=False) for t in triggertimes
-        ]
+        upsampled_triggertimes = [np.linspace(t, t + ifi, up_factor, endpoint=False) for t in triggertimes]
         upsampled_triggertimes = np.concatenate(upsampled_triggertimes)
     else:
         raise NotImplementedError(f"Stimulus ID {stim_id} not implemented")
 
     upsampled_responses = np.zeros((traces.shape[0], len(upsampled_triggertimes)))
     for i in range(traces.shape[0]):
-        upsampled_responses[i] = np.interp(
-            upsampled_triggertimes, tracestimes[i].ravel(), traces[i].ravel()
-        )
+        upsampled_responses[i] = np.interp(upsampled_triggertimes, tracestimes[i].ravel(), traces[i].ravel())
 
     upsampled_responses = upsampled_responses / np.std(
         upsampled_responses, axis=1, keepdims=True
@@ -471,13 +428,9 @@ def make_final_responses(data_dict: dict, response_type="natural"):
     """
     stim_id = 5 if response_type == "natural" else None
     if stim_id is None:
-        raise NotImplementedError(
-            f"Conversion not yet implemented for response type {response_type}"
-        )
+        raise NotImplementedError(f"Conversion not yet implemented for response type {response_type}")
 
-    for field in tqdm(
-        data_dict.keys(), desc="Upsampling traces to get final responses"
-    ):
+    for field in tqdm(data_dict.keys(), desc="Upsampling traces to get final responses"):
         try:
             spikes = data_dict[field][f"{response_type}_inferred_spikes"]
         except KeyError:
