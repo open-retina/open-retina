@@ -7,6 +7,7 @@ import torch
 import torch.distributions as dist
 import torch.nn as nn
 import torch.nn.functional as F
+
 from neuralpredictors.layers.affine import Bias3DLayer, Scale2DLayer, Scale3DLayer
 from neuralpredictors.regularizers import Laplace, Laplace1d, laplace3d
 from neuralpredictors.utils import get_module_output
@@ -109,7 +110,7 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
 
         log_speed_dict = dict()
         for k in n_neurons_dict:
-            var_name = "_".join(["log_speed", k])
+            var_name = "_".join(["log_speed", str(k)])
             log_speed_val = torch.nn.Parameter(data=torch.zeros(1), requires_grad=batch_adaptation)
             setattr(self, var_name, log_speed_val)
             log_speed_dict[var_name] = log_speed_val
@@ -267,7 +268,7 @@ class SpatialXFeature3dReadout(nn.ModuleDict):
             in_shape = get_module_output(core, in_shape_dict[k])[1:]
             n_neurons = n_neurons_dict[k]
             self.add_module(
-                k,
+                str(k),
                 SpatialXFeature3d(  # add a readout for each session
                     in_shape,
                     n_neurons,
@@ -1007,7 +1008,7 @@ def SFB3d_core_SxF3d_readout(
     if readout_bias == True:
         if data_info is None:
             for k in dataloaders:
-                readout[k].bias.data = dataloaders[k].dataset[:]._asdict()[out_name].mean(0)
+                readout[k].bias.data = dataloaders[k].dataset.mean_response
         else:
             for k in data_info.keys():
                 readout[k].bias.data = torch.from_numpy(data_info[k]["mean_response"])
