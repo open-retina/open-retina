@@ -6,6 +6,7 @@ import torch
 from openretina.constants import CLIP_LENGTH, NUM_CLIPS, NUM_VAL_CLIPS
 from openretina.dataloaders import get_movie_dataloader
 from openretina.neuron_data_io import NeuronData
+from openretina.stimuli import load_chirp, load_moving_bar
 
 
 class MoviesDict(TypedDict):
@@ -42,7 +43,9 @@ def get_all_movie_combinations(
     """
     if val_clip_idx is None:
         rnd = np.random.RandomState(seed)
-        val_clip_idx = list(np.sort(rnd.choice(num_clips, num_val_clips, replace=False)))
+        val_clip_idx = list(
+            np.sort(rnd.choice(num_clips, num_val_clips, replace=False))
+        )
 
     # Convert movie data to tensors
     movie_train = torch.tensor(movie_train, dtype=torch.float)
@@ -51,7 +54,9 @@ def get_all_movie_combinations(
     channels, _, px_y, px_x = movie_train.shape
 
     # Prepare validation movie data
-    movie_val = torch.zeros((channels, len(val_clip_idx) * clip_length, px_y, px_x), dtype=torch.float)
+    movie_val = torch.zeros(
+        (channels, len(val_clip_idx) * clip_length, px_y, px_x), dtype=torch.float
+    )
     for i, ind in enumerate(val_clip_idx):
         movie_val[:, i * clip_length : (i + 1) * clip_length, ...] = movie_train[
             :, ind * clip_length : (ind + 1) * clip_length, ...
@@ -64,14 +69,22 @@ def get_all_movie_combinations(
     train_clip_idx = np.arange(num_clips)[mask]
 
     movie_train_subset = torch.cat(
-        [movie_train[:, i * clip_length : (i + 1) * clip_length] for i in train_clip_idx], dim=1
+        [
+            movie_train[:, i * clip_length : (i + 1) * clip_length]
+            for i in train_clip_idx
+        ],
+        dim=1,
     )
 
     # Initialize movie dictionaries
     multiple_train_movies = True if random_sequences.shape[1] > 1 else False
     if multiple_train_movies:
         movies = {
-            "left": {"train": {}, "validation": torch.flip(movie_val, [-1]), "test": torch.flip(movie_test, [-1])},
+            "left": {
+                "train": {},
+                "validation": torch.flip(movie_val, [-1]),
+                "test": torch.flip(movie_test, [-1]),
+            },
             "right": {"train": {}, "validation": movie_val, "test": movie_test},
             "val_clip_idx": val_clip_idx,
         }
@@ -82,7 +95,11 @@ def get_all_movie_combinations(
                 "validation": torch.flip(movie_val, [-1]),
                 "test": torch.flip(movie_test, [-1]),
             },
-            "right": {"train": movie_train_subset, "validation": movie_val, "test": movie_test},
+            "right": {
+                "train": movie_train_subset,
+                "validation": movie_val,
+                "test": movie_test,
+            },
             "val_clip_idx": val_clip_idx,
         }
 
@@ -94,7 +111,9 @@ def get_all_movie_combinations(
             for clip_idx in random_sequences[:, sequence_index]:
                 if clip_idx in val_clip_idx:
                     continue
-                reordered_movie[:, k * clip_length : (k + 1) * clip_length, ...] = movie_train[
+                reordered_movie[
+                    :, k * clip_length : (k + 1) * clip_length, ...
+                ] = movie_train[
                     :, clip_idx * clip_length : (clip_idx + 1) * clip_length, ...
                 ]
                 k += 1
@@ -104,7 +123,9 @@ def get_all_movie_combinations(
     return movies
 
 
-def gen_start_indices(random_sequences, val_clip_idx, clip_length, chunk_size, num_clips):
+def gen_start_indices(
+    random_sequences, val_clip_idx, clip_length, chunk_size, num_clips
+):
     """
     Optimized function to generate a list of indices for training chunks while
     excluding validation clips.
@@ -120,7 +141,11 @@ def gen_start_indices(random_sequences, val_clip_idx, clip_length, chunk_size, n
              values
     """
     # Validation clip indices are consecutive, because the validation clip and stimuli are already isolated in other functions.
-    val_start_idx = list(np.linspace(0, clip_length * (len(val_clip_idx) - 1), len(val_clip_idx), dtype=int))
+    val_start_idx = list(
+        np.linspace(
+            0, clip_length * (len(val_clip_idx) - 1), len(val_clip_idx), dtype=int
+        )
+    )
 
     start_idx_dict = {"train": {}, "validation": val_start_idx, "test": [0]}
 
@@ -148,11 +173,19 @@ def natmov_dataloaders_v2(
         neuron_data_dictionary, dict
     ), "neuron_data_dictionary should be a dictionary of sessions and their corresponding neuron data."
     assert (
-        isinstance(movies_dictionary, dict) and "train" in movies_dictionary and "test" in movies_dictionary
+        isinstance(movies_dictionary, dict)
+        and "train" in movies_dictionary
+        and "test" in movies_dictionary
     ), "movies_dictionary should be a dictionary with keys 'train' and 'test'."
     assert all(
-        field in next(iter(neuron_data_dictionary.values())) for field in ["responses_final", "stim_id"]
+        field in next(iter(neuron_data_dictionary.values()))
+        for field in ["responses_final", "stim_id"]
     ), "Check the neuron data dictionary sub-dictionaries for the minimal required fields: 'responses_final' and 'stim_id'."
+
+    assert next(iter(neuron_data_dictionary.values()))["stim_id"] in [
+        5,
+        "salamander_natural",
+    ], "This function only supports natural movie stimuli."
 
     # Draw validation clips based on the random seed
     rnd = np.random.RandomState(seed)
@@ -166,7 +199,10 @@ def natmov_dataloaders_v2(
     dataloaders = {"train": {}, "validation": {}, "test": {}}
 
     # Get the random sequences of movies presentatios for each session if available
-    if "random_sequences" not in movies_dictionary or movies_dictionary["random_sequences"] is None:
+    if (
+        "random_sequences" not in movies_dictionary
+        or movies_dictionary["random_sequences"] is None
+    ):
         movie_length = movies_dictionary["train"].shape[1]
         random_sequences = np.arange(0, movie_length // clip_length)[:, np.newaxis]
     else:
@@ -179,7 +215,9 @@ def natmov_dataloaders_v2(
         val_clip_idx=val_clip_idx,
         clip_length=clip_length,
     )
-    start_indices = gen_start_indices(random_sequences, val_clip_idx, clip_length, train_chunk_size, num_clips)
+    start_indices = gen_start_indices(
+        random_sequences, val_clip_idx, clip_length, train_chunk_size, num_clips
+    )
     for session_key, session_data in neuron_data_dictionary.items():
         neuron_data = NeuronData(
             **session_data,
@@ -206,5 +244,137 @@ def natmov_dataloaders_v2(
                 batch_size=batch_size,
                 scene_length=clip_length,
             )
+
+    return dataloaders
+
+
+def chirp_dataloaders(
+    neuron_data_dictionary,
+    train_chunk_size: Optional[int] = None,
+    batch_size: int = 32,
+):
+    assert isinstance(
+        neuron_data_dictionary, dict
+    ), "neuron_data_dictionary should be a dictionary of sessions and their corresponding neuron data."
+    assert all(
+        field in next(iter(neuron_data_dictionary.values()))
+        for field in ["responses_final", "stim_id", "chirp_trigger_times"]
+    ), "Check the neuron data dictionary sub-dictionaries for the minimal required fields: 'responses_final', 'stim_id' and 'chirp_trigger_times'."
+
+    assert (
+        next(iter(neuron_data_dictionary.values()))["stim_id"] == 1
+    ), "This function only supports chirp stimuli."
+
+    dataloaders = {"train": {}}
+
+    chirp_triggers = next(iter(neuron_data_dictionary.values()))["chirp_trigger_times"][
+        0
+    ]
+
+    chirp_stimulus = torch.tensor(
+        load_chirp(trigger_times=chirp_triggers), dtype=torch.float32
+    ).permute(3, 0, 1, 2)
+
+    clip_chunk_sizes = {
+        "train": train_chunk_size
+        if train_chunk_size is not None
+        else len(chirp_stimulus) // 5,
+    }
+
+    # 5 chirp presentations
+    start_indices = list(range(0, len(chirp_stimulus), step=len(chirp_stimulus) // 5))
+
+    for session_key, session_data in neuron_data_dictionary.items():
+        neuron_data = NeuronData(
+            **session_data,
+            random_sequences=None,
+            val_clip_idx=None,
+            num_clips=None,
+            clip_length=None,
+        )
+
+        session_key += "_chirp"
+
+        dataloaders["train"][session_key] = get_movie_dataloader(
+            movies=chirp_stimulus
+            if neuron_data.eye == "right"
+            else torch.flip(chirp_stimulus, [-1]),
+            responses=neuron_data.response_dict["train"],
+            roi_ids=neuron_data.roi_ids,
+            roi_coords=neuron_data.roi_coords,
+            group_assignment=neuron_data.group_assignment,
+            scan_sequence_idx=neuron_data.scan_sequence_idx,
+            split="train",
+            chunk_size=clip_chunk_sizes["train"],
+            start_indices=start_indices,
+            batch_size=batch_size,
+            scene_length=len(chirp_stimulus) // 5,
+        )
+
+    return dataloaders
+
+
+def mb_dataloaders(
+    neuron_data_dictionary,
+    train_chunk_size: Optional[int] = None,
+    batch_size: int = 32,
+):
+    assert isinstance(
+        neuron_data_dictionary, dict
+    ), "neuron_data_dictionary should be a dictionary of sessions and their corresponding neuron data."
+    assert all(
+        field in next(iter(neuron_data_dictionary.values()))
+        for field in ["responses_final", "stim_id", "mb_trigger_times"]
+    ), "Check the neuron data dictionary sub-dictionaries for the minimal required fields: 'responses_final', 'stim_id' and 'mb_trigger_times'."
+
+    assert (
+        next(iter(neuron_data_dictionary.values()))["stim_id"] == 2
+    ), "This function only supports moving bar stimuli."
+
+    dataloaders = {"train": {}}
+
+    mb_triggers = next(iter(neuron_data_dictionary.values()))["mb_trigger_times"][0]
+
+    mb_stimulus = torch.tensor(
+        load_moving_bar(trigger_times=mb_triggers), dtype=torch.float32
+    ).permute(3, 0, 1, 2)
+
+    # 8 directions, 3 presentations per direction
+    num_mbs = 8 * 3
+
+    clip_chunk_sizes = {
+        "train": train_chunk_size
+        if train_chunk_size is not None
+        else len(mb_stimulus) // num_mbs,
+    }
+
+    start_indices = list(range(0, len(mb_stimulus), step=len(mb_stimulus) // num_mbs))
+
+    for session_key, session_data in neuron_data_dictionary.items():
+        neuron_data = NeuronData(
+            **session_data,
+            random_sequences=None,
+            val_clip_idx=None,
+            num_clips=None,
+            clip_length=None,
+        )
+
+        session_key += "_mb"
+
+        dataloaders["train"][session_key] = get_movie_dataloader(
+            movies=mb_stimulus
+            if neuron_data.eye == "right"
+            else torch.flip(mb_stimulus, [-1]),
+            responses=neuron_data.response_dict["train"],
+            roi_ids=neuron_data.roi_ids,
+            roi_coords=neuron_data.roi_coords,
+            group_assignment=neuron_data.group_assignment,
+            scan_sequence_idx=neuron_data.scan_sequence_idx,
+            split="train",
+            chunk_size=clip_chunk_sizes["train"],
+            start_indices=start_indices,
+            batch_size=batch_size,
+            scene_length=len(mb_stimulus) // num_mbs,
+        )
 
     return dataloaders
