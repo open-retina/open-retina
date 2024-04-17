@@ -1,6 +1,7 @@
 import pickle
 import warnings
 from collections import defaultdict, namedtuple
+from copy import deepcopy
 from typing import Dict, List, Literal, Optional
 
 import numpy as np
@@ -250,11 +251,6 @@ class NeuronData:
     #! this has to become a regular method in the future
     @property
     def response_dict(self):
-        movie_ordering = (
-            np.arange(self.num_clips)
-            if (len(self.random_sequences) == 0 or self.scan_sequence_idx is None)
-            else self.random_sequences[:, self.scan_sequence_idx]
-        )
 
         if self.stim_id == "salamander_natural":
             # Transpose the responses to have the shape (n_timepoints, n_neurons)
@@ -269,9 +265,10 @@ class NeuronData:
 
             self.responses_val = np.nan
 
-            self.responses_train = self.neural_responses
+            self.responses_train = self.neural_responses.T
 
         else:
+
             self.responses_test = np.zeros((5 * self.clip_length, self.num_neurons))
             self.responses_train_and_val = np.zeros((self.num_clips * self.clip_length, self.num_neurons))
 
@@ -297,6 +294,13 @@ class NeuronData:
             self.test_responses_by_trial = np.asarray(self.test_responses_by_trial)
 
         if self.stim_id in [5, "salamander_natural"]:
+
+            movie_ordering = (
+                np.arange(self.num_clips)
+                if (len(self.random_sequences) == 0 or self.scan_sequence_idx is None)
+                else self.random_sequences[:, self.scan_sequence_idx]
+            )
+
             # Initialise validation responses
 
             base_movie_sorting = np.argsort(movie_ordering)
@@ -406,17 +410,17 @@ def upsample_traces(
     if stim_id == 5:
         # Movie stimulus
         # 4.966666 is the time between triggers in the movie stimulus. It is not exactly 5s because it is not a perfect world :)
-        upsampled_triggertimes = _upsample_triggertimes(4.9666667, triggertimes, target_fr)
+        upsampled_triggertimes = _upsample_triggertimes(4.9666667, 5, triggertimes, target_fr)
     elif stim_id == 1:
         # Chirp: each chirp has two triggers, one at the start and one 5s later, after a 2s OFF and 3s full field ON.
         # We need only the first trigger of each chirp for the upsampling.
         # 32.98999999 is the total chirp duration in seconds. Should be 33 but there is a small discrepancy
         chirp_starts = triggertimes[::2]
-        upsampled_triggertimes = _upsample_triggertimes(32.98999999, chirp_starts, target_fr)
+        upsampled_triggertimes = _upsample_triggertimes(32.98999999, 33, chirp_starts, target_fr)
     elif stim_id == 2:
         # Moving bar: each bar has one trigger at the start of the bar stim. Bar duration is 4s.
         # It is a bit more because each trigger has a duration of 3 frames at 60Hz, so around 50 ms.
-        upsampled_triggertimes = _upsample_triggertimes(4.054001, triggertimes, target_fr)
+        upsampled_triggertimes = _upsample_triggertimes(4.054001, 4.05, triggertimes, target_fr)
     else:
         raise NotImplementedError(f"Stimulus ID {stim_id} not implemented")
 
@@ -424,16 +428,18 @@ def upsample_traces(
     for i in range(traces.shape[0]):
         upsampled_responses[i] = np.interp(upsampled_triggertimes, tracestimes[i].ravel(), traces[i].ravel())
 
-    upsampled_responses = upsampled_responses / np.std(
-        upsampled_responses, axis=1, keepdims=True
-    )  # normalize response std
+    upsampled_responses = upsampled_responses  # / np.std(
+    #     upsampled_responses, axis=1, keepdims=True
+    # )  # normalize response std
 
     return upsampled_responses
 
 
-def _upsample_triggertimes(stim_duration, triggertimes, target_fr):
+def _upsample_triggertimes(stim_empirical_duration, stim_theoretical_duration, triggertimes, target_fr):
     # upsample triggertimes to get 1 trigger per frame, (instead of just 1 trigger at the start of the sequence)
-    upsampled_triggertimes = [np.linspace(t, t + stim_duration, round(stim_duration * target_fr)) for t in triggertimes]
+    upsampled_triggertimes = [
+        np.linspace(t, t + stim_empirical_duration, round(stim_theoretical_duration * target_fr)) for t in triggertimes
+    ]
     upsampled_triggertimes = np.concatenate(upsampled_triggertimes)
 
     return upsampled_triggertimes
@@ -453,21 +459,23 @@ def make_final_responses(data_dict: dict, response_type: Literal["natural", "chi
         NotImplementedError: If the conversion is not yet implemented for the given response type.
     """
 
+    new_data_dict = deepcopy(data_dict)
+
     stim_id = STIMULI_IDS.get(response_type, None)
     if stim_id is None:
         raise NotImplementedError(f"Conversion not yet implemented for response type {response_type}")
 
     for field in tqdm(
-        data_dict.keys(),
+        new_data_dict.keys(),
         desc=f"Upsampling {response_type} traces to get final responses.",
     ):
         try:
-            spikes = data_dict[field][f"{response_type}_inferred_spikes"]
+            spikes = new_data_dict[field][f"{response_type}_inferred_spikes"]
         except KeyError:
             # For new data format
-            spikes = data_dict[field][f"{response_type}_spikes"]
-        triggertimes = data_dict[field][f"{response_type}_trigger_times"][0]
-        tracestimes = data_dict[field][f"{response_type}_traces_times"]
+            spikes = new_data_dict[field][f"{response_type}_spikes"]
+        triggertimes = new_data_dict[field][f"{response_type}_trigger_times"][0]
+        tracestimes = new_data_dict[field][f"{response_type}_traces_times"]
 
         upsampled_traces = upsample_traces(
             triggertimes=triggertimes,
@@ -476,13 +484,13 @@ def make_final_responses(data_dict: dict, response_type: Literal["natural", "chi
             stim_id=stim_id,
         )
 
-        data_dict[field][f"{response_type}_responses_final"] = upsampled_traces
+        new_data_dict[field][f"{response_type}_responses_final"] = upsampled_traces
 
-        if "responses_final" in data_dict[field]:
+        if "responses_final" in new_data_dict[field]:
             warnings.warn(
-                f"You seem to already have computed `responses_final` for a stim_id of {data_dict[field]['stim_id']}. Overwriting with {stim_id} ({response_type})."
+                f"You seem to already have computed `responses_final` for a stim_id of {new_data_dict[field]['stim_id']}. Overwriting with {stim_id} ({response_type})."
             )
-        data_dict[field]["responses_final"] = upsampled_traces
-        data_dict[field]["stim_id"] = stim_id
+        new_data_dict[field]["responses_final"] = upsampled_traces
+        new_data_dict[field]["stim_id"] = stim_id
 
-    return data_dict
+    return new_data_dict

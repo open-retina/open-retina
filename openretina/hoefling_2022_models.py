@@ -156,7 +156,7 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
             elif batch_norm_scale:
                 layer["scale"] = Scale3DLayer(hidden_channels[0])
         if final_nonlinearity:
-            layer["nonlin"] = getattr(nn, nonlinearity)()  # TODO add back in place if necessary
+            layer["nonlin"] = getattr(nn, nonlinearity)()
         self.features.add_module("layer0", nn.Sequential(layer))
 
         # --- other layers
@@ -188,9 +188,9 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
 
     def forward(self, input_, data_key=None):
         ret = []
+        do_skip = False
         for l, feat in enumerate(self.features):
-            do_skip = False
-            input_ = feat((input_ if not do_skip else torch.cat(ret[-min(self.skip, l):], dim=1), data_key))
+            input_ = feat((torch.cat(ret[-min(self.skip, l) :], dim=1) if do_skip else input_, data_key))
             ret.append(input_)
 
         return torch.cat([ret[ind] for ind in self.stack], dim=1)
