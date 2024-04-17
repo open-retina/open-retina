@@ -68,15 +68,11 @@ def update_video(video, ax, frame):
     ax.axis("off")
 
 
-def play_stimulus(video: Float[torch.Tensor, "channels time height width"]) -> HTML:
-    if video.dtype == torch.float and (not video.max() <= 1 or not video.min() >= 0):
-        print("Video has not the correct values for plotting. Min-max normalising.")
+def play_stimulus(video: Float[torch.Tensor, "channels time height width"], normalise: bool = True) -> HTML:
+    if normalise:
         min_val = torch.min(video)
         max_val = torch.max(video)
         video = (video - min_val) / (max_val - min_val)
-
-    if video.dtype == torch.int and (not video.max() <= 255 or not video.min() >= 0):
-        print(f"Int video has not the correct values for plotting.")
 
     fig, ax = plt.subplots()
 
