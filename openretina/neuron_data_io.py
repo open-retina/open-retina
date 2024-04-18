@@ -420,7 +420,7 @@ def upsample_traces(
     elif stim_id == 2:
         # Moving bar: each bar has one trigger at the start of the bar stim. Bar duration is 4s.
         # It is a bit more because each trigger has a duration of 3 frames at 60Hz, so around 50 ms.
-        upsampled_triggertimes = _upsample_triggertimes(4.054001, 4.05, triggertimes, target_fr)
+        upsampled_triggertimes = _upsample_triggertimes(4.054001, 4.1, triggertimes, target_fr)
     else:
         raise NotImplementedError(f"Stimulus ID {stim_id} not implemented")
 

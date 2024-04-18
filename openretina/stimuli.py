@@ -105,20 +105,20 @@ def load_moving_bar(
         trigger_times=trigger_times,
         num_triggers_per_repetition=8,
     )
-    return moving_bar
+    # Remove the frames that are not part of the moving bar, i.e. black frames at the beginning and end
+    # See: https://github.com/eulerlab/QDSpy/blob/master/Stimuli/RGC_MovingBar_2.py
+    moving_bar_content = moving_bar[90:-30, ...]
+
+    return moving_bar_content
 
 
 def load_moving_bar_stack(normalize: bool = True, number_of_moving_bars: int = 8) -> np.array:
     moving_bar = load_moving_bar(normalize)
 
-    # Remove the frames that are not part of the moving bar, i.e. black frames at the beginning and end
-    # See: https://github.com/eulerlab/QDSpy/blob/master/Stimuli/RGC_MovingBar_2.py
-    moving_bar_content = moving_bar[90:-30, ...]
-
     assert (
         moving_bar.shape[0] % number_of_moving_bars == 0
     ), "Moving bar timesteps are not divisible by number_of_moving_bars, something went wrong"
-    return np.stack(np.split(moving_bar_content, number_of_moving_bars, axis=0), axis=0)
+    return np.stack(np.split(moving_bar, number_of_moving_bars, axis=0), axis=0)
 
 
 def colored_stimulus(channel_idx: int, pad_front: int, stimulus_length: int, pad_end: int) -> np.array:

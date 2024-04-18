@@ -317,14 +317,14 @@ def get_mb_dataloaders(
     mb_stimulus = mb_stimulus.repeat(1, num_repeats, 1, 1)
 
     # 8 directions
-    num_mbs = 8 * num_repeats
+    total_num_mbs = 8 * num_repeats
 
     # Default to each mb for training if no chunk size provided.
     clip_chunk_sizes = {
-        "train": train_chunk_size if train_chunk_size is not None else mb_stimulus.shape[1] // num_mbs,
+        "train": train_chunk_size if train_chunk_size is not None else mb_stimulus.shape[1] // total_num_mbs,
     }
 
-    start_indices = np.arange(0, mb_stimulus.shape[1] - 1, step=mb_stimulus.shape[1] // num_mbs).tolist()
+    start_indices = np.arange(0, mb_stimulus.shape[1] - 1, step=mb_stimulus.shape[1] // total_num_mbs).tolist()
 
     for session_key, session_data in tqdm(neuron_data_dictionary.items(), desc="Creating moving bars dataloaders"):
         neuron_data = NeuronData(
@@ -348,7 +348,7 @@ def get_mb_dataloaders(
             chunk_size=clip_chunk_sizes["train"],
             start_indices=start_indices,
             batch_size=batch_size,
-            scene_length=mb_stimulus.shape[1] // num_mbs,
+            scene_length=mb_stimulus.shape[1] // total_num_mbs,
             drop_last=False,
         )
 
