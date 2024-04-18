@@ -83,7 +83,7 @@ class CustomPrettyPrinter(pprint.PrettyPrinter):
 
         if self.max_lines is not None and self.current_line >= self.max_lines:
             stream.write("\n ... Exceeded maximum number of lines ...")
-            raise MaxLinesExceeded
+            raise MaxLinesExceededException
 
         if isinstance(object, np.ndarray):
             # Print the shape of the array instead of its contents
@@ -107,7 +107,7 @@ class CustomPrettyPrinter(pprint.PrettyPrinter):
 
     def pprint(self, object):
         self.current_line = 0
-        with contextlib.suppress(MaxLinesExceeded):
+        with contextlib.suppress(MaxLinesExceededException):
             super().pprint(object)
 
 
