@@ -192,7 +192,7 @@ def filter_different_size(batch):
     filtered_batch = [element for element in batch if element[1].shape == most_common_shape]
 
     # If the filtered batch is empty, return None
-    if not filtered_batch:
+    if len(filtered_batch) == 0:
         return None
 
     # Collate the filtered batch using the default collate function

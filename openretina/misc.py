@@ -44,7 +44,7 @@ def set_seed(seed=None, seed_torch=True):
     return seed
 
 
-class MaxLinesExceeded(Exception):
+class MaxLinesExceededException(Exception):
     pass
 
 
