@@ -428,9 +428,9 @@ def upsample_traces(
     for i in range(traces.shape[0]):
         upsampled_responses[i] = np.interp(upsampled_triggertimes, tracestimes[i].ravel(), traces[i].ravel())
 
-    upsampled_responses = upsampled_responses  # / np.std(
-    #     upsampled_responses, axis=1, keepdims=True
-    # )  # normalize response std
+    upsampled_responses = upsampled_responses / np.std(
+        upsampled_responses, axis=1, keepdims=True
+    )  # normalize response std
 
     return upsampled_responses
 
