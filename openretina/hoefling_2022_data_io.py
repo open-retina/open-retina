@@ -2,10 +2,12 @@ from typing import List, Optional, TypedDict
 
 import numpy as np
 import torch
+from tqdm.auto import tqdm
 
 from openretina.constants import CLIP_LENGTH, NUM_CLIPS, NUM_VAL_CLIPS
 from openretina.dataloaders import get_movie_dataloader
 from openretina.neuron_data_io import NeuronData
+from openretina.stimuli import load_chirp, load_moving_bar
 
 
 class MoviesDict(TypedDict):
@@ -64,14 +66,19 @@ def get_all_movie_combinations(
     train_clip_idx = np.arange(num_clips)[mask]
 
     movie_train_subset = torch.cat(
-        [movie_train[:, i * clip_length : (i + 1) * clip_length] for i in train_clip_idx], dim=1
+        [movie_train[:, i * clip_length : (i + 1) * clip_length] for i in train_clip_idx],
+        dim=1,
     )
 
     # Initialize movie dictionaries
     multiple_train_movies = True if random_sequences.shape[1] > 1 else False
     if multiple_train_movies:
         movies = {
-            "left": {"train": {}, "validation": torch.flip(movie_val, [-1]), "test": torch.flip(movie_test, [-1])},
+            "left": {
+                "train": {},
+                "validation": torch.flip(movie_val, [-1]),
+                "test": torch.flip(movie_test, [-1]),
+            },
             "right": {"train": {}, "validation": movie_val, "test": movie_test},
             "val_clip_idx": val_clip_idx,
         }
@@ -82,7 +89,11 @@ def get_all_movie_combinations(
                 "validation": torch.flip(movie_val, [-1]),
                 "test": torch.flip(movie_test, [-1]),
             },
-            "right": {"train": movie_train_subset, "validation": movie_val, "test": movie_test},
+            "right": {
+                "train": movie_train_subset,
+                "validation": movie_val,
+                "test": movie_test,
+            },
             "val_clip_idx": val_clip_idx,
         }
 
@@ -154,6 +165,11 @@ def natmov_dataloaders_v2(
         field in next(iter(neuron_data_dictionary.values())) for field in ["responses_final", "stim_id"]
     ), "Check the neuron data dictionary sub-dictionaries for the minimal required fields: 'responses_final' and 'stim_id'."
 
+    assert next(iter(neuron_data_dictionary.values()))["stim_id"] in [
+        5,
+        "salamander_natural",
+    ], "This function only supports natural movie stimuli."
+
     # Draw validation clips based on the random seed
     rnd = np.random.RandomState(seed)
     val_clip_idx = list(rnd.choice(num_clips, num_val_clips, replace=False))
@@ -180,7 +196,7 @@ def natmov_dataloaders_v2(
         clip_length=clip_length,
     )
     start_indices = gen_start_indices(random_sequences, val_clip_idx, clip_length, train_chunk_size, num_clips)
-    for session_key, session_data in neuron_data_dictionary.items():
+    for session_key, session_data in tqdm(neuron_data_dictionary.items(), desc="Creating movie dataloaders"):
         neuron_data = NeuronData(
             **session_data,
             random_sequences=random_sequences,  # Used together with the validation index to get the validation response in the corresponding dict
@@ -206,5 +222,134 @@ def natmov_dataloaders_v2(
                 batch_size=batch_size,
                 scene_length=clip_length,
             )
+
+    return dataloaders
+
+
+def get_chirp_dataloaders(
+    neuron_data_dictionary,
+    train_chunk_size: Optional[int] = None,
+    batch_size: int = 32,
+):
+    assert isinstance(
+        neuron_data_dictionary, dict
+    ), "neuron_data_dictionary should be a dictionary of sessions and their corresponding neuron data."
+    assert all(
+        field in next(iter(neuron_data_dictionary.values()))
+        for field in ["responses_final", "stim_id", "chirp_trigger_times"]
+    ), "Check the neuron data dictionary sub-dictionaries for the minimal required fields: 'responses_final', 'stim_id' and 'chirp_trigger_times'."
+
+    assert next(iter(neuron_data_dictionary.values()))["stim_id"] == 1, "This function only supports chirp stimuli."
+
+    dataloaders = {"train": {}}
+
+    chirp_triggers = next(iter(neuron_data_dictionary.values()))["chirp_trigger_times"][0]
+    # 2 triggers per chirp presentation
+    num_chirps = len(chirp_triggers) // 2
+
+    # Get it into chan, time, height, width
+    chirp_stimulus = torch.tensor(load_chirp(), dtype=torch.float32).permute(3, 0, 1, 2)
+
+    chirp_stimulus = chirp_stimulus.repeat(1, num_chirps, 1, 1)
+
+    # Use full chirp for training if no chunk size is provided
+    clip_chunk_sizes = {
+        "train": train_chunk_size if train_chunk_size is not None else chirp_stimulus.shape[1] // num_chirps,
+    }
+
+    # 5 chirp presentations
+    start_indices = np.arange(0, chirp_stimulus.shape[1] - 1, chirp_stimulus.shape[1] // num_chirps).tolist()
+
+    for session_key, session_data in tqdm(neuron_data_dictionary.items(), desc="Creating chirp dataloaders"):
+        neuron_data = NeuronData(
+            **session_data,
+            random_sequences=None,
+            val_clip_idx=None,
+            num_clips=None,
+            clip_length=None,
+        )
+
+        session_key += "_chirp"
+
+        dataloaders["train"][session_key] = get_movie_dataloader(
+            movies=chirp_stimulus if neuron_data.eye == "right" else torch.flip(chirp_stimulus, [-1]),
+            responses=neuron_data.response_dict["train"],
+            roi_ids=neuron_data.roi_ids,
+            roi_coords=neuron_data.roi_coords,
+            group_assignment=neuron_data.group_assignment,
+            scan_sequence_idx=neuron_data.scan_sequence_idx,
+            split="train",
+            chunk_size=clip_chunk_sizes["train"],
+            start_indices=start_indices,
+            batch_size=batch_size,
+            scene_length=chirp_stimulus.shape[1] // num_chirps,
+            drop_last=False,
+        )
+
+    return dataloaders
+
+
+def get_mb_dataloaders(
+    neuron_data_dictionary,
+    train_chunk_size: Optional[int] = None,
+    batch_size: int = 32,
+):
+    assert isinstance(
+        neuron_data_dictionary, dict
+    ), "neuron_data_dictionary should be a dictionary of sessions and their corresponding neuron data."
+    assert all(
+        field in next(iter(neuron_data_dictionary.values()))
+        for field in ["responses_final", "stim_id", "mb_trigger_times"]
+    ), "Check the neuron data dictionary sub-dictionaries for the minimal required fields: 'responses_final', 'stim_id' and 'mb_trigger_times'."
+
+    assert (
+        next(iter(neuron_data_dictionary.values()))["stim_id"] == 2
+    ), "This function only supports moving bar stimuli."
+
+    dataloaders = {"train": {}}
+
+    mb_triggers = next(iter(neuron_data_dictionary.values()))["mb_trigger_times"][0]
+    num_repeats = len(mb_triggers) // 8
+
+    # Get it into chan, time, height, width
+    mb_stimulus = torch.tensor(load_moving_bar(), dtype=torch.float32).permute(3, 0, 1, 2)
+
+    mb_stimulus = mb_stimulus.repeat(1, num_repeats, 1, 1)
+
+    # 8 directions
+    total_num_mbs = 8 * num_repeats
+
+    # Default to each mb for training if no chunk size provided.
+    clip_chunk_sizes = {
+        "train": train_chunk_size if train_chunk_size is not None else mb_stimulus.shape[1] // total_num_mbs,
+    }
+
+    start_indices = np.arange(0, mb_stimulus.shape[1] - 1, step=mb_stimulus.shape[1] // total_num_mbs).tolist()
+
+    for session_key, session_data in tqdm(neuron_data_dictionary.items(), desc="Creating moving bars dataloaders"):
+        neuron_data = NeuronData(
+            **session_data,
+            random_sequences=None,
+            val_clip_idx=None,
+            num_clips=None,
+            clip_length=None,
+        )
+
+        session_key += "_mb"
+
+        dataloaders["train"][session_key] = get_movie_dataloader(
+            movies=mb_stimulus if neuron_data.eye == "right" else torch.flip(mb_stimulus, [-1]),
+            responses=neuron_data.response_dict["train"],
+            roi_ids=neuron_data.roi_ids,
+            roi_coords=neuron_data.roi_coords,
+            group_assignment=neuron_data.group_assignment,
+            scan_sequence_idx=neuron_data.scan_sequence_idx,
+            split="train",
+            chunk_size=clip_chunk_sizes["train"],
+            start_indices=start_indices,
+            batch_size=batch_size,
+            scene_length=mb_stimulus.shape[1] // total_num_mbs,
+            drop_last=False,
+        )
 
     return dataloaders

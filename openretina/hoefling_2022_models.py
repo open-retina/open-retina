@@ -145,7 +145,6 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
             bias=False,
             padding=input_pad,
             num_scans=self.num_scans,
-            device=device,
         )
         if batch_norm:
             layer["norm"] = nn.BatchNorm3d(
@@ -157,7 +156,7 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
             elif batch_norm_scale:
                 layer["scale"] = Scale3DLayer(hidden_channels[0])
         if final_nonlinearity:
-            layer["nonlin"] = getattr(nn, nonlinearity)()  # TODO add back in place if necessary
+            layer["nonlin"] = getattr(nn, nonlinearity)()
         self.features.add_module("layer0", nn.Sequential(layer))
 
         # --- other layers
@@ -189,9 +188,9 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
 
     def forward(self, input_, data_key=None):
         ret = []
+        do_skip = False
         for l, feat in enumerate(self.features):
-            do_skip = False
-            input_ = feat((input_ if not do_skip else torch.cat(ret[-min(self.skip, l) :], dim=1), data_key))
+            input_ = feat((torch.cat(ret[-min(self.skip, l) :], dim=1) if do_skip else input_, data_key))
             ret.append(input_)
 
         return torch.cat([ret[ind] for ind in self.stack], dim=1)
@@ -531,17 +530,16 @@ class TorchFullConv3D(nn.Module):
         padding: int = 0,
         bias: bool = True,
         num_scans=1,
-        device=DEVICE,
     ):
         super().__init__()
         # Store log speeds for each data key
-        self.device = device
         for key, val in log_speed_dict.items():
             setattr(self, key, val)
 
         if spatial_kernel_size2 is None:
             spatial_kernel_size2 = spatial_kernel_size
 
+        self._log_speed_default = torch.nn.Parameter(data=torch.zeros(1), requires_grad=False)
         self.conv = nn.Conv3d(
             in_channels,
             out_channels,
@@ -556,7 +554,7 @@ class TorchFullConv3D(nn.Module):
 
         # Compute temporal kernel based on the provided data key
         if data_key is None:
-            log_speed = torch.nn.Parameter(data=torch.zeros(1, device=self.device), requires_grad=False)
+            log_speed = self._log_speed_default
         else:
             log_speed = getattr(self, "_".join(["log_speed", data_key]))
 
@@ -577,12 +575,10 @@ class TimeIndependentConv3D(nn.Module):
         stride: int = 1,
         padding: int = 0,
         bias: bool = True,
-        device=DEVICE,
         **kwargs,
     ):
         super().__init__()
         # Store log speeds for each data key
-        self.device = device
         for key, val in log_speed_dict.items():
             setattr(self, key, val)
 
@@ -616,10 +612,8 @@ class TorchSTSeparableConv3D(nn.Module):
         padding: int = 0,
         bias: bool = True,
         num_scans=1,
-        device=DEVICE,
     ):
         super().__init__()
-        self.device = device
         # Store log speeds for each data key
         for key, val in log_speed_dict.items():
             setattr(self, key, val)
@@ -627,6 +621,7 @@ class TorchSTSeparableConv3D(nn.Module):
         if spatial_kernel_size2 is None:
             spatial_kernel_size2 = spatial_kernel_size
 
+        self._log_speed_default = torch.nn.Parameter(data=torch.zeros(1), requires_grad=False)
         self.space_conv = nn.Conv3d(
             in_channels,
             out_channels,
@@ -644,7 +639,7 @@ class TorchSTSeparableConv3D(nn.Module):
 
         # Compute temporal kernel based on the provided data key
         if data_key is None:
-            log_speed = torch.nn.Parameter(data=torch.zeros(1, device=self.device), requires_grad=False)
+            log_speed = self._log_speed_default
         else:
             log_speed = getattr(self, "_".join(["log_speed", data_key]))
 
@@ -684,7 +679,6 @@ class STSeparableBatchConv3d(nn.Module):
         padding=0,
         num_scans=1,
         bias=True,
-        device=DEVICE,
     ):
         """
         Initializes the STSeparableBatchConv3d layer.
@@ -710,7 +704,6 @@ class STSeparableBatchConv3d(nn.Module):
         self.stride = stride
         self.padding = padding
         self.num_scans = num_scans
-        self.device = device
 
         # Initialize temporal weights
         self.sin_weights, self.cos_weights = self.temporal_weights(temporal_kernel_size, in_channels, out_channels)
@@ -722,6 +715,7 @@ class STSeparableBatchConv3d(nn.Module):
 
         # Initialize bias if required
         self.bias = nn.Parameter(torch.zeros(out_channels)) if bias else None
+        self._log_speed_default = torch.nn.Parameter(data=torch.zeros(1), requires_grad=False)
 
         # Store log speeds for each data key
         for key, val in log_speed_dict.items():
@@ -741,17 +735,12 @@ class STSeparableBatchConv3d(nn.Module):
 
         # Compute temporal kernel based on the provided data key
         if data_key is None:
-            self.weight_temporal = compute_temporal_kernel(
-                torch.nn.Parameter(data=torch.zeros(1, device=self.device), requires_grad=False),
-                self.sin_weights,
-                self.cos_weights,
-                self.temporal_kernel_size,
-            )
+            log_speed = self._log_speed_default
         else:
             log_speed = getattr(self, "_".join(["log_speed", data_key]))
-            self.weight_temporal = compute_temporal_kernel(
-                log_speed, self.sin_weights, self.cos_weights, self.temporal_kernel_size
-            )
+        self.weight_temporal = compute_temporal_kernel(
+            log_speed, self.sin_weights, self.cos_weights, self.temporal_kernel_size
+        )
 
         # Assemble the complete weight tensor for convolution
         # o - output channels, i - input channels, t - temporal kernel size

@@ -14,12 +14,12 @@ class MovieDataSet(Dataset):
     def __init__(self, movies, responses, roi_ids, roi_coords, group_assignment, split, chunk_size):
         # Will only be a dictionary for certain types of datasets, i.e. Hoefling 2022
         if split == "test" and isinstance(responses, dict):
-            self.samples = tuple((movies, responses["avg"]))
+            self.samples = movies, responses["avg"]
             self.test_responses_by_trial = responses["by_trial"]
             self.roi_ids = roi_ids
             self.group_assignment = group_assignment
         else:
-            self.samples = tuple((movies, responses))
+            self.samples = movies, responses
             self.roi_coords = roi_coords
         self.DataPoint = namedtuple("DataPoint", ("inputs", "targets"))
         self.chunk_size = chunk_size
@@ -50,7 +50,10 @@ class MovieDataSet(Dataset):
         return self.samples[1].shape[0] // self.chunk_size
 
     def __str__(self):
-        return f"MovieDataSet with {len(self)} neuron responses to a movie of shape {list(self.samples[0].shape)}."
+        return f"MovieDataSet with {self.samples[1].shape[1]} neuron responses to a movie of shape {list(self.samples[0].shape)}."
+
+    def __repr__(self):
+        return str(self)
 
 
 class MovieSampler(Sampler):
@@ -61,7 +64,7 @@ class MovieSampler(Sampler):
         self.scene_length = SCENE_LENGTH if scene_length is None else scene_length
 
     def __iter__(self):
-        if self.split == "train":
+        if self.split == "train" and (self.scene_length != self.chunk_size):
             # Always start the clip from a random point in the scene, within the chosen chunk size
             shift = np.random.randint(0, min(self.scene_length - self.chunk_size, self.chunk_size))
 
@@ -78,7 +81,7 @@ class MovieSampler(Sampler):
 
 
 def get_movie_dataloader(
-    movies: Union[np.ndarray, Dict[int, np.ndarray]],
+    movies: Union[np.ndarray, torch.Tensor, Dict[int, np.ndarray]],
     responses: Float[np.ndarray, "n_neurons n_frames"],  # noqa
     roi_ids: Float[np.ndarray, "n_neurons"],  # noqa
     roi_coords: Float[np.ndarray, "n_neurons 2"],  # noqa
@@ -89,6 +92,7 @@ def get_movie_dataloader(
     chunk_size: int = 50,
     batch_size: int = 32,
     scene_length: Optional[int] = None,
+    drop_last=True,
     **kwargs,
 ):
     # for right movie: flip second frame size axis!
@@ -102,7 +106,11 @@ def get_movie_dataloader(
         sampler = MovieSampler(start_indices, split, chunk_size, scene_length=scene_length)
 
     return DataLoader(
-        dataset, sampler=sampler, batch_size=batch_size, drop_last=True if split == "train" else False, **kwargs
+        dataset,
+        sampler=sampler,
+        batch_size=batch_size,
+        drop_last=True if (split == "train" and drop_last) else False,
+        **kwargs,
     )
 
 
@@ -184,7 +192,7 @@ def filter_different_size(batch):
     filtered_batch = [element for element in batch if element[1].shape == most_common_shape]
 
     # If the filtered batch is empty, return None
-    if not filtered_batch:
+    if len(filtered_batch) == 0:
         return None
 
     # Collate the filtered batch using the default collate function
