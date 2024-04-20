@@ -1,7 +1,8 @@
-from typing import Optional
 import os
-import numpy as np
 import pickle
+from typing import Optional
+
+import numpy as np
 
 _CURRENT_FOLDER_PATH = os.path.dirname(os.path.abspath(__file__))
 _STIMULUS_FOLDER_PATH = _CURRENT_FOLDER_PATH + "/../data/stimuli"
@@ -30,6 +31,7 @@ def discretize_triggers(trigger_times: np.array) -> list[int]:
 
 
 def align_stimulus_to_trigger(stimulus: np.array, start_trigger_times: list[int]) -> np.array:
+    #! TODO: needs fixing.
     stimulus_length = stimulus.shape[0]
 
     stimulus_array = []
@@ -38,7 +40,7 @@ def align_stimulus_to_trigger(stimulus: np.array, start_trigger_times: list[int]
         dark_between_time = 0
         if trigger_time > current_idx:
             dark_between_time = trigger_time - current_idx
-            dark_shape = (dark_between_time, ) + stimulus.shape[1:]
+            dark_shape = (dark_between_time,) + stimulus.shape[1:]
             dark_between = np.zeros(dark_shape)
             stimulus_array.append(dark_between)
         elif trigger_time < current_idx:
@@ -53,10 +55,10 @@ def align_stimulus_to_trigger(stimulus: np.array, start_trigger_times: list[int]
 
 
 def load_stimulus(
-        file_path: str,
-        normalize: bool,
-        trigger_times: Optional[np.array],
-        num_triggers_per_repetition: int,
+    file_path: str,
+    normalize: bool,
+    trigger_times: Optional[np.array],
+    num_triggers_per_repetition: int,
 ) -> np.array:
     with open(file_path, "rb") as f:
         stimulus_uint8 = pickle.load(f)
@@ -77,10 +79,10 @@ def load_stimulus(
 
 
 def load_chirp(
-        normalize: bool = True,
-        trigger_times: Optional[np.array] = None,
+    normalize: bool = True,
+    trigger_times: Optional[np.array] = None,
 ) -> np.array:
-    """ The chirp has 2 triggers per repetition """
+    """The chirp has 2 triggers per repetition"""
     chirp = load_stimulus(
         file_path=_CHIRP_PATH,
         normalize=normalize,
@@ -91,11 +93,11 @@ def load_chirp(
 
 
 def load_moving_bar(
-        normalize: bool = True,
-        trigger_times: Optional[np.array] = None,
+    normalize: bool = True,
+    trigger_times: Optional[np.array] = None,
 ) -> np.array:
-    """ Moving bar has 8 triggers, one for each direction.
-        Its directions are [0,180, 45,225, 90,270, 135,315] (in degrees)
+    """Moving bar has 8 triggers, one for each direction.
+    Its directions are [0,180, 45,225, 90,270, 135,315] (in degrees)
     """
     moving_bar = load_stimulus(
         file_path=_MOVING_BAR_PATH,
@@ -103,28 +105,26 @@ def load_moving_bar(
         trigger_times=trigger_times,
         num_triggers_per_repetition=8,
     )
-    return moving_bar
+    # Remove the frames that are not part of the moving bar, i.e. black frames at the beginning and end
+    # See: https://github.com/eulerlab/QDSpy/blob/master/Stimuli/RGC_MovingBar_2.py
+    moving_bar_content = moving_bar[90:-30, ...]
+
+    return moving_bar_content
 
 
-def load_moving_bar_stack(
-        normalize: bool = True,
-        number_of_moving_bars: int = 8
-) -> np.array:
+def load_moving_bar_stack(normalize: bool = True, number_of_moving_bars: int = 8) -> np.array:
     moving_bar = load_moving_bar(normalize)
 
-    assert moving_bar.shape[0] % number_of_moving_bars == 0, \
-        "Moving bar timesteps are not divisible by number_of_moving_bars, something went wrong"
-    time_steps_per_bar = moving_bar.shape[0] // number_of_moving_bars
-    moving_bar_array = [moving_bar[i*time_steps_per_bar:(i+1)*time_steps_per_bar] for i in range(number_of_moving_bars)]
-    moving_bar_stack = np.stack(moving_bar_array)
-
-    return moving_bar_stack
+    assert (
+        moving_bar.shape[0] % number_of_moving_bars == 0
+    ), "Moving bar timesteps are not divisible by number_of_moving_bars, something went wrong"
+    return np.stack(np.split(moving_bar, number_of_moving_bars, axis=0), axis=0)
 
 
 def colored_stimulus(channel_idx: int, pad_front: int, stimulus_length: int, pad_end: int) -> np.array:
     total_length_time = pad_front + stimulus_length + pad_end
     stimulus = np.zeros((2, total_length_time, _LENGTH_X, _LENGTH_Y), dtype=np.float32)
-    stimulus[channel_idx, pad_front:pad_front+stimulus_length] = 1.0
+    stimulus[channel_idx, pad_front : pad_front + stimulus_length] = 1.0
     stimulus_5d = np.expand_dims(stimulus, 0)
 
     return stimulus_5d
