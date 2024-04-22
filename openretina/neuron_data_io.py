@@ -294,35 +294,9 @@ class NeuronData:
             self.test_responses_by_trial = np.asarray(self.test_responses_by_trial)
 
         if self.stim_id in [5, "salamander_natural"]:
+            self.compute_validation_responses()
 
-            movie_ordering = (
-                np.arange(self.num_clips)
-                if (len(self.random_sequences) == 0 or self.scan_sequence_idx is None)
-                else self.random_sequences[:, self.scan_sequence_idx]
-            )
-
-            # Initialise validation responses
-
-            base_movie_sorting = np.argsort(movie_ordering)
-
-            validation_mask = np.ones_like(self.responses_train_and_val, dtype=bool)
-            self.responses_val = np.zeros([len(self.val_clip_idx) * self.clip_length, self.num_neurons])
-
-            # Compute validation responses and remove sections from training responses
-
-            for i, ind1 in enumerate(self.val_clip_idx):
-                grab_index = base_movie_sorting[ind1]
-                self.responses_val[i * self.clip_length : (i + 1) * self.clip_length, :] = self.responses_train_and_val[
-                    grab_index * self.clip_length : (grab_index + 1) * self.clip_length,
-                    :,
-                ]
-                validation_mask[
-                    (grab_index * self.clip_length) : (grab_index + 1) * self.clip_length,
-                    :,
-                ] = False
-            self.responses_train = self.responses_train_and_val[validation_mask].reshape(-1, self.num_neurons)
-
-        response_dict = {
+        return {
             "train": torch.tensor(self.responses_train).to(torch.float),
             "validation": torch.tensor(self.responses_val).to(torch.float),
             "test": {
@@ -331,7 +305,33 @@ class NeuronData:
             },
         }
 
-        return response_dict
+    def compute_validation_responses(self):
+        movie_ordering = (
+            np.arange(self.num_clips)
+            if (len(self.random_sequences) == 0 or self.scan_sequence_idx is None)
+            else self.random_sequences[:, self.scan_sequence_idx]
+        )
+
+        # Initialise validation responses
+
+        base_movie_sorting = np.argsort(movie_ordering)
+
+        validation_mask = np.ones_like(self.responses_train_and_val, dtype=bool)
+        self.responses_val = np.zeros([len(self.val_clip_idx) * self.clip_length, self.num_neurons])
+
+        # Compute validation responses and remove sections from training responses
+
+        for i, ind1 in enumerate(self.val_clip_idx):
+            grab_index = base_movie_sorting[ind1]
+            self.responses_val[i * self.clip_length : (i + 1) * self.clip_length, :] = self.responses_train_and_val[
+                grab_index * self.clip_length : (grab_index + 1) * self.clip_length,
+                :,
+            ]
+            validation_mask[
+                (grab_index * self.clip_length) : (grab_index + 1) * self.clip_length,
+                :,
+            ] = False
+        self.responses_train = self.responses_train_and_val[validation_mask].reshape(-1, self.num_neurons)
 
     def transform_roi_mask(self, roi_mask):
         roi_coords = np.zeros((len(self.roi_ids), 2))
