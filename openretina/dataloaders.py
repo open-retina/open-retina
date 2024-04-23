@@ -66,6 +66,7 @@ class MovieSampler(Sampler):
     def __iter__(self):
         if self.split == "train" and (self.scene_length != self.chunk_size):
             # Always start the clip from a random point in the scene, within the chosen chunk size
+            #! TODO: Check whether this works as expected
             shift = np.random.randint(0, min(self.scene_length - self.chunk_size, self.chunk_size))
 
             # Shuffle the indices
@@ -199,3 +200,20 @@ def filter_different_size(batch):
     collated_batch = default_collate(filtered_batch)
 
     return collated_batch
+
+
+def filter_empty_videos(batch):
+    """
+    Filters out batches containing empty videos.
+    To be used as a collate_fn in a DataLoader.
+
+    Args:
+        batch (list): A list of tuples representing the batch.
+
+    Returns:
+        tuple of torch.Tensor: The collated batch after filtering out empty videos.
+
+    """
+    # Filter out empty videos
+    batch = list(filter(lambda x: x[0].shape[1] > 0, batch))
+    return default_collate(batch)
