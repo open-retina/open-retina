@@ -84,9 +84,9 @@ def standard_early_stop_trainer(
     )
 
     # set the number of iterations over which you would like to accummulate gradients
-    optim_step_count = (
-        len(trainloaders.keys()) if loss_accum_batch_n is None else loss_accum_batch_n
-    )  # will be equal to number of sessions (dict keys) if not specified
+    # will be equal to number of sessions (dict keys) if not specified, which combined with
+    # the longcycler means we step after we have seen one batch from each session.
+    optim_step_count = len(trainloaders.keys()) if loss_accum_batch_n is None else loss_accum_batch_n
 
     # define some trackers
     tracker_dict = dict(
