@@ -115,7 +115,7 @@ def get_all_movie_combinations(
     return movies
 
 
-def gen_start_indices(random_sequences, val_clip_idx, clip_length, chunk_size, num_clips):
+def gen_start_indices(random_sequences, val_clip_idx, clip_length, chunk_size, num_clips, unique_train=False):
     """
     Optimized function to generate a list of indices for training chunks while
     excluding validation clips.
@@ -127,15 +127,22 @@ def gen_start_indices(random_sequences, val_clip_idx, clip_length, chunk_size, n
     :param clip_length:      clip length in frames (5s*30frames/s = 150 frames)
     :param chunk_size:       temporal chunk size per sample in frames (50)
     :param num_clips:        total number of training clips (108)
+    :param unique_train:     boolean; if True, the training indices are unique instead of a dict.
     :return: dict; with keys train, validation, and test, and index list as
              values
     """
     # Validation clip indices are consecutive, because the validation clip and stimuli are already isolated in other functions.
     val_start_idx = list(np.linspace(0, clip_length * (len(val_clip_idx) - 1), len(val_clip_idx), dtype=int))
+    num_train_clips = num_clips - len(val_clip_idx)
+
+    if unique_train:
+        return {
+            "train": list(np.arange(0, clip_length * (num_train_clips - 1), chunk_size, dtype=int)),
+            "validation": val_start_idx,
+            "test": [0],
+        }
 
     start_idx_dict = {"train": {}, "validation": val_start_idx, "test": [0]}
-
-    num_train_clips = num_clips - len(val_clip_idx)
 
     for sequence_index in range(random_sequences.shape[1]):
         start_idx_dict["train"][sequence_index] = list(

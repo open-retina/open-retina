@@ -136,7 +136,6 @@ class GRUEnabledCore(Core3d, nn.Module):
             bias=False,
             padding=input_pad,
             num_scans=self.num_scans,
-            device=device,
         )
         if batch_norm:
             layer["norm"] = nn.BatchNorm3d(

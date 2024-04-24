@@ -1,6 +1,6 @@
 import bisect
 from collections import namedtuple
-from typing import Dict, Iterable, List, Literal, Optional, TypeVar, Union
+from typing import Dict, Iterable, List, Literal, Optional, Tuple, TypeVar, Union
 
 import numpy as np
 import torch
@@ -10,12 +10,25 @@ from tqdm.auto import tqdm
 
 from .constants import CLIP_LENGTH, NUM_CLIPS, NUM_VAL_CLIPS, SCENE_LENGTH
 from .dataloaders import filter_empty_videos
+from .dev_models import (  # ! TODO: move the model to dev models once done developing.
+    DEVICE,
+    GRUEnabledCore,
+    MultiGaussian2d,
+    VideoEncoder,
+    get_dims_for_loader_dict,
+    get_module_output,
+    itemgetter,
+    set_seed,
+)
 from .hoefling_2022_data_io import (
     MoviesDict,
     gen_start_indices,
     get_all_movie_combinations,
 )
+from .hoefling_2022_models import ParametricFactorizedBatchConv3dCore
 from .neuron_data_io import NeuronData
+
+DataPoint = namedtuple("DataPoint", ("inputs", "targets"))
 
 
 def reorganize_data_by_scan_seq(data: Dict[str, Dict[str, np.ndarray]]):
@@ -185,7 +198,6 @@ class MultipleMovieDataSet(Dataset):
         else:
             self.responses = responses[split]
             self.roi_coords = roi_coords
-        self.DataPoint = namedtuple("DataPoint", ("inputs", "targets"))
         self.chunk_size = chunk_size
         # Calculate the mean response of the cell type (used for bias init in the model)
         self.mean_response = torch.mean(self.responses)
@@ -197,13 +209,13 @@ class MultipleMovieDataSet(Dataset):
     def __getitem__(self, idxes):
         neuron_idx, clip_idx = idxes
         movie_eye = self.eye[neuron_idx]
-        scan_sequence = self.scan_sequence[neuron_idx]
+        scan_sequence = self.scan_sequence[neuron_idx] if self.split == "train" else ...
         correct_movie = self.movies[movie_eye][self.split][scan_sequence]
 
-        return self.DataPoint(
+        return DataPoint(
             *[
                 correct_movie[:, clip_idx : clip_idx + self.chunk_size, ...],
-                self.responses[clip_idx : clip_idx + self.chunk_size, neuron_idx],
+                self.responses[clip_idx : clip_idx + self.chunk_size, neuron_idx : neuron_idx + 1],  # to keep dim
             ]
         )
 
@@ -261,6 +273,7 @@ def get_cell_types_dataloaders(
     num_clips: int = NUM_CLIPS,
     clip_length: int = CLIP_LENGTH,
     num_val_clips: int = NUM_VAL_CLIPS,
+    **kwargs,
 ):
     assert isinstance(
         neuron_data_dictionary, dict
@@ -316,7 +329,7 @@ def get_cell_types_dataloaders(
         )
 
         for fold in ["train", "validation", "test"]:
-            dataloaders[fold][cell_type] = get_movie_cell_types_dataloader(
+            dataloaders[fold][str(cell_type)] = get_movie_cell_types_dataloader(
                 movies=movies,
                 responses=neuron_data.response_dict,
                 roi_ids=neuron_data.roi_ids,
@@ -329,6 +342,7 @@ def get_cell_types_dataloaders(
                 eye=neuron_data.eye,
                 batch_size=batch_size,
                 scene_length=clip_length,
+                **kwargs,
             )
 
     return dataloaders
@@ -457,6 +471,135 @@ def gen_shifts(clip_bounds, start_indices, clip_chunk_size=50):
         else:
             shifted_indices.append(start_idx)
     return shifted_indices
+
+
+def naive_cell_types_model(
+    dataloaders,
+    seed,
+    hidden_channels: Tuple[int] = (8,),  # core args
+    temporal_kernel_size: Tuple[int] = (21,),
+    spatial_kernel_size: Tuple[int] = (11,),
+    layers: int = 1,
+    gamma_hidden: float = 0,
+    gamma_input: float = 0.1,
+    gamma_temporal: float = 0.1,
+    gamma_in_sparse=0.0,
+    final_nonlinearity: bool = True,
+    core_bias: bool = False,
+    momentum: float = 0.1,
+    input_padding: bool = False,
+    hidden_padding: bool = True,
+    batch_norm: bool = True,
+    batch_norm_scale: bool = False,
+    laplace_padding=None,
+    batch_adaptation: bool = True,
+    readout_scale: bool = False,
+    readout_bias: bool = True,
+    gamma_readout: float = 0.1,
+    stack=None,
+    use_avg_reg: bool = False,
+    data_info: dict = None,
+    nonlinearity: str = "ELU",
+    conv_type: Literal["full", "separable", "custom_separable", "time_independent"] = "custom_separable",
+    device=DEVICE,
+    # use_gru: bool = False,
+    # gru_kwargs: dict = {},
+):
+    """
+    Model class of a stacked2dCore (from mlutils) and a pointpooled (spatial transformer) readout
+    Args:
+        dataloaders: a dictionary of dataloaders, one loader per sessionin the format:
+            {'train': {'session1': dataloader1, 'session2': dataloader2, ...},
+             'validation': {'session1': dataloader1, 'session2': dataloader2, ...},
+             'test': {'session1': dataloader1, 'session2': dataloader2, ...}}
+        seed: random seed
+        elu_offset: Offset for the output non-linearity [F.elu(x + self.offset)]
+        all other args: See Documentation of Stacked2dCore in mlutils.layers.cores and
+            PointPooled2D in mlutils.layers.readouts
+    Returns: An initialized model which consists of model.core and model.readout
+    """
+
+    # make sure trainloader is being used
+    if data_info is not None:
+        in_shapes_dict = {k: v["input_dimensions"] for k, v in data_info.items()}
+        input_channels = [v["input_channels"] for k, v in data_info.items()]
+        n_neurons_dict = {k: v["output_dimension"] for k, v in data_info.items()}
+        roi_masks = {k: torch.tensor(v["roi_coords"]) for k, v in data_info.items()}
+    else:
+        dataloaders = dataloaders.get("train", dataloaders)
+
+        # Obtain the named tuple fields from the first entry of the first dataloader in the dictionary
+        in_name, out_name, *_ = next(iter(list(dataloaders.values())[0]))._fields
+
+        session_shape_dict = get_dims_for_loader_dict(dataloaders)
+        print(session_shape_dict)
+        n_neurons_dict = {k: 1 for k in session_shape_dict.keys()}  # ! Set to one for now, for naive model
+        in_shapes_dict = {
+            k: v[in_name] for k, v in session_shape_dict.items()
+        }  # dictionary containing input shapes per session
+        input_channels = [v[in_name][1] for v in session_shape_dict.values()]  # gets the # of input channels
+        roi_masks = {k: dataloaders[k].dataset.roi_coords for k in dataloaders.keys()}  # TODO: implement
+    assert np.unique(input_channels).size == 1, "all input channels must be of equal size"
+
+    set_seed(seed)
+
+    # get a stacked factorized 3d core from below
+    core = ParametricFactorizedBatchConv3dCore(
+        n_neurons_dict=n_neurons_dict,
+        input_channels=input_channels[0],
+        num_scans=len(n_neurons_dict.keys()),
+        hidden_channels=hidden_channels,
+        temporal_kernel_size=temporal_kernel_size,
+        spatial_kernel_size=spatial_kernel_size,
+        layers=layers,
+        gamma_hidden=gamma_hidden,
+        gamma_input=gamma_input,
+        gamma_in_sparse=gamma_in_sparse,
+        gamma_temporal=gamma_temporal,
+        final_nonlinearity=final_nonlinearity,
+        bias=core_bias,
+        momentum=momentum,
+        input_padding=input_padding,
+        hidden_padding=hidden_padding,
+        batch_norm=batch_norm,
+        batch_norm_scale=batch_norm_scale,
+        laplace_padding=laplace_padding,
+        stack=stack,
+        batch_adaptation=batch_adaptation,
+        use_avg_reg=use_avg_reg,
+        nonlinearity=nonlinearity,
+        conv_type=conv_type,
+        device=device,
+    )
+
+    in_shapes_readout = {}
+    subselect = itemgetter(0, 2, 3)
+    for k in n_neurons_dict:  # iterate over sessions
+        in_shapes_readout[k] = subselect(tuple(get_module_output(core, in_shapes_dict[k])[1:]))
+
+    readout = MultiGaussian2d(
+        in_shape_dict=in_shapes_readout,
+        n_neurons_dict=n_neurons_dict,
+        scale=readout_scale,
+        bias=readout_bias,
+        feature_reg_weights=gamma_readout,
+    )
+
+    # initializing readout bias to mean response
+    if readout_bias is True:
+        if data_info is None:
+            for k in dataloaders:
+                readout[k].bias.data = dataloaders[k].dataset.mean_response
+        else:
+            for k in data_info.keys():
+                readout[k].bias.data = torch.from_numpy(data_info[k]["mean_response"])
+
+    model = VideoEncoder(
+        core,
+        readout,
+    )
+
+    return model
 
 
 ## Old stuff
