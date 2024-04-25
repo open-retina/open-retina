@@ -297,6 +297,7 @@ def get_mb_dataloaders(
     neuron_data_dictionary,
     train_chunk_size: Optional[int] = None,
     batch_size: int = 32,
+    disable_tqdm: bool = False,
 ):
     assert isinstance(
         neuron_data_dictionary, dict
@@ -330,7 +331,8 @@ def get_mb_dataloaders(
 
     start_indices = np.arange(0, mb_stimulus.shape[1] - 1, step=mb_stimulus.shape[1] // total_num_mbs).tolist()
 
-    for session_key, session_data in tqdm(neuron_data_dictionary.items(), desc="Creating moving bars dataloaders"):
+    for session_key, session_data in tqdm(neuron_data_dictionary.items(), disable=disable_tqdm,
+                                          desc="Creating moving bars dataloaders"):
         neuron_data = NeuronData(
             **session_data,
             random_sequences=None,

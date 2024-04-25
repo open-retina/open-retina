@@ -1,5 +1,4 @@
 from collections import namedtuple
-from copy import deepcopy
 from typing import Callable, Dict, List, Optional, Tuple, TypedDict, Union
 
 import numpy as np
@@ -8,6 +7,7 @@ from jaxtyping import Float
 from torch.utils.data import DataLoader, Dataset, Sampler, default_collate
 
 from .constants import SCENE_LENGTH
+from .misc import clean_session_key
 
 
 class MovieDataSet(Dataset):
@@ -131,7 +131,7 @@ def get_dims_for_loader_dict(dataloaders):
     Returns:
         dict: A dict containing the result of calling `get_io_dims` for each entry of the input dict
     """
-    return {k: get_io_dims(v) for k, v in dataloaders.items()}
+    return {clean_session_key(k): get_io_dims(v) for k, v in dataloaders.items()}
 
 
 def get_io_dims(data_loader):
