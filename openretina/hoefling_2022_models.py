@@ -1,9 +1,10 @@
 from collections import OrderedDict
 from collections.abc import Iterable
-from typing import Literal, Optional, Tuple
+from typing import Dict, List, Literal, Optional, Tuple, Union
 
 import numpy as np
 import torch
+import torch.distributions as dist
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -12,7 +13,7 @@ from neuralpredictors.regularizers import Laplace, Laplace1d, laplace3d
 from neuralpredictors.utils import get_module_output
 
 from .dataloaders import get_dims_for_loader_dict
-from .misc import set_seed, clean_session_key
+from .misc import set_seed
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
@@ -941,7 +942,7 @@ def SFB3d_core_SxF3d_readout(
             k: v[in_name] for k, v in session_shape_dict.items()
         }  # dictionary containing input shapes per session
         input_channels = [v[in_name][1] for v in session_shape_dict.values()]  # gets the # of input channels
-        roi_masks = {clean_session_key(k): dataloaders[k].dataset.roi_coords for k in dataloaders.keys()}
+        roi_masks = {k: dataloaders[k].dataset.roi_coords for k in dataloaders.keys()}
     assert np.unique(input_channels).size == 1, "all input channels must be of equal size"
 
     set_seed(seed)
@@ -993,7 +994,7 @@ def SFB3d_core_SxF3d_readout(
     )
 
     # initializing readout bias to mean response
-    if readout_bias:
+    if readout_bias == True:
         if data_info is None:
             for k in dataloaders:
                 readout[k].bias.data = dataloaders[k].dataset.mean_response

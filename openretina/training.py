@@ -14,7 +14,7 @@ from tqdm.auto import tqdm
 from . import measures, metrics
 from .cyclers import LongCycler
 from .early_stopping import early_stopping
-from .misc import set_seed, clean_session_key
+from .misc import set_seed
 from .tracking import MultipleObjectiveTracker
 
 
@@ -201,3 +201,11 @@ def save_model(model: torch.nn.Module, save_folder: str, model_name: str) -> Non
     date = datetime.datetime.now().strftime("%Y-%m-%d")
     torch.save(model.state_dict(), os.path.join(save_folder, f"{model_name}_{date}_model_weights.pt"))
     torch.save(model, os.path.join(save_folder, f"{model_name}_{date}_model.pt"))
+
+
+def clean_session_key(session_key):
+    if "_chirp" in session_key:
+        session_key = session_key.split("_chirp")[0]
+    if "_mb" in session_key:
+        session_key = session_key.split("_mb")[0]
+    return session_key
