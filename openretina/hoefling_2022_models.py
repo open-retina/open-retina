@@ -809,7 +809,8 @@ class STSeparableBatchConv3d(nn.Module):
             torch.Tensor: The mask tensor.
         """
         mask = 1 / (1 + torch.exp(-time - int(T * 0.95) / stretch))
-        return mask.T
+        # .mT transposes correctly when there is a leading batch dimension
+        return mask.mT
 
 
 class TimeLaplaceL23dnorm(nn.Module):
