@@ -55,7 +55,9 @@ def standard_early_stop_trainer(
             loss_scale = 1.0
 
         predictions = model(inputs.to(device), data_key, detach_core=detach_core)
-        return loss_scale * criterion(predictions, targets.to(device)) + regularizers
+        loss_criterion = criterion(predictions, targets.to(device))
+        res = loss_scale * loss_criterion + regularizers
+        return res
 
     trainloaders = dataloaders["train"]
     valloaders = dataloaders.get("validation", dataloaders["val"] if "val" in dataloaders.keys() else None)
