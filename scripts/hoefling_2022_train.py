@@ -21,11 +21,12 @@ def parse_args():
 
     parser.add_argument("--data_folder", type=str, help="Path to the base data folder", default="/Data/fd_export")
     parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
+    parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda")
 
     return parser.parse_args()
 
 
-def main(data_folder: str, save_folder: str) -> None:
+def main(data_folder: str, save_folder: str, device: str) -> None:
     data_path = os.path.join(data_folder, "2024-01-11_neuron_data_stim_8c18928_responses_99c71a0.pkl")
     movies_path = os.path.join(data_folder, "2024-01-11_movies_dict_8c18928.pkl")
     with open(data_path, "rb") as f:
@@ -38,7 +39,8 @@ def main(data_folder: str, save_folder: str) -> None:
     print("Initialized dataloaders")
 
     model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=dataloaders, seed=42)
-    print("Init model")
+    model.to(device)
+    print(f"Init model for {device=}")
 
     test_score, val_score, output, model_state = trainer(
         model=model,
