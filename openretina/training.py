@@ -1,6 +1,7 @@
 import datetime
 import os
 from functools import partial
+from typing import Optional
 
 try:
     import wandb
@@ -42,6 +43,7 @@ def standard_early_stop_trainer(
     detach_core: bool = False,
     wandb_logger=None,
     cb=None,
+    clip_gradient_norm: Optional[float] = None,
     **kwargs,
 ):
     # Defines objective function; criterion is resolved to the loss_function that is passed as input
@@ -130,7 +132,7 @@ def standard_early_stop_trainer(
         # executes callback function if passed in keyword args
         if cb is not None:
             cb()
-
+        epoch_loss = 0
         # train over batches
         optimizer.zero_grad()
         for batch_no, (data_key, data) in tqdm(
@@ -144,16 +146,23 @@ def standard_early_stop_trainer(
             clean_data_key = clean_session_key(data_key)
             loss = full_objective(model, clean_data_key, *data, detach_core)
             loss.backward()
+
+            if clip_gradient_norm is not None:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=clip_gradient_norm)
+
             if (batch_no + 1) % optim_step_count == 0:
                 optimizer.step()
                 optimizer.zero_grad()
+            epoch_loss += loss.item()
+
         if np.isnan(loss.item()):
             raise ValueError(f"Loss is NaN on batch {batch_no} from {data_key}, stopping training.")
+
         if wandb_logger is not None:
             tracker_info = tracker.asdict(make_copy=True)
             wandb.log(
                 {
-                    "train_loss": loss.item(),
+                    "train_loss": epoch_loss / n_iterations,
                     "lr": optimizer.param_groups[0]["lr"],
                     "epoch": epoch,
                     "val_corr": tracker_info["val_correlation"][-1],
