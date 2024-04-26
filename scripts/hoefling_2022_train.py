@@ -32,8 +32,8 @@ def parse_args():
     parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
     parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda")
     parser.add_argument("--additional_datasets", type=str, default="chirp",
-                        help="Comma separated list of additional datasets, "
-                             "e.g. 'natural', 'chirp', 'mb', or 'chirp,mb'")
+                        help="Underscore separated list of additional datasets, "
+                             "e.g. 'natural', 'chirp', 'mb', or 'natural_mb'")
 
     return parser.parse_args()
 
@@ -44,7 +44,7 @@ def main(
         device: str,
         additional_datasets: str,
 ) -> None:
-    additional_datasets_list = additional_datasets.split(",")
+    additional_datasets_list = additional_datasets.split("_")
     for name in additional_datasets_list:
         if name not in {"natural", "chirp", "mb"}:
             raise ValueError(f"Unsupported dataset name {name}")
@@ -105,9 +105,9 @@ def main(
     )
 
     # Plotting an example field
-    sample_loader = natural_dataloaders["train"]
+    sample_loader = joint_dataloaders["train"]
     sample_session = list(sample_loader.keys())[0]
-    test_sample = next(iter(sample_session["test"][sample_session]))
+    test_sample = next(iter(joint_dataloaders["test"][sample_session]))
 
     input_samples = test_sample.inputs
     targets = test_sample.targets
@@ -120,9 +120,16 @@ def main(
     reconstructions = reconstructions.cpu().numpy().squeeze()
 
     targets = targets.cpu().numpy().squeeze()
-    window = 500
+    if len(targets.shape) == 3:
+        print("Targets still have a batch dimensions, taking the first element")
+        targets = targets[0]
+        assert len(reconstructions.shape) == 3
+        reconstructions = reconstructions[0]
+
+    window = min(targets.shape[0], 500)
     neuron = 2
     plt.plot(np.arange(0, window), targets[:window, neuron], label="target")
+    window = min(reconstructions.shape[0], 500)
     plt.plot(np.arange(30, window + 30), reconstructions[:window, neuron], label="prediction")
     plt.legend()
     sns.despine()

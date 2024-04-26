@@ -167,11 +167,3 @@ def load_dataset_from_h5(file_path, dataset_path: str):
             return data
         else:
             raise FileNotFoundError(f"Dataset path {dataset_path} not found in the file.")
-
-
-def clean_session_key(session_key: str) -> str:
-    if "_chirp" in session_key:
-        session_key = session_key.split("_chirp")[0]
-    if "_mb" in session_key:
-        session_key = session_key.split("_mb")[0]
-    return session_key
