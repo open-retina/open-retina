@@ -32,7 +32,7 @@ def parse_args():
     parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
     parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda")
     parser.add_argument("--datasets", type=str, default="natural",
-                        help="Underscore separated list of additional datasets, "
+                        help="Underscore separated list of datasets, "
                              "e.g. 'natural', 'chirp', 'mb', or 'natural_mb'")
 
     return parser.parse_args()
