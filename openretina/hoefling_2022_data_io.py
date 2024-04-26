@@ -161,7 +161,11 @@ def natmov_dataloaders_v2(
     num_clips: int = NUM_CLIPS,
     clip_length: int = CLIP_LENGTH,
     num_val_clips: int = NUM_VAL_CLIPS,
+    use_base_sequence: bool = False,
 ):
+    """
+    TODO docstring
+    """
     assert isinstance(
         neuron_data_dictionary, dict
     ), "neuron_data_dictionary should be a dictionary of sessions and their corresponding neuron data."
@@ -194,6 +198,9 @@ def natmov_dataloaders_v2(
         random_sequences = np.arange(0, movie_length // clip_length)[:, np.newaxis]
     else:
         random_sequences = movies_dictionary["random_sequences"]
+        if use_base_sequence:
+            base_sequence = np.arange(num_clips)[:, None]
+            random_sequences = np.concatenate([random_sequences, base_sequence], axis=1)
 
     movies = get_all_movie_combinations(
         movies_dictionary["train"],
@@ -210,6 +217,7 @@ def natmov_dataloaders_v2(
             val_clip_idx=val_clip_idx,
             num_clips=num_clips,
             clip_length=clip_length,
+            use_base_sequence=use_base_sequence,
         )
 
         # if neuron_data.responses_train.shape[-1] == 0:
@@ -228,6 +236,7 @@ def natmov_dataloaders_v2(
                 start_indices=start_indices[fold],
                 batch_size=batch_size,
                 scene_length=clip_length,
+                use_base_sequence=use_base_sequence,
             )
 
     return dataloaders

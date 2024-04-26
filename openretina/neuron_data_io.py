@@ -204,6 +204,7 @@ class NeuronData:
         eye: Optional[Literal["left", "right"]] = None,
         group_assignment: Optional[Float[np.ndarray, "n_neurons"]] = None,  # noqa
         key: Optional[dict] = None,
+        use_base_sequence: Optional[bool] = False,
         **kwargs,
     ):
         """
@@ -225,6 +226,7 @@ class NeuronData:
             val_clip_idx (List[int]): The indices of validation clips.
             num_clips (int): The number of clips.
             clip_length (int): The length of each clip.
+            use_base_sequence (bool): Whether to re-order all training responses to use the same "base" sequence.
         """
         self.neural_responses = responses_final
 
@@ -247,6 +249,7 @@ class NeuronData:
         self.num_clips = num_clips
         self.random_sequences = random_sequences if random_sequences is not None else np.array([])
         self.val_clip_idx = val_clip_idx
+        self.use_base_sequence = use_base_sequence
 
     #! this has to become a regular method in the future
     @property
@@ -331,7 +334,20 @@ class NeuronData:
                 (grab_index * self.clip_length) : (grab_index + 1) * self.clip_length,
                 :,
             ] = False
-        self.responses_train = self.responses_train_and_val[validation_mask].reshape(-1, self.num_neurons)
+
+        if self.use_base_sequence:
+            train_clip_idx = [i for i in range(self.num_clips) if i not in self.val_clip_idx]
+            self.responses_train = np.zeros([len(train_clip_idx) * self.clip_length, self.num_neurons])
+            for i, train_idx in enumerate(train_clip_idx):
+                grab_index = base_movie_sorting[train_idx]
+                self.responses_train[i * self.clip_length : (i + 1) * self.clip_length, :] = (
+                    self.responses_train_and_val[
+                        grab_index * self.clip_length : (grab_index + 1) * self.clip_length,
+                        :,
+                    ]
+                )
+        else:
+            self.responses_train = self.responses_train_and_val[validation_mask].reshape(-1, self.num_neurons)
 
     def transform_roi_mask(self, roi_mask):
         roi_coords = np.zeros((len(self.roi_ids), 2))

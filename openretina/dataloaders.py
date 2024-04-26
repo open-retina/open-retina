@@ -90,6 +90,20 @@ class MovieSampler(Sampler):
 
 
 def gen_shifts(clip_bounds, start_indices, clip_chunk_size=50):
+    """
+    Generate shifted indices based on clip bounds and start indices.
+    Assumes that the original start indices are already within the clip bounds, and will throw an error if they are not.
+
+    Args:
+        clip_bounds (list): A list of clip bounds.
+        start_indices (list): A list of start indices.
+        clip_chunk_size (int, optional): The size of each clip chunk. Defaults to 50.
+
+    Returns:
+        list: A list of shifted indices.
+
+    """
+
     def get_next_bound(value, bounds):
         insertion_index = bisect.bisect_right(bounds, value)
         return bounds[min(insertion_index, len(bounds) - 1)]
@@ -100,6 +114,10 @@ def gen_shifts(clip_bounds, start_indices, clip_chunk_size=50):
     for i, start_idx in enumerate(start_indices):
         if start_idx + shifts[i] + clip_chunk_size < (get_next_bound(start_idx, clip_bounds)):
             shifted_indices.append(start_idx + shifts[i])
+        elif start_idx + clip_chunk_size > (get_next_bound(start_idx, clip_bounds)):
+            raise ValueError(
+                "Original start index is too close to the end of the clip. Change the clip chunk size in the dataloader function."
+            )
         else:
             shifted_indices.append(start_idx)
     return shifted_indices
