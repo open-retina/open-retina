@@ -1,3 +1,4 @@
+import bisect
 from collections import namedtuple
 from copy import deepcopy
 from typing import Callable, Dict, List, Optional, Tuple, TypedDict, Union
@@ -17,14 +18,14 @@ class MovieDataSet(Dataset):
             self.samples = movies, responses["avg"]
             self.test_responses_by_trial = responses["by_trial"]
             self.roi_ids = roi_ids
-            self.group_assignment = group_assignment
         else:
             self.samples = movies, responses
-            self.roi_coords = roi_coords
         self.DataPoint = namedtuple("DataPoint", ("inputs", "targets"))
         self.chunk_size = chunk_size
         # Calculate the mean response per neuron (used for bias init in the model)
         self.mean_response = torch.mean(self.samples[1], dim=0)
+        self.group_assignment = group_assignment
+        self.roi_coords = roi_coords
 
     def __getitem__(self, idx):
         if isinstance(idx, slice):
@@ -66,19 +67,42 @@ class MovieSampler(Sampler):
     def __iter__(self):
         if self.split == "train" and (self.scene_length != self.chunk_size):
             # Always start the clip from a random point in the scene, within the chosen chunk size
-            #! TODO: Check whether this works as expected
-            shift = np.random.randint(0, min(self.scene_length - self.chunk_size, self.chunk_size))
+            # All while making sure it does not go over the scene length bound.
+            shifted_indices = gen_shifts(
+                np.arange(0, max(self.indices), self.scene_length),
+                self.indices,
+                self.chunk_size,
+            )
+            # shift = np.random.randint(0, min(self.scene_length - self.chunk_size, self.chunk_size))
 
             # Shuffle the indices
             indices_shuffling = np.random.permutation(len(self.indices))
         else:
-            shift = 0
+            # shift = 0
+            shifted_indices = self.indices
             indices_shuffling = np.arange(len(self.indices))
 
-        return iter(np.array([idx + shift for idx in self.indices])[indices_shuffling])
+        # return iter(np.array([idx + shift for idx in self.indices])[indices_shuffling])
+        return iter(np.array(shifted_indices)[indices_shuffling])
 
     def __len__(self):
         return len(self.indices)
+
+
+def gen_shifts(clip_bounds, start_indices, clip_chunk_size=50):
+    def get_next_bound(value, bounds):
+        insertion_index = bisect.bisect_right(bounds, value)
+        return bounds[min(insertion_index, len(bounds) - 1)]
+
+    shifted_indices = []
+    shifts = np.random.randint(1, clip_chunk_size // 2, len(start_indices))
+
+    for i, start_idx in enumerate(start_indices):
+        if start_idx + shifts[i] + clip_chunk_size < (get_next_bound(start_idx, clip_bounds)):
+            shifted_indices.append(start_idx + shifts[i])
+        else:
+            shifted_indices.append(start_idx)
+    return shifted_indices
 
 
 def get_movie_dataloader(
@@ -94,10 +118,16 @@ def get_movie_dataloader(
     batch_size: int = 32,
     scene_length: Optional[int] = None,
     drop_last=True,
+    use_base_sequence=False,
     **kwargs,
 ):
+    """
+    TODO docstring
+    """
     # for right movie: flip second frame size axis!
     if split == "train" and isinstance(movies, dict) and scan_sequence_idx is not None:
+        if use_base_sequence:
+            scan_sequence_idx = 20  # 20 is the base sequence
         dataset = MovieDataSet(
             movies[scan_sequence_idx], responses, roi_ids, roi_coords, group_assignment, split, chunk_size
         )
