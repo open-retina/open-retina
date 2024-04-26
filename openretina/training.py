@@ -55,7 +55,9 @@ def standard_early_stop_trainer(
             loss_scale = 1.0
 
         predictions = model(inputs.to(device), data_key, detach_core=detach_core)
-        return loss_scale * criterion(predictions, targets.to(device)) + regularizers
+        loss_criterion = criterion(predictions, targets.to(device))
+        res = loss_scale * loss_criterion + regularizers
+        return res
 
     trainloaders = dataloaders["train"]
     valloaders = dataloaders.get("validation", dataloaders["val"] if "val" in dataloaders.keys() else None)
@@ -202,6 +204,8 @@ def save_model(model: torch.nn.Module, save_folder: str, model_name: str) -> Non
 
 
 def clean_session_key(session_key):
+    # Ignore this function when only training on the chirp or movingbar by uncommenting the following line
+    # return session_key
     if "_chirp" in session_key:
         session_key = session_key.split("_chirp")[0]
     if "_mb" in session_key:
