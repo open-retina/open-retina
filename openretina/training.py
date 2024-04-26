@@ -204,6 +204,8 @@ def save_model(model: torch.nn.Module, save_folder: str, model_name: str) -> Non
 
 
 def clean_session_key(session_key):
+    # Ignore this function when only training on the chirp or movingbar by uncommenting the following line
+    # return session_key
     if "_chirp" in session_key:
         session_key = session_key.split("_chirp")[0]
     if "_mb" in session_key:
