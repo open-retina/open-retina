@@ -31,7 +31,7 @@ def parse_args():
     parser.add_argument("--data_folder", type=str, help="Path to the base data folder", default="/Data/fd_export")
     parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
     parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda")
-    parser.add_argument("--additional_datasets", type=str, default="chirp",
+    parser.add_argument("--datasets", type=str, default="natural",
                         help="Underscore separated list of additional datasets, "
                              "e.g. 'natural', 'chirp', 'mb', or 'natural_mb'")
 
@@ -42,10 +42,10 @@ def main(
         data_folder: str,
         save_folder: str,
         device: str,
-        additional_datasets: str,
+        datasets: str,
 ) -> None:
-    additional_datasets_list = additional_datasets.split("_")
-    for name in additional_datasets_list:
+    dataset_names_list = datasets.split("_")
+    for name in dataset_names_list:
         if name not in {"natural", "chirp", "mb"}:
             raise ValueError(f"Unsupported dataset name {name}")
 
@@ -63,7 +63,7 @@ def main(
         "mb": get_mb_dataloaders,
         "natural": functools.partial(natmov_dataloaders_v2, movies_dictionary=movies_dict, seed=1000),
     }
-    for dataset_name in additional_datasets_list:
+    for dataset_name in dataset_names_list:
         data_dict = make_final_responses(responses, response_type=dataset_name)
         dataloader_fn = dataloader_name_to_function[dataset_name]
         dataloader = dataloader_fn(data_dict, train_chunk_size=100)
