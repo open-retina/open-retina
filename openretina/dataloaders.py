@@ -83,7 +83,7 @@ class MovieSampler(Sampler):
 
 def get_movie_dataloader(
     movies: Union[np.ndarray, torch.Tensor, Dict[int, np.ndarray]],
-    responses: Float[np.ndarray, "n_neurons n_frames"],  # noqa
+    responses: Float[np.ndarray, "n_frames n_neurons"],  # noqa
     roi_ids: Float[np.ndarray, "n_neurons"],  # noqa
     roi_coords: Float[np.ndarray, "n_neurons 2"],  # noqa
     group_assignment: Float[np.ndarray, "n_neurons"],  # noqa
@@ -95,7 +95,11 @@ def get_movie_dataloader(
     scene_length: Optional[int] = None,
     drop_last=True,
     **kwargs,
-):
+):  
+    if isinstance(responses, torch.Tensor) and bool(torch.isnan(responses).any()):
+        print(f"Nans in responses, skipping this dataloader")
+        return None
+
     # for right movie: flip second frame size axis!
     if split == "train" and isinstance(movies, dict) and scan_sequence_idx is not None:
         dataset = MovieDataSet(
