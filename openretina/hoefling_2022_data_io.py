@@ -287,7 +287,7 @@ def get_chirp_dataloaders(
 
         session_key += "_chirp"
 
-        dataloaders["train"][session_key] = get_movie_dataloader(
+        dataloader = get_movie_dataloader(
             movies=chirp_stimulus if neuron_data.eye == "right" else torch.flip(chirp_stimulus, [-1]),
             responses=neuron_data.response_dict["train"],
             roi_ids=neuron_data.roi_ids,
@@ -301,6 +301,10 @@ def get_chirp_dataloaders(
             scene_length=chirp_stimulus.shape[1] // num_chirps,
             drop_last=False,
         )
+        if dataloader is not None:
+            dataloaders["train"][session_key] = dataloader
+        else:
+            print(f"Ignoring session {session_key} for stimulus chirp")
 
     return dataloaders
 

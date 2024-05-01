@@ -4,7 +4,6 @@ import numpy as np
 import torch
 from neuralpredictors.measures import corr
 from neuralpredictors.training import eval_state
-from scipy import stats
 
 from .constants import EPSILON
 
@@ -64,7 +63,7 @@ def corr_stop(model, loader, avg=True, device="cpu"):
 
 def corr_stop3d(model, loader, avg=True, device="cpu"):
     """
-    Returns either the average correlation of all neurons or the the correlations per neuron.
+    Returns either the average correlation of all neurons or the correlations per neuron.
         Gets called by early stopping and the model performance evaluation
     """
 

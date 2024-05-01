@@ -9,6 +9,8 @@ _STIMULUS_FOLDER_PATH = _CURRENT_FOLDER_PATH + "/../data/stimuli"
 _CHIRP_PATH = _STIMULUS_FOLDER_PATH + "/RGC_Chirp_30Hz_18_16.pickle"
 _MOVING_BAR_PATH = _STIMULUS_FOLDER_PATH + "/RGC_MovingBar_30Hz_18_16.pickle"
 _FRAME_RATE = 30  # Hz
+_LENGTH_X = 18
+_LENGTH_Y = 16
 
 """
 There are three stimuli this module deals with:
@@ -107,7 +109,9 @@ def load_moving_bar(
     )
     # Remove the frames that are not part of the moving bar, i.e. black frames at the beginning and end
     # See: https://github.com/eulerlab/QDSpy/blob/master/Stimuli/RGC_MovingBar_2.py
-    moving_bar_content = moving_bar[90:-30, ...]
+    frames_before_first_mb = _FRAME_RATE * 3  # 3s before first moving bar
+    frames_after_last_mb = _FRAME_RATE * 1  # 1s after last moving bar
+    moving_bar_content = moving_bar[frames_before_first_mb:-frames_after_last_mb]
 
     return moving_bar_content
 
@@ -124,7 +128,7 @@ def load_moving_bar_stack(normalize: bool = True, number_of_moving_bars: int = 8
 def colored_stimulus(channel_idx: int, pad_front: int, stimulus_length: int, pad_end: int) -> np.array:
     total_length_time = pad_front + stimulus_length + pad_end
     stimulus = np.zeros((2, total_length_time, _LENGTH_X, _LENGTH_Y), dtype=np.float32)
-    stimulus[channel_idx, pad_front : pad_front + stimulus_length] = 1.0
+    stimulus[channel_idx, pad_front: pad_front + stimulus_length] = 1.0
     stimulus_5d = np.expand_dims(stimulus, 0)
 
     return stimulus_5d
