@@ -1,0 +1,38 @@
+model_config:
+    layers: 2
+    hidden_channels: [16, 16]  # in each layer
+    temporal_kernel_size: [21, 11]
+    spatial_kernel_size: [11, 5]  # an int or tuple per layer
+    input_padding: False
+    hidden_padding: True
+    readout_positive: True
+    readout_scale: True
+    core_bias: True
+    gaussian_masks: True
+    nonlinearity: "ELU"
+    conv_type: "custom_separable"
+    stack: -1  # from which layer (or list of layers) to readout responses from
+    gaussian_mean_scale: 6.0  # from here on regularisation parameters
+    gaussian_var_scale: 4.0
+    batch_adaptation: True
+    gamma_readout: 0.4
+    gamma_masks: 0.1
+    gamma_input: 0.3
+    gamma_in_sparse: 1.0
+    gamma_hidden: 0.0
+    gamma_temporal: 40.0
+
+trainer_config:
+    max_iter: 40  # 500
+    scale_loss: True
+    lr_decay_steps: 4
+    tolerance: 0.0005
+    patience: 5
+    verbose: True
+    lr_init: 0.00001
+    avg_loss: True
+    loss_function: "PoissonLoss3d"
+    stop_function: "corr_stop3d"
+    parallel: True
+    maximize: True
+
