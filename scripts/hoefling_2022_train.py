@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import yaml
 import functools
 import operator
 import os
@@ -28,6 +29,7 @@ from openretina.training import standard_early_stop_trainer as trainer
 def parse_args():
     parser = argparse.ArgumentParser(description="Model training")
 
+    parser.add_argument("--config", type=str, help="Path to the train config", default="configs/hoefling_2022.yaml")
     parser.add_argument("--data_folder", type=str, help="Path to the base data folder", default="/Data/fd_export")
     parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
     parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda")
@@ -39,6 +41,7 @@ def parse_args():
 
 
 def main(
+        config: str,
         data_folder: str,
         save_folder: str,
         device: str,
@@ -48,6 +51,9 @@ def main(
     for name in dataset_names_list:
         if name not in {"natural", "chirp", "mb"}:
             raise ValueError(f"Unsupported dataset name {name}")
+
+    with open(config, "r") as f:
+        config_dict = yaml.safe_load(f)
 
     movies_path = os.path.join(data_folder, "2024-01-11_movies_dict_8c18928.pkl")
     with open(movies_path, "rb") as f:
@@ -85,14 +91,14 @@ def main(
     }
     print("Initialized dataloaders")
 
-    model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=joint_dataloaders, seed=42)
+    model = SFB3d_core_SxF3d_readout(**config_dict["model_config"], dataloaders=joint_dataloaders, seed=42)
     print(f"Init model")
 
     test_score, val_score, output, model_state = trainer(
         model=model,
         dataloaders=joint_dataloaders,
         seed=1000,
-        **trainer_config,
+        **config_dict["trainer_config"],
         wandb_logger=None,
         device=device,
     )
