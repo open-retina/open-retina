@@ -74,7 +74,9 @@ class MovieSampler(Sampler):
             shift = 0
             indices_shuffling = np.arange(len(self.indices))
 
-        return iter(np.array([idx + shift for idx in self.indices])[indices_shuffling])
+        indices_array = np.array([idx + shift for idx in self.indices])
+        shuffled_indices_array = indices_array[indices_shuffling]
+        return iter(shuffled_indices_array)
 
     def __len__(self):
         return len(self.indices)
