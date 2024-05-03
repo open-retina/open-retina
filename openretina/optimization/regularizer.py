@@ -1,4 +1,5 @@
 from typing import List, Tuple, Optional, Iterable
+from collections.abc import Iterable
 import abc
 
 import torch

@@ -55,7 +55,9 @@ def standard_early_stop_trainer(
             loss_scale = 1.0
 
         predictions = model(inputs.to(device), data_key, detach_core=detach_core)
-        return loss_scale * criterion(predictions, targets.to(device)) + regularizers
+        loss_criterion = criterion(predictions, targets.to(device))
+        res = loss_scale * loss_criterion + regularizers
+        return res
 
     trainloaders = dataloaders["train"]
     valloaders = dataloaders.get("validation", dataloaders["val"] if "val" in dataloaders.keys() else None)
@@ -86,7 +88,7 @@ def standard_early_stop_trainer(
     # set the number of iterations over which you would like to accummulate gradients
     optim_step_count = (
         len(trainloaders.keys()) if loss_accum_batch_n is None else loss_accum_batch_n
-    )  # will be equal to number of sessions - why?
+    )  # will be equal to number of sessions (dict keys) if not specified
 
     # define some trackers
     tracker_dict = dict(
@@ -141,13 +143,14 @@ def standard_early_stop_trainer(
             leave=True,
             disable=not verbose,
         ):
-            loss = full_objective(model, data_key, *data, detach_core)
+            clean_data_key = clean_session_key(data_key)
+            loss = full_objective(model, clean_data_key, *data, detach_core)
             loss.backward()
             if (batch_no + 1) % optim_step_count == 0:
                 optimizer.step()
                 optimizer.zero_grad()
         if np.isnan(loss.item()):
-            raise ValueError(f"Loss is NaN on batch {batch_no}, stopping training")
+            raise ValueError(f"Loss is NaN on batch {batch_no} from {data_key}, stopping training.")
         if wandb_logger is not None:
             tracker_info = tracker.asdict(make_copy=True)
             wandb.log(
@@ -197,3 +200,14 @@ def save_model(model: torch.nn.Module, save_folder: str, model_name: str) -> Non
         os.mkdir(save_folder)
     date = datetime.datetime.now().strftime("%Y-%m-%d")
     torch.save(model.state_dict(), os.path.join(save_folder, f"{model_name}_{date}_model_weights.pt"))
+    torch.save(model, os.path.join(save_folder, f"{model_name}_{date}_model.pt"))
+
+
+def clean_session_key(session_key):
+    # Ignore this function when only training on the chirp or movingbar by uncommenting the following line
+    # return session_key
+    if "_chirp" in session_key:
+        session_key = session_key.split("_chirp")[0]
+    if "_mb" in session_key:
+        session_key = session_key.split("_mb")[0]
+    return session_key

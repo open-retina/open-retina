@@ -1,12 +1,15 @@
 import pickle
+import warnings
 from collections import defaultdict, namedtuple
+from copy import deepcopy
 from typing import Dict, List, Literal, Optional
 
 import numpy as np
 import torch
 from jaxtyping import Float
+from tqdm.auto import tqdm
 
-from .constants import RGC_GROUP_NAMES_DICT
+from .constants import RGC_GROUP_NAMES_DICT, STIMULI_IDS
 
 SingleNeuronInfoStruct = namedtuple(
     "SingleNeuronInfoStruct",
@@ -131,12 +134,17 @@ class NeuronGroupMembersStore:
         return neuron_struct_list
 
     def get_all_training_samples(
-        self, list_of_ids: List[int], min_confidence: float = 0.0, min_neurons_per_group: int = 1
+        self,
+        list_of_ids: List[int],
+        min_confidence: float = 0.0,
+        min_neurons_per_group: int = 1,
     ) -> List[SingleNeuronInfoStruct]:
         training_samples = sum(
             (
                 self.get_training_samples_for_group(
-                    group_id, min_confidence=min_confidence, min_neurons_per_group=min_neurons_per_group
+                    group_id,
+                    min_confidence=min_confidence,
+                    min_neurons_per_group=min_neurons_per_group,
                 )
                 for group_id in list_of_ids
             ),
@@ -158,7 +166,8 @@ class NeuronGroupMembersStore:
 
     def get_all_test_samples(self, list_of_ids: List[int], min_confidence: float = 0.0) -> List[SingleNeuronInfoStruct]:
         test_samples = sum(
-            (self.get_test_samples_for_group(group_id, min_confidence=min_confidence) for group_id in list_of_ids), []
+            (self.get_test_samples_for_group(group_id, min_confidence=min_confidence) for group_id in list_of_ids),
+            [],
         )
         return test_samples
 
@@ -182,7 +191,7 @@ class NeuronData:
     def __init__(
         self,
         responses_final: Float[np.ndarray, "n_neurons n_timepoints"] | dict,  # noqa
-        stim_id: Literal[5, "salamander_natural"],
+        stim_id: Literal[5, 2, 1, "salamander_natural"],
         val_clip_idx: List[int],
         num_clips: int,
         clip_length: int,
@@ -195,6 +204,7 @@ class NeuronData:
         eye: Optional[Literal["left", "right"]] = None,
         group_assignment: Optional[Float[np.ndarray, "n_neurons"]] = None,  # noqa
         key: Optional[dict] = None,
+        **kwargs,
     ):
         """
         Initialize the NeuronData object.
@@ -241,21 +251,30 @@ class NeuronData:
     #! this has to become a regular method in the future
     @property
     def response_dict(self):
-        movie_ordering = (
-            np.arange(self.num_clips)
-            if (len(self.random_sequences) == 0 or self.scan_sequence_idx is None)
-            else self.random_sequences[:, self.scan_sequence_idx]
-        )
 
         if self.stim_id == "salamander_natural":
             # Transpose the responses to have the shape (n_timepoints, n_neurons)
             self.responses_test = self.neural_responses["test"].T
-            self.responses_train = self.neural_responses["train"].T
+            self.responses_train_and_val = self.neural_responses["train"].T
             self.test_responses_by_trial = []
+
+        elif self.stim_id in [1, 2]:
+            # Chirp and moving bar
+            self.responses_test = np.nan
+            self.test_responses_by_trial = np.nan
+
+            self.responses_val = np.nan
+
+            self.responses_train = self.neural_responses.T
+
         else:
+
             self.responses_test = np.zeros((5 * self.clip_length, self.num_neurons))
-            self.responses_train = np.zeros((self.num_clips * self.clip_length, self.num_neurons))
+            self.responses_train_and_val = np.zeros((self.num_clips * self.clip_length, self.num_neurons))
+
             self.test_responses_by_trial = []
+
+            # Note: the hardcoded indices are the location of test clips in Hoefling 2022
             for roi in range(self.num_neurons):
                 tmp = np.vstack(
                     (
@@ -266,7 +285,7 @@ class NeuronData:
                 )
                 self.test_responses_by_trial.append(tmp)
                 self.responses_test[:, roi] = np.mean(tmp, 0)
-                self.responses_train[:, roi] = np.concatenate(
+                self.responses_train_and_val[:, roi] = np.concatenate(
                     (
                         self.neural_responses[roi, 5 * self.clip_length : 59 * self.clip_length],
                         self.neural_responses[roi, 64 * self.clip_length : 118 * self.clip_length],
@@ -274,18 +293,34 @@ class NeuronData:
                 )
             self.test_responses_by_trial = np.asarray(self.test_responses_by_trial)
 
-        # if self.stim_id == "salamander_natural":
-        #     self.responses_val = np.zeros([len(self.val_clip_idx), self.clip_length, self.num_neurons])
-        #     for i, ind in enumerate(self.val_clip_idx):
-        #         self.responses_val[i] = self.responses_train[ind * self.clip_length : (ind + 1) * self.clip_length, :]
-        # else:
-        self.responses_val = np.zeros([len(self.val_clip_idx) * self.clip_length, self.num_neurons])
-        inv_order = np.argsort(movie_ordering)
-        for i, ind1 in enumerate(self.val_clip_idx):
-            ind2 = inv_order[ind1]
-            self.responses_val[i * self.clip_length : (i + 1) * self.clip_length, :] = self.responses_train[
-                ind2 * self.clip_length : (ind2 + 1) * self.clip_length, :
-            ]
+        if self.stim_id in [5, "salamander_natural"]:
+
+            movie_ordering = (
+                np.arange(self.num_clips)
+                if (len(self.random_sequences) == 0 or self.scan_sequence_idx is None)
+                else self.random_sequences[:, self.scan_sequence_idx]
+            )
+
+            # Initialise validation responses
+
+            base_movie_sorting = np.argsort(movie_ordering)
+
+            validation_mask = np.ones_like(self.responses_train_and_val, dtype=bool)
+            self.responses_val = np.zeros([len(self.val_clip_idx) * self.clip_length, self.num_neurons])
+
+            # Compute validation responses and remove sections from training responses
+
+            for i, ind1 in enumerate(self.val_clip_idx):
+                grab_index = base_movie_sorting[ind1]
+                self.responses_val[i * self.clip_length : (i + 1) * self.clip_length, :] = self.responses_train_and_val[
+                    grab_index * self.clip_length : (grab_index + 1) * self.clip_length,
+                    :,
+                ]
+                validation_mask[
+                    (grab_index * self.clip_length) : (grab_index + 1) * self.clip_length,
+                    :,
+                ] = False
+            self.responses_train = self.responses_train_and_val[validation_mask].reshape(-1, self.num_neurons)
 
         response_dict = {
             "train": torch.tensor(self.responses_train).to(torch.float),
@@ -346,3 +381,116 @@ class NeuronData:
         val = val - 0.5
         val = val * 2
         return val
+
+
+def upsample_traces(
+    triggertimes,
+    traces,
+    tracestimes,
+    stim_id,
+    target_fr=30,
+):
+    """
+    Upsamples the traces based on the stimulus type.
+
+    Args:
+        triggertimes (list): List of trigger times.
+        traces (list): List of traces.
+        tracestimes (list): List of trace times.
+        stim_id (int): Stimulus ID.
+        stim_framerate (int, optional): Frame rate of the stimulus. Required for certain stimulus types like moving bar and chirp.
+        target_fr (int, optional): Target frame rate for upsampling. Default is 30.
+
+    Returns:
+        numpy.ndarray: Upsampled responses.
+
+    Raises:
+        NotImplementedError: If the stimulus ID is not implemented.
+    """
+    if stim_id == 5:
+        # Movie stimulus
+        # 4.966666 is the time between triggers in the movie stimulus. It is not exactly 5s because it is not a perfect world :)
+        upsampled_triggertimes = _upsample_triggertimes(4.9666667, 5, triggertimes, target_fr)
+    elif stim_id == 1:
+        # Chirp: each chirp has two triggers, one at the start and one 5s later, after a 2s OFF and 3s full field ON.
+        # We need only the first trigger of each chirp for the upsampling.
+        # 32.98999999 is the total chirp duration in seconds. Should be 33 but there is a small discrepancy
+        chirp_starts = triggertimes[::2]
+        upsampled_triggertimes = _upsample_triggertimes(32.98999999, 33, chirp_starts, target_fr)
+    elif stim_id == 2:
+        # Moving bar: each bar has one trigger at the start of the bar stim. Bar duration is 4s.
+        # It is a bit more because each trigger has a duration of 3 frames at 60Hz, so around 50 ms.
+        upsampled_triggertimes = _upsample_triggertimes(4.054001, 4.1, triggertimes, target_fr)
+    else:
+        raise NotImplementedError(f"Stimulus ID {stim_id} not implemented")
+
+    upsampled_responses = np.zeros((traces.shape[0], len(upsampled_triggertimes)))
+    for i in range(traces.shape[0]):
+        upsampled_responses[i] = np.interp(upsampled_triggertimes, tracestimes[i].ravel(), traces[i].ravel())
+
+    upsampled_responses = upsampled_responses / np.std(
+        upsampled_responses, axis=1, keepdims=True
+    )  # normalize response std
+
+    return upsampled_responses
+
+
+def _upsample_triggertimes(stim_empirical_duration, stim_theoretical_duration, triggertimes, target_fr):
+    # upsample triggertimes to get 1 trigger per frame, (instead of just 1 trigger at the start of the sequence)
+    upsampled_triggertimes = [
+        np.linspace(t, t + stim_empirical_duration, round(stim_theoretical_duration * target_fr)) for t in triggertimes
+    ]
+    upsampled_triggertimes = np.concatenate(upsampled_triggertimes)
+
+    return upsampled_triggertimes
+
+
+def make_final_responses(data_dict: dict, response_type: Literal["natural", "chirp", "mb"] = "natural"):
+    """
+    Converts inferred spikes into final responses by upsampling the traces.
+
+    Args:
+        data_dict (dict): A dictionary containing the data.
+        response_type (str, optional): The type of response. Defaults to "natural".
+
+    Returns:
+        dict: The updated data dictionary with final responses.
+    Raises:
+        NotImplementedError: If the conversion is not yet implemented for the given response type.
+    """
+
+    new_data_dict = deepcopy(data_dict)
+
+    stim_id = STIMULI_IDS.get(response_type, None)
+    if stim_id is None:
+        raise NotImplementedError(f"Conversion not yet implemented for response type {response_type}")
+
+    for field in tqdm(
+        new_data_dict.keys(),
+        desc=f"Upsampling {response_type} traces to get final responses.",
+    ):
+        try:
+            spikes = new_data_dict[field][f"{response_type}_inferred_spikes"]
+        except KeyError:
+            # For new data format
+            spikes = new_data_dict[field][f"{response_type}_spikes"]
+        triggertimes = new_data_dict[field][f"{response_type}_trigger_times"][0]
+        tracestimes = new_data_dict[field][f"{response_type}_traces_times"]
+
+        upsampled_traces = upsample_traces(
+            triggertimes=triggertimes,
+            traces=spikes,
+            tracestimes=tracestimes,
+            stim_id=stim_id,
+        )
+
+        new_data_dict[field][f"{response_type}_responses_final"] = upsampled_traces
+
+        if "responses_final" in new_data_dict[field]:
+            warnings.warn(
+                f"You seem to already have computed `responses_final` for a stim_id of {new_data_dict[field]['stim_id']}. Overwriting with {stim_id} ({response_type})."
+            )
+        new_data_dict[field]["responses_final"] = upsampled_traces
+        new_data_dict[field]["stim_id"] = stim_id
+
+    return new_data_dict

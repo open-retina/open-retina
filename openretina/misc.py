@@ -44,6 +44,10 @@ def set_seed(seed=None, seed_torch=True):
     return seed
 
 
+class MaxLinesExceededException(Exception):
+    pass
+
+
 class CustomPrettyPrinter(pprint.PrettyPrinter):
     """
     A custom pretty printer that provides specialized formatting for certain types of objects.
@@ -70,21 +74,41 @@ class CustomPrettyPrinter(pprint.PrettyPrinter):
         # Output: numpy.ndarray(shape=(3,))
     """
 
+    def __init__(self, indent=1, width=80, depth=None, stream=None, max_lines=None):
+        super().__init__(indent, width, depth, stream)
+        self.max_lines = max_lines
+        self.current_line = 0
+
     def _format(self, object, stream, indent, allowance, context, level):
+
+        if self.max_lines is not None and self.current_line >= self.max_lines:
+            stream.write("\n ... Exceeded maximum number of lines ...")
+            raise MaxLinesExceededException
+
         if isinstance(object, np.ndarray):
             # Print the shape of the array instead of its contents
             stream.write(f"numpy.ndarray(shape={object.shape})")
+            self.current_line += 1
         elif isinstance(object, torch.Tensor):
             # Print the shape of the tensor instead of its contents
             stream.write(f"torch.Tensor(shape={list(object.shape)})")
+            self.current_line += 1
         elif isinstance(object, list) and len(object) > 10:
             stream.write(f"list(len={len(object)})")
+            self.current_line += 1
         elif isinstance(object, torch.utils.data.DataLoader):
             # Print the dataset name instead of the DataLoader object
             stream.write(f"torch.utils.data.DataLoader(Dataset: {object.dataset})")
+            self.current_line += 1
         else:
             # Use the standard pretty printing for other types
             super()._format(object, stream, indent, allowance, context, level)
+            self.current_line += 1
+
+    def pprint(self, object):
+        self.current_line = 0
+        with contextlib.suppress(MaxLinesExceededException):
+            super().pprint(object)
 
 
 @contextlib.contextmanager
@@ -109,6 +133,14 @@ def print_h5_structure(file_path):
                 items[key] = f"h5.Dataset(shape={item.shape}), {item.dtype}"
             elif isinstance(item, h5.Group):
                 items[key] = explore_group(item, f"{path}/{key}")
+
+        # Add group attributes to the dictionary
+        if group.attrs:
+            attributes = {}
+            for attr_name, attr_value in group.attrs.items():
+                attributes[attr_name] = attr_value
+            items["__attributes__"] = attributes
+
         return items
 
     with h5.File(file_path, "r") as file:
@@ -131,7 +163,7 @@ def load_dataset_from_h5(file_path, dataset_path: str):
     """
     with h5.File(file_path, "r") as file:
         if dataset_path in file:
-            data = file[dataset_path][()]  # type: ignores
+            data = file[dataset_path][()]  # type: ignore
             return data
         else:
             raise FileNotFoundError(f"Dataset path {dataset_path} not found in the file.")

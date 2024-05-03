@@ -2,6 +2,9 @@
 Parts copied from sinzlab/neuralpredictors/training/cyclers.py
 """
 
+import random
+
+
 def cycle(iterable):
     # see https://github.com/pytorch/pytorch/issues/23900
     iterator = iter(iterable)
@@ -11,20 +14,26 @@ def cycle(iterable):
         except StopIteration:
             iterator = iter(iterable)
 
+
 class LongCycler:
     """
     Cycles through trainloaders until the loader with largest size is exhausted.
-        Needed for dataloaders of unequal size (as in the monkey data).
+    Needed for dataloaders of unequal size (as in the monkey data).
     """
 
-    def __init__(self, loaders):
+    def __init__(self, loaders, shuffle=True):
         self.loaders = loaders
-        self.max_batches = max([len(loader) for loader in self.loaders.values()])
+        self.max_batches = max(len(loader) for loader in self.loaders.values())
+        self.shuffle = shuffle
 
     def __iter__(self):
-        cycles = [cycle(loader) for loader in self.loaders.values()]
+        keys = list(self.loaders.keys())
+        if self.shuffle:
+            random.shuffle(keys)
+
+        cycles = [cycle(self.loaders[k]) for k in keys]
         for k, loader, _ in zip(
-            cycle(self.loaders.keys()),
+            cycle(keys),
             (cycle(cycles)),
             range(len(self.loaders) * self.max_batches),
         ):

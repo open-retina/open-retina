@@ -50,19 +50,15 @@ def update_video(video, ax, frame):
         green_channel = video[0, frame].numpy()
         purple_channel = video[1, frame].numpy()
 
-        # Normalize the channels
-        green_normalized = green_channel / green_channel.max()
-        purple_normalized = purple_channel / purple_channel.max()
-
         # Create an empty RGB image
         current_frame = np.zeros((*green_channel.shape, 3))
 
         # Assign green channel to the green color in RGB
-        current_frame[:, :, 1] = green_normalized
+        current_frame[:, :, 1] = green_channel
 
         # Assign purple channel to the blue and red color in RGB (to create purple)
-        current_frame[:, :, 0] = purple_normalized  # Red
-        current_frame[:, :, 2] = purple_normalized  # Blue
+        current_frame[:, :, 0] = purple_channel  # Red
+        current_frame[:, :, 2] = purple_channel  # Blue
 
     else:
         raise NotImplementedError("Only 1 or 2 channels are supported")
@@ -72,7 +68,12 @@ def update_video(video, ax, frame):
     ax.axis("off")
 
 
-def play_stimulus(video: Float[torch.Tensor, "channels time height width"]) -> HTML:
+def play_stimulus(video: Float[torch.Tensor, "channels time height width"], normalise: bool = True) -> HTML:
+    if normalise:
+        min_val = torch.min(video)
+        max_val = torch.max(video)
+        video = (video - min_val) / (max_val - min_val)
+
     fig, ax = plt.subplots()
 
     update = partial(update_video, video, ax)
