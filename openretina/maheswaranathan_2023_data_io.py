@@ -3,7 +3,7 @@ import os
 import h5py as h5
 import numpy as np
 
-from .misc import load_dataset_from_h5
+from .utils.h5_handling import load_dataset_from_h5
 
 CLIP_LENGTH = 90  # in frames @ 30 fps
 

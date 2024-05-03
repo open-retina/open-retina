@@ -20,7 +20,7 @@ from neuralpredictors.regularizers import Laplace, Laplace1d, laplace3d
 from neuralpredictors.utils import get_module_output
 
 from .dataloaders import get_dims_for_loader_dict
-from .hoefling_2022_models import (
+from .hoefling_2024.models import (
     Core3d,
     Encoder,
     FlatLaplaceL23dnorm,
@@ -32,7 +32,7 @@ from .hoefling_2022_models import (
     compute_temporal_kernel,
     temporal_smoothing,
 )
-from .misc import set_seed
+from .utils.misc import set_seed
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 

@@ -2,10 +2,11 @@ import warnings
 
 import numpy as np
 import torch
+
 from neuralpredictors.measures import corr
 from neuralpredictors.training import eval_state
 
-from .constants import EPSILON
+from .utils.constants import EPSILON
 
 
 def model_predictions(loader, model, data_key, device):

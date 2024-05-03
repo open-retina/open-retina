@@ -8,7 +8,7 @@ import torch
 from jaxtyping import Float
 from torch.utils.data import DataLoader, Dataset, Sampler, default_collate
 
-from .constants import SCENE_LENGTH
+from .hoefling_2024.constants import SCENE_LENGTH
 
 
 class MovieDataSet(Dataset):
