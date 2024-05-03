@@ -13,8 +13,8 @@ from matplotlib import animation
 from matplotlib.colors import Normalize
 from matplotlib.patches import Rectangle
 
-from .constants import FRAME_RATE_MODEL
-from .hoefling_2022_configs import pre_normalisation_values
+from .hoefling_2024.configs import pre_normalisation_values
+from .hoefling_2024.constants import FRAME_RATE_MODEL
 from .video_analysis import calculate_fft, decompose_kernel, weighted_main_frequency
 
 # Longer animations

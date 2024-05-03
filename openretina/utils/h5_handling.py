@@ -6,6 +6,8 @@ import numpy as np
 import psutil
 from tqdm.auto import tqdm
 
+from .misc import CustomPrettyPrinter
+
 
 def count_items(group: h5.Group):
     count = 0
@@ -104,3 +106,48 @@ def h5_to_folders(file_path, output_dir):
         total_items = count_items(file)
         with tqdm(total=total_items, unit="item") as progress_bar:
             explore_and_save(file, output_dir, progress_bar)
+
+
+def print_h5_structure(file_path):
+    def explore_group(group, path=""):
+        """Recursively explores and prints the structure of the HDF5 file."""
+        items = {}
+        for key, item in group.items():
+            if isinstance(item, h5.Dataset):
+                items[key] = f"h5.Dataset(shape={item.shape}), {item.dtype}"
+            elif isinstance(item, h5.Group):
+                items[key] = explore_group(item, f"{path}/{key}")
+
+        # Add group attributes to the dictionary
+        if group.attrs:
+            attributes = {}
+            for attr_name, attr_value in group.attrs.items():
+                attributes[attr_name] = attr_value
+            items["__attributes__"] = attributes
+
+        return items
+
+    with h5.File(file_path, "r") as file:
+        structure = explore_group(file)
+
+    printer = CustomPrettyPrinter()
+    printer.pprint(structure)
+
+
+def load_dataset_from_h5(file_path, dataset_path: str):
+    """
+    Loads a dataset from an HDF5 file.
+
+    Args:
+        file_path (str): Path to the HDF5 file.
+        dataset_path (str): Path to the dataset within the HDF5 file.
+
+    Returns:
+        data: Data of the loaded dataset.
+    """
+    with h5.File(file_path, "r") as file:
+        if dataset_path in file:
+            data = file[dataset_path][()]  # type: ignore
+            return data
+        else:
+            raise FileNotFoundError(f"Dataset path {dataset_path} not found in the file.")

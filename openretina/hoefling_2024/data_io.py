@@ -4,10 +4,11 @@ import numpy as np
 import torch
 from tqdm.auto import tqdm
 
-from openretina.constants import CLIP_LENGTH, NUM_CLIPS, NUM_VAL_CLIPS
 from openretina.dataloaders import get_movie_dataloader
 from openretina.neuron_data_io import NeuronData
 from openretina.stimuli import load_chirp, load_moving_bar
+
+from .constants import CLIP_LENGTH, NUM_CLIPS, NUM_VAL_CLIPS
 
 
 class MoviesDict(TypedDict):
