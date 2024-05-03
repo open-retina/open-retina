@@ -12,8 +12,8 @@ from neuralpredictors.layers.affine import Bias3DLayer, Scale2DLayer, Scale3DLay
 from neuralpredictors.regularizers import Laplace, Laplace1d, laplace3d
 from neuralpredictors.utils import get_module_output
 
-from .dataloaders import get_dims_for_loader_dict
-from .misc import set_seed
+from ..dataloaders import get_dims_for_loader_dict
+from ..utils.misc import set_seed
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 

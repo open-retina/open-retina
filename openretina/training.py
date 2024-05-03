@@ -14,8 +14,8 @@ from tqdm.auto import tqdm
 from . import measures, metrics
 from .cyclers import LongCycler
 from .early_stopping import early_stopping
-from .misc import set_seed
 from .tracking import MultipleObjectiveTracker
+from .utils.misc import set_seed
 
 
 def standard_early_stop_trainer(
