@@ -1,4 +1,5 @@
 import bisect
+import warnings
 from collections import namedtuple
 from copy import deepcopy
 from typing import Callable, Dict, List, Optional, Tuple, TypedDict, Union
@@ -92,7 +93,8 @@ class MovieSampler(Sampler):
 def gen_shifts(clip_bounds, start_indices, clip_chunk_size=50):
     """
     Generate shifted indices based on clip bounds and start indices.
-    Assumes that the original start indices are already within the clip bounds, and will throw an error if they are not.
+    Assumes that the original start indices are already within the clip bounds:
+    if they are not, it warns the user and changes the wrong indexes to respect the closest bound.
 
     Args:
         clip_bounds (list): A list of clip bounds.
@@ -115,9 +117,12 @@ def gen_shifts(clip_bounds, start_indices, clip_chunk_size=50):
         if start_idx + shifts[i] + clip_chunk_size < (get_next_bound(start_idx, clip_bounds)):
             shifted_indices.append(start_idx + shifts[i])
         elif start_idx + clip_chunk_size > (get_next_bound(start_idx, clip_bounds)):
-            raise ValueError(
-                "Original start index is too close to the end of the clip. Change the clip chunk size in the dataloader function."
+            warnings.warn(
+                "Original start index is too close to the end of the clip. Change the clip chunk size in the dataloader function.",
+                UserWarning,
+                stacklevel=2,
             )
+            shifted_indices.append(get_next_bound(start_idx, clip_bounds) - clip_chunk_size)
         else:
             shifted_indices.append(start_idx)
     return shifted_indices
