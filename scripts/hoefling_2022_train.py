@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import torch
+from neuralpredictors.measures import corr
 
 from openretina.h5_handling import load_h5_into_dict
 from openretina.neuron_data_io import make_final_responses
@@ -90,9 +91,16 @@ def main(
         "test": get_joint_dataloader(dataloader_list, "test"),
     }
     print("Initialized dataloaders")
+    if False:
+        print(f"Set validation/test dataloader to train dataloader")
+        joint_dataloaders["validation"] = joint_dataloaders["train"]
+        joint_dataloaders["test"] = joint_dataloaders["train"]
 
     model = SFB3d_core_SxF3d_readout(**config_dict["model_config"], dataloaders=joint_dataloaders, seed=42)
     print(f"Init model")
+    # test_key = list(model.readout.keys())[0]
+    # readout = model.readout[test_key]
+    # params = list(readout.parameters())
 
     test_score, val_score, output, model_state = trainer(
         model=model,
@@ -132,14 +140,18 @@ def main(
         assert len(reconstructions.shape) == 3
         reconstructions = reconstructions[0]
 
-    window = min(targets.shape[0], 500)
-    neuron = 2
-    plt.plot(np.arange(0, window), targets[:window, neuron], label="target")
-    window = min(reconstructions.shape[0], 500)
-    plt.plot(np.arange(30, window + 30), reconstructions[:window, neuron], label="prediction")
-    plt.legend()
-    sns.despine()
-    save_figure("mouse_reconstruction_example.pdf", os.path.join(save_folder, "figures"))
+    for neuron in range(targets.shape[1]):
+        plt.plot(np.arange(0, targets.shape[0]), targets[:, neuron], label="target")
+        assert targets.shape[0] > reconstructions.shape[0]
+        time_lag_reconstructions = targets.shape[0] - reconstructions.shape[0]
+        time_rec = np.arange(0, reconstructions.shape[0]) + time_lag_reconstructions
+        plt.plot(time_rec, reconstructions[:, neuron], label="prediction")
+        neuron_corr = corr(reconstructions[:, neuron], targets[time_lag_reconstructions:, neuron])
+        plt.title(f"Correlation: {neuron_corr}")
+        plt.legend()
+        sns.despine()
+        save_figure(f"corr_{int(neuron_corr*100):02}_neuron_{neuron}.pdf", os.path.join(save_folder, "figures"))
+        plt.clf()
 
 
 if __name__ == "__main__":
