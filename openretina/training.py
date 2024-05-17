@@ -135,6 +135,7 @@ def standard_early_stop_trainer(
 
         # train over batches
         optimizer.zero_grad()
+        loss_sum = 0.0
         for batch_no, (data_key, data) in tqdm(
             enumerate(LongCycler(trainloaders)),
             total=n_iterations,
@@ -145,12 +146,14 @@ def standard_early_stop_trainer(
         ):
             clean_data_key = clean_session_key(data_key)
             loss = full_objective(model, clean_data_key, *data, detach_core)
+            loss_sum += loss.item()
             loss.backward()
             if (batch_no + 1) % optim_step_count == 0:
                 optimizer.step()
                 optimizer.zero_grad()
-        if np.isnan(loss.item()):
-            raise ValueError(f"Loss is NaN on batch {batch_no} from {data_key}, stopping training.")
+            if np.isnan(loss.item()):
+                raise ValueError(f"Loss is NaN on batch {batch_no} from {data_key}, stopping training.")
+        print(f"{epoch=} {loss_sum=}")
         if wandb_logger is not None:
             tracker_info = tracker.asdict(make_copy=True)
             wandb.log(
