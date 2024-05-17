@@ -23,16 +23,16 @@ model_config:
     gamma_temporal: 40.0
 
 trainer_config:
-    max_iter: 40  # 500
+    max_iter: 500
     scale_loss: True
-    lr_decay_steps: 4
+    lr_decay_steps: 8
     tolerance: 0.0005
     patience: 5
     verbose: True
-    lr_init: 0.00001
+    lr_init: 0.1
     avg_loss: True
     loss_function: "PoissonLoss3d"
+#    loss_function: "MSE3d"
     stop_function: "corr_stop3d"
     parallel: True
-    maximize: True
-
+    loss_accum_batch_n: 1
