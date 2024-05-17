@@ -994,7 +994,7 @@ def SFB3d_core_SxF3d_readout(
     )
 
     # initializing readout bias to mean response
-    if readout_bias == True:
+    if readout_bias:
         if data_info is None:
             for k in dataloaders:
                 readout[k].bias.data = dataloaders[k].dataset.mean_response
