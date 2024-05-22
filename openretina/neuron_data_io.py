@@ -195,7 +195,7 @@ class NeuronData:
         val_clip_idx: List[int],
         num_clips: int,
         clip_length: int,
-        roi_coords: Optional[Float[np.ndarray, "n_neurons 2"]] = None,  # noqa
+        roi_mask: Optional[Float[np.ndarray, "64 64"]] = None,  # noqa
         roi_ids: Optional[Float[np.ndarray, "n_neurons"]] = None,  # noqa
         traces: Optional[Float[np.ndarray, "n_neurons n_timepoints"]] = None,  # noqa
         tracestimes: Optional[Float[np.ndarray, "n_timepoints"]] = None,  # noqa
@@ -239,8 +239,10 @@ class NeuronData:
         self.eye = eye if eye is not None else "right"
         self.group_assignment = group_assignment
         self.key = key
-        self.roi_coords = roi_coords
         self.roi_ids = roi_ids
+        self.roi_coords = (
+            torch.tensor(self.transform_roi_mask(roi_mask), dtype=torch.float32) if roi_mask is not None else None
+        )
         self.scan_sequence_idx = scan_sequence_idx
         self.stim_id = stim_id
         self.traces = traces
@@ -254,7 +256,6 @@ class NeuronData:
     #! this has to become a regular method in the future
     @property
     def response_dict(self):
-
         if self.stim_id == "salamander_natural":
             # Transpose the responses to have the shape (n_timepoints, n_neurons)
             self.responses_test = self.neural_responses["test"].T
@@ -271,13 +272,12 @@ class NeuronData:
             self.responses_train = self.neural_responses.T
 
         else:
-
             self.responses_test = np.zeros((5 * self.clip_length, self.num_neurons))
             self.responses_train_and_val = np.zeros((self.num_clips * self.clip_length, self.num_neurons))
 
             self.test_responses_by_trial = []
 
-            # Note: the hardcoded indices are the location of test clips in Hoefling 2022
+            # Note: the hardcoded indices are the location of test clips in Hoefling 2024
             for roi in range(self.num_neurons):
                 tmp = np.vstack(
                     (
@@ -336,6 +336,9 @@ class NeuronData:
             ] = False
 
         if self.use_base_sequence:
+            # Reorder training responses to use the same "base" sequence, which follows the numbering of clips.
+            # This way all training responses are wrt the same order of clips, which might be useful for some applications.
+
             train_clip_idx = [i for i in range(self.num_clips) if i not in self.val_clip_idx]
             self.responses_train = np.zeros([len(train_clip_idx) * self.clip_length, self.num_neurons])
             for i, train_idx in enumerate(train_clip_idx):
@@ -461,7 +464,40 @@ def _upsample_triggertimes(stim_empirical_duration, stim_theoretical_duration, t
     return upsampled_triggertimes
 
 
-def make_final_responses(data_dict: dict, response_type: Literal["natural", "chirp", "mb"] = "natural"):
+def _apply_qi_mask(data_dict, qi_type, qi_threshold):
+    """
+    Apply a mask to the data dictionary.
+
+    Args:
+        data_dict (dict): The data dictionary.
+        mask (np.ndarray): The mask to apply.
+
+    Returns:
+        dict: The updated data dictionary.
+    """
+    new_data_dict = deepcopy(data_dict)
+
+    for field in new_data_dict.keys():
+        mask = new_data_dict[field][f"{qi_type}_qi"] >= qi_threshold
+        for key in new_data_dict[field].keys():
+            if key in ["roi_mask", "roi_coords"]:
+                continue
+            if isinstance(new_data_dict[field][key], np.ndarray) and len(new_data_dict[field][key]) > 0:
+                try:
+                    new_data_dict[field][key] = new_data_dict[field][key][mask]
+                except IndexError:
+                    new_data_dict[field][key] = new_data_dict[field][key][:, mask]
+
+    return new_data_dict
+
+
+def make_final_responses(
+    data_dict: dict,
+    response_type: Literal["natural", "chirp", "mb"] = "natural",
+    trace_type: Literal["spikes", "raw_traces", "smoothed_traces"] = "spikes",
+    d_qi: Optional[float] = None,
+    chirp_qi: Optional[float] = None,
+):
     """
     Converts inferred spikes into final responses by upsampling the traces.
 
@@ -485,17 +521,34 @@ def make_final_responses(data_dict: dict, response_type: Literal["natural", "chi
         new_data_dict.keys(),
         desc=f"Upsampling {response_type} traces to get final responses.",
     ):
-        try:
-            spikes = new_data_dict[field][f"{response_type}_inferred_spikes"]
-        except KeyError:
-            # For new data format
-            spikes = new_data_dict[field][f"{response_type}_spikes"]
+        if trace_type == "spikes":
+            try:
+                traces = new_data_dict[field][f"{response_type}_inferred_spikes"]
+            except KeyError:
+                # For new data format
+                traces = new_data_dict[field][f"{response_type}_spikes"]
+        else:
+            traces = new_data_dict[field][f"{response_type}_raw_traces"]
+
         triggertimes = new_data_dict[field][f"{response_type}_trigger_times"][0]
-        tracestimes = new_data_dict[field][f"{response_type}_traces_times"]
+
+        try:
+            tracestimes = new_data_dict[field][f"{response_type}_traces_times"]
+        except KeyError:
+            # New djimaing exports have a different save format for trace_times
+            traces_t0 = np.tile(
+                new_data_dict[field][f"{response_type}_traces_t0"].squeeze()[:, None],
+                (1, traces.shape[1]),
+            )
+            traces_dt = np.tile(
+                new_data_dict[field][f"{response_type}_traces_dt"].squeeze()[:, None],
+                (1, traces.shape[1]),
+            )
+            tracestimes = np.tile(np.arange(traces.shape[1]), reps=(traces.shape[0], 1)) * traces_dt + traces_t0
 
         upsampled_traces = upsample_traces(
             triggertimes=triggertimes,
-            traces=spikes,
+            traces=traces,
             tracestimes=tracestimes,
             stim_id=stim_id,
         )
@@ -508,5 +561,10 @@ def make_final_responses(data_dict: dict, response_type: Literal["natural", "chi
             )
         new_data_dict[field]["responses_final"] = upsampled_traces
         new_data_dict[field]["stim_id"] = stim_id
+
+    if d_qi is not None:
+        new_data_dict = _apply_qi_mask(new_data_dict, "d", d_qi)
+    if chirp_qi is not None:
+        new_data_dict = _apply_qi_mask(new_data_dict, "chirp", chirp_qi)
 
     return new_data_dict
