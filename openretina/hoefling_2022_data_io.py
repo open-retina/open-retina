@@ -243,23 +243,6 @@ def get_chirp_dataloaders(
 
     dataloaders = {"train": {}}
 
-    chirp_triggers = next(iter(neuron_data_dictionary.values()))["chirp_trigger_times"][0]
-    # 2 triggers per chirp presentation
-    num_chirps = len(chirp_triggers) // 2
-
-    # Get it into chan, time, height, width
-    chirp_stimulus = torch.tensor(load_chirp(), dtype=torch.float32).permute(3, 0, 1, 2)
-
-    chirp_stimulus = chirp_stimulus.repeat(1, num_chirps, 1, 1)
-
-    # Use full chirp for training if no chunk size is provided
-    clip_chunk_sizes = {
-        "train": train_chunk_size if train_chunk_size is not None else chirp_stimulus.shape[1] // num_chirps,
-    }
-
-    # 5 chirp presentations
-    start_indices = np.arange(0, chirp_stimulus.shape[1] - 1, chirp_stimulus.shape[1] // num_chirps).tolist()
-
     for session_key, session_data in tqdm(neuron_data_dictionary.items(), desc="Creating chirp dataloaders"):
         neuron_data = NeuronData(
             **session_data,
@@ -268,21 +251,47 @@ def get_chirp_dataloaders(
             num_clips=None,
             clip_length=None,
         )
+        drop_first_n_frames = 35
+        drop_last_n_frames = 35
+
+        trigger_times = session_data["chirp_trigger_times"][0]
+        chirp_stimulus = load_chirp(normalize=True, trigger_times=trigger_times)
+        chirp_tensor = torch.tensor(chirp_stimulus, dtype=torch.float32).permute(3, 0, 1, 2)
+        chirp_tensor_for_eye = chirp_tensor if neuron_data.eye == "right" else torch.flip(chirp_tensor, [-1])
+
+        num_time_steps = chirp_tensor.shape[1]
+
+        chirp_tensor_for_eye = chirp_tensor_for_eye[:, drop_first_n_frames:]
+        tracetime_upsampled = np.arange(drop_first_n_frames, num_time_steps) / 30.0
+ 
+        upsampled_spikes_array = []
+        for spikes, spike_times in zip(session_data["chirp_spikes"], session_data["chirp_spike_times"]):
+            spikes_cut = spikes[drop_first_n_frames:-drop_last_n_frames]
+            assert not np.any(np.isnan(spikes_cut))
+            spike_times_cut = spike_times[drop_first_n_frames:-drop_last_n_frames]
+            upsampled_spikes = np.interp(tracetime_upsampled, spike_times_cut, spikes_cut)
+            assert not np.any(np.isnan(upsampled_spikes))
+            upsampled_spikes_array.append(upsampled_spikes)
+        upsampled_spikes_tensor = torch.tensor(np.stack(upsampled_spikes_array), dtype=torch.float32)
+        upsampled_spikes_tensor = upsampled_spikes_tensor.transpose(0, 1)
+        assert upsampled_spikes_tensor.shape[0] == chirp_tensor_for_eye.shape[1]
+
+        print("Only using two neurons")
+        upsampled_spikes_tensor = upsampled_spikes_tensor[:, 0:2]
 
         session_key += "_chirp"
-
         dataloader = get_movie_dataloader(
-            movies=chirp_stimulus if neuron_data.eye == "right" else torch.flip(chirp_stimulus, [-1]),
-            responses=neuron_data.response_dict["train"],
+            movies=chirp_tensor_for_eye,
+            responses=upsampled_spikes_tensor,
             roi_ids=neuron_data.roi_ids,
             roi_coords=neuron_data.roi_coords,
             group_assignment=neuron_data.group_assignment,
             scan_sequence_idx=neuron_data.scan_sequence_idx,
             split="train",
-            chunk_size=clip_chunk_sizes["train"],
-            start_indices=start_indices,
+            chunk_size=1000,
+            start_indices=np.array([100]),  # start_indices
             batch_size=batch_size,
-            scene_length=chirp_stimulus.shape[1] // num_chirps,
+            scene_length=chirp_tensor_for_eye.shape[1],
             drop_last=False,
         )
         if dataloader is not None:
