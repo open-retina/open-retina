@@ -60,7 +60,8 @@ def main(
     with open(movies_path, "rb") as f:
         movies_dict = pickle.load(f)
 
-    data_path_responses = os.path.join(data_folder, "2024-03-28_neuron_data_responses_484c12d_djimaging.h5")
+    #data_path_responses = os.path.join(data_folder, "2024-03-28_neuron_data_responses_484c12d_djimaging.h5")
+    data_path_responses = os.path.join(data_folder, "2024-03-28_neuron_data_responses_484c12d_djimaging_single_neuron.h5")
     responses = load_h5_into_dict(data_path_responses)
 
     dataloader_list = []
@@ -98,9 +99,6 @@ def main(
 
     model = SFB3d_core_SxF3d_readout(**config_dict["model_config"], dataloaders=joint_dataloaders, seed=42)
     print(f"Init model")
-    # test_key = list(model.readout.keys())[0]
-    # readout = model.readout[test_key]
-    # params = list(readout.parameters())
 
     test_score, val_score, output, model_state = trainer(
         model=model,
@@ -131,9 +129,9 @@ def main(
 
     with torch.no_grad():
         reconstructions = model(input_samples.cpu(), sample_session)
-    reconstructions = reconstructions.cpu().numpy().squeeze()
+    reconstructions = reconstructions.cpu().numpy().squeeze(axis=0)
 
-    targets = targets.cpu().numpy().squeeze()
+    targets = targets.cpu().numpy().squeeze(axis=0)
     if len(targets.shape) == 3:
         print("Targets still have a batch dimensions, taking the first element")
         targets = targets[0]
