@@ -4,16 +4,18 @@ import os
 import pickle
 from functools import partial
 
-import torch
 import matplotlib.pyplot as plt
-from openretina.hoefling_2022_configs import model_config
-from openretina.hoefling_2022_data_io import natmov_dataloaders_v2
-from openretina.hoefling_2022_models import SFB3d_core_SxF3d_readout
-from openretina.plotting import plot_stimulus_composition
-
-from openretina.optimization.optimizer import optimize_stimulus
-from openretina.optimization.regularizer import range_regularizer_fn, ChangeNormJointlyClipRangeSeparately
+import torch
+from openretina.hoefling_2024.configs import model_config
+from openretina.hoefling_2024.data_io import natmov_dataloaders_v2
+from openretina.hoefling_2024.models import SFB3d_core_SxF3d_readout
 from openretina.optimization.objective import SingleNeuronObjective
+from openretina.optimization.optimizer import optimize_stimulus
+from openretina.optimization.regularizer import (
+    ChangeNormJointlyClipRangeSeparately,
+    range_regularizer_fn,
+)
+from openretina.plotting import plot_stimulus_composition
 
 
 def main() -> None:
@@ -76,4 +78,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

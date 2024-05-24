@@ -13,18 +13,17 @@ import seaborn as sns
 import torch
 from neuralpredictors.measures import corr
 
-from openretina.h5_handling import load_h5_into_dict
-from openretina.neuron_data_io import make_final_responses
-from openretina.hoefling_2022_configs import model_config, trainer_config
-from openretina.hoefling_2022_models import SFB3d_core_SxF3d_readout
-from openretina.hoefling_2022_data_io import (
+from openretina.hoefling_2024.data_io import (
     get_chirp_dataloaders,
     get_mb_dataloaders,
     natmov_dataloaders_v2,
 )
+from openretina.hoefling_2024.models import SFB3d_core_SxF3d_readout
+from openretina.neuron_data_io import make_final_responses
 from openretina.plotting import save_figure
 from openretina.training import save_model
 from openretina.training import standard_early_stop_trainer as trainer
+from openretina.utils.h5_handling import load_h5_into_dict
 
 
 def parse_args():
@@ -34,9 +33,12 @@ def parse_args():
     parser.add_argument("--data_folder", type=str, help="Path to the base data folder", default="/Data/fd_export")
     parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
     parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda")
-    parser.add_argument("--datasets", type=str, default="natural",
-                        help="Underscore separated list of datasets, "
-                             "e.g. 'natural', 'chirp', 'mb', or 'natural_mb'")
+    parser.add_argument(
+        "--datasets",
+        type=str,
+        default="natural",
+        help="Underscore separated list of datasets, " "e.g. 'natural', 'chirp', 'mb', or 'natural_mb'",
+    )
 
     return parser.parse_args()
 

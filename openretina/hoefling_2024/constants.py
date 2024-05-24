@@ -54,7 +54,4 @@ NUM_CLIPS = 108
 NUM_VAL_CLIPS = 15
 CLIP_LENGTH = 150  # Frames
 
-
-EPSILON = 1e-8
-
 STIMULI_IDS = {"natural": 5, "chirp": 1, "mb": 2}

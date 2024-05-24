@@ -7,7 +7,7 @@ import torch
 from jaxtyping import Float
 from torch.utils.data import DataLoader, Dataset, Sampler, default_collate
 
-from .constants import SCENE_LENGTH
+from .hoefling_2024.constants import SCENE_LENGTH
 
 
 class MovieDataSet(Dataset):
@@ -96,7 +96,7 @@ def get_movie_dataloader(
     scene_length: Optional[int] = None,
     drop_last=True,
     **kwargs,
-):  
+):
     if isinstance(responses, torch.Tensor) and bool(torch.isnan(responses).any()):
         print(f"Nans in responses, skipping this dataloader")
         return None

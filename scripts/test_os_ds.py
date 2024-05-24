@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
 
 import argparse
+
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
+from openretina.hoefling_2024.constants import FRAME_RATE_MODEL
 from openretina.plotting import save_figure
-from openretina.constants import FRAME_RATE_MODEL
-
 from openretina.stimuli import load_moving_bar_stack
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Model training")
 
-    parser.add_argument("--model_path", type=str,
-                        required=True, help="Path to the saved model")
+    parser.add_argument("--model_path", type=str, required=True, help="Path to the saved model")
     parser.add_argument("--device", default="cuda")
 
     return parser.parse_args()
