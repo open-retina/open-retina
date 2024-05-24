@@ -144,7 +144,7 @@ def standard_early_stop_trainer(
             disable=not verbose,
         ):
             clean_data_key = clean_session_key(data_key)
-            loss = full_objective(model, clean_data_key, *data, detach_core)
+            loss = full_objective(model, clean_data_key, *data, detach_core)  # type: ignore
             loss.backward()
             if (batch_no + 1) % optim_step_count == 0:
                 optimizer.step()

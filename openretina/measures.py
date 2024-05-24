@@ -17,6 +17,10 @@ class PoissonLoss3d(nn.Module):
         else:
             return loss.view(-1, loss.shape[-1]).mean(dim=0)
 
+    def __str__(self):
+        bias, per_neuron, avg = self.bias, self.per_neuron, self.avg
+        return f"PoissonLoss3d({bias=} {per_neuron=} {avg=}"
+
 
 class CelltypePoissonLoss3d(nn.Module):
     def __init__(self, bias=1e-16, per_neuron=False, avg=False):
