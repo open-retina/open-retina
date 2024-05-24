@@ -276,9 +276,6 @@ def get_chirp_dataloaders(
         upsampled_spikes_tensor = upsampled_spikes_tensor.transpose(0, 1)
         assert upsampled_spikes_tensor.shape[0] == chirp_tensor_for_eye.shape[1]
 
-        print("Only using two neurons")
-        upsampled_spikes_tensor = upsampled_spikes_tensor[:, 0:2]
-
         session_key += "_chirp"
         dataloader = get_movie_dataloader(
             movies=chirp_tensor_for_eye,
