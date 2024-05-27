@@ -10,6 +10,7 @@ import sys
 
 import numpy as np
 import torch
+import yaml
 
 
 def set_seed(seed=None, seed_torch=True):
@@ -121,3 +122,11 @@ def redirect_stdout(file=open(os.devnull, "w")):
     finally:
         os.dup2(stdout_fd_dup, stdout_fd)
         os.close(stdout_fd_dup)
+
+
+def tuple_constructor(loader, node):
+    return tuple(loader.construct_sequence(node))
+
+
+class SafeLoaderWithTuple(yaml.SafeLoader):
+    pass
