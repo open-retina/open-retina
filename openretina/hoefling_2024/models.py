@@ -298,6 +298,29 @@ class SpatialXFeature3dReadout(nn.ModuleDict):
         return ret
 
 
+class ReadoutRnn(nn.Module):
+    def __init__(
+            self,
+            input_dim: int = 1,
+            hidden_dim: int = 64,
+            output_dim: int = 1,
+            n_layers: int = 1,
+            drop_prob: float = 0.2,
+    ):
+        super(ReadoutRnn, self).__init__()
+        self.hidden_dim = hidden_dim
+        self.n_layers = n_layers
+
+        self.gru = nn.GRU(input_dim, hidden_dim, n_layers, batch_first=True, dropout=drop_prob)
+        self.fc = nn.Linear(hidden_dim, output_dim)
+        self._hidden_vector = torch.randn((self.n_layers, 1, hidden_dim), requires_grad=True)
+
+    def forward(self, x):
+        out_gru, hidden_gru = self.gru(x, self._hidden_vector)
+        out = self.fc(torch.nn.functional.relu(out_gru))
+        return out
+
+
 class SpatialXFeature3d(nn.Module):
     def __init__(
         self,
@@ -331,7 +354,7 @@ class SpatialXFeature3d(nn.Module):
         """
         super().__init__()
         self.in_shape = in_shape
-        c, t, w, h = in_shape
+        num_channels, t, w, h = in_shape
         self.outdims = outdims
         self.gaussian_masks = gaussian_masks
         self.gaussian_mean_scale = gaussian_mean_scale
@@ -355,7 +378,7 @@ class SpatialXFeature3d(nn.Module):
             else:
                 self.masks = nn.Parameter(torch.Tensor(w, h, outdims))
 
-        self.features = nn.Parameter(torch.Tensor(1, c, 1, outdims))
+        self.features = nn.Parameter(torch.Tensor(1, num_channels, 1, outdims))
 
         if scale:
             scale = nn.Parameter(torch.Tensor(outdims))
@@ -368,6 +391,8 @@ class SpatialXFeature3d(nn.Module):
             self.register_parameter("bias", bias)
         else:
             self.register_parameter("bias", None)
+
+        self.readout_rnn = ReadoutRnn(input_dim=num_channels)
 
         self.initialize()
 
@@ -444,8 +469,13 @@ class SpatialXFeature3d(nn.Module):
             feat = self.features
             masks = self.masks
 
-        y = torch.einsum("nctwh,whd->nctd", x, masks)
-        y = (y * feat).sum(1)
+        y_einsum = torch.einsum("nctwh,whd->nctd", x, masks)
+        y = (y_einsum * feat).sum(1)
+        if self.readout_rnn is not None:
+            # TODO: hack to get rnn working on one neuron with multiple while inputting each channel
+            y = torch.permute(y_einsum[:, :, :, 0], (0, 2, 1))
+            y_rnn = self.readout_rnn(y)
+            y = y_rnn
 
         if self.scale is not None:
             y = y * self.scale
