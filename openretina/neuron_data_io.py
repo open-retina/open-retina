@@ -494,7 +494,7 @@ def _apply_qi_mask(data_dict, qi_type, qi_threshold):
 def make_final_responses(
     data_dict: dict,
     response_type: Literal["natural", "chirp", "mb"] = "natural",
-    trace_type: Literal["spikes", "raw_traces", "smoothed_traces"] = "spikes",
+    trace_type: Literal["spikes", "raw", "preprocessed", "detrended"] = "spikes",
     d_qi: Optional[float] = None,
     chirp_qi: Optional[float] = None,
 ):
@@ -519,7 +519,7 @@ def make_final_responses(
 
     for field in tqdm(
         new_data_dict.keys(),
-        desc=f"Upsampling {response_type} traces to get final responses.",
+        desc=f"Upsampling {response_type} {trace_type} traces to get final responses.",
     ):
         if trace_type == "spikes":
             try:
@@ -527,8 +527,12 @@ def make_final_responses(
             except KeyError:
                 # For new data format
                 traces = new_data_dict[field][f"{response_type}_spikes"]
+        elif trace_type == "detrended":
+            raw_traces = new_data_dict[field][f"{response_type}_raw_traces"]
+            smoothed_traces = new_data_dict[field][f"{response_type}_smoothed_traces"]
+            traces = raw_traces - smoothed_traces
         else:
-            traces = new_data_dict[field][f"{response_type}_raw_traces"]
+            traces = new_data_dict[field][f"{response_type}_{trace_type}_traces"]
 
         triggertimes = new_data_dict[field][f"{response_type}_trigger_times"][0]
 
