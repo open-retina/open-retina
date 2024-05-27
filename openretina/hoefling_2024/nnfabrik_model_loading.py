@@ -13,6 +13,8 @@ import torch
 import torch.nn as nn
 import yaml
 
+import openretina.hoefling_2024.models
+from openretina.utils.misc import SafeLoaderWithTuple, tuple_constructor
 
 def split_module_name(abs_class_name: str) -> Tuple[str, str]:
     abs_module_path = ".".join(abs_class_name.split(".")[:-1])
@@ -95,13 +97,16 @@ def get_model(
     )
 
     if state_dict is not None:
+        ignore_missing = model_config.get("transfer", False)
+        if not strict:
+            ignore_missing = True
         load_state_dict(
             net,
             state_dict,
             match_names=model_config.get("transfer", False),
             ignore_unused=model_config.get("transfer", False),
             ignore_dim_mismatch=model_config.get("transfer", False),
-            ignore_missing=model_config.get("transfer", False),
+            ignore_missing=ignore_missing,
         )  # we want the most flexible loading in the case of transfer
 
     return net
@@ -237,9 +242,10 @@ def load_ensemble_retina_model_from_directory(directory_path: str, device: str =
     - data_info_{seed:05d}.pkl
     where seed is an integer that represents the random seed the model was trained with
     """
-
+    yaml.add_constructor('tag:yaml.org,2002:python/tuple', tuple_constructor, Loader=SafeLoaderWithTuple)
     file_names = [f for f in os.listdir(directory_path) if f.endswith("yaml")]
     seed_array = [int(file_name[: -len(".yaml")].split("_")[1]) for file_name in file_names]
+    seed_array.sort()
     model_list = []
     data_info_list = []
 
@@ -250,15 +256,19 @@ def load_ensemble_retina_model_from_directory(directory_path: str, device: str =
 
         state_dict = torch.load(state_dir_path)
         with open(model_config_path, "r") as f:
-            config = yaml.safe_load(f)
-
-        with open(data_info_path, "rb") as fb:
-            data_info = pickle.load(fb)
+            config = yaml.load(f, SafeLoaderWithTuple)
+        with open(data_info_path, "rb") as f:
+            data_info = pickle.load(f)
         data_info_list.append(data_info)
 
         model_fn = config["model_fn"]
+        [repo, _, _, model_type] = model_fn.split('.')
+        if repo == "nnfabrik_euler":  # convert model_fn from nnfabrik to openretina
+            #ToDo check robustness across model types
+            [_, _, _, model_type] = model_fn.split('.')
+            model_fn = '.'.join(['openretina', 'hoefling_2024', 'models', model_type])
         model_config = config["model_config"]
-        model = get_model(model_fn, model_config, seed=seed, data_info=data_info, state_dict=state_dict)
+        model = get_model(model_fn, model_config, seed=seed, data_info=data_info, state_dict=state_dict, strict=False)
         model_list.append(model)
 
     # Just put inside wrapper for ensemble
