@@ -343,12 +343,12 @@ class NeuronData:
             self.responses_train = np.zeros([len(train_clip_idx) * self.clip_length, self.num_neurons])
             for i, train_idx in enumerate(train_clip_idx):
                 grab_index = base_movie_sorting[train_idx]
-                self.responses_train[i * self.clip_length : (i + 1) * self.clip_length, :] = (
-                    self.responses_train_and_val[
-                        grab_index * self.clip_length : (grab_index + 1) * self.clip_length,
-                        :,
-                    ]
-                )
+                self.responses_train[
+                    i * self.clip_length : (i + 1) * self.clip_length, :
+                ] = self.responses_train_and_val[
+                    grab_index * self.clip_length : (grab_index + 1) * self.clip_length,
+                    :,
+                ]
         else:
             self.responses_train = self.responses_train_and_val[validation_mask].reshape(-1, self.num_neurons)
 
@@ -464,13 +464,42 @@ def _upsample_triggertimes(stim_empirical_duration, stim_theoretical_duration, t
     return upsampled_triggertimes
 
 
+def _apply_mask_to_field(data_dict, field, mask):
+    """
+    Apply a mask to a specific field in a data dictionary.
+
+    Args:
+        data_dict (dict): A dictionary containing data fields.
+        field (str): The field in the data dictionary to apply the mask to.
+        mask (np.ndarray): The mask to apply to the field.
+
+    Returns:
+        None
+
+    Raises:
+        IndexError: If the mask index is out of bounds for the field data.
+
+    Examples:
+        _apply_mask_to_field(data_dict, 'field_name', mask)"""
+
+    for key in data_dict[field].keys():
+        if key in ["roi_mask", "roi_coords"]:
+            continue
+        if isinstance(data_dict[field][key], np.ndarray) and len(data_dict[field][key]) > 0:
+            try:
+                data_dict[field][key] = data_dict[field][key][mask]
+            except IndexError:
+                data_dict[field][key] = data_dict[field][key][:, mask]
+
+
 def _apply_qi_mask(data_dict, qi_type, qi_threshold):
     """
-    Apply a mask to the data dictionary.
+    Applies a quality threshold as a mask to the data dictionary.
 
     Args:
         data_dict (dict): The data dictionary.
-        mask (np.ndarray): The mask to apply.
+        qi_type (str): The quality index type.
+        qi_threshold (float): The quality threshold.
 
     Returns:
         dict: The updated data dictionary.
@@ -479,14 +508,21 @@ def _apply_qi_mask(data_dict, qi_type, qi_threshold):
 
     for field in new_data_dict.keys():
         mask = new_data_dict[field][f"{qi_type}_qi"] >= qi_threshold
-        for key in new_data_dict[field].keys():
-            if key in ["roi_mask", "roi_coords"]:
-                continue
-            if isinstance(new_data_dict[field][key], np.ndarray) and len(new_data_dict[field][key]) > 0:
-                try:
-                    new_data_dict[field][key] = new_data_dict[field][key][mask]
-                except IndexError:
-                    new_data_dict[field][key] = new_data_dict[field][key][:, mask]
+        _apply_mask_to_field(new_data_dict, field, mask)
+
+    return new_data_dict
+
+
+def _mask_by_cell_type(data_dict, cell_types: List[int]):
+    if not isinstance(cell_types, list):
+        if isinstance(cell_types, int):
+            cell_types = [cell_types]
+        else:
+            raise ValueError("cell_types must be a list of integers")
+    new_data_dict = deepcopy(data_dict)
+    for field in new_data_dict.keys():
+        mask = np.isin(new_data_dict[field]["group_assignment"], cell_types)
+        _apply_mask_to_field(new_data_dict, field, mask)
 
     return new_data_dict
 
@@ -566,9 +602,9 @@ def make_final_responses(
         new_data_dict[field]["responses_final"] = upsampled_traces
         new_data_dict[field]["stim_id"] = stim_id
 
-    if d_qi is not None:
+    if d_qi is not None and d_qi > 0.0:
         new_data_dict = _apply_qi_mask(new_data_dict, "d", d_qi)
-    if chirp_qi is not None:
+    if chirp_qi is not None and chirp_qi > 0.0:
         new_data_dict = _apply_qi_mask(new_data_dict, "chirp", chirp_qi)
 
     return new_data_dict
