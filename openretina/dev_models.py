@@ -7,7 +7,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from neuralpredictors import regularizers
 from neuralpredictors.layers.affine import Bias3DLayer, Scale2DLayer, Scale3DLayer
 from neuralpredictors.layers.readouts import (
@@ -15,7 +14,6 @@ from neuralpredictors.layers.readouts import (
     Gaussian3d,
     MultiReadoutBase,
 )
-from neuralpredictors.layers.rnn_modules.gru_module import ConvGRUCell
 from neuralpredictors.regularizers import Laplace, Laplace1d, laplace3d
 from neuralpredictors.utils import get_module_output
 
@@ -35,6 +33,140 @@ from .hoefling_2024.models import (
 from .utils.misc import set_seed
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
+
+
+class RNNCore:
+    """
+    RNN Core taken from: https://github.com/sinzlab/Sinz2018_NIPS/blob/master/nips2018/architectures/cores.py
+    """
+
+    @staticmethod
+    def init_conv(m):
+        if isinstance(m, nn.Conv2d):
+            nn.init.xavier_normal(m.weight.data)
+            if m.bias is not None:
+                nn.init.constant(m.bias.data, 0.0)
+
+    def __repr__(self):
+        s = super().__repr__()
+        s += " [{} regularizers: ".format(self.__class__.__name__)
+        ret = []
+        for attr in filter(lambda x: not x.startswith("_") and "gamma" in x, dir(self)):
+            ret.append("{} = {}".format(attr, getattr(self, attr)))
+        return s + "|".join(ret) + "]\n"
+
+
+class ConvGRUCell(RNNCore, nn.Module):
+    """
+    Convolutional GRU cell taken from: https://github.com/sinzlab/Sinz2018_NIPS/blob/master/nips2018/architectures/cores.py
+    """
+
+    def __init__(
+        self,
+        input_channels,
+        rec_channels,
+        input_kern,
+        rec_kern,
+        groups=1,
+        gamma_rec=0,
+        pad_input=True,
+        **kwargs,
+    ):
+        super().__init__()
+
+        input_padding = input_kern // 2 if pad_input else 0
+        rec_padding = rec_kern // 2
+
+        self.rec_channels = rec_channels
+        self._shrinkage = 0 if pad_input else input_kern - 1
+        self.groups = groups
+
+        self.gamma_rec = gamma_rec
+        self.reset_gate_input = nn.Conv2d(
+            input_channels,
+            rec_channels,
+            input_kern,
+            padding=input_padding,
+            groups=self.groups,
+        )
+        self.reset_gate_hidden = nn.Conv2d(
+            rec_channels,
+            rec_channels,
+            rec_kern,
+            padding=rec_padding,
+            groups=self.groups,
+        )
+
+        self.update_gate_input = nn.Conv2d(
+            input_channels,
+            rec_channels,
+            input_kern,
+            padding=input_padding,
+            groups=self.groups,
+        )
+        self.update_gate_hidden = nn.Conv2d(
+            rec_channels,
+            rec_channels,
+            rec_kern,
+            padding=rec_padding,
+            groups=self.groups,
+        )
+
+        self.out_gate_input = nn.Conv2d(
+            input_channels,
+            rec_channels,
+            input_kern,
+            padding=input_padding,
+            groups=self.groups,
+        )
+        self.out_gate_hidden = nn.Conv2d(
+            rec_channels,
+            rec_channels,
+            rec_kern,
+            padding=rec_padding,
+            groups=self.groups,
+        )
+
+        self.apply(self.init_conv)
+        self.register_parameter("_prev_state", None)
+
+    def init_state(self, input_):
+        batch_size, _, *spatial_size = input_.data.size()
+        state_size = [batch_size, self.rec_channels] + [s - self._shrinkage for s in spatial_size]
+        prev_state = torch.zeros(*state_size)
+        if input_.is_cuda:
+            prev_state = prev_state.cuda()
+        prev_state = nn.Parameter(prev_state)
+        return prev_state
+
+    def forward(self, input_, prev_state):
+        # get batch and spatial sizes
+
+        # generate empty prev_state, if None is provided
+        if prev_state is None:
+            prev_state = self.init_state(input_)
+
+        update = self.update_gate_input(input_) + self.update_gate_hidden(prev_state)
+        update = F.sigmoid(update)
+
+        reset = self.reset_gate_input(input_) + self.reset_gate_hidden(prev_state)
+        reset = F.sigmoid(reset)
+
+        out = self.out_gate_input(input_) + self.out_gate_hidden(prev_state * reset)
+        h_t = F.tanh(out)
+        new_state = prev_state * (1 - update) + h_t * update
+
+        return new_state
+
+    def regularizer(self):
+        return self.gamma_rec * self.bias_l1()
+
+    def bias_l1(self):
+        return (
+            self.reset_gate_hidden.bias.abs().mean() / 3
+            + self.update_gate_hidden.weight.abs().mean() / 3
+            + self.out_gate_hidden.bias.abs().mean() / 3
+        )
 
 
 class GRUEnabledCore(Core3d, nn.Module):
