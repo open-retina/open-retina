@@ -9,4 +9,8 @@ torchaudio
 torchvision
 wandb
 neuralpredictors @ git+https://github.com/sinzlab/neuralpredictors.git@c99491f65d9f263ae1cbafcada528681f37a3967
-
+# Type Checks
+mypy>=1.0
+types-psutil
+types-tqdm
+types-PyYAML

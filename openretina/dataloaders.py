@@ -83,9 +83,9 @@ class MovieSampler(Sampler):
 def get_movie_dataloader(
     movies: Union[np.ndarray, torch.Tensor, Dict[int, np.ndarray]],
     responses: Float[np.ndarray, "n_frames n_neurons"],  # noqa
-    roi_ids: Float[np.ndarray, "n_neurons"],  # noqa
-    roi_coords: Float[np.ndarray, "n_neurons 2"],  # noqa
-    group_assignment: Float[np.ndarray, "n_neurons"],  # noqa
+    roi_ids: Optional[Float[np.ndarray, "n_neurons"]],  # noqa
+    roi_coords: Optional[Float[np.ndarray, "n_neurons 2"]],  # noqa
+    group_assignment: Optional[Float[np.ndarray, "n_neurons"]],  # noqa
     split: str,
     start_indices: Union[List[int], Dict[int, List[int]]],
     scan_sequence_idx: Optional[int] = None,

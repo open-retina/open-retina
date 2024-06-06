@@ -1,15 +1,14 @@
 from collections import OrderedDict
 from collections.abc import Iterable
-from typing import Dict, List, Literal, Optional, Tuple, Union
+from typing import Literal, Optional, Tuple
 
 import numpy as np
 import torch
-import torch.distributions as dist
 import torch.nn as nn
 import torch.nn.functional as F
 
 from neuralpredictors.layers.affine import Bias3DLayer, Scale2DLayer, Scale3DLayer
-from neuralpredictors.regularizers import Laplace, Laplace1d, laplace3d
+from neuralpredictors.regularizers import Laplace, Laplace1d
 from neuralpredictors.utils import get_module_output
 
 from ..dataloaders import get_dims_for_loader_dict

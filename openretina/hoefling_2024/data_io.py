@@ -1,4 +1,4 @@
-from typing import List, Optional, TypedDict
+from typing import List, Optional, TypedDict, Any
 
 import numpy as np
 import torch
@@ -74,7 +74,7 @@ def get_all_movie_combinations(
     # Initialize movie dictionaries
     multiple_train_movies = True if random_sequences.shape[1] > 1 else False
     if multiple_train_movies:
-        movies = {
+        movies: dict = {
             "left": {
                 "train": {},
                 "validation": torch.flip(movie_val, [-1]),
@@ -180,7 +180,7 @@ def natmov_dataloaders_v2(
         "validation": clip_length,
         "test": movies_dictionary["test"].shape[1],
     }
-    dataloaders = {"train": {}, "validation": {}, "test": {}}
+    dataloaders: dict[str, Any] = {"train": {}, "validation": {}, "test": {}}
 
     # Get the random sequences of movies presentatios for each session if available
     if "random_sequences" not in movies_dictionary or movies_dictionary["random_sequences"] is None:
@@ -242,7 +242,7 @@ def get_chirp_dataloaders(
 
     assert next(iter(neuron_data_dictionary.values()))["stim_id"] == 1, "This function only supports chirp stimuli."
 
-    dataloaders = {"train": {}}
+    dataloaders: dict[str, Any] = {"train": {}}
 
     chirp_triggers = next(iter(neuron_data_dictionary.values()))["chirp_trigger_times"][0]
     # 2 triggers per chirp presentation
@@ -311,7 +311,7 @@ def get_mb_dataloaders(
         next(iter(neuron_data_dictionary.values()))["stim_id"] == 2
     ), "This function only supports moving bar stimuli."
 
-    dataloaders = {"train": {}}
+    dataloaders: dict[str, Any] = {"train": {}}
 
     mb_triggers = next(iter(neuron_data_dictionary.values()))["mb_trigger_times"][0]
     num_repeats = len(mb_triggers) // 8

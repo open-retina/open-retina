@@ -192,9 +192,9 @@ class NeuronData:
         self,
         responses_final: Float[np.ndarray, "n_neurons n_timepoints"] | dict,  # noqa
         stim_id: Literal[5, 2, 1, "salamander_natural"],
-        val_clip_idx: List[int],
-        num_clips: int,
-        clip_length: int,
+        val_clip_idx: Optional[List[int]],
+        num_clips: Optional[int],
+        clip_length: Optional[int],
         roi_coords: Optional[Float[np.ndarray, "n_neurons 2"]] = None,  # noqa
         roi_ids: Optional[Float[np.ndarray, "n_neurons"]] = None,  # noqa
         traces: Optional[Float[np.ndarray, "n_neurons n_timepoints"]] = None,  # noqa

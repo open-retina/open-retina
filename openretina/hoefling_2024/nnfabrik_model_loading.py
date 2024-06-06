@@ -2,6 +2,8 @@
 Functions from nn_fabrik to import models and load state dicts
 """
 
+from typing import Tuple
+
 import os
 import pickle
 from copy import deepcopy
@@ -14,10 +16,10 @@ import torch.nn as nn
 import yaml
 
 
-def split_module_name(abs_class_name):
+def split_module_name(abs_class_name: str) -> Tuple[str, str]:
     abs_module_path = ".".join(abs_class_name.split(".")[:-1])
     class_name = abs_class_name.split(".")[-1]
-    return (abs_module_path, class_name)
+    return abs_module_path, class_name
 
 
 def dynamic_import(abs_module_path, class_name):
@@ -166,7 +168,7 @@ def load_state_dict(
     model.load_state_dict(updated_model_dict, strict=(not ignore_missing))
 
 
-def find_prefix(keys: list, p_agree: float = 0.66, separator=".") -> (list, int):
+def find_prefix(keys: list, p_agree: float = 0.66, separator=".") -> Tuple[str, int]:
     """
     Finds common prefix among state_dict keys
     :param keys: list of strings to find a common prefix
@@ -247,8 +249,8 @@ def load_ensemble_retina_model_from_directory(directory_path: str, device: str =
         with open(model_config_path, "r") as f:
             config = yaml.safe_load(f)
 
-        with open(data_info_path, "rb") as f:
-            data_info = pickle.load(f)
+        with open(data_info_path, "rb") as fb:
+            data_info = pickle.load(fb)
         data_info_list.append(data_info)
 
         model_fn = config["model_fn"]

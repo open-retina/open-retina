@@ -1,7 +1,7 @@
 from collections import OrderedDict
 from collections.abc import Iterable
 from operator import itemgetter
-from typing import Dict, List, Literal, Optional, Tuple, Union
+from typing import Dict, Literal, Optional, Tuple, Union, Any
 
 import numpy as np
 import torch
@@ -16,7 +16,6 @@ from neuralpredictors.layers.readouts import (
     MultiReadoutBase,
 )
 from neuralpredictors.layers.rnn_modules.gru_module import ConvGRUCell
-from neuralpredictors.regularizers import Laplace, Laplace1d, laplace3d
 from neuralpredictors.utils import get_module_output
 
 from .dataloaders import get_dims_for_loader_dict
@@ -73,13 +72,13 @@ class GRUEnabledCore(Core3d, nn.Module):
         self._input_weights_regularizer_temporal = TimeLaplaceL23dnorm(padding=laplace_padding)
 
         if conv_type == "separable":
-            self.conv_class = TorchSTSeparableConv3D
+            self.conv_class = TorchSTSeparableConv3D  # type: ignore
         elif conv_type == "custom_separable":
-            self.conv_class = STSeparableBatchConv3d
+            self.conv_class = STSeparableBatchConv3d  # type: ignore
         elif conv_type == "full":
-            self.conv_class = TorchFullConv3D
+            self.conv_class = TorchFullConv3D   # type: ignore
         elif conv_type == "time_independent":
-            self.conv_class = TimeIndependentConv3D
+            self.conv_class = TimeIndependentConv3D  # type: ignore
         else:
             raise ValueError(f"Un-implemented conv_type {conv_type}")
 
@@ -107,16 +106,16 @@ class GRUEnabledCore(Core3d, nn.Module):
             log_speed_dict[var_name] = log_speed_val
 
         if input_padding:
-            input_pad = (0, spatial_kernel_size[0] // 2, spatial_kernel_size[0] // 2)
+            input_pad: Union[Tuple[int, ...], int] = (0, spatial_kernel_size[0] // 2, spatial_kernel_size[0] // 2)
         else:
             input_pad = 0
         if hidden_padding & (len(spatial_kernel_size) > 1):
-            hidden_pad = [
+            hidden_pad: list[Union[Tuple[int, ...], int]] = [
                 (0, spatial_kernel_size[l] // 2, spatial_kernel_size[l] // 2)
                 for l in range(1, len(spatial_kernel_size))
             ]
         else:
-            hidden_pad = [0 for l in range(1, len(spatial_kernel_size))]
+            hidden_pad = [0 for _ in range(1, len(spatial_kernel_size))]
 
         if not isinstance(hidden_channels, Iterable):
             hidden_channels = [hidden_channels] * (self.layers)
@@ -126,7 +125,7 @@ class GRUEnabledCore(Core3d, nn.Module):
             spatial_kernel_size = [spatial_kernel_size] * (self.layers)
 
         # --- first layer
-        layer = OrderedDict()
+        layer: OrderedDict[str, Any] = OrderedDict()
         layer["conv"] = self.conv_class(
             input_channels,
             hidden_channels[0],
@@ -134,13 +133,13 @@ class GRUEnabledCore(Core3d, nn.Module):
             temporal_kernel_size[0],
             spatial_kernel_size[0],
             bias=False,
-            padding=input_pad,
+            padding=input_pad,  # type: ignore
             num_scans=self.num_scans,
-            device=device,
         )
         if batch_norm:
             layer["norm"] = nn.BatchNorm3d(
-                hidden_channels[0], momentum=momentum, affine=bias and batch_norm_scale
+                hidden_channels[0],  # type: ignore
+                momentum=momentum, affine=bias and batch_norm_scale
             )  # ok or should we ensure same batch norm?
             if bias:
                 if not batch_norm_scale:
@@ -149,7 +148,7 @@ class GRUEnabledCore(Core3d, nn.Module):
                 layer["scale"] = Scale3DLayer(hidden_channels[0])
         if final_nonlinearity:
             layer["nonlin"] = getattr(nn, nonlinearity)()  # TODO add back in place if necessary
-        self.features.add_module("layer0", nn.Sequential(layer))
+        self.features.add_module("layer0", nn.Sequential(layer))  # type: ignore
 
         # --- other layers
 
@@ -162,7 +161,7 @@ class GRUEnabledCore(Core3d, nn.Module):
                 temporal_kernel_size[l],
                 spatial_kernel_size[l],
                 bias=False,
-                padding=hidden_pad[l - 1],
+                padding=hidden_pad[l - 1],  # type: ignore
                 num_scans=self.num_scans,
             )
             if batch_norm:
@@ -184,7 +183,7 @@ class GRUEnabledCore(Core3d, nn.Module):
 
         if use_gru:
             print("Using GRU")
-            self.features.add_module("gru", GRU_Module(**gru_kwargs))
+            self.features.add_module("gru", GRU_Module(**gru_kwargs))  # type: ignore
 
     def forward(self, input_, data_key=None):
         ret = []
@@ -389,7 +388,7 @@ def SFB3d_core_gaussian_readout(
     stack=None,
     readout_reg_avg: bool = False,
     use_avg_reg: bool = False,
-    data_info: dict = None,
+    data_info: Optional[dict] = None,
     nonlinearity: str = "ELU",
     conv_type: Literal["full", "separable", "custom_separable", "time_independent"] = "custom_separable",
     device=DEVICE,
