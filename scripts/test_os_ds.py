@@ -2,12 +2,13 @@
 
 import argparse
 import os
+
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
+from openretina.hoefling_2024.constants import FRAME_RATE_MODEL
 from openretina.plotting import save_figure
-from openretina.constants import FRAME_RATE_MODEL
-from openretina.h5_handling import load_h5_into_dict
+from openretina.utils.h5_handling import load_h5_into_dict
 from openretina.stimuli import load_moving_bar_stack
 
 
