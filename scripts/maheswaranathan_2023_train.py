@@ -34,14 +34,14 @@ def main(data_folder) -> None:
     )
     print("Initialized dataloaders")
 
-    model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=dataloaders, seed=42)
+    model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=dataloaders, seed=42)  # type: ignore
     print("Init model")
 
     test_score, val_score, output, model_state = trainer(
         model=model,
         dataloaders=dataloaders,
         seed=1000,
-        **trainer_config,
+        **trainer_config,  # type: ignore
         wandb_logger=None,
     )
     print(f"Training finished with test_score: {test_score} and val_score: {val_score}")

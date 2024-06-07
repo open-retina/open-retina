@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from typing import Callable
 import argparse
 import functools
 import operator
@@ -60,13 +61,13 @@ def main(
 
     dataloader_list = []
 
-    dataloader_name_to_function = {
+    dataloader_name_to_function: dict[str, Callable] = {
         "chirp": get_chirp_dataloaders,
         "mb": get_mb_dataloaders,
         "natural": functools.partial(natmov_dataloaders_v2, movies_dictionary=movies_dict, seed=1000),
     }
     for dataset_name in dataset_names_list:
-        data_dict = make_final_responses(responses, response_type=dataset_name)
+        data_dict = make_final_responses(responses, response_type=dataset_name)  # type: ignore
         dataloader_fn = dataloader_name_to_function[dataset_name]
         dataloader = dataloader_fn(data_dict, train_chunk_size=100)
         dataloader_list.append(dataloader)
@@ -87,14 +88,14 @@ def main(
     }
     print("Initialized dataloaders")
 
-    model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=joint_dataloaders, seed=42)
+    model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=joint_dataloaders, seed=42)  # type: ignore
     print(f"Init model")
 
     test_score, val_score, output, model_state = trainer(
         model=model,
         dataloaders=joint_dataloaders,
         seed=1000,
-        **trainer_config,
+        **trainer_config,  # type: ignore
         wandb_logger=None,
         device=device,
     )

@@ -46,21 +46,17 @@ def main(model_path: str, device: str, data_folder: str | None) -> None:
     # A direction selective cell should strongly respond to one direction, but not its opposing direction
     direction_minus_opposing_direction = np.abs(all_responses[::2] - all_responses[1::2])
     direction_pseudo_index = np.max(np.sum(direction_minus_opposing_direction, axis=1), axis=0)
-    sorted_idc = np.argsort(direction_pseudo_index)
 
     print(f"Avg {np.average(direction_pseudo_index)=} {direction_pseudo_index.max()} {direction_pseudo_index.min()}")
-    best_neuron_response = all_responses[:, :, sorted_idc[-1]]
 
     min_confidence = 0.25
     if data_folder is not None:
         data_path_responses = os.path.join(data_folder, "2024-03-28_neuron_data_responses_484c12d_djimaging.h5")
         ground_truth_responses = load_h5_into_dict(data_path_responses)
-        gt_bar_spikes_array = []
-        gt_celltype_assignments_array = []
+        gt_celltype_assignments_array: list[np.ndarray] = []
         for session_id in session_id_list:
             cut_session_id = session_id.replace("_mb", "").replace("_chirp", "")
             gt = ground_truth_responses[cut_session_id]
-            gt_bar_spikes_array.append(gt["mb_spikes"])
             gt_celltype = gt["group_assignment"]
             gt_mask = gt["group_confidences"].max(axis=1) >= min_confidence
             gt_celltype_masked = gt_celltype * gt_mask
@@ -68,14 +64,6 @@ def main(model_path: str, device: str, data_folder: str | None) -> None:
                 print(f"{gt_celltype[101]=} {sum(x.shape[0] for x in gt_celltype_assignments_array)}")
             gt_celltype_assignments_array.append(gt_celltype_masked)
 
-        gt_celltype = np.concatenate(gt_celltype_assignments_array)
-        gt_bar_spikes = [spikes for np_ar in gt_bar_spikes_array for spikes in np_ar]
-    else:
-        gt_celltype = None
-        gt_bar_spikes = None
-
-    desired_celltype = 26
-    desired_celltype_indices = np.where(gt_celltype == desired_celltype)[0]
     # This is date: 2020-02-26, exp_num=1, field=GCL1, roi_id=102, and has type 26
     scid = 2347
     desired_celltype_indices = [scid]

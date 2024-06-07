@@ -3,6 +3,7 @@ jaxtyping
 matplotlib
 numpy
 pandas
+seaborn
 scipy
 torch
 torchaudio

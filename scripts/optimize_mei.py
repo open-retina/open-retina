@@ -31,7 +31,7 @@ def main() -> None:
     dataloaders = natmov_dataloaders_v2(neuron_data_dict, movies_dict)
     print("Initialized dataloaders")
 
-    model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=dataloaders, seed=42)
+    model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=dataloaders, seed=42)  # type: ignore
     state_dict_path = "model_state_dict.tmp"
     state_dict = torch.load(state_dict_path)
     model.load_state_dict(state_dict)
