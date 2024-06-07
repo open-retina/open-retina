@@ -1,6 +1,6 @@
 # OpenRetina
 
-A work in progress.
+Work in progress.
 Install:
 ```
 pip install -e .
