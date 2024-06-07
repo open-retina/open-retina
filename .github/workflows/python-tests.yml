@@ -30,7 +30,5 @@ jobs:
           pip install .
       - name: Type checks
         run: |
-          pwd
-          ls
           ./scripts/tests/check-types.sh
 
