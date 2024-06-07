@@ -1,7 +1,7 @@
 from collections import OrderedDict
 from collections.abc import Iterable
 from operator import itemgetter
-from typing import Dict, Literal, Optional, Tuple, Union, Any
+from typing import Dict, Literal, Optional, Tuple, Any
 
 import numpy as np
 import torch
@@ -65,7 +65,7 @@ class GRUEnabledCore(Core3d, nn.Module):
         conv_type="custom_separable",
         use_gru=False,
         device=DEVICE,
-        gru_kwargs: Optional[Dict[str, Union[int, float]]] = None,
+        gru_kwargs: Optional[Dict[str, int | float]] = None,
     ):
         super().__init__()
         self._input_weights_regularizer_spatial = FlatLaplaceL23dnorm(padding=laplace_padding)
@@ -106,11 +106,11 @@ class GRUEnabledCore(Core3d, nn.Module):
             log_speed_dict[var_name] = log_speed_val
 
         if input_padding:
-            input_pad: Union[Tuple[int, ...], int] = (0, spatial_kernel_size[0] // 2, spatial_kernel_size[0] // 2)
+            input_pad: Tuple[int, ...] | int = (0, spatial_kernel_size[0] // 2, spatial_kernel_size[0] // 2)
         else:
             input_pad = 0
         if hidden_padding & (len(spatial_kernel_size) > 1):
-            hidden_pad: list[Union[Tuple[int, ...], int]] = [
+            hidden_pad: list[Tuple[int, ...] | int] = [
                 (0, spatial_kernel_size[l] // 2, spatial_kernel_size[l] // 2)
                 for l in range(1, len(spatial_kernel_size))
             ]

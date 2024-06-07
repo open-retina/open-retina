@@ -1,6 +1,5 @@
 from collections import namedtuple
-from copy import deepcopy
-from typing import Callable, Dict, List, Optional, Tuple, TypedDict, Union
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
@@ -81,13 +80,13 @@ class MovieSampler(Sampler):
 
 
 def get_movie_dataloader(
-    movies: Union[np.ndarray, torch.Tensor, Dict[int, np.ndarray]],
+    movies: np.ndarray | torch.Tensor | dict[int, np.ndarray],
     responses: Float[np.ndarray, "n_frames n_neurons"],  # noqa
     roi_ids: Optional[Float[np.ndarray, "n_neurons"]],  # noqa
     roi_coords: Optional[Float[np.ndarray, "n_neurons 2"]],  # noqa
     group_assignment: Optional[Float[np.ndarray, "n_neurons"]],  # noqa
     split: str,
-    start_indices: Union[List[int], Dict[int, List[int]]],
+    start_indices: List[int] | Dict[int, List[int]],
     scan_sequence_idx: Optional[int] = None,
     chunk_size: int = 50,
     batch_size: int = 32,
