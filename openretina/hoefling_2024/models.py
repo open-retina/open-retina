@@ -555,12 +555,11 @@ class TorchFullConv3D(nn.Module):
         x, data_key = input_
 
         # Compute temporal kernel based on the provided data key
-        if data_key is None:
-            log_speed = self._log_speed_default
-        else:
-            log_speed = getattr(self, "_".join(["log_speed", data_key]))
-
         # TODO implement log speed use in full conv
+        # if data_key is None:
+        #    log_speed = self._log_speed_default
+        # else:
+        #    log_speed = getattr(self, "_".join(["log_speed", data_key]))
 
         return self.conv(x)
 

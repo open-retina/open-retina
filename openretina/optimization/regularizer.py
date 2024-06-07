@@ -1,4 +1,4 @@
-from typing import List, Tuple, Optional, Iterable
+from typing import List, Tuple, Optional
 from collections.abc import Iterable
 import abc
 

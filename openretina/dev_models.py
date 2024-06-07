@@ -1,3 +1,4 @@
+# ruff: noqa: E501  # for long link in this file, it didn't work to put it at that specific line for some reason
 from collections import OrderedDict
 from collections.abc import Iterable
 from operator import itemgetter
@@ -327,7 +328,7 @@ class GRU_Module(nn.Module):
     def forward(self, input_):
         """
         Forward pass definition based on
-        https://github.com/sinzlab/Sinz2018_NIPS/blob/3a99f7a6985ae8dec17a5f2c54f550c2cbf74263/nips2018/architectures/cores.py#L556  # noqa
+        https://github.com/sinzlab/Sinz2018_NIPS/blob/3a99f7a6985ae8dec17a5f2c54f550c2cbf74263/nips2018/architectures/cores.py#L556
         Modified to also accept 4 dimensional inputs (assuming no batch dimension is provided).
         """
         x, data_key = input_
@@ -414,7 +415,6 @@ def SFB3d_core_gaussian_readout(
         in_shapes_dict = {k: v["input_dimensions"] for k, v in data_info.items()}
         input_channels = [v["input_channels"] for k, v in data_info.items()]
         n_neurons_dict = {k: v["output_dimension"] for k, v in data_info.items()}
-        roi_masks = {k: torch.tensor(v["roi_coords"]) for k, v in data_info.items()}
     else:
         dataloaders = dataloaders.get("train", dataloaders)
 
@@ -430,7 +430,6 @@ def SFB3d_core_gaussian_readout(
             k: v[in_name] for k, v in session_shape_dict.items()
         }  # dictionary containing input shapes per session
         input_channels = [v[in_name][1] for v in session_shape_dict.values()]  # gets the # of input channels
-        roi_masks = {k: dataloaders[k].dataset.roi_coords for k in dataloaders.keys()}
     assert np.unique(input_channels).size == 1, "all input channels must be of equal size"
 
     set_seed(seed)

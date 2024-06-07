@@ -96,7 +96,7 @@ def get_movie_dataloader(
     **kwargs,
 ):
     if isinstance(responses, torch.Tensor) and bool(torch.isnan(responses).any()):
-        print(f"Nans in responses, skipping this dataloader")
+        print("Nans in responses, skipping this dataloader")
         return None
 
     # for right movie: flip second frame size axis!

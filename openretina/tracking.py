@@ -90,8 +90,8 @@ class MultipleObjectiveTracker(Tracker):
         self.time = np.array(self.time)
         reference = self.time[0] if reference is None else reference
         self.time -= reference
-        for k, l in self.log.items():
-            self.log[k] = np.array(l)
+        for k, x in self.log.items():
+            self.log[k] = np.array(x)
 
     def asdict(self, time_key="time", make_copy=True):
         """
