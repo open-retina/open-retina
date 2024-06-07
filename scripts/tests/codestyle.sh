@@ -5,7 +5,7 @@ set -ex
 here=$(dirname $0)
 OPENRETINA_HOME="$here/../.."
 
-pycodestyle --max-line-length 120 \
+ruff check --config ${here}/ruff.toml \
     ${OPENRETINA_HOME}/openretina \
     ${OPENRETINA_HOME}/scripts
 
