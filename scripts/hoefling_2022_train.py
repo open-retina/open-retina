@@ -89,7 +89,7 @@ def main(
     print("Initialized dataloaders")
 
     model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=joint_dataloaders, seed=42)  # type: ignore
-    print(f"Init model")
+    print("Init model")
 
     test_score, val_score, output, model_state = trainer(
         model=model,
