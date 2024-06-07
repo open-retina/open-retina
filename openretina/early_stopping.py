@@ -134,7 +134,7 @@ def early_stopping(
             if scheduler is not None:
                 scheduler.step(current_objective)
 
-            if current_objective * maximize < maximize * (best_objective - tolerance):
+            if current_objective * maximize < best_objective * maximize - tolerance:
                 logger.info(f"[{epoch:03d}|{patience_counter:02d}/{patience:02d}] ---> {current_objective}")
                 best_state_dict = copy_state(model)
                 best_objective = current_objective
