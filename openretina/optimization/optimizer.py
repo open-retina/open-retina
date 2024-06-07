@@ -2,6 +2,7 @@ from typing import Callable, List, Optional
 import torch
 from torch import Tensor
 
+
 def optimize_stimulus(
         stimulus: Tensor,
         optimizer_init_fn: Callable[[List[torch.Tensor]], torch.optim.Optimizer],

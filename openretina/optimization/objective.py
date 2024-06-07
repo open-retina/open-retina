@@ -1,6 +1,7 @@
 from abc import abstractmethod
 import torch
 
+
 class AbstractObjective:
     def __init__(self, model):
         self._model = model
@@ -24,4 +25,3 @@ class SingleNeuronObjective(AbstractObjective):
         # average over time dimension
         single_score = torch.mean(single_response)
         return single_score
-

@@ -53,7 +53,8 @@ def main() -> None:
             stimulus_regularizing_fn = partial(
                 range_regularizer_fn,
             )
-            # Throws: RuntimeError: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
+            # Throws: RuntimeError: Expected all tensors to be on the same device,
+            # but found at least two devices, cuda:0 and cpu!
             # reason probably: not all model parameters are on gpu(?)
             optimize_stimulus(
                 stimulus,

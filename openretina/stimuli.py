@@ -33,7 +33,7 @@ def discretize_triggers(trigger_times: np.ndarray) -> list[int]:
 
 
 def align_stimulus_to_trigger(stimulus: np.ndarray, start_trigger_times: list[int]) -> np.ndarray:
-    #! TODO: needs fixing.
+    # TODO: needs fixing!
     stimulus_length = stimulus.shape[0]
 
     stimulus_array = []

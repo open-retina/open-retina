@@ -7,6 +7,7 @@ Parts copied from sinzlab/neuralpredictors/training/tracking.py
 Move to wandb or pytorch_lightning
 """
 
+
 class Tracker:
     """
     Abstract Tracker class to serve as the bass class for all trackers.
@@ -42,7 +43,7 @@ class MultipleObjectiveTracker(Tracker):
         Initializes the tracker. Pass any additional objective functions as keywords arguments.
 
         Args:
-            default_name (string, optional): Name under which the objective value passed into `log_objective` is saved under.
+            default_name (string, optional): Name the objective value passed into `log_objective` is saved under.
                 If set to None, the passed in value is NOT saved. Defaults to None.
         """
         self._default_name = default_name

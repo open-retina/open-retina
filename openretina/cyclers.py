@@ -17,11 +17,11 @@ def cycle(iterable):
 
 class LongCycler:
     """
-    Cycles through trainloaders until the loader with largest size is exhausted.
+    Cycles through trainloaders until the loader with the largest size is exhausted.
     Needed for dataloaders of unequal size (as in the monkey data).
     """
 
-    def __init__(self, loaders, shuffle=True):
+    def __init__(self, loaders, shuffle: bool = True):
         self.loaders = loaders
         self.max_batches = max(len(loader) for loader in self.loaders.values())
         self.shuffle = shuffle

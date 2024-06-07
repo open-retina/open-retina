@@ -31,8 +31,8 @@ class MovieDataSet(Dataset):
         else:
             return self.DataPoint(
                 *[
-                    self.samples[0][:, idx : idx + self.chunk_size, ...],
-                    self.samples[1][idx : idx + self.chunk_size, ...],
+                    self.samples[0][:, idx:idx + self.chunk_size, ...],
+                    self.samples[1][idx:idx + self.chunk_size, ...],
                 ]
             )
 
@@ -49,7 +49,8 @@ class MovieDataSet(Dataset):
         return self.samples[1].shape[0] // self.chunk_size
 
     def __str__(self):
-        return f"MovieDataSet with {self.samples[1].shape[1]} neuron responses to a movie of shape {list(self.samples[0].shape)}."
+        return (f"MovieDataSet with {self.samples[1].shape[1]} neuron responses "
+                f"to a movie of shape {list(self.samples[0].shape)}.")
 
     def __repr__(self):
         return str(self)

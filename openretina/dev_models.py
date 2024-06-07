@@ -111,8 +111,8 @@ class GRUEnabledCore(Core3d, nn.Module):
             input_pad = 0
         if hidden_padding & (len(spatial_kernel_size) > 1):
             hidden_pad: list[Tuple[int, ...] | int] = [
-                (0, spatial_kernel_size[l] // 2, spatial_kernel_size[l] // 2)
-                for l in range(1, len(spatial_kernel_size))
+                (0, spatial_kernel_size[x] // 2, spatial_kernel_size[x] // 2)
+                for x in range(1, len(spatial_kernel_size))
             ]
         else:
             hidden_pad = [0 for _ in range(1, len(spatial_kernel_size))]
@@ -152,32 +152,32 @@ class GRUEnabledCore(Core3d, nn.Module):
 
         # --- other layers
 
-        for l in range(1, self.layers):
+        for layer_num in range(1, self.layers):
             layer = OrderedDict()
             layer["conv"] = self.conv_class(
-                hidden_channels[l - 1],
-                hidden_channels[l],
+                hidden_channels[layer_num - 1],
+                hidden_channels[layer_num],
                 log_speed_dict,
-                temporal_kernel_size[l],
-                spatial_kernel_size[l],
+                temporal_kernel_size[layer_num],
+                spatial_kernel_size[layer_num],
                 bias=False,
-                padding=hidden_pad[l - 1],  # type: ignore
+                padding=hidden_pad[layer_num - 1],  # type: ignore
                 num_scans=self.num_scans,
             )
             if batch_norm:
                 layer["norm"] = nn.BatchNorm3d(
-                    hidden_channels[l],
+                    hidden_channels[layer_num],
                     momentum=momentum,
                     affine=bias and batch_norm_scale,
                 )
                 if bias:
                     if not batch_norm_scale:
-                        layer["bias"] = Bias3DLayer(hidden_channels[l])
+                        layer["bias"] = Bias3DLayer(hidden_channels[layer_num])
                 elif batch_norm_scale:
-                    layer["scale"] = Scale2DLayer(hidden_channels[l])
-            if final_nonlinearity or l < self.layers - 1:
+                    layer["scale"] = Scale2DLayer(hidden_channels[layer_num])
+            if final_nonlinearity or layer_num < self.layers - 1:
                 layer["nonlin"] = getattr(nn, nonlinearity)()
-            self.features.add_module("layer{}".format(l), nn.Sequential(layer))
+            self.features.add_module(f"layer{layer_num}", nn.Sequential(layer))
 
         self.apply(self.init_conv)
 
@@ -187,11 +187,11 @@ class GRUEnabledCore(Core3d, nn.Module):
 
     def forward(self, input_, data_key=None):
         ret = []
-        for l, feat in enumerate(self.features):
+        for layer_num, feat in enumerate(self.features):
             do_skip = False
             input_ = feat(
                 (
-                    input_ if not do_skip else torch.cat(ret[-min(self.skip, l) :], dim=1),
+                    input_ if not do_skip else torch.cat(ret[-min(self.skip, layer_num):], dim=1),
                     data_key,
                 )
             )
@@ -203,16 +203,13 @@ class GRUEnabledCore(Core3d, nn.Module):
         return self._input_weights_regularizer_spatial(self.features[0].conv.weight_spatial, avg=self.use_avg_reg)
 
     def group_sparsity(self):  # check if this is really what we want
-        ret = 0
-        for l in range(1, self.layers):
-            ret = (
-                ret
-                + (
-                    self.features[l].conv.weight_spatial.pow(2).sum([2, 3, 4]).sqrt().sum(1)
-                    / torch.sqrt(1e-8 + self.features[l].conv.weight_spatial.pow(2).sum([1, 2, 3, 4]))
-                ).sum()
-            )
-        return ret
+        sparsity_loss = 0
+        for layer_num in range(1, self.layers):
+            spatial_weight_layer = self.features[layer_num].conv.weight_spatial
+            norm = spatial_weight_layer.pow(2).sum([2, 3, 4]).sqrt().sum(1)
+            sparsity_loss_layer = (spatial_weight_layer.pow(2).sum([2, 3, 4]).sqrt().sum(1) / norm).sum()
+            sparsity_loss += sparsity_loss_layer
+        return sparsity_loss
 
     def group_sparsity0(self):  # check if this is really what we want
         weight_temporal = compute_temporal_kernel(
@@ -228,8 +225,9 @@ class GRUEnabledCore(Core3d, nn.Module):
 
     def temporal_smoothness(self):
         ret = 0
-        for l in range(self.layers):
-            ret = ret + temporal_smoothing(self.features[l].conv.sin_weights, self.features[l].conv.cos_weights)
+        for layer_num in range(self.layers):
+            ret += temporal_smoothing(self.features[layer_num].conv.sin_weights,
+                                      self.features[layer_num].conv.cos_weights)
         return ret
 
     def regularizer(self):
@@ -310,9 +308,10 @@ class GRU_Module(nn.Module):
     ):
         """
         A GRU module for video data to add between the core and the readout.
-        Recieves as input the output of a 3Dcore. Expected dimentions:
-            -(Batch,Channels,Frames,Height, Widht) or (Channels,Frames,Height, Widht)
-        The input is fed sequentially to a convolutional GRU cell, based on the frames chanell. The output has the same dimentions as the input.
+        Receives as input the output of a 3Dcore. Expected dimensions:
+            - (Batch, Channels, Frames, Height, Width) or (Channels, Frames, Height, Width)
+        The input is fed sequentially to a convolutional GRU cell, based on the frames channel.
+        The output has the same dimensions as the input.
         """
         super().__init__()
         self.gru = ConvGRUCell(
@@ -327,8 +326,9 @@ class GRU_Module(nn.Module):
 
     def forward(self, input_):
         """
-        Forward pass definition based on https://github.com/sinzlab/Sinz2018_NIPS/blob/3a99f7a6985ae8dec17a5f2c54f550c2cbf74263/nips2018/architectures/cores.py#L556
-        Modified to also accept 4 dimentional inputs (assuming no batch dimention is provided).
+        Forward pass definition based on
+        https://github.com/sinzlab/Sinz2018_NIPS/blob/3a99f7a6985ae8dec17a5f2c54f550c2cbf74263/nips2018/architectures/cores.py#L556  # noqa
+        Modified to also accept 4 dimensional inputs (assuming no batch dimension is provided).
         """
         x, data_key = input_
         if len(x.shape) not in [4, 5]:

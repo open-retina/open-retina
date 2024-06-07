@@ -19,6 +19,8 @@ postprocessing_config = {
     "x_max_uv": 6.269,
 }
 """
+
+
 def range_regularizer_fn(
         stimulus: torch.Tensor,
         min_max_values: List[Tuple[float, float]] = [(-0.654, 6.269), (-0.913, 6.269)],
@@ -40,6 +42,7 @@ def range_regularizer_fn(
     penalty *= factor
     return penalty
 
+
 class StimulusPostprocessor(abc.ABC):
     """ Base class for stimulus clippers. """
     @abc.abstractmethod
@@ -47,9 +50,11 @@ class StimulusPostprocessor(abc.ABC):
         """ x.shape: batch x channels x time x n_rows x n_cols """
         pass
 
+
 class NoOpStimulusPostprocessor(StimulusPostprocessor):
     def process(self, x: torch.Tensor) -> torch.Tensor:
         return x
+
 
 class ChangeNormJointlyClipRangeSeparately(StimulusPostprocessor):
     """ First change the norm and afterward clip the value of x to some specified range """

@@ -28,6 +28,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install .
+      - name: Codestyle
+        run: |
+          ./scripts/tests/codestyle.sh
       - name: Type checks
         run: |
           ./scripts/tests/check-types.sh

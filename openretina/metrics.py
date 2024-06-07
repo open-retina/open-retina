@@ -18,7 +18,7 @@ def model_predictions(loader, model, data_key, device):
     """
     target, output = torch.empty(0), torch.empty(0)
     for images, responses, *_ in loader[data_key]:  # necessary for group assignments
-        ### code necessary to allow additional pre Ca kernel L1
+        # code necessary to allow additional pre Ca kernel L1:
         #             curr_output = model(images.to(device), data_key=data_key)
         #             if (type(curr_output) == tuple):
         #                 curr_output = curr_output[0]
@@ -32,9 +32,9 @@ def model_predictions(loader, model, data_key, device):
     return target[:, lag:, ...], output
 
 
-def corr_stop(model, loader, avg=True, device="cpu"):
+def corr_stop(model, loader, avg: bool = True, device: str = "cpu"):
     """
-    Returns either the average correlation of all neurons or the the correlations per neuron.
+    Returns either the average correlation of all neurons or the correlations per neuron.
         Gets called by early stopping and the model performance evaluation
     """
 
@@ -62,7 +62,7 @@ def corr_stop(model, loader, avg=True, device="cpu"):
     return corr_ret
 
 
-def corr_stop3d(model, loader, avg=True, device="cpu"):
+def corr_stop3d(model, loader, avg: bool = True, device: str = "cpu"):
     """
     Returns either the average correlation of all neurons or the correlations per neuron.
         Gets called by early stopping and the model performance evaluation
@@ -93,7 +93,7 @@ def corr_stop3d(model, loader, avg=True, device="cpu"):
     return corr_ret
 
 
-def poisson_stop(model, loader, avg=False, device="cpu"):
+def poisson_stop(model, loader, avg: bool = False, device: str = "cpu"):
     poisson_losses = np.array([])
     n_neurons = 0
     for data_key in loader:
@@ -109,7 +109,7 @@ def poisson_stop(model, loader, avg=False, device="cpu"):
     return poisson_losses.sum() / n_neurons if avg else poisson_losses.sum()
 
 
-def poisson_stop3d(model, loader, avg=True, device="cpu"):
+def poisson_stop3d(model, loader, avg: bool = True, device: str = "cpu"):
     poisson_losses = np.array([])
     n_neurons = 0
     n_batch = 0
@@ -127,7 +127,7 @@ def poisson_stop3d(model, loader, avg=True, device="cpu"):
     return poisson_losses.sum() / (n_neurons * n_batch) if avg else poisson_losses.sum()
 
 
-def MSE_stop3d(model, loader, avg=True, device="cpu"):
+def MSE_stop3d(model, loader, avg: bool = True, device: str = "cpu"):
     MSE_losses = np.array([])
     n_neurons = 0
     n_batch = 0
@@ -145,10 +145,10 @@ def MSE_stop3d(model, loader, avg=True, device="cpu"):
     return MSE_losses.sum() / (n_neurons * n_batch) if avg else MSE_losses.sum()
 
 
-def evaluate_fev(model, loader, device="cpu", ddof=0):
+def evaluate_fev(model, loader, device: str = "cpu", ddof: int = 0):
     """
     Evaluates the Fraction explainable variance explained by a model
-    as described in Cadena et al 2019
+    as described in Cadena et al. 2019
     :param model: a nnfabrik model
     :param loader: a test dataloader
     :param device:

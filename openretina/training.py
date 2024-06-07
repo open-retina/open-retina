@@ -63,7 +63,7 @@ def standard_early_stop_trainer(
     valloaders = dataloaders.get("validation", dataloaders["val"] if "val" in dataloaders.keys() else None)
     testloaders = dataloaders["test"]
 
-    ##### Model training ####################################################################################################
+    # Model training
     model.to(device)
     set_seed(seed)
     model.train()
@@ -111,7 +111,7 @@ def standard_early_stop_trainer(
             patience=patience,
             start=epoch,
             max_iter=max_iter,
-            maximize=maximize,
+            maximize_objective=maximize,
             tolerance=tolerance,
             restore_best=restore_best,
             tracker=tracker,
@@ -164,7 +164,7 @@ def standard_early_stop_trainer(
                 }
             )
 
-    ##### Model evaluation ####################################################################################################
+    # Model evaluation
     model.eval()
     tracker.finalize()
 
