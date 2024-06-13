@@ -486,10 +486,15 @@ def _apply_mask_to_field(data_dict, field, mask):
         if key in ["roi_mask", "roi_coords"]:
             continue
         if isinstance(data_dict[field][key], np.ndarray) and len(data_dict[field][key]) > 0:
-            try:
+            if len(data_dict[field][key].shape) == 1:
                 data_dict[field][key] = data_dict[field][key][mask]
-            except IndexError:
-                data_dict[field][key] = data_dict[field][key][:, mask]
+            elif len(data_dict[field][key].shape) == 2:
+                if data_dict[field][key].shape[0] == mask.shape[0]:
+                    data_dict[field][key] = data_dict[field][key][mask, :]
+                else:
+                    data_dict[field][key] = data_dict[field][key][:, mask]
+            else:
+                raise IndexError(f"Index out of bounds for field {field} and key {key}.")
 
 
 def _apply_qi_mask(data_dict, qi_type, qi_threshold):
@@ -510,7 +515,21 @@ def _apply_qi_mask(data_dict, qi_type, qi_threshold):
         mask = new_data_dict[field][f"{qi_type}_qi"] >= qi_threshold
         _apply_mask_to_field(new_data_dict, field, mask)
 
-    return new_data_dict
+    return _clean_up_empty_fields(new_data_dict)
+
+
+def _clean_up_empty_fields(data_dict, check_field="group_assignment"):
+    """
+    Remove empty fields from the data dictionary.
+
+    Args:
+        data_dict (dict): The data dictionary.
+        check_field (str, optional): The field to check for emptiness. Defaults to "group_assignment".
+
+    Returns:
+        dict: The updated data dictionary.
+    """
+    return {k: v for k, v in data_dict.items() if len(v[check_field]) > 0}
 
 
 def _mask_by_cell_type(data_dict, cell_types: List[int]):
@@ -524,7 +543,7 @@ def _mask_by_cell_type(data_dict, cell_types: List[int]):
         mask = np.isin(new_data_dict[field]["group_assignment"], cell_types)
         _apply_mask_to_field(new_data_dict, field, mask)
 
-    return new_data_dict
+    return _clean_up_empty_fields(new_data_dict)
 
 
 def make_final_responses(
@@ -577,11 +596,11 @@ def make_final_responses(
         except KeyError:
             # New djimaing exports have a different save format for trace_times
             traces_t0 = np.tile(
-                new_data_dict[field][f"{response_type}_traces_t0"].squeeze()[:, None],
+                np.atleast_1d(new_data_dict[field][f"{response_type}_traces_t0"].squeeze())[:, None],
                 (1, traces.shape[1]),
             )
             traces_dt = np.tile(
-                new_data_dict[field][f"{response_type}_traces_dt"].squeeze()[:, None],
+                np.atleast_1d(new_data_dict[field][f"{response_type}_traces_dt"].squeeze())[:, None],
                 (1, traces.shape[1]),
             )
             tracestimes = np.tile(np.arange(traces.shape[1]), reps=(traces.shape[0], 1)) * traces_dt + traces_t0
