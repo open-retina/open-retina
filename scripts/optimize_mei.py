@@ -31,7 +31,7 @@ def main() -> None:
     dataloaders = natmov_dataloaders_v2(neuron_data_dict, movies_dict)
     print("Initialized dataloaders")
 
-    model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=dataloaders, seed=42)
+    model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=dataloaders, seed=42)  # type: ignore
     state_dict_path = "model_state_dict.tmp"
     state_dict = torch.load(state_dict_path)
     model.load_state_dict(state_dict)
@@ -53,7 +53,8 @@ def main() -> None:
             stimulus_regularizing_fn = partial(
                 range_regularizer_fn,
             )
-            # Throws: RuntimeError: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
+            # Throws: RuntimeError: Expected all tensors to be on the same device,
+            # but found at least two devices, cuda:0 and cpu!
             # reason probably: not all model parameters are on gpu(?)
             optimize_stimulus(
                 stimulus,

@@ -192,9 +192,9 @@ class NeuronData:
         self,
         responses_final: Float[np.ndarray, "n_neurons n_timepoints"] | dict,  # noqa
         stim_id: Literal[5, 2, 1, "salamander_natural"],
-        val_clip_idx: List[int],
-        num_clips: int,
-        clip_length: int,
+        val_clip_idx: Optional[List[int]],
+        num_clips: Optional[int],
+        clip_length: Optional[int],
         roi_coords: Optional[Float[np.ndarray, "n_neurons 2"]] = None,  # noqa
         roi_ids: Optional[Float[np.ndarray, "n_neurons"]] = None,  # noqa
         traces: Optional[Float[np.ndarray, "n_neurons n_timepoints"]] = None,  # noqa
@@ -213,8 +213,10 @@ class NeuronData:
         Args:
             eye (str): The eye from which the neuron data is recorded.
             group_assignment (Float[np.ndarray, "n_neurons"]): The group assignment of neurons.
-            key (dict): The key information for the neuron data, includes date, exp_num, experimenter, field_id, stim_id.
-            responses_final (Float[np.ndarray, "n_neurons n_timepoints"]) or dictionary with train and test responses of similar structure: The responses of neurons.
+            key (dict): The key information for the neuron data,
+                        includes date, exp_num, experimenter, field_id, stim_id.
+            responses_final (Float[np.ndarray, "n_neurons n_timepoints"]) or
+                dictionary with train and test responses of similar structure: The responses of neurons.
             roi_coords (Float[np.ndarray, "n_neurons 2"]): The coordinates of regions of interest (ROIs).
             roi_ids (Float[np.ndarray, "n_neurons"]): The IDs of regions of interest (ROIs).
             scan_sequence_idx (int): The index of the scan sequence.
@@ -248,7 +250,7 @@ class NeuronData:
         self.random_sequences = random_sequences if random_sequences is not None else np.array([])
         self.val_clip_idx = val_clip_idx
 
-    #! this has to become a regular method in the future
+    # this has to become a regular method in the future!
     @property
     def response_dict(self):
 
@@ -279,16 +281,16 @@ class NeuronData:
                 tmp = np.vstack(
                     (
                         self.neural_responses[roi, : 5 * self.clip_length],
-                        self.neural_responses[roi, 59 * self.clip_length : 64 * self.clip_length],
-                        self.neural_responses[roi, 118 * self.clip_length :],
+                        self.neural_responses[roi, 59 * self.clip_length: 64 * self.clip_length],
+                        self.neural_responses[roi, 118 * self.clip_length:],
                     )
                 )
                 self.test_responses_by_trial.append(tmp)
                 self.responses_test[:, roi] = np.mean(tmp, 0)
                 self.responses_train_and_val[:, roi] = np.concatenate(
                     (
-                        self.neural_responses[roi, 5 * self.clip_length : 59 * self.clip_length],
-                        self.neural_responses[roi, 64 * self.clip_length : 118 * self.clip_length],
+                        self.neural_responses[roi, 5 * self.clip_length: 59 * self.clip_length],
+                        self.neural_responses[roi, 64 * self.clip_length: 118 * self.clip_length],
                     )
                 )
             self.test_responses_by_trial = np.asarray(self.test_responses_by_trial)
@@ -312,12 +314,12 @@ class NeuronData:
 
             for i, ind1 in enumerate(self.val_clip_idx):
                 grab_index = base_movie_sorting[ind1]
-                self.responses_val[i * self.clip_length : (i + 1) * self.clip_length, :] = self.responses_train_and_val[
-                    grab_index * self.clip_length : (grab_index + 1) * self.clip_length,
+                self.responses_val[i * self.clip_length: (i + 1) * self.clip_length, :] = self.responses_train_and_val[
+                    grab_index * self.clip_length: (grab_index + 1) * self.clip_length,
                     :,
                 ]
                 validation_mask[
-                    (grab_index * self.clip_length) : (grab_index + 1) * self.clip_length,
+                    (grab_index * self.clip_length): (grab_index + 1) * self.clip_length,
                     :,
                 ] = False
             self.responses_train = self.responses_train_and_val[validation_mask].reshape(-1, self.num_neurons)
@@ -387,9 +389,9 @@ def upsample_traces(
     triggertimes,
     traces,
     tracestimes,
-    stim_id,
-    target_fr=30,
-):
+    stim_id: int,
+    target_fr: int = 30,
+) -> np.ndarray:
     """
     Upsamples the traces based on the stimulus type.
 
@@ -398,7 +400,8 @@ def upsample_traces(
         traces (list): List of traces.
         tracestimes (list): List of trace times.
         stim_id (int): Stimulus ID.
-        stim_framerate (int, optional): Frame rate of the stimulus. Required for certain stimulus types like moving bar and chirp.
+        stim_framerate (int, optional): Frame rate of the stimulus.
+                                        Required for certain stimulus types like moving bar and chirp.
         target_fr (int, optional): Target frame rate for upsampling. Default is 30.
 
     Returns:
@@ -409,18 +412,22 @@ def upsample_traces(
     """
     if stim_id == 5:
         # Movie stimulus
-        # 4.966666 is the time between triggers in the movie stimulus. It is not exactly 5s because it is not a perfect world :)
-        upsampled_triggertimes = _upsample_triggertimes(4.9666667, 5, triggertimes, target_fr)
+        # 4.966666 is the time between triggers in the movie stimulus.
+        # It is not exactly 5s because it is not a perfect world :)
+        upsampled_triggertimes = _upsample_triggertimes(4.9666667, 5,
+                                                        triggertimes, target_fr)
     elif stim_id == 1:
         # Chirp: each chirp has two triggers, one at the start and one 5s later, after a 2s OFF and 3s full field ON.
         # We need only the first trigger of each chirp for the upsampling.
         # 32.98999999 is the total chirp duration in seconds. Should be 33 but there is a small discrepancy
         chirp_starts = triggertimes[::2]
-        upsampled_triggertimes = _upsample_triggertimes(32.98999999, 33, chirp_starts, target_fr)
+        upsampled_triggertimes = _upsample_triggertimes(32.98999999, 33,
+                                                        chirp_starts, target_fr)
     elif stim_id == 2:
         # Moving bar: each bar has one trigger at the start of the bar stim. Bar duration is 4s.
         # It is a bit more because each trigger has a duration of 3 frames at 60Hz, so around 50 ms.
-        upsampled_triggertimes = _upsample_triggertimes(4.054001, 4.1, triggertimes, target_fr)
+        upsampled_triggertimes = _upsample_triggertimes(4.054001, 4.1,
+                                                        triggertimes, target_fr)
     else:
         raise NotImplementedError(f"Stimulus ID {stim_id} not implemented")
 
@@ -488,7 +495,9 @@ def make_final_responses(data_dict: dict, response_type: Literal["natural", "chi
 
         if "responses_final" in new_data_dict[field]:
             warnings.warn(
-                f"You seem to already have computed `responses_final` for a stim_id of {new_data_dict[field]['stim_id']}. Overwriting with {stim_id} ({response_type})."
+                f"You seem to already have computed `responses_final` for a "
+                f"stim_id of {new_data_dict[field]['stim_id']}. "
+                f"Overwriting with {stim_id} ({response_type})."
             )
         new_data_dict[field]["responses_final"] = upsampled_traces
         new_data_dict[field]["stim_id"] = stim_id

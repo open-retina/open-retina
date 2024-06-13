@@ -1,0 +1,8 @@
+line-length = 120
+indent-width = 4
+
+[lint]
+# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
+select = ["E", "W", "F"]
+ignore = ["F722"]  # F722 prevents false positive for jaxtypes
+

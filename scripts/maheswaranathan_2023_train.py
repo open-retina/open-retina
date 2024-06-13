@@ -25,7 +25,7 @@ def main(data_folder) -> None:
 
     dataloaders = natmov_dataloaders_v2(
         neuron_data_dict,
-        movies_dict,
+        movies_dict,  # type: ignore
         train_chunk_size=50,
         batch_size=32,
         clip_length=90,
@@ -34,14 +34,14 @@ def main(data_folder) -> None:
     )
     print("Initialized dataloaders")
 
-    model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=dataloaders, seed=42)
+    model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=dataloaders, seed=42)  # type: ignore
     print("Init model")
 
     test_score, val_score, output, model_state = trainer(
         model=model,
         dataloaders=dataloaders,
         seed=1000,
-        **trainer_config,
+        **trainer_config,  # type: ignore
         wandb_logger=None,
     )
     print(f"Training finished with test_score: {test_score} and val_score: {val_score}")
@@ -50,7 +50,7 @@ def main(data_folder) -> None:
         model=model, save_folder=os.path.join(data_folder, "models"), model_name="SFB3d_core_SxF3d_readout_salamander"
     )
 
-    ## Plotting an example field
+    # Plotting an example field
     sample_loader = dataloaders.get("train", dataloaders)
     sample_session = list(sample_loader.keys())[0]
     test_sample = next(iter(dataloaders["test"][sample_session]))

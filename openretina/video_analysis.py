@@ -55,7 +55,7 @@ def decompose_kernel(
     temporal = temporal * abs_max_val * scaling_factor
     reshaped_spatial = spatial.reshape((dy, dx))
     center_x, center_y = int(dy / 2), int(dx / 2)
-    if np.mean(reshaped_spatial[center_x - 3 : center_x + 2, center_y - 3 : center_y + 2]) < 0:
+    if np.mean(reshaped_spatial[center_x - 3: center_x + 2, center_y - 3: center_y + 2]) < 0:
         spatial *= -1
         temporal *= -1
     singular_values = S[1]

@@ -1,12 +1,12 @@
-from typing import List, Tuple, Optional, Iterable
+from typing import List, Tuple, Optional
 from collections.abc import Iterable
 import abc
 
 import torch
 
 
-def no_op_regularizer(stimulus: torch.tensor) -> torch.tensor:
-    return 0.0
+def no_op_regularizer(stimulus: torch.Tensor) -> torch.Tensor:
+    return torch.zeros([1])
 
 
 """
@@ -19,14 +19,16 @@ postprocessing_config = {
     "x_max_uv": 6.269,
 }
 """
+
+
 def range_regularizer_fn(
-        stimulus: torch.tensor,
+        stimulus: torch.Tensor,
         min_max_values: List[Tuple[float, float]] = [(-0.654, 6.269), (-0.913, 6.269)],
         max_norm: float = 30.0,
         factor: float = 0.1,
-) -> torch.tensor:
+) -> torch.Tensor:
     """ Penalizes the stimulus if it is outside the range defined by min_max_values. """
-    penalty = 0.0
+    penalty = torch.zeros([1])
     for i, (min_val, max_val) in enumerate(min_max_values):
         stimulus_i = stimulus[:, i]
         min_penalty = torch.sum(torch.relu(min_val - stimulus_i))
@@ -40,16 +42,19 @@ def range_regularizer_fn(
     penalty *= factor
     return penalty
 
+
 class StimulusPostprocessor(abc.ABC):
     """ Base class for stimulus clippers. """
     @abc.abstractmethod
-    def process(self, x: torch.tensor) -> torch.tensor:
+    def process(self, x: torch.Tensor) -> torch.Tensor:
         """ x.shape: batch x channels x time x n_rows x n_cols """
         pass
 
+
 class NoOpStimulusPostprocessor(StimulusPostprocessor):
-    def process(self, x: torch.tensor) -> torch.tensor:
+    def process(self, x: torch.Tensor) -> torch.Tensor:
         return x
+
 
 class ChangeNormJointlyClipRangeSeparately(StimulusPostprocessor):
     """ First change the norm and afterward clip the value of x to some specified range """
