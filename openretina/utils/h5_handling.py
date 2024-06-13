@@ -44,7 +44,8 @@ def load_h5_into_dict(file_path):
     file_size = os.path.getsize(file_path)
     if file_size > psutil.virtual_memory().available:
         raise MemoryError(
-            f"File size of {file_size / (1024**3):.2f} GB is larger than the available memory ({psutil.virtual_memory().available / (1024**3):.2f} GB)."
+            f"File size of {file_size / (1024**3):.2f} GB is larger than the "
+            f"available memory ({psutil.virtual_memory().available / (1024**3):.2f} GB)."
         )
 
     with h5.File(file_path, "r") as file:

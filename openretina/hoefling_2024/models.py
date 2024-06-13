@@ -1,15 +1,14 @@
 from collections import OrderedDict
 from collections.abc import Iterable
-from typing import Dict, List, Literal, Optional, Tuple, Union
+from typing import Literal, Optional, Tuple
 
 import numpy as np
 import torch
-import torch.distributions as dist
 import torch.nn as nn
 import torch.nn.functional as F
 
 from neuralpredictors.layers.affine import Bias3DLayer, Scale2DLayer, Scale3DLayer
-from neuralpredictors.regularizers import Laplace, Laplace1d, laplace3d
+from neuralpredictors.regularizers import Laplace, Laplace1d
 from neuralpredictors.utils import get_module_output
 
 from ..dataloaders import get_dims_for_loader_dict
@@ -121,18 +120,18 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
             input_pad = 0
         if hidden_padding & (len(spatial_kernel_size) > 1):
             hidden_pad = [
-                (0, spatial_kernel_size[l] // 2, spatial_kernel_size[l] // 2)
-                for l in range(1, len(spatial_kernel_size))
+                (0, spatial_kernel_size[x] // 2, spatial_kernel_size[x] // 2)
+                for x in range(1, len(spatial_kernel_size))
             ]
         else:
-            hidden_pad = [0 for l in range(1, len(spatial_kernel_size))]
+            hidden_pad = [0 for _ in range(1, len(spatial_kernel_size))]
 
         if not isinstance(hidden_channels, Iterable):
-            hidden_channels = [hidden_channels] * (self.layers)
+            hidden_channels = [hidden_channels] * self.layers
         if not isinstance(temporal_kernel_size, Iterable):
-            temporal_kernel_size = [temporal_kernel_size] * (self.layers)
+            temporal_kernel_size = [temporal_kernel_size] * self.layers
         if not isinstance(spatial_kernel_size, Iterable):
-            spatial_kernel_size = [spatial_kernel_size] * (self.layers)
+            spatial_kernel_size = [spatial_kernel_size] * self.layers
 
         # --- first layer
         layer = OrderedDict()
@@ -161,36 +160,38 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
 
         # --- other layers
 
-        for l in range(1, self.layers):
+        for layer_num in range(1, self.layers):
             layer = OrderedDict()
             layer["conv"] = self.conv_class(
-                hidden_channels[l - 1],
-                hidden_channels[l],
+                hidden_channels[layer_num - 1],
+                hidden_channels[layer_num],
                 log_speed_dict,
-                temporal_kernel_size[l],
-                spatial_kernel_size[l],
+                temporal_kernel_size[layer_num],
+                spatial_kernel_size[layer_num],
                 bias=False,
-                padding=hidden_pad[l - 1],
+                padding=hidden_pad[layer_num - 1],
                 num_scans=self.num_scans,
             )
             if batch_norm:
-                layer["norm"] = nn.BatchNorm3d(hidden_channels[l], momentum=momentum, affine=bias and batch_norm_scale)
+                layer["norm"] = nn.BatchNorm3d(hidden_channels[layer_num], momentum=momentum,
+                                               affine=bias and batch_norm_scale)
                 if bias:
                     if not batch_norm_scale:
-                        layer["bias"] = Bias3DLayer(hidden_channels[l])
+                        layer["bias"] = Bias3DLayer(hidden_channels[layer_num])
                 elif batch_norm_scale:
-                    layer["scale"] = Scale2DLayer(hidden_channels[l])
-            if final_nonlinearity or l < self.layers - 1:
+                    layer["scale"] = Scale2DLayer(hidden_channels[layer_num])
+            if final_nonlinearity or layer_num < self.layers - 1:
                 layer["nonlin"] = getattr(nn, nonlinearity)()
-            self.features.add_module("layer{}".format(l), nn.Sequential(layer))
+            self.features.add_module("layer{}".format(layer_num), nn.Sequential(layer))
 
         self.apply(self.init_conv)
 
     def forward(self, input_, data_key=None):
         ret = []
         do_skip = False
-        for l, feat in enumerate(self.features):
-            input_ = feat((torch.cat(ret[-min(self.skip, l) :], dim=1) if do_skip else input_, data_key))
+        for layer_num, feat in enumerate(self.features):
+            input_ = feat((torch.cat(ret[-min(self.skip, layer_num):], dim=1)
+                           if do_skip else input_, data_key))
             ret.append(input_)
 
         return torch.cat([ret[ind] for ind in self.stack], dim=1)
@@ -200,12 +201,12 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
 
     def group_sparsity(self):  # check if this is really what we want
         ret = 0
-        for l in range(1, self.layers):
+        for layer_num in range(1, self.layers):
             ret = (
                 ret
                 + (
-                    self.features[l].conv.weight_spatial.pow(2).sum([2, 3, 4]).sqrt().sum(1)
-                    / torch.sqrt(1e-8 + self.features[l].conv.weight_spatial.pow(2).sum([1, 2, 3, 4]))
+                    self.features[layer_num].conv.weight_spatial.pow(2).sum([2, 3, 4]).sqrt().sum(1)
+                    / torch.sqrt(1e-8 + self.features[layer_num].conv.weight_spatial.pow(2).sum([1, 2, 3, 4]))
                 ).sum()
             )
         return ret
@@ -224,8 +225,9 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
 
     def temporal_smoothness(self):
         ret = 0
-        for l in range(self.layers):
-            ret = ret + temporal_smoothing(self.features[l].conv.sin_weights, self.features[l].conv.cos_weights)
+        for layer_norm in range(self.layers):
+            ret += temporal_smoothing(self.features[layer_norm].conv.sin_weights,
+                                      self.features[layer_norm].conv.cos_weights)
         return ret
 
     def regularizer(self):
@@ -553,12 +555,11 @@ class TorchFullConv3D(nn.Module):
         x, data_key = input_
 
         # Compute temporal kernel based on the provided data key
-        if data_key is None:
-            log_speed = self._log_speed_default
-        else:
-            log_speed = getattr(self, "_".join(["log_speed", data_key]))
-
         # TODO implement log speed use in full conv
+        # if data_key is None:
+        #    log_speed = self._log_speed_default
+        # else:
+        #    log_speed = getattr(self, "_".join(["log_speed", data_key]))
 
         return self.conv(x)
 
@@ -902,7 +903,7 @@ def SFB3d_core_SxF3d_readout(
     stack=None,
     readout_reg_avg: bool = False,
     use_avg_reg: bool = False,
-    data_info: dict = None,
+    data_info: Optional[dict] = None,
     nonlinearity: str = "ELU",
     conv_type: Literal["full", "separable", "custom_separable", "time_independent"] = "custom_separable",
     device=DEVICE,
@@ -994,7 +995,7 @@ def SFB3d_core_SxF3d_readout(
     )
 
     # initializing readout bias to mean response
-    if readout_bias == True:
+    if readout_bias:
         if data_info is None:
             for k in dataloaders:
                 readout[k].bias.data = dataloaders[k].dataset.mean_response

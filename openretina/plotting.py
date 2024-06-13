@@ -110,7 +110,7 @@ def play_sample_batch(
 
 
 def plot_stimulus_composition(
-    stimulus: np.array,
+    stimulus: np.ndarray,
     temporal_trace_ax,
     freq_ax: Optional[Any],
     spatial_ax,

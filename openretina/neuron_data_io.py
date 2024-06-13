@@ -192,9 +192,9 @@ class NeuronData:
         self,
         responses_final: Float[np.ndarray, "n_neurons n_timepoints"] | dict,  # noqa
         stim_id: Literal[5, 2, 1, "salamander_natural"],
-        val_clip_idx: List[int],
-        num_clips: int,
-        clip_length: int,
+        val_clip_idx: Optional[List[int]],
+        num_clips: Optional[int],
+        clip_length: Optional[int],
         roi_mask: Optional[Float[np.ndarray, "64 64"]] = None,  # noqa
         roi_ids: Optional[Float[np.ndarray, "n_neurons"]] = None,  # noqa
         traces: Optional[Float[np.ndarray, "n_neurons n_timepoints"]] = None,  # noqa
@@ -214,8 +214,10 @@ class NeuronData:
         Args:
             eye (str): The eye from which the neuron data is recorded.
             group_assignment (Float[np.ndarray, "n_neurons"]): The group assignment of neurons.
-            key (dict): The key information for the neuron data, includes date, exp_num, experimenter, field_id, stim_id.
-            responses_final (Float[np.ndarray, "n_neurons n_timepoints"]) or dictionary with train and test responses of similar structure: The responses of neurons.
+            key (dict): The key information for the neuron data,
+                        includes date, exp_num, experimenter, field_id, stim_id.
+            responses_final (Float[np.ndarray, "n_neurons n_timepoints"]) or
+                dictionary with train and test responses of similar structure: The responses of neurons.
             roi_coords (Float[np.ndarray, "n_neurons 2"]): The coordinates of regions of interest (ROIs).
             roi_ids (Float[np.ndarray, "n_neurons"]): The IDs of regions of interest (ROIs).
             scan_sequence_idx (int): The index of the scan sequence.
@@ -253,7 +255,7 @@ class NeuronData:
         self.val_clip_idx = val_clip_idx
         self.use_base_sequence = use_base_sequence
 
-    #! this has to become a regular method in the future
+    # this has to become a regular method in the future!
     @property
     def response_dict(self):
         if self.stim_id == "salamander_natural":
@@ -406,9 +408,9 @@ def upsample_traces(
     triggertimes,
     traces,
     tracestimes,
-    stim_id,
-    target_fr=30,
-):
+    stim_id: int,
+    target_fr: int = 30,
+) -> np.ndarray:
     """
     Upsamples the traces based on the stimulus type.
 
@@ -417,7 +419,8 @@ def upsample_traces(
         traces (list): List of traces.
         tracestimes (list): List of trace times.
         stim_id (int): Stimulus ID.
-        stim_framerate (int, optional): Frame rate of the stimulus. Required for certain stimulus types like moving bar and chirp.
+        stim_framerate (int, optional): Frame rate of the stimulus.
+                                        Required for certain stimulus types like moving bar and chirp.
         target_fr (int, optional): Target frame rate for upsampling. Default is 30.
 
     Returns:
@@ -428,7 +431,8 @@ def upsample_traces(
     """
     if stim_id == 5:
         # Movie stimulus
-        # 4.966666 is the time between triggers in the movie stimulus. It is not exactly 5s because it is not a perfect world :)
+        # 4.966666 is the time between triggers in the movie stimulus.
+        # It is not exactly 5s because it is not a perfect world :)
         upsampled_triggertimes = _upsample_triggertimes(4.9666667, 5, triggertimes, target_fr)
     elif stim_id == 1:
         # Chirp: each chirp has two triggers, one at the start and one 5s later, after a 2s OFF and 3s full field ON.
@@ -616,7 +620,9 @@ def make_final_responses(
 
         if "responses_final" in new_data_dict[field]:
             warnings.warn(
-                f"You seem to already have computed `responses_final` for a stim_id of {new_data_dict[field]['stim_id']}. Overwriting with {stim_id} ({response_type})."
+                f"You seem to already have computed `responses_final` for a "
+                f"stim_id of {new_data_dict[field]['stim_id']}. "
+                f"Overwriting with {stim_id} ({response_type})."
             )
         new_data_dict[field]["responses_final"] = upsampled_traces
         new_data_dict[field]["stim_id"] = stim_id

@@ -1,8 +1,7 @@
 import bisect
 import warnings
 from collections import namedtuple
-from copy import deepcopy
-from typing import Callable, Dict, List, Optional, Tuple, TypedDict, Union
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
@@ -34,8 +33,8 @@ class MovieDataSet(Dataset):
         else:
             return self.DataPoint(
                 *[
-                    self.samples[0][:, idx : idx + self.chunk_size, ...],
-                    self.samples[1][idx : idx + self.chunk_size, ...],
+                    self.samples[0][:, idx:idx + self.chunk_size, ...],
+                    self.samples[1][idx:idx + self.chunk_size, ...],
                 ]
             )
 
@@ -52,7 +51,8 @@ class MovieDataSet(Dataset):
         return self.samples[1].shape[0] // self.chunk_size
 
     def __str__(self):
-        return f"MovieDataSet with {self.samples[1].shape[1]} neuron responses to a movie of shape {list(self.samples[0].shape)}."
+        return (f"MovieDataSet with {self.samples[1].shape[1]} neuron responses "
+                f"to a movie of shape {list(self.samples[0].shape)}.")
 
     def __repr__(self):
         return str(self)
@@ -129,13 +129,13 @@ def gen_shifts(clip_bounds, start_indices, clip_chunk_size=50):
 
 
 def get_movie_dataloader(
-    movies: Union[np.ndarray, torch.Tensor, Dict[int, np.ndarray]],
+    movies: np.ndarray | torch.Tensor | dict[int, np.ndarray],
     responses: Float[np.ndarray, "n_frames n_neurons"],  # noqa
-    roi_ids: Float[np.ndarray, "n_neurons"],  # noqa
-    roi_coords: Float[np.ndarray, "n_neurons 2"],  # noqa
-    group_assignment: Float[np.ndarray, "n_neurons"],  # noqa
+    roi_ids: Optional[Float[np.ndarray, "n_neurons"]],  # noqa
+    roi_coords: Optional[Float[np.ndarray, "n_neurons 2"]],  # noqa
+    group_assignment: Optional[Float[np.ndarray, "n_neurons"]],  # noqa
     split: str,
-    start_indices: Union[List[int], Dict[int, List[int]]],
+    start_indices: List[int] | Dict[int, List[int]],
     scan_sequence_idx: Optional[int] = None,
     chunk_size: int = 50,
     batch_size: int = 32,
@@ -148,7 +148,7 @@ def get_movie_dataloader(
     TODO docstring
     """
     if isinstance(responses, torch.Tensor) and bool(torch.isnan(responses).any()):
-        print(f"Nans in responses, skipping this dataloader")
+        print("Nans in responses, skipping this dataloader")
         return None
 
     # for right movie: flip second frame size axis!

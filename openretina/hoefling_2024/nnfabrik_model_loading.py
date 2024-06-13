@@ -14,10 +14,10 @@ import torch.nn as nn
 import yaml
 
 
-def split_module_name(abs_class_name):
+def split_module_name(abs_class_name: str) -> Tuple[str, str]:
     abs_module_path = ".".join(abs_class_name.split(".")[:-1])
     class_name = abs_class_name.split(".")[-1]
-    return (abs_module_path, class_name)
+    return abs_module_path, class_name
 
 
 def dynamic_import(abs_module_path, class_name):
@@ -28,11 +28,12 @@ def dynamic_import(abs_module_path, class_name):
 
 def resolve_fn(fn_name, default_base):
     """
-    Given a string `fn_name`, resolves the name into a callable object. If the name has multiple `.` separated parts, treat all but the last
-    as module names to trace down to the final name. If just the name is given, tries to resolve the name in the `default_base` module name context
+    Given a string `fn_name`, resolves the name into a callable object. If the name has multiple
+    `.` separated parts, treat all but the last as module names to trace down to the final name.
+    If just the name is given, tries to resolve the name in the `default_base` module name context
     with direct eval of `{default_base}.{fn_name}` in this function's context.
 
-    Raises `NameError` if no object matching the name is found and `TypeError` if the resolved object is not callabe.
+    Raises `NameError` if no object matching the name is found and `TypeError` if the resolved object is not callable.
 
     When successful, returns the resolved, callable object.
     """
@@ -64,14 +65,18 @@ def get_model(
     data_info=None,
 ):
     """
-    Resolves `model_fn` and invokes the resolved function with `model_config` keyword arguments as well as the `dataloader` and `seed`.
-    Note that the resolved `model_fn` is expected to accept the `dataloader` as the first positional argument and `seed` as a keyword argument.
-    If you pass in `state_dict`, the resulting nn.Module instance will be loaded with the state_dict, using appropriate `strict` mode for loading.
+    Resolves `model_fn` and invokes the resolved function with `model_config` keyword arguments
+    as well as the `dataloader` and `seed`. Note that the resolved `model_fn` is expected to
+    accept the `dataloader` as the first positional argument and `seed` as a keyword argument.
+    If you pass in `state_dict`, the resulting nn.Module instance will be loaded with the
+    state_dict, using appropriate `strict` mode for loading.
 
     Args:
-        model_fn: string name of the model builder function path to be resolved. Alternatively, you can pass in a callable object and no name resolution will be performed.
+        model_fn: string name of the model builder function path to be resolved.
+        Alternatively, you can pass in a callable object and no name resolution will be performed.
         model_config: a dictionary containing keyword arguments to be passed into the resolved `model_fn`
-        dataloaders: (a dictionary of) dataloaders to be passed into the resolved `model_fn` as the first positional argument
+        dataloaders: a dictionary of dataloaders to be passed into the resolved `model_fn`
+                     as the first positional argument
         seed: randomization seed to be passed in to as a keyword argument into the resolved `model_fn`
         state_dict: If provided, the resulting nn.Module object will be loaded with the state_dict before being returned
         strict: Controls the `strict` mode of nn.Module.load_state_dict
@@ -166,7 +171,7 @@ def load_state_dict(
     model.load_state_dict(updated_model_dict, strict=(not ignore_missing))
 
 
-def find_prefix(keys: list, p_agree: float = 0.66, separator=".") -> (list, int):
+def find_prefix(keys: list, p_agree: float = 0.66, separator=".") -> Tuple[str, int]:
     """
     Finds common prefix among state_dict keys
     :param keys: list of strings to find a common prefix
@@ -247,8 +252,8 @@ def load_ensemble_retina_model_from_directory(directory_path: str, device: str =
         with open(model_config_path, "r") as f:
             config = yaml.safe_load(f)
 
-        with open(data_info_path, "rb") as f:
-            data_info = pickle.load(f)
+        with open(data_info_path, "rb") as fb:
+            data_info = pickle.load(fb)
         data_info_list.append(data_info)
 
         model_fn = config["model_fn"]

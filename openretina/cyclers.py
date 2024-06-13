@@ -23,7 +23,7 @@ def cycle(iterable):
 
 class LongCycler:
     """
-    Cycles through a dictionary of trainloaders until the loader with largest size is exhausted.
+    Cycles through a dictionary of trainloaders until the loader with the largest size is exhausted.
     In pracice, takes one batch from each loader in each iteration.
     Needed for dataloaders of unequal size (as in the monkey data).
     """

@@ -164,3 +164,7 @@ wandb
 data/
 *.tmp
 random.ipynb
+*.jpg
+*.pdf
+figures/
+models/

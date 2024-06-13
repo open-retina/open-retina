@@ -20,20 +20,20 @@ There are three stimuli this module deals with:
 """
 
 
-def normalize_stimulus(stimulus: np.array) -> np.array:
+def normalize_stimulus(stimulus: np.ndarray) -> np.ndarray:
     # max value is 255, min value 0, normalize to range between -1.0 and 1.0
     normalized = (stimulus - 128.0).astype(np.float32) / 128.0
     return normalized
 
 
-def discretize_triggers(trigger_times: np.array) -> list[int]:
+def discretize_triggers(trigger_times: np.ndarray) -> list[int]:
     assert len(trigger_times.shape) == 1, "trigger_times should be one dimensional"
     discrete_trigger_times = (trigger_times * _FRAME_RATE).astype(int).tolist()
     return discrete_trigger_times
 
 
-def align_stimulus_to_trigger(stimulus: np.array, start_trigger_times: list[int]) -> np.array:
-    #! TODO: needs fixing.
+def align_stimulus_to_trigger(stimulus: np.ndarray, start_trigger_times: list[int]) -> np.ndarray:
+    # TODO: needs fixing!
     stimulus_length = stimulus.shape[0]
 
     stimulus_array = []
@@ -59,9 +59,9 @@ def align_stimulus_to_trigger(stimulus: np.array, start_trigger_times: list[int]
 def load_stimulus(
     file_path: str,
     normalize: bool,
-    trigger_times: Optional[np.array],
+    trigger_times: Optional[np.ndarray],
     num_triggers_per_repetition: int,
-) -> np.array:
+) -> np.ndarray:
     with open(file_path, "rb") as f:
         stimulus_uint8 = pickle.load(f)
 
@@ -82,8 +82,8 @@ def load_stimulus(
 
 def load_chirp(
     normalize: bool = True,
-    trigger_times: Optional[np.array] = None,
-) -> np.array:
+    trigger_times: Optional[np.ndarray] = None,
+) -> np.ndarray:
     """The chirp has 2 triggers per repetition"""
     chirp = load_stimulus(
         file_path=_CHIRP_PATH,
@@ -96,8 +96,8 @@ def load_chirp(
 
 def load_moving_bar(
     normalize: bool = True,
-    trigger_times: Optional[np.array] = None,
-) -> np.array:
+    trigger_times: Optional[np.ndarray] = None,
+) -> np.ndarray:
     """Moving bar has 8 triggers, one for each direction.
     Its directions are [0,180, 45,225, 90,270, 135,315] (in degrees)
     """
@@ -116,7 +116,7 @@ def load_moving_bar(
     return moving_bar_content
 
 
-def load_moving_bar_stack(normalize: bool = True, number_of_moving_bars: int = 8) -> np.array:
+def load_moving_bar_stack(normalize: bool = True, number_of_moving_bars: int = 8) -> np.ndarray:
     moving_bar = load_moving_bar(normalize)
 
     assert (
@@ -125,7 +125,7 @@ def load_moving_bar_stack(normalize: bool = True, number_of_moving_bars: int = 8
     return np.stack(np.split(moving_bar, number_of_moving_bars, axis=0), axis=0)
 
 
-def colored_stimulus(channel_idx: int, pad_front: int, stimulus_length: int, pad_end: int) -> np.array:
+def colored_stimulus(channel_idx: int, pad_front: int, stimulus_length: int, pad_end: int) -> np.ndarray:
     total_length_time = pad_front + stimulus_length + pad_end
     stimulus = np.zeros((2, total_length_time, _LENGTH_X, _LENGTH_Y), dtype=np.float32)
     stimulus[channel_idx, pad_front: pad_front + stimulus_length] = 1.0
