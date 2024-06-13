@@ -209,7 +209,7 @@ def save_model(model: torch.nn.Module, save_folder: str, model_name: str) -> Non
         os.mkdir(save_folder)
     date = datetime.datetime.now().strftime("%Y-%m-%d")
     torch.save(model.state_dict(), os.path.join(save_folder, f"{model_name}_{date}_model_weights.pt"))
-    torch.save(model, os.path.join(save_folder, f"{model_name}_{date}_model.pt"))
+    torch.save(model, os.path.join(save_folder, f"{model_name}_{date}_model_object.pt"))
 
 
 def clean_session_key(session_key):
