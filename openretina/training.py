@@ -44,6 +44,7 @@ def standard_early_stop_trainer(
     wandb_logger=None,
     cb=None,
     clip_gradient_norm: Optional[float] = None,
+    multiple_stimuli: bool = False,
     **kwargs,
 ):
     # Defines objective function; criterion is resolved to the loss_function that is passed as input
@@ -89,7 +90,7 @@ def standard_early_stop_trainer(
 
     # set the number of iterations over which you would like to accummulate gradients
     # will be equal to number of sessions (dict keys) if not specified, which combined with
-    # the longcycler means we step after we have seen one batch from each session.
+    # the longcycler means we step after we have seen one batch from each recording session.
     optim_step_count = len(trainloaders.keys()) if loss_accum_batch_n is None else loss_accum_batch_n
 
     # define some trackers
@@ -145,12 +146,13 @@ def standard_early_stop_trainer(
             leave=True,
             disable=not verbose,
         ):
-            clean_data_key = clean_session_key(data_key)
+            # clean the data key to use the same readout if we are training on multiple stimuli
+            clean_data_key = clean_session_key(data_key) if multiple_stimuli else data_key
             loss = full_objective(model, clean_data_key, *data, detach_core)  # type: ignore
             loss.backward()
 
             if clip_gradient_norm is not None:
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=clip_gradient_norm)
+                torch.nn.utils.clip_grad.clip_grad_norm_(model.parameters(), max_norm=clip_gradient_norm)
 
             if (batch_no + 1) % optim_step_count == 0:
                 optimizer.step()
@@ -213,8 +215,6 @@ def save_model(model: torch.nn.Module, save_folder: str, model_name: str) -> Non
 
 
 def clean_session_key(session_key):
-    # Ignore this function when only training on the chirp or movingbar by uncommenting the following line
-    # return session_key
     if "_chirp" in session_key:
         session_key = session_key.split("_chirp")[0]
     if "_mb" in session_key:

@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 
-from typing import Callable
 import argparse
 import functools
 import operator
 import os
 import pickle
+from typing import Callable
 
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import torch
+
 from openretina.hoefling_2024.configs import model_config, trainer_config
 from openretina.hoefling_2024.data_io import (
     get_chirp_dataloaders,
@@ -56,7 +57,7 @@ def main(
     with open(movies_path, "rb") as f:
         movies_dict = pickle.load(f)
 
-    data_path_responses = os.path.join(data_folder, "2024-03-28_neuron_data_responses_484c12d_djimaging.h5")
+    data_path_responses = os.path.join(data_folder, "2024-05-17_neuron_data_responses_484c12d_djimaging.h5")
     responses = load_h5_into_dict(data_path_responses)
 
     dataloader_list = []
@@ -98,6 +99,7 @@ def main(
         **trainer_config,  # type: ignore
         wandb_logger=None,
         device=device,
+        multiple_stimuli=len(dataset_names_list) > 1,
     )
     print(f"Training finished with test_score: {test_score} and val_score: {val_score}")
 
