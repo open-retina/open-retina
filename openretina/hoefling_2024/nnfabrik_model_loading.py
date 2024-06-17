@@ -274,8 +274,8 @@ def load_ensemble_retina_model_from_directory(directory_path: str, device: str =
     # Just put inside wrapper for ensemble
     ensemble_model = EnsembleModel(*model_list)
     # Center readouts
-    model_transform = Center(target_mean=[0.0, 0.0])
-    model_transform(ensemble_model)
+    # model_transform = Center(target_mean=[0.0, 0.0])
+    # model_transform(ensemble_model)
     ensemble_model.to(device)
     ensemble_model.eval()
 
