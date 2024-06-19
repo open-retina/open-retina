@@ -15,3 +15,6 @@ find = {exclude = ["scripts"]}
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
 
+[tool.ruff.lint]
+ignore = ["F722"]
+
