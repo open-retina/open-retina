@@ -1,7 +1,7 @@
 import bisect
 import warnings
 from collections import namedtuple
-from typing import Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -33,8 +33,8 @@ class MovieDataSet(Dataset):
         else:
             return self.DataPoint(
                 *[
-                    self.samples[0][:, idx:idx + self.chunk_size, ...],
-                    self.samples[1][idx:idx + self.chunk_size, ...],
+                    self.samples[0][:, idx : idx + self.chunk_size, ...],
+                    self.samples[1][idx : idx + self.chunk_size, ...],
                 ]
             )
 
@@ -51,8 +51,10 @@ class MovieDataSet(Dataset):
         return self.samples[1].shape[0] // self.chunk_size
 
     def __str__(self):
-        return (f"MovieDataSet with {self.samples[1].shape[1]} neuron responses "
-                f"to a movie of shape {list(self.samples[0].shape)}.")
+        return (
+            f"MovieDataSet with {self.samples[1].shape[1]} neuron responses "
+            f"to a movie of shape {list(self.samples[0].shape)}."
+        )
 
     def __repr__(self):
         return str(self)
@@ -172,7 +174,7 @@ def get_movie_dataloader(
     )
 
 
-def get_dims_for_loader_dict(dataloaders):
+def get_dims_for_loader_dict(dataloaders: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Tuple[int, ...]] | Tuple]:
     """
     Borrowed from nnfabrik/utility/nn_helpers.py.
 
@@ -188,7 +190,7 @@ def get_dims_for_loader_dict(dataloaders):
     return {k: get_io_dims(v) for k, v in dataloaders.items()}
 
 
-def get_io_dims(data_loader):
+def get_io_dims(data_loader) -> Dict[str, Tuple[int, ...]] | Tuple:
     """
     Borrowed from nnfabrik/utility/nn_helpers.py.
 
@@ -216,7 +218,7 @@ def get_io_dims(data_loader):
     if hasattr(items, "items"):  # if dict like
         return {k: v.shape for k, v in items.items()}
     else:
-        return (v.shape for v in items)
+        return tuple(v.shape for v in items)
 
 
 def filter_nan_collate(batch):
