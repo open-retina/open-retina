@@ -2,7 +2,7 @@
 from collections import OrderedDict
 from collections.abc import Iterable
 from operator import itemgetter
-from typing import Dict, Literal, Optional, Tuple, Any
+from typing import Any, Dict, Literal, Optional, Tuple
 
 import numpy as np
 import torch
@@ -190,7 +190,7 @@ class GRUEnabledCore(Core3d, nn.Module):
         hidden_padding=True,
         batch_norm=True,
         batch_norm_scale=True,
-        laplace_padding=0,
+        laplace_padding: Optional[int] = 0,
         stack=None,
         batch_adaptation=True,
         use_avg_reg=False,
@@ -250,11 +250,11 @@ class GRUEnabledCore(Core3d, nn.Module):
         else:
             hidden_pad = [0 for _ in range(1, len(spatial_kernel_size))]
 
-        if not isinstance(hidden_channels, Iterable):
+        if not isinstance(hidden_channels, (list, tuple)):
             hidden_channels = [hidden_channels] * (self.layers)
-        if not isinstance(temporal_kernel_size, Iterable):
+        if not isinstance(temporal_kernel_size, (list, tuple)):
             temporal_kernel_size = [temporal_kernel_size] * (self.layers)
-        if not isinstance(spatial_kernel_size, Iterable):
+        if not isinstance(spatial_kernel_size, (list, tuple)):
             spatial_kernel_size = [spatial_kernel_size] * (self.layers)
 
         # --- first layer
@@ -723,4 +723,71 @@ class MultipleLNP(Encoder):
         super().__init__(
             core=DummyCore(),
             readout=readout,
+        )
+
+
+class DenseReadout(nn.Module):
+    """
+    Fully connected readout layer.
+    """
+
+    def __init__(self, in_shape, outdims, bias=True, init_noise=1e-3, **kwargs):
+        super().__init__()
+        self.in_shape = in_shape
+        self.outdims = outdims
+        self.init_noise = init_noise
+        c, w, h = in_shape
+
+        self.linear = torch.nn.Linear(in_features=c * w * h, out_features=outdims, bias=False)
+        if bias:
+            bias = torch.nn.Parameter(torch.Tensor(outdims))
+            self.register_parameter("bias", bias)
+        else:
+            self.register_parameter("bias", None)
+
+        self.initialize()
+
+    @property
+    def features(self):
+        return next(iter(self.linear.parameters()))
+
+    def feature_l1(self, average=False):
+        if average:
+            return self.features.abs().mean()
+        else:
+            return self.features.abs().sum()
+
+    def regularizer(self, reduction="sum", average=False):
+        return 0
+
+    def initialize(self, *args, **kwargs):
+        self.features.data.normal_(0, self.init_noise)
+
+    def forward(self, x):
+        b, c, w, h = x.shape
+
+        x = x.view(b, c * w * h)
+        y = self.linear(x)
+        if self.bias is not None:
+            y = y + self.bias
+        return y
+
+    def __repr__(self):
+        return self.__class__.__name__ + " (" + "{} x {} x {}".format(*self.in_shape) + " -> " + str(self.outdims) + ")"
+
+
+class MultipleDense(MultiReadoutBase):
+    def __init__(
+        self,
+        in_shape_dict,
+        n_neurons_dict,
+        bias,
+        init_noise,
+    ):
+        super().__init__(
+            in_shape_dict,
+            n_neurons_dict,
+            base_readout=DenseReadout,
+            bias=bias,
+            init_noise=init_noise,
         )
