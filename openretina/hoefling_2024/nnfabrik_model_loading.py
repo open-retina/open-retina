@@ -257,8 +257,8 @@ def load_ensemble_retina_model_from_directory(directory_path: str, device: str =
         state_dict = torch.load(state_dir_path)
         with open(model_config_path, "r") as f:
             config = yaml.load(f, SafeLoaderWithTuple)
-        with open(data_info_path, "rb") as f:
-            data_info = pickle.load(f)
+        with open(data_info_path, "rb") as fb:
+            data_info = pickle.load(fb)
         data_info_list.append(data_info)
 
         model_fn = config["model_fn"]
