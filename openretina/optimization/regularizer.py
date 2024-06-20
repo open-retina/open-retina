@@ -28,7 +28,7 @@ def range_regularizer_fn(
         factor: float = 0.1,
 ) -> torch.Tensor:
     """ Penalizes the stimulus if it is outside the range defined by min_max_values. """
-    penalty: torch.Tensor = 0.0
+    penalty: torch.Tensor = 0.0  # type: ignore
     for i, (min_val, max_val) in enumerate(min_max_values):
         stimulus_i = stimulus[:, i]
         min_penalty = torch.sum(torch.relu(min_val - stimulus_i))
