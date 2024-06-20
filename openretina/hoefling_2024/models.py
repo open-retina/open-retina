@@ -1,5 +1,4 @@
 from collections import OrderedDict
-from collections.abc import Iterable
 from typing import Literal, Optional, Tuple
 
 import numpy as np
@@ -22,10 +21,8 @@ class Core:
 
     def __repr__(self):
         s = super().__repr__()
-        s += " [{} regularizers: ".format(self.__class__.__name__)
-        ret = []
-        for attr in filter(lambda x: "gamma" in x or "skip" in x, dir(self)):
-            ret.append("{} = {}".format(attr, getattr(self, attr)))
+        s += f" [{self.__class__.__name__} regularizers: "
+        ret = [f"{attr} = {getattr(self, attr)}" for attr in filter(lambda x: "gamma" in x or "skip" in x, dir(self))]
         return s + "|".join(ret) + "]\n"
 
 
@@ -125,11 +122,11 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
         else:
             hidden_pad = [0 for _ in range(1, len(spatial_kernel_size))]
 
-        if not isinstance(hidden_channels, Iterable):
+        if not isinstance(hidden_channels, (list, tuple)):
             hidden_channels = [hidden_channels] * self.layers
-        if not isinstance(temporal_kernel_size, Iterable):
+        if not isinstance(temporal_kernel_size, (list, tuple)):
             temporal_kernel_size = [temporal_kernel_size] * self.layers
-        if not isinstance(spatial_kernel_size, Iterable):
+        if not isinstance(spatial_kernel_size, (list, tuple)):
             spatial_kernel_size = [spatial_kernel_size] * self.layers
 
         # --- first layer
