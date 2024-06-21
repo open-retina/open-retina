@@ -3,11 +3,11 @@ import sys
 
 
 class OptimizationStopper:
-    def __init__(self, max_epochs: Optional[int]):
-        if max_epochs is None:
-            self.max_epochs = sys.maxsize
+    def __init__(self, max_iterations: Optional[int]):
+        if max_iterations is None:
+            self.max_iterations = sys.maxsize
         else:
-            self.max_epochs = max_epochs
+            self.max_iterations = max_iterations
 
     def early_stop(self, loss: float) -> bool:
         return False
@@ -15,10 +15,10 @@ class OptimizationStopper:
 
 class EarlyStopper(OptimizationStopper):
     def __init__(self,
-                 max_epochs: Optional[int] = None,
+                 max_iterations: Optional[int] = None,
                  patience: int = 1,
                  min_delta: float = 0.0):
-        super().__init__(max_epochs)
+        super().__init__(max_iterations)
         self._patience = patience
         self._min_delta = min_delta
         self._counter = 0

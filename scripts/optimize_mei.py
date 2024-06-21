@@ -11,6 +11,7 @@ from openretina.hoefling_2024.data_io import natmov_dataloaders_v2
 from openretina.hoefling_2024.models import SFB3d_core_SxF3d_readout
 from openretina.optimization.objective import SingleNeuronObjective
 from openretina.optimization.optimizer import optimize_stimulus
+from openretina.optimization.optimization_stopper import OptimizationStopper
 from openretina.optimization.regularizer import (
     ChangeNormJointlyClipRangeSeparately,
     range_regularizer_fn,
@@ -60,9 +61,9 @@ def main() -> None:
                 stimulus,
                 optimizer_init_fn,
                 objective,
+                OptimizationStopper(max_iterations=100),
                 stimulus_regularizing_fn=stimulus_regularizing_fn,
                 postprocess_stimulus_fn=stimulus_postprocessor.process,
-                max_iterations=100,
             )
             stimulus_np = stimulus[0].cpu().numpy()
             fig, axes = plt.subplots(2, 2, figsize=(7 * 3, 12))
