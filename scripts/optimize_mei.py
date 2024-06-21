@@ -9,7 +9,7 @@ import torch
 from openretina.hoefling_2024.configs import model_config
 from openretina.hoefling_2024.data_io import natmov_dataloaders_v2
 from openretina.hoefling_2024.models import SFB3d_core_SxF3d_readout
-from openretina.optimization.objective import SingleNeuronObjective
+from openretina.optimization.objective import SingleNeuronObjective, MeanReducer
 from openretina.optimization.optimizer import optimize_stimulus
 from openretina.optimization.optimization_stopper import OptimizationStopper
 from openretina.optimization.regularizer import (
@@ -43,10 +43,12 @@ def main() -> None:
     # from controversial stimuli: (2, 50, 18, 16): (channels, time, height, width)
     stimulus_shape = (1, 2, 50, 18, 16)
 
+    mean_response_reducer = MeanReducer()
     for session_id in model.readout.keys():
         for neuron_id in range(model.readout[session_id].outdims):
             print(f"Generating MEI for {session_id=} {neuron_id=}")
-            objective = SingleNeuronObjective(model, neuron_idx=neuron_id, data_key=session_id)
+            objective = SingleNeuronObjective(model, neuron_idx=neuron_id,
+                                              data_key=session_id, response_reducer=mean_response_reducer)
             stimulus = torch.randn(stimulus_shape, requires_grad=True, device=device)
             stimulus_postprocessor = ChangeNormJointlyClipRangeSeparately()
             stimulus.data = stimulus_postprocessor.process(stimulus.data)
