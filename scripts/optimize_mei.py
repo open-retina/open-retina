@@ -14,7 +14,7 @@ from openretina.optimization.optimizer import optimize_stimulus
 from openretina.optimization.optimization_stopper import OptimizationStopper
 from openretina.optimization.regularizer import (
     ChangeNormJointlyClipRangeSeparately,
-    range_regularizer_fn,
+    RangeRegularizationLoss,
 )
 from openretina.plotting import plot_stimulus_composition
 
@@ -51,9 +51,7 @@ def main() -> None:
             stimulus_postprocessor = ChangeNormJointlyClipRangeSeparately()
             stimulus.data = stimulus_postprocessor.process(stimulus.data)
             optimizer_init_fn = partial(torch.optim.SGD, lr=10.0)
-            stimulus_regularizing_fn = partial(
-                range_regularizer_fn,
-            )
+            stimulus_regularizing_loss = RangeRegularizationLoss()
             # Throws: RuntimeError: Expected all tensors to be on the same device,
             # but found at least two devices, cuda:0 and cpu!
             # reason probably: not all model parameters are on gpu(?)
@@ -62,8 +60,8 @@ def main() -> None:
                 optimizer_init_fn,
                 objective,
                 OptimizationStopper(max_iterations=100),
-                stimulus_regularizing_fn=stimulus_regularizing_fn,
-                postprocess_stimulus_fn=stimulus_postprocessor.process,
+                stimulus_regularization_loss=stimulus_regularizing_loss,
+                stimulus_postprocessor=stimulus_postprocessor,
             )
             stimulus_np = stimulus[0].cpu().numpy()
             fig, axes = plt.subplots(2, 2, figsize=(7 * 3, 12))
