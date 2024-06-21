@@ -7,14 +7,14 @@ import pickle
 from copy import deepcopy
 from functools import partial
 from importlib import import_module
-from typing import Tuple
+from typing import Tuple, Optional
 
 import torch
 import torch.nn as nn
 import yaml
 
-import openretina.hoefling_2024.models
 from openretina.utils.misc import SafeLoaderWithTuple, tuple_constructor
+
 
 def split_module_name(abs_class_name: str) -> Tuple[str, str]:
     abs_module_path = ".".join(abs_class_name.split(".")[:-1])
@@ -176,7 +176,7 @@ def load_state_dict(
     model.load_state_dict(updated_model_dict, strict=(not ignore_missing))
 
 
-def find_prefix(keys: list, p_agree: float = 0.66, separator=".") -> Tuple[str, int]:
+def find_prefix(keys: list, p_agree: float = 0.66, separator: str = ".") -> Tuple[str, int]:
     """
     Finds common prefix among state_dict keys
     :param keys: list of strings to find a common prefix
@@ -232,7 +232,11 @@ class Center:
         model.load_state_dict(mod_state_dict)
 
 
-def load_ensemble_retina_model_from_directory(directory_path: str, device: str = "cuda") -> Tuple:
+def load_ensemble_retina_model_from_directory(
+        directory_path: str,
+        device: str = "cuda",
+        center_readout: Optional[Center] = None,
+) -> Tuple:
     """
     Returns an ensemble data_info object and an ensemble model that it loads from the directory path.
 
@@ -257,8 +261,8 @@ def load_ensemble_retina_model_from_directory(directory_path: str, device: str =
         state_dict = torch.load(state_dir_path)
         with open(model_config_path, "r") as f:
             config = yaml.load(f, SafeLoaderWithTuple)
-        with open(data_info_path, "rb") as f:
-            data_info = pickle.load(f)
+        with open(data_info_path, "rb") as fb:
+            data_info = pickle.load(fb)
         data_info_list.append(data_info)
 
         model_fn = config["model_fn"]
@@ -274,8 +278,8 @@ def load_ensemble_retina_model_from_directory(directory_path: str, device: str =
     # Just put inside wrapper for ensemble
     ensemble_model = EnsembleModel(*model_list)
     # Center readouts
-    # model_transform = Center(target_mean=[0.0, 0.0])
-    # model_transform(ensemble_model)
+    if center_readout is not None:
+        center_readout(ensemble_model)
     ensemble_model.to(device)
     ensemble_model.eval()
 
@@ -287,7 +291,7 @@ def load_ensemble_retina_model_from_directory(directory_path: str, device: str =
 
 
 class EnsembleModel(nn.Module):
-    """A ensemble model consisting of several individual ensemble members.
+    """An ensemble model consisting of several individual ensemble members.
 
     Attributes:
         *members: PyTorch modules representing the members of the ensemble.

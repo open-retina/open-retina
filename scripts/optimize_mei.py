@@ -9,11 +9,12 @@ import torch
 from openretina.hoefling_2024.configs import model_config
 from openretina.hoefling_2024.data_io import natmov_dataloaders_v2
 from openretina.hoefling_2024.models import SFB3d_core_SxF3d_readout
-from openretina.optimization.objective import SingleNeuronObjective
+from openretina.optimization.objective import SingleNeuronObjective, MeanReducer
 from openretina.optimization.optimizer import optimize_stimulus
+from openretina.optimization.optimization_stopper import OptimizationStopper
 from openretina.optimization.regularizer import (
     ChangeNormJointlyClipRangeSeparately,
-    range_regularizer_fn,
+    RangeRegularizationLoss,
 )
 from openretina.plotting import plot_stimulus_composition
 
@@ -42,17 +43,17 @@ def main() -> None:
     # from controversial stimuli: (2, 50, 18, 16): (channels, time, height, width)
     stimulus_shape = (1, 2, 50, 18, 16)
 
+    mean_response_reducer = MeanReducer()
     for session_id in model.readout.keys():
         for neuron_id in range(model.readout[session_id].outdims):
             print(f"Generating MEI for {session_id=} {neuron_id=}")
-            objective = SingleNeuronObjective(model, neuron_idx=neuron_id, data_key=session_id)
+            objective = SingleNeuronObjective(model, neuron_idx=neuron_id,
+                                              data_key=session_id, response_reducer=mean_response_reducer)
             stimulus = torch.randn(stimulus_shape, requires_grad=True, device=device)
             stimulus_postprocessor = ChangeNormJointlyClipRangeSeparately()
             stimulus.data = stimulus_postprocessor.process(stimulus.data)
             optimizer_init_fn = partial(torch.optim.SGD, lr=10.0)
-            stimulus_regularizing_fn = partial(
-                range_regularizer_fn,
-            )
+            stimulus_regularizing_loss = RangeRegularizationLoss()
             # Throws: RuntimeError: Expected all tensors to be on the same device,
             # but found at least two devices, cuda:0 and cpu!
             # reason probably: not all model parameters are on gpu(?)
@@ -60,9 +61,9 @@ def main() -> None:
                 stimulus,
                 optimizer_init_fn,
                 objective,
-                stimulus_regularizing_fn=stimulus_regularizing_fn,
-                postprocess_stimulus_fn=stimulus_postprocessor.process,
-                max_iterations=100,
+                OptimizationStopper(max_iterations=100),
+                stimulus_regularization_loss=stimulus_regularizing_loss,
+                stimulus_postprocessor=stimulus_postprocessor,
             )
             stimulus_np = stimulus[0].cpu().numpy()
             fig, axes = plt.subplots(2, 2, figsize=(7 * 3, 12))
