@@ -32,7 +32,7 @@ def optimize_stimulus(
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        if StimulusPostprocessor is not None:
+        if stimulus_postprocessor is not None:
             stimulus.data = stimulus_postprocessor.process(stimulus.data)
         if optimization_stopper.early_stop(float(loss.item())):
             break
