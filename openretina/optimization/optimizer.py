@@ -20,7 +20,7 @@ def optimize_stimulus(
     """
     optimizer = optimizer_init_fn([stimulus])
 
-    for i in range(optimization_stopper.max_epochs):
+    for _ in range(optimization_stopper.max_iterations):
         objective = objective_object.forward(stimulus)
         # Maximizing the objective, minimizing the regularization loss
         loss = -objective
