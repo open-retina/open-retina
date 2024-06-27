@@ -30,6 +30,4 @@ def test_early_stopper_default(
 
     for loss, desired_result in zip(list_of_losses, list_of_results, strict=True):
         result = early_stopper.early_stop(loss)
-        if result != desired_result:
-            pass
         assert result == desired_result, f"{list_of_losses=}, {list_of_results=}"
