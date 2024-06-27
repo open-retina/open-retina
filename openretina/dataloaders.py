@@ -10,6 +10,9 @@ from torch.utils.data import DataLoader, Dataset, Sampler, default_collate
 
 from .hoefling_2024.constants import SCENE_LENGTH
 
+DataPoint = namedtuple("DataPoint", ("inputs", "targets"))
+DataPointWithMeta = namedtuple("DataPoint", ("inputs", "targets", "categorical_metadata", "continuous_metadata"))
+
 
 class MovieDataSet(Dataset):
     def __init__(self, movies, responses, roi_ids, roi_coords, group_assignment, split, chunk_size):
@@ -20,7 +23,6 @@ class MovieDataSet(Dataset):
             self.roi_ids = roi_ids
         else:
             self.samples = movies, responses
-        self.DataPoint = namedtuple("DataPoint", ("inputs", "targets"))
         self.chunk_size = chunk_size
         # Calculate the mean response per neuron (used for bias init in the model)
         self.mean_response = torch.mean(self.samples[1], dim=0)
@@ -29,9 +31,9 @@ class MovieDataSet(Dataset):
 
     def __getitem__(self, idx):
         if isinstance(idx, slice):
-            return self.DataPoint(*[self.samples[0][:, idx, ...], self.samples[1][idx, ...]])
+            return DataPoint(*[self.samples[0][:, idx, ...], self.samples[1][idx, ...]])
         else:
-            return self.DataPoint(
+            return DataPoint(
                 *[
                     self.samples[0][:, idx : idx + self.chunk_size, ...],
                     self.samples[1][idx : idx + self.chunk_size, ...],
@@ -60,11 +62,73 @@ class MovieDataSet(Dataset):
         return str(self)
 
 
+class MovieAndMetadataDataSet(Dataset):
+    def __init__(self, movies, responses, metadata, split, chunk_size):
+        # Will only be a dictionary for certain types of datasets, i.e. Hoefling 2022
+        if split == "test" and isinstance(responses, dict):
+            self.samples = movies, responses["avg"]
+            self.test_responses_by_trial = responses["by_trial"]
+        else:
+            self.samples = movies, responses
+        self.all_metadata = metadata
+        self.categorical_metadata = [
+            metadata[key].astype(int) for key in metadata if np.issubdtype(metadata[key].dtype, np.str_)
+        ]
+        self.numerical_metadata = np.concatenate(
+            [np.atleast_2d(metadata[key]) for key in metadata if np.issubdtype(metadata[key].dtype, np.number)], axis=0
+        )
+        self.chunk_size = chunk_size
+        # Calculate the mean response per neuron (used for bias init in the model)
+        self.mean_response = torch.mean(self.samples[1], dim=0)
+
+    def __getitem__(self, idx):
+        if isinstance(idx, slice):
+            return DataPointWithMeta(
+                *[
+                    self.samples[0][:, idx, ...],
+                    self.samples[1][idx, ...],
+                    self.categorical_metadata,
+                    self.numerical_metadata,
+                ]
+            )
+        else:
+            return DataPointWithMeta(
+                *[
+                    self.samples[0][:, idx : idx + self.chunk_size, ...],
+                    self.samples[1][idx : idx + self.chunk_size, ...],
+                    self.categorical_metadata,
+                    self.numerical_metadata,
+                ]
+            )
+
+    @property
+    def movies(self):
+        return self.samples[0]
+
+    @property
+    def responses(self):
+        return self.samples[1]
+
+    def __len__(self):
+        # Returns the number of chunks of clips and responses used for training
+        return self.samples[1].shape[0] // self.chunk_size
+
+    def __str__(self):
+        return (
+            f"MovieDataSet with {self.samples[1].shape[1]} neuron responses "
+            f"to a movie of shape {list(self.samples[0].shape)}."
+        )
+
+    def __repr__(self):
+        return str(self)
+
+
 class MovieSampler(Sampler):
-    def __init__(self, start_indices, split, chunk_size, scene_length=None):
+    def __init__(self, start_indices, split, chunk_size, movie_length, scene_length=None):
         self.indices = start_indices
         self.split = split
         self.chunk_size = chunk_size
+        self.movie_length = movie_length
         self.scene_length = SCENE_LENGTH if scene_length is None else scene_length
 
     def __iter__(self):
@@ -72,11 +136,10 @@ class MovieSampler(Sampler):
             # Always start the clip from a random point in the scene, within the chosen chunk size
             # All while making sure it does not go over the scene length bound.
             shifted_indices = gen_shifts(
-                np.arange(0, max(self.indices), self.scene_length),
+                np.arange(0, self.movie_length + 1, self.scene_length),
                 self.indices,
                 self.chunk_size,
             )
-            # shift = np.random.randint(0, min(self.scene_length - self.chunk_size, self.chunk_size))
 
             # Shuffle the indices
             indices_shuffling = np.random.permutation(len(self.indices))
@@ -85,7 +148,6 @@ class MovieSampler(Sampler):
             shifted_indices = self.indices
             indices_shuffling = np.arange(len(self.indices))
 
-        # return iter(np.array([idx + shift for idx in self.indices])[indices_shuffling])
         return iter(np.array(shifted_indices)[indices_shuffling])
 
     def __len__(self):
@@ -95,8 +157,8 @@ class MovieSampler(Sampler):
 def gen_shifts(clip_bounds, start_indices, clip_chunk_size=50):
     """
     Generate shifted indices based on clip bounds and start indices.
-    Assumes that the original start indices are already within the clip bounds:
-    if they are not, it warns the user and changes the wrong indexes to respect the closest bound.
+    Assumes that the original start indices are already within the clip bounds.
+    If they are not, it changes the overflowing indexes to respect the closest bound.
 
     Args:
         clip_bounds (list): A list of clip bounds.
@@ -116,15 +178,11 @@ def gen_shifts(clip_bounds, start_indices, clip_chunk_size=50):
     shifts = np.random.randint(1, clip_chunk_size // 2, len(start_indices))
 
     for i, start_idx in enumerate(start_indices):
-        if start_idx + shifts[i] + clip_chunk_size < (get_next_bound(start_idx, clip_bounds)):
+        next_bound = get_next_bound(start_idx, clip_bounds)
+        if start_idx + shifts[i] + clip_chunk_size < next_bound:
             shifted_indices.append(start_idx + shifts[i])
-        elif start_idx + clip_chunk_size > (get_next_bound(start_idx, clip_bounds)):
-            warnings.warn(
-                "Original start index is too close to the end of the clip. Change the clip chunk size in the dataloader function.",
-                UserWarning,
-                stacklevel=2,
-            )
-            shifted_indices.append(get_next_bound(start_idx, clip_bounds) - clip_chunk_size)
+        elif start_idx + clip_chunk_size > next_bound:
+            shifted_indices.append(next_bound - clip_chunk_size)
         else:
             shifted_indices.append(start_idx)
     return shifted_indices
@@ -132,10 +190,10 @@ def gen_shifts(clip_bounds, start_indices, clip_chunk_size=50):
 
 def get_movie_dataloader(
     movies: np.ndarray | torch.Tensor | dict[int, np.ndarray],
-    responses: Float[np.ndarray, "n_frames n_neurons"],  # noqa
-    roi_ids: Optional[Float[np.ndarray, "n_neurons"]],  # noqa
-    roi_coords: Optional[Float[np.ndarray, "n_neurons 2"]],  # noqa
-    group_assignment: Optional[Float[np.ndarray, "n_neurons"]],  # noqa
+    responses: Float[np.ndarray, "n_frames n_neurons"],
+    roi_ids: Optional[Float[np.ndarray, " n_neurons"]],
+    roi_coords: Optional[Float[np.ndarray, "n_neurons 2"]],
+    group_assignment: Optional[Float[np.ndarray, " n_neurons"]],
     split: str,
     start_indices: List[int] | Dict[int, List[int]],
     scan_sequence_idx: Optional[int] = None,
@@ -153,6 +211,9 @@ def get_movie_dataloader(
         print("Nans in responses, skipping this dataloader")
         return None
 
+    if scene_length is not None and split == "train" and chunk_size > scene_length:
+        raise ValueError("Clip chunk size must be smaller than scene length to not exceed clip bounds during training.")
+
     # for right movie: flip second frame size axis!
     if split == "train" and isinstance(movies, dict) and scan_sequence_idx is not None:
         if use_base_sequence:
@@ -160,10 +221,18 @@ def get_movie_dataloader(
         dataset = MovieDataSet(
             movies[scan_sequence_idx], responses, roi_ids, roi_coords, group_assignment, split, chunk_size
         )
-        sampler = MovieSampler(start_indices[scan_sequence_idx], split, chunk_size, scene_length=scene_length)
+        sampler = MovieSampler(
+            start_indices[scan_sequence_idx],
+            split,
+            chunk_size,
+            movie_length=movies[scan_sequence_idx].shape[1],
+            scene_length=scene_length,
+        )
     else:
         dataset = MovieDataSet(movies, responses, roi_ids, roi_coords, group_assignment, split, chunk_size)
-        sampler = MovieSampler(start_indices, split, chunk_size, scene_length=scene_length)
+        sampler = MovieSampler(
+            start_indices, split, chunk_size, movie_length=movies.shape[1], scene_length=scene_length
+        )
 
     return DataLoader(
         dataset,
