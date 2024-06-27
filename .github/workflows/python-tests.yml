@@ -34,4 +34,7 @@ jobs:
       - name: Type checks
         run: |
           ./scripts/tests/check-types.sh
+      - name: Units tests
+        run: |
+          ./scripts/tests/unit-tests.sh
 

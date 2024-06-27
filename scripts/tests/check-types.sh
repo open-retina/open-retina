@@ -8,5 +8,6 @@ OPENRETINA_HOME="$here/../.."
 export MPYPATH="$OPENRETINA_HOME"
 mypy --config $here/mypy.ini \
     ${OPENRETINA_HOME}/openretina \
-    ${OPENRETINA_HOME}/scripts
+    ${OPENRETINA_HOME}/scripts \
+    ${OPENRETINA_HOME}/tests
 

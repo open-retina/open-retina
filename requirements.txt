@@ -13,6 +13,7 @@ neuralpredictors @ git+https://github.com/sinzlab/neuralpredictors.git@c99491f65
 # Type Checks
 ruff
 mypy>=1.0
+pytest
 types-psutil
 types-tqdm
 types-PyYAML
