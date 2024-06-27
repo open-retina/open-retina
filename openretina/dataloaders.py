@@ -285,7 +285,7 @@ def get_io_dims(data_loader) -> Dict[str, Tuple[int, ...]] | Tuple:
         items = items._asdict()
 
     if hasattr(items, "items"):  # if dict like
-        return {k: v.shape for k, v in items.items()}
+        return {k: v.shape for k, v in items.items() if isinstance(v, (torch.Tensor, np.ndarray))}
     else:
         return tuple(v.shape for v in items)
 
