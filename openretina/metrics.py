@@ -2,11 +2,11 @@ import warnings
 
 import numpy as np
 import torch
-
 from neuralpredictors.measures import corr
 from neuralpredictors.training import eval_state
 
 from .utils.constants import EPSILON
+from .utils.misc import tensors_to_device
 
 
 def model_predictions(loader, model, data_key, device):
@@ -17,13 +17,15 @@ def model_predictions(loader, model, data_key, device):
         output: responses as predicted by the network
     """
     target, output = torch.empty(0), torch.empty(0)
-    for images, responses, *_ in loader[data_key]:  # necessary for group assignments
+    for *inputs, responses in loader[data_key]:  # necessary for group assignments
         # code necessary to allow additional pre Ca kernel L1:
         #             curr_output = model(images.to(device), data_key=data_key)
         #             if (type(curr_output) == tuple):
         #                 curr_output = curr_output[0]
         #             output = torch.cat((output, curr_output.detach().cpu()), dim=0)
-        output = torch.cat((output, (model(images.to(device), data_key=data_key).detach().cpu())), dim=0)
+        output = torch.cat(
+            (output, (model(*tensors_to_device(inputs, device), data_key=data_key).detach().cpu())), dim=0
+        )
         target = torch.cat((target, responses.detach().cpu()), dim=0)
     output = output.numpy()
     target = target.numpy()
@@ -170,7 +172,8 @@ def evaluate_fev(model, loader, device: str = "cpu", ddof: int = 0):
         cropped_responses = crop_responses(test_responses_by_trial, predictions)
 
         noise_variance = np.mean(  # mean across time
-            np.var(cropped_responses, axis=1, ddof=ddof), axis=-1  # variance across repetitions
+            np.var(cropped_responses, axis=1, ddof=ddof),
+            axis=-1,  # variance across repetitions
         )
         total_variance = np.var(cropped_responses, axis=(-1, -2))
 

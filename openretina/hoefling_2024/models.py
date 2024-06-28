@@ -1,12 +1,10 @@
 from collections import OrderedDict
-from collections.abc import Iterable
 from typing import Literal, Optional, Tuple
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from neuralpredictors.layers.affine import Bias3DLayer, Scale2DLayer, Scale3DLayer
 from neuralpredictors.regularizers import Laplace, Laplace1d
 from neuralpredictors.utils import get_module_output
@@ -23,10 +21,8 @@ class Core:
 
     def __repr__(self):
         s = super().__repr__()
-        s += " [{} regularizers: ".format(self.__class__.__name__)
-        ret = []
-        for attr in filter(lambda x: "gamma" in x or "skip" in x, dir(self)):
-            ret.append("{} = {}".format(attr, getattr(self, attr)))
+        s += f" [{self.__class__.__name__} regularizers: "
+        ret = [f"{attr} = {getattr(self, attr)}" for attr in filter(lambda x: "gamma" in x or "skip" in x, dir(self))]
         return s + "|".join(ret) + "]\n"
 
 
@@ -126,11 +122,11 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
         else:
             hidden_pad = [0 for _ in range(1, len(spatial_kernel_size))]
 
-        if not isinstance(hidden_channels, Iterable):
+        if not isinstance(hidden_channels, (list, tuple)):
             hidden_channels = [hidden_channels] * self.layers
-        if not isinstance(temporal_kernel_size, Iterable):
+        if not isinstance(temporal_kernel_size, (list, tuple)):
             temporal_kernel_size = [temporal_kernel_size] * self.layers
-        if not isinstance(spatial_kernel_size, Iterable):
+        if not isinstance(spatial_kernel_size, (list, tuple)):
             spatial_kernel_size = [spatial_kernel_size] * self.layers
 
         # --- first layer
@@ -173,8 +169,9 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
                 num_scans=self.num_scans,
             )
             if batch_norm:
-                layer["norm"] = nn.BatchNorm3d(hidden_channels[layer_num], momentum=momentum,
-                                               affine=bias and batch_norm_scale)
+                layer["norm"] = nn.BatchNorm3d(
+                    hidden_channels[layer_num], momentum=momentum, affine=bias and batch_norm_scale
+                )
                 if bias:
                     if not batch_norm_scale:
                         layer["bias"] = Bias3DLayer(hidden_channels[layer_num])
@@ -190,8 +187,7 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
         ret = []
         do_skip = False
         for layer_num, feat in enumerate(self.features):
-            input_ = feat((torch.cat(ret[-min(self.skip, layer_num):], dim=1)
-                           if do_skip else input_, data_key))
+            input_ = feat((torch.cat(ret[-min(self.skip, layer_num) :], dim=1) if do_skip else input_, data_key))
             ret.append(input_)
 
         return torch.cat([ret[ind] for ind in self.stack], dim=1)
@@ -226,8 +222,9 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
     def temporal_smoothness(self):
         ret = 0
         for layer_norm in range(self.layers):
-            ret += temporal_smoothing(self.features[layer_norm].conv.sin_weights,
-                                      self.features[layer_norm].conv.cos_weights)
+            ret += temporal_smoothing(
+                self.features[layer_norm].conv.sin_weights, self.features[layer_norm].conv.cos_weights
+            )
         return ret
 
     def regularizer(self):
@@ -316,7 +313,10 @@ class SpatialXFeature3d(nn.Module):
         nonlinearity=True,
     ):
         """
-        TODO write docstring
+        This readout is essentialy unifying the implementation of the FullFactorized2d readout and the DeterministicGaussian2d
+        readout as found in the neuralpredictors codebase. If gaussian_masks is set to True, the readout will learn only
+        mean and variance of an isotropic Gaussian mask per neuron. If gaussian_masks is set to False, the readout acts as
+        a full factorised readout, with the spatial mask being learned as a full 2D tensor for each neuron.
 
         Args:
             in_shape (tuple): The shape of the input tensor (c, t, w, h).
@@ -810,7 +810,7 @@ class STSeparableBatchConv3d(nn.Module):
             torch.Tensor: The mask tensor.
         """
         mask = 1 / (1 + torch.exp(-time - int(T * 0.95) / stretch))
-        return mask.T
+        return mask.T if mask.ndim > 1 else mask
 
 
 class TimeLaplaceL23dnorm(nn.Module):
@@ -858,7 +858,6 @@ def temporal_smoothing(sin, cos):
 
 
 class LocalEncoder(Encoder):
-
     def forward(self, x, data_key=None, detach_core=False, **kwargs):
         self.detach_core = detach_core
         if self.detach_core:

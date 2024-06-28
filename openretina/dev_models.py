@@ -2,13 +2,12 @@
 from collections import OrderedDict
 from collections.abc import Iterable
 from operator import itemgetter
-from typing import Dict, Literal, Optional, Tuple, Any
+from typing import Any, Dict, Literal, Optional, Tuple
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from neuralpredictors import regularizers
 from neuralpredictors.layers.affine import Bias3DLayer, Scale2DLayer, Scale3DLayer
 from neuralpredictors.layers.readouts import (
@@ -16,7 +15,6 @@ from neuralpredictors.layers.readouts import (
     Gaussian3d,
     MultiReadoutBase,
 )
-from neuralpredictors.layers.rnn_modules.gru_module import ConvGRUCell
 from neuralpredictors.utils import get_module_output
 
 from .dataloaders import get_dims_for_loader_dict
@@ -35,6 +33,140 @@ from .hoefling_2024.models import (
 from .utils.misc import set_seed
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
+
+
+class RNNCore:
+    """
+    RNN Core taken from: https://github.com/sinzlab/Sinz2018_NIPS/blob/master/nips2018/architectures/cores.py
+    """
+
+    @staticmethod
+    def init_conv(m):
+        if isinstance(m, nn.Conv2d):
+            nn.init.xavier_normal(m.weight.data)
+            if m.bias is not None:
+                nn.init.constant(m.bias.data, 0.0)
+
+    def __repr__(self):
+        s = super().__repr__()
+        s += " [{} regularizers: ".format(self.__class__.__name__)
+        ret = []
+        for attr in filter(lambda x: not x.startswith("_") and "gamma" in x, dir(self)):
+            ret.append("{} = {}".format(attr, getattr(self, attr)))
+        return s + "|".join(ret) + "]\n"
+
+
+class ConvGRUCell(RNNCore, nn.Module):
+    """
+    Convolutional GRU cell taken from: https://github.com/sinzlab/Sinz2018_NIPS/blob/master/nips2018/architectures/cores.py
+    """
+
+    def __init__(
+        self,
+        input_channels,
+        rec_channels,
+        input_kern,
+        rec_kern,
+        groups=1,
+        gamma_rec=0,
+        pad_input=True,
+        **kwargs,
+    ):
+        super().__init__()
+
+        input_padding = input_kern // 2 if pad_input else 0
+        rec_padding = rec_kern // 2
+
+        self.rec_channels = rec_channels
+        self._shrinkage = 0 if pad_input else input_kern - 1
+        self.groups = groups
+
+        self.gamma_rec = gamma_rec
+        self.reset_gate_input = nn.Conv2d(
+            input_channels,
+            rec_channels,
+            input_kern,
+            padding=input_padding,
+            groups=self.groups,
+        )
+        self.reset_gate_hidden = nn.Conv2d(
+            rec_channels,
+            rec_channels,
+            rec_kern,
+            padding=rec_padding,
+            groups=self.groups,
+        )
+
+        self.update_gate_input = nn.Conv2d(
+            input_channels,
+            rec_channels,
+            input_kern,
+            padding=input_padding,
+            groups=self.groups,
+        )
+        self.update_gate_hidden = nn.Conv2d(
+            rec_channels,
+            rec_channels,
+            rec_kern,
+            padding=rec_padding,
+            groups=self.groups,
+        )
+
+        self.out_gate_input = nn.Conv2d(
+            input_channels,
+            rec_channels,
+            input_kern,
+            padding=input_padding,
+            groups=self.groups,
+        )
+        self.out_gate_hidden = nn.Conv2d(
+            rec_channels,
+            rec_channels,
+            rec_kern,
+            padding=rec_padding,
+            groups=self.groups,
+        )
+
+        self.apply(self.init_conv)
+        self.register_parameter("_prev_state", None)
+
+    def init_state(self, input_):
+        batch_size, _, *spatial_size = input_.data.size()
+        state_size = [batch_size, self.rec_channels] + [s - self._shrinkage for s in spatial_size]
+        prev_state = torch.zeros(*state_size)
+        if input_.is_cuda:
+            prev_state = prev_state.cuda()
+        prev_state = nn.Parameter(prev_state)
+        return prev_state
+
+    def forward(self, input_, prev_state):
+        # get batch and spatial sizes
+
+        # generate empty prev_state, if None is provided
+        if prev_state is None:
+            prev_state = self.init_state(input_)
+
+        update = self.update_gate_input(input_) + self.update_gate_hidden(prev_state)
+        update = F.sigmoid(update)
+
+        reset = self.reset_gate_input(input_) + self.reset_gate_hidden(prev_state)
+        reset = F.sigmoid(reset)
+
+        out = self.out_gate_input(input_) + self.out_gate_hidden(prev_state * reset)
+        h_t = F.tanh(out)
+        new_state = prev_state * (1 - update) + h_t * update
+
+        return new_state
+
+    def regularizer(self):
+        return self.gamma_rec * self.bias_l1()
+
+    def bias_l1(self):
+        return (
+            self.reset_gate_hidden.bias.abs().mean() / 3
+            + self.update_gate_hidden.weight.abs().mean() / 3
+            + self.out_gate_hidden.bias.abs().mean() / 3
+        )
 
 
 class GRUEnabledCore(Core3d, nn.Module):
@@ -58,7 +190,7 @@ class GRUEnabledCore(Core3d, nn.Module):
         hidden_padding=True,
         batch_norm=True,
         batch_norm_scale=True,
-        laplace_padding=0,
+        laplace_padding: Optional[int] = 0,
         stack=None,
         batch_adaptation=True,
         use_avg_reg=False,
@@ -77,7 +209,7 @@ class GRUEnabledCore(Core3d, nn.Module):
         elif conv_type == "custom_separable":
             self.conv_class = STSeparableBatchConv3d  # type: ignore
         elif conv_type == "full":
-            self.conv_class = TorchFullConv3D   # type: ignore
+            self.conv_class = TorchFullConv3D  # type: ignore
         elif conv_type == "time_independent":
             self.conv_class = TimeIndependentConv3D  # type: ignore
         else:
@@ -118,11 +250,11 @@ class GRUEnabledCore(Core3d, nn.Module):
         else:
             hidden_pad = [0 for _ in range(1, len(spatial_kernel_size))]
 
-        if not isinstance(hidden_channels, Iterable):
+        if not isinstance(hidden_channels, (list, tuple)):
             hidden_channels = [hidden_channels] * (self.layers)
-        if not isinstance(temporal_kernel_size, Iterable):
+        if not isinstance(temporal_kernel_size, (list, tuple)):
             temporal_kernel_size = [temporal_kernel_size] * (self.layers)
-        if not isinstance(spatial_kernel_size, Iterable):
+        if not isinstance(spatial_kernel_size, (list, tuple)):
             spatial_kernel_size = [spatial_kernel_size] * (self.layers)
 
         # --- first layer
@@ -140,7 +272,8 @@ class GRUEnabledCore(Core3d, nn.Module):
         if batch_norm:
             layer["norm"] = nn.BatchNorm3d(
                 hidden_channels[0],  # type: ignore
-                momentum=momentum, affine=bias and batch_norm_scale
+                momentum=momentum,
+                affine=bias and batch_norm_scale,
             )  # ok or should we ensure same batch norm?
             if bias:
                 if not batch_norm_scale:
@@ -192,7 +325,7 @@ class GRUEnabledCore(Core3d, nn.Module):
             do_skip = False
             input_ = feat(
                 (
-                    input_ if not do_skip else torch.cat(ret[-min(self.skip, layer_num):], dim=1),
+                    input_ if not do_skip else torch.cat(ret[-min(self.skip, layer_num) :], dim=1),
                     data_key,
                 )
             )
@@ -227,8 +360,9 @@ class GRUEnabledCore(Core3d, nn.Module):
     def temporal_smoothness(self):
         ret = 0
         for layer_num in range(self.layers):
-            ret += temporal_smoothing(self.features[layer_num].conv.sin_weights,
-                                      self.features[layer_num].conv.cos_weights)
+            ret += temporal_smoothing(
+                self.features[layer_num].conv.sin_weights, self.features[layer_num].conv.cos_weights
+            )
         return ret
 
     def regularizer(self):
@@ -495,7 +629,7 @@ def SFB3d_core_gaussian_readout(
     return model
 
 
-# Baseline NLP:
+# Baseline LNP:
 
 
 class DummyCore(nn.Module):
@@ -589,4 +723,71 @@ class MultipleLNP(Encoder):
         super().__init__(
             core=DummyCore(),
             readout=readout,
+        )
+
+
+class DenseReadout(nn.Module):
+    """
+    Fully connected readout layer.
+    """
+
+    def __init__(self, in_shape, outdims, bias=True, init_noise=1e-3, **kwargs):
+        super().__init__()
+        self.in_shape = in_shape
+        self.outdims = outdims
+        self.init_noise = init_noise
+        c, w, h = in_shape
+
+        self.linear = torch.nn.Linear(in_features=c * w * h, out_features=outdims, bias=False)
+        if bias:
+            bias = torch.nn.Parameter(torch.Tensor(outdims))
+            self.register_parameter("bias", bias)
+        else:
+            self.register_parameter("bias", None)
+
+        self.initialize()
+
+    @property
+    def features(self):
+        return next(iter(self.linear.parameters()))
+
+    def feature_l1(self, average=False):
+        if average:
+            return self.features.abs().mean()
+        else:
+            return self.features.abs().sum()
+
+    def regularizer(self, reduction="sum", average=False):
+        return 0
+
+    def initialize(self, *args, **kwargs):
+        self.features.data.normal_(0, self.init_noise)
+
+    def forward(self, x):
+        b, c, w, h = x.shape
+
+        x = x.view(b, c * w * h)
+        y = self.linear(x)
+        if self.bias is not None:
+            y = y + self.bias
+        return y
+
+    def __repr__(self):
+        return self.__class__.__name__ + " (" + "{} x {} x {}".format(*self.in_shape) + " -> " + str(self.outdims) + ")"
+
+
+class MultipleDense(MultiReadoutBase):
+    def __init__(
+        self,
+        in_shape_dict,
+        n_neurons_dict,
+        bias,
+        init_noise,
+    ):
+        super().__init__(
+            in_shape_dict,
+            n_neurons_dict,
+            base_readout=DenseReadout,
+            bias=bias,
+            init_noise=init_noise,
         )

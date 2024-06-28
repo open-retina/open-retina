@@ -187,3 +187,11 @@ def save_figure(filename: str, folder: str, fig=None):
         fig = plt.gcf()
     fig.savefig(os.path.join(folder, filename))
     plt.close(fig)
+
+
+def legend_without_duplicate_labels(ax=None):
+    if ax is None:
+        ax = plt.gca()
+    handles, labels = ax.get_legend_handles_labels()
+    unique = [(h, l) for i, (h, l) in enumerate(zip(handles, labels)) if l not in labels[:i]]
+    ax.legend(*zip(*unique))

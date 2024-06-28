@@ -116,7 +116,7 @@ def get_all_movie_combinations(
     return movies
 
 
-def gen_start_indices(random_sequences, val_clip_idx, clip_length, chunk_size, num_clips):
+def gen_start_indices(random_sequences, val_clip_idx, clip_length, chunk_size, num_clips, unique_train=False):
     """
     Optimized function to generate a list of indices for training chunks while
     excluding validation clips.
@@ -128,16 +128,23 @@ def gen_start_indices(random_sequences, val_clip_idx, clip_length, chunk_size, n
     :param clip_length:      clip length in frames (5s*30frames/s = 150 frames)
     :param chunk_size:       temporal chunk size per sample in frames (50)
     :param num_clips:        total number of training clips (108)
+    :param unique_train:     boolean; if True, the training indices are unique instead of a dict.
     :return: dict; with keys train, validation, and test, and index list as
              values
     """
     # Validation clip indices are consecutive, because the validation clip and
     # stimuli are already isolated in other functions.
     val_start_idx = list(np.linspace(0, clip_length * (len(val_clip_idx) - 1), len(val_clip_idx), dtype=int))
+    num_train_clips = num_clips - len(val_clip_idx)
+
+    if unique_train:
+        return {
+            "train": list(np.arange(0, clip_length * (num_train_clips - 1), chunk_size, dtype=int)),
+            "validation": val_start_idx,
+            "test": [0],
+        }
 
     start_idx_dict = {"train": {}, "validation": val_start_idx, "test": [0]}
-
-    num_train_clips = num_clips - len(val_clip_idx)
 
     for sequence_index in range(random_sequences.shape[1]):
         start_idx_dict["train"][sequence_index] = list(
@@ -156,7 +163,11 @@ def natmov_dataloaders_v2(
     num_clips: int = NUM_CLIPS,
     clip_length: int = CLIP_LENGTH,
     num_val_clips: int = NUM_VAL_CLIPS,
+    use_base_sequence: bool = False,
 ):
+    """
+    TODO docstring
+    """
     assert isinstance(
         neuron_data_dictionary, dict
     ), "neuron_data_dictionary should be a dictionary of sessions and their corresponding neuron data."
@@ -190,6 +201,9 @@ def natmov_dataloaders_v2(
         random_sequences = np.arange(0, movie_length // clip_length)[:, np.newaxis]
     else:
         random_sequences = movies_dictionary["random_sequences"]
+        if use_base_sequence:
+            base_sequence = np.arange(num_clips)[:, None]
+            random_sequences = np.concatenate([random_sequences, base_sequence], axis=1)
 
     movies = get_all_movie_combinations(
         movies_dictionary["train"],
@@ -207,6 +221,7 @@ def natmov_dataloaders_v2(
             val_clip_idx=val_clip_idx,
             num_clips=num_clips,
             clip_length=clip_length,
+            use_base_sequence=use_base_sequence,
         )
 
         # if neuron_data.responses_train.shape[-1] == 0:
@@ -225,6 +240,7 @@ def natmov_dataloaders_v2(
                 start_indices=start_indices[fold],
                 batch_size=batch_size,
                 scene_length=clip_length,
+                use_base_sequence=use_base_sequence,
             )
 
     return dataloaders
