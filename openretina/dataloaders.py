@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader, Dataset, Sampler, default_collate
 from .hoefling_2024.constants import SCENE_LENGTH
 
 DataPoint = namedtuple("DataPoint", ("inputs", "targets"))
-DataPointWithMeta = namedtuple("DataPoint", ("inputs", "targets", "categorical_metadata", "continuous_metadata"))
+DataPointWithMeta = namedtuple("DataPoint", ("inputs", "categorical_metadata", "numerical_metadata", "targets"))
 
 
 class MovieDataSet(Dataset):
@@ -76,7 +76,7 @@ class MovieAndMetadataDataSet(Dataset):
         ]
         self.numerical_metadata = np.concatenate(
             [np.atleast_2d(metadata[key]) for key in metadata if np.issubdtype(metadata[key].dtype, np.number)], axis=0
-        )
+        ).astype(np.float32)
         self.chunk_size = chunk_size
         # Calculate the mean response per neuron (used for bias init in the model)
         self.mean_response = torch.mean(self.samples[1], dim=0)
@@ -86,18 +86,18 @@ class MovieAndMetadataDataSet(Dataset):
             return DataPointWithMeta(
                 *[
                     self.samples[0][:, idx, ...],
-                    self.samples[1][idx, ...],
                     self.categorical_metadata,
                     self.numerical_metadata,
+                    self.samples[1][idx, ...],
                 ]
             )
         else:
             return DataPointWithMeta(
                 *[
                     self.samples[0][:, idx : idx + self.chunk_size, ...],
-                    self.samples[1][idx : idx + self.chunk_size, ...],
                     self.categorical_metadata,
                     self.numerical_metadata,
+                    self.samples[1][idx : idx + self.chunk_size, ...],
                 ]
             )
 
