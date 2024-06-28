@@ -16,7 +16,7 @@ from . import measures, metrics
 from .cyclers import LongCycler
 from .early_stopping import early_stopping
 from .tracking import MultipleObjectiveTracker
-from .utils.misc import set_seed
+from .utils.misc import set_seed, tensors_to_device
 
 
 def standard_early_stop_trainer(
@@ -48,16 +48,17 @@ def standard_early_stop_trainer(
     **kwargs,
 ):
     # Defines objective function; criterion is resolved to the loss_function that is passed as input
-    def full_objective(model, data_key, inputs, targets, detach_core):
+    def full_objective(model, *inputs: torch.Tensor, targets, data_key, detach_core=detach_core) -> torch.Tensor:
         regularizers = int(not detach_core) * model.core.regularizer() + model.readout.regularizer(data_key)
         if scale_loss:
             m = len(trainloaders[data_key].dataset)
-            k = inputs.shape[0]
+            # Assuming first input is always images, and batch size is the first dimension
+            k = inputs[0].shape[0]
             loss_scale = np.sqrt(m / k)
         else:
             loss_scale = 1.0
 
-        predictions = model(inputs.to(device), data_key, detach_core=detach_core)
+        predictions = model(*tensors_to_device(inputs, device), data_key=data_key, detach_core=detach_core)
         loss_criterion = criterion(predictions, targets.to(device))
         res = loss_scale * loss_criterion + regularizers
         return res
@@ -148,7 +149,8 @@ def standard_early_stop_trainer(
         ):
             # clean the data key to use the same readout if we are training on multiple stimuli
             clean_data_key = clean_session_key(data_key) if multiple_stimuli else data_key
-            loss = full_objective(model, clean_data_key, *data, detach_core)  # type: ignore
+            *inputs, targets = data
+            loss = full_objective(model, *inputs, targets=targets, data_key=clean_data_key)
             loss.backward()
 
             if clip_gradient_norm is not None:

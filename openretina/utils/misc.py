@@ -1,12 +1,12 @@
 """
 Miscellaneous utility functions and classes.
 """
-
 import contextlib
 import os
 import pprint
 import random
 import sys
+from typing import Iterable, Union
 
 import numpy as np
 import torch
@@ -79,7 +79,6 @@ class CustomPrettyPrinter(pprint.PrettyPrinter):
         self.current_line = 0
 
     def _format(self, object, stream, indent, allowance, context, level):
-
         if self.max_lines is not None and self.current_line >= self.max_lines:
             stream.write("\n ... Exceeded maximum number of lines ...")
             raise MaxLinesExceededException
@@ -121,3 +120,19 @@ def redirect_stdout(file=open(os.devnull, "w")):
     finally:
         os.dup2(stdout_fd_dup, stdout_fd)
         os.close(stdout_fd_dup)
+
+
+def tensors_to_device(tensors: Union[Iterable[torch.Tensor], torch.Tensor], device=None):
+    """
+    Move a collection of tensors to a specified device. Handles lists and tuples.
+    """
+    if isinstance(tensors, torch.Tensor):
+        return tensors.to(device)
+
+    if isinstance(tensors, list):
+        return [tensors_to_device(item, device) for item in tensors]
+
+    if isinstance(tensors, tuple):
+        return tuple(tensors_to_device(item, device) for item in tensors)
+
+    raise TypeError("Input must be a tensor, list of tensors, or tuple of tensors.")
