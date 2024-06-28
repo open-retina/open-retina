@@ -12,9 +12,9 @@ class StimulusRegularizationLoss:
 class RangeRegularizationLoss(StimulusRegularizationLoss):
     def __init__(
             self,
-            min_max_values: Iterable[tuple[float, float]] = ((-0.654, 6.269), (-0.913, 6.269)),
-            max_norm: float = 30.0,
-            factor: float = 0.1,
+            min_max_values: Iterable[tuple[float, float]],
+            max_norm: float,
+            factor: float = 1.0,
     ):
         self._min_max_values = list(min_max_values)
         self._max_norm = max_norm
@@ -48,8 +48,8 @@ class ChangeNormJointlyClipRangeSeparately(StimulusPostprocessor):
     """ First change the norm and afterward clip the value of x to some specified range """
     def __init__(
             self,
-            min_max_values: Iterable[Tuple[Optional[float], Optional[float]]] = ((-0.654, 6.269), (-0.913, 6.269)),
-            norm: float = 30.0,
+            min_max_values: Iterable[Tuple[Optional[float], Optional[float]]],
+            norm: float,
     ):
         self._norm = norm
         self._min_max_values = list(min_max_values)
