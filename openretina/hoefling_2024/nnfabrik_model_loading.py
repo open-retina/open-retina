@@ -97,9 +97,7 @@ def get_model(
     )
 
     if state_dict is not None:
-        ignore_missing = model_config.get("transfer", False)
-        if not strict:
-            ignore_missing = True
+        ignore_missing = model_config.get("transfer", False) or not strict
         load_state_dict(
             net,
             state_dict,
@@ -266,11 +264,14 @@ def load_ensemble_retina_model_from_directory(
         data_info_list.append(data_info)
 
         model_fn = config["model_fn"]
-        [repo, _, _, model_type] = model_fn.split('.')
+        repo, _, _, model_type = model_fn.split('.')
         if repo == "nnfabrik_euler":  # convert model_fn from nnfabrik to openretina
             #ToDo check robustness across model types
-            [_, _, _, model_type] = model_fn.split('.')
             model_fn = '.'.join(['openretina', 'hoefling_2024', 'models', model_type])
+        elif repo == "openretina":
+            pass  # nothing to change
+        else:
+            raise ValueError(f"Unsupported repository {repo} for loading a model. Please implement this manually.")
         model_config = config["model_config"]
         model = get_model(model_fn, model_config, seed=seed, data_info=data_info, state_dict=state_dict, strict=False)
         model_list.append(model)
