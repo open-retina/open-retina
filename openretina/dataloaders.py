@@ -343,5 +343,5 @@ def filter_empty_videos(batch):
 
     """
     # Filter out empty videos
-    batch = list(filter(lambda x: x[0].shape[1] > 0, batch))
+    batch = [x for x in batch if x[0].shape[1] > 0]
     return default_collate(batch)

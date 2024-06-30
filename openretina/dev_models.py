@@ -749,7 +749,7 @@ class DenseReadout(nn.Module):
 
     @property
     def features(self):
-        return next(iter(self.linear.parameters()))
+        return self.linear.weight
 
     def feature_l1(self, average=False):
         if average:

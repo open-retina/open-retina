@@ -157,7 +157,7 @@ class ReadoutWeightShifter(nn.Module):
         self.embeddings = nn.ModuleList(
             [
                 nn.Embedding(vocab_size, categorical_embedding_dim)
-                for vocab_size, categorical_embedding_dim in zip(categorical_vocab_sizes, categorical_embedding_dims)
+                for vocab_size, categorical_embedding_dim in zip(categorical_vocab_sizes, categorical_embedding_dims, strict=True)
             ]
         )
 
@@ -601,7 +601,7 @@ def get_movie_meta_dataloader(
         dataset,
         sampler=sampler,
         batch_size=batch_size,
-        drop_last=True if (split == "train" and drop_last) else False,
+        drop_last=split == "train" and drop_last,
         **kwargs,
     )
 
