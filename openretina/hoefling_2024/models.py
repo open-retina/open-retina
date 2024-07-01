@@ -299,6 +299,9 @@ class SpatialXFeature3dReadout(nn.ModuleDict):
         ret = ret + self[data_key].mask_l1(average=self.readout_reg_avg) * self.gamma_masks
         return ret
 
+    def readout_keys(self) -> list[str]:
+        return list(self._modules.keys())
+
 
 class SpatialXFeature3d(nn.Module):
     def __init__(
