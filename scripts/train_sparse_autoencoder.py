@@ -6,6 +6,7 @@ import operator
 from typing import Callable
 import os
 import pickle
+import time
 
 import torch
 from openretina.neuron_data_io import make_final_responses
@@ -19,6 +20,7 @@ from openretina.hoefling_2024.data_io import (
     natmov_dataloaders_v2,
 )
 from openretina.cyclers import LongCycler
+from openretina.hoefling_2024.nnfabrik_model_loading import Center
 
 
 def parse_args():
@@ -93,14 +95,18 @@ def main(
     # the same or at least similar.
     outputs_model = []
     readout_keys_list = model.readout.readout_keys()
+    time_generation_start = time.time()
     for batch_no, (_, data) in enumerate(LongCycler(joint_dataloaders["train"])):
         all_activations_list = []
         for readout_key in readout_keys_list:
             with torch.no_grad():
-                activations = model.forward(data.inputs, readout_key)
+                activations = model.forward(data.inputs.to(device), readout_key)
                 all_activations_list.append(activations)
         all_activations = torch.cat(all_activations_list, dim=-1)
-        outputs_model.append(all_activations)
+        outputs_model.append(all_activations.cpu())
+        if (batch_no+1) % 20 == 0:
+            print(f"Generated {batch_no+1} batches")
+    print(f"Generated {len(outputs_model)} batches in {time.time()-time_generation_start:.1f}s")
 
     # How to treat activations across different session?
     # - Train independent autoencoders?
@@ -109,18 +115,21 @@ def main(
     sparsity_mse_loss = SparsityMSELoss(sparsity_factor=0.1)
     num_model_neurons = outputs_model[0].shape[-1]
     sparse_autoencoder = Autoencoder(num_model_neurons, 1000, sparsity_mse_loss)
+    sparse_autoencoder.to(device)
 
     optimizer = sparse_autoencoder.configure_optimizers()
-    loss_array = []
-    for i, activations in enumerate(outputs_model):
-        optimizer.zero_grad()
-        batch = (activations, "foo")
-        loss = sparse_autoencoder.training_step(batch, i)
-        loss.backward()
-        optimizer.step()
-        print(f"{float(loss):.5f}")
-    avg_loss = sum(loss_array) / len(loss_array)
-    print(f"Avg loss after {len(loss_array)} iterations: {avg_loss:.5f}")
+    num_epochs = 10
+    for epoch in range(num_epochs):
+        loss_array = []
+        for i, activations in enumerate(outputs_model):
+            optimizer.zero_grad()
+            batch = (activations.to(device), "foo")
+            loss = sparse_autoencoder.training_step(batch, i)
+            loss.backward()
+            optimizer.step()
+            loss_array.append(float(loss))
+        avg_loss = sum(loss_array) / len(loss_array)
+        print(f"Avg loss after {epoch=}: {avg_loss:.5f}")
 
 
 if __name__ == "__main__":
