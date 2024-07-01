@@ -151,7 +151,15 @@ def generate_cell_barcodes(responses_dict, normalize=True):
 
 
 class ReadoutWeightShifter(nn.Module):
-    def __init__(self, num_numerical_features, categorical_vocab_sizes, categorical_embedding_dims, output_dim):
+    def __init__(
+        self,
+        num_numerical_features,
+        categorical_vocab_sizes,
+        categorical_embedding_dims,
+        output_dim,
+        use_bn=True,
+        constrain_output=True,
+    ):
         super(ReadoutWeightShifter, self).__init__()
 
         # Embedding layers for categorical features
@@ -173,25 +181,35 @@ class ReadoutWeightShifter(nn.Module):
         self.fc2 = nn.Linear(64, 32)
         self.fc3 = nn.Linear(32, output_dim)
 
+        self.use_bn = use_bn
+        self.constrain_output = constrain_output
+
     def forward(
         self,
-        categorical_inputs,
-        numerical_input,
+        categorical_inputs: List[Float[torch.Tensor, "batch n_neurons"]],
+        numerical_input: Float[torch.Tensor, "batch n_neurons n_features"],
     ):
-        # Embed the categorical inputs
+        # Embed the categorical inputs. Output is (batch, n_neurons, n_cat_features)
         embedded_cats = [embedding(cat_input) for embedding, cat_input in zip(self.embeddings, categorical_inputs)]
-        # Transpose after concatenating to have feature dimension as second
-        embedded_cats = torch.cat(embedded_cats, dim=1).transpose(2, 1)
 
-        # Concatenate numerical and embedded categorical features, put feature dimension as last to prepare forward
-        x = torch.cat([numerical_input, embedded_cats], dim=1).transpose(1, 2)
+        # Concatenate the embedded categorical features along the last dimension
+        embedded_cats = torch.cat(embedded_cats, dim=-1)
 
-        # Forward pass, then put features back as second dimension for batch norm
+        # Concatenate numerical and embedded categorical features
+        x = torch.cat([numerical_input, embedded_cats], dim=-1)
+
+        # Forward pass, then put features as second dimension for batch norm
         x = self.fc1(x).transpose(1, 2)
+
         # Transpose again after batchnorm to have feature dimension as last again
-        x = F.relu(self.bn1(x)).transpose(1, 2)
+        if self.use_bn:
+            x = F.relu(self.bn1(x)).transpose(1, 2)
+        else:
+            x = F.relu(x).transpose(1, 2)
+
         x = F.relu(self.fc2(x))
-        return self.fc3(x)
+
+        return F.tanh(self.fc3(x)) if self.constrain_output else self.fc3(x)
 
 
 class FrozenFactorisedReadout2d(Readout):

@@ -73,9 +73,17 @@ class MovieAndMetadataDataSet(Dataset):
         self.categorical_metadata = [
             metadata[key].astype(int) for key in metadata if np.issubdtype(metadata[key].dtype, np.str_)
         ]
-        self.numerical_metadata = np.concatenate(
-            [np.atleast_2d(metadata[key]) for key in metadata if np.issubdtype(metadata[key].dtype, np.number)], axis=0
-        ).astype(np.float32)
+
+        # Concatenate and transpose to have them n_neurons x n_features
+        self.numerical_metadata = (
+            np.concatenate(
+                [np.atleast_2d(metadata[key]) for key in metadata if np.issubdtype(metadata[key].dtype, np.number)],
+                axis=0,
+            )
+            .astype(np.float32)
+            .T
+        )
+
         self.chunk_size = chunk_size
         # Calculate the mean response per neuron (used for bias init in the model)
         self.mean_response = torch.mean(self.samples[1], dim=0)
