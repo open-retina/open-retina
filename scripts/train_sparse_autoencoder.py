@@ -9,8 +9,10 @@ import pickle
 import time
 
 import torch
+import lightning
+
 from openretina.neuron_data_io import make_final_responses
-from openretina.models.autoencoder import SparsityMSELoss, Autoencoder
+from openretina.models.autoencoder import SparsityMSELoss, Autoencoder, ActivationsDataset
 from openretina.utils.h5_handling import load_h5_into_dict
 from openretina.hoefling_2024.configs import model_config
 from openretina.hoefling_2024.models import SFB3d_core_SxF3d_readout
@@ -37,6 +39,7 @@ def parse_args():
     )
 
     return parser.parse_args()
+
 
 def main(
     data_folder: str,
@@ -96,7 +99,7 @@ def main(
     # We currently generate outputs for each readout key for each training example
     # This likely results in duplicate examples, as the training examples for each readout key are
     # the same or at least similar.
-    outputs_model = []
+    outputs_model: list[torch.Tensor] = []
     readout_keys_list = model.readout.readout_keys()
     time_generation_start = time.time()
     for batch_no, (_, data) in enumerate(LongCycler(joint_dataloaders["train"])):
@@ -106,10 +109,11 @@ def main(
                 activations = model.forward(data.inputs.to(device), readout_key)
                 all_activations_list.append(activations)
         all_activations = torch.cat(all_activations_list, dim=-1)
-        outputs_model.append(all_activations.cpu())
+        # Put each example of the batch individually into the list by using extend instead of append
+        outputs_model.extend(all_activations.cpu())
         if (batch_no+1) % 20 == 0:
             print(f"Generated {batch_no+1} batches")
-    print(f"Generated {len(outputs_model)} batches in {time.time()-time_generation_start:.1f}s")
+    print(f"Generated {len(outputs_model)} examples in {time.time()-time_generation_start:.1f}s")
 
     # How to treat activations across different session?
     # - Train independent autoencoders?
@@ -119,21 +123,11 @@ def main(
     num_model_neurons = outputs_model[0].shape[-1]
     sparse_autoencoder = Autoencoder(num_model_neurons, 1000, sparsity_mse_loss)
     sparse_autoencoder.to(device)
+    activations_dataset = ActivationsDataset(outputs_model)
+    train_loader = torch.utils.data.DataLoader(activations_dataset, batch_size=30)
 
-    optimizer = sparse_autoencoder.configure_optimizers()
-    num_epochs = 10
-    for epoch in range(num_epochs):
-        loss_array = []
-        for i, activations in enumerate(outputs_model):
-            optimizer.zero_grad()
-            batch = (activations.to(device), "foo")
-            loss = sparse_autoencoder.training_step(batch, i)
-            loss.backward()
-            optimizer.step()
-            loss_array.append(float(loss))
-        avg_loss = sum(loss_array) / len(loss_array)
-        print(f"Avg loss after {epoch=}: {avg_loss:.5f}")
-    torch.save(sparse_autoencoder, save_path + "/foo")
+    trainer = lightning.Trainer(max_epochs=10, default_root_dir=save_folder)
+    trainer.fit(model=sparse_autoencoder, train_dataloaders=train_loader)
 
 
 if __name__ == "__main__":

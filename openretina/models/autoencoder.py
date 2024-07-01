@@ -3,6 +3,7 @@
 import torch
 from torch import nn
 import lightning
+from torch.utils.data import Dataset
 
 
 class SparsityMSELoss:
@@ -27,6 +28,19 @@ class SparsityMSELoss:
         sparsity_loss = self.sparsity_loss(z, activations_dimension=-1)
         total_loss = mse_loss + self.sparsity_factor * sparsity_loss
         return total_loss
+
+
+class ActivationsDataset(Dataset):
+    def __init__(self, activations: list[torch.Tensor]):
+        self._activations = activations
+
+    def __len__(self) -> int:
+        return len(self._activations)
+
+    def __getitem__(self, idx: int):
+        act = self._activations[idx]
+        fake_label = torch.zeros(act.shape[-1])  # maybe this should be a tensor?
+        return act, fake_label
 
 
 class Autoencoder(lightning.LightningModule):
