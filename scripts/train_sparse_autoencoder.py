@@ -86,8 +86,11 @@ def main(
     print("Initialized dataloaders")
 
     model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=joint_dataloaders, seed=42)  # type: ignore
+    state_dict_path = "model_state_dict.tmp"
+    state_dict = torch.load(state_dict_path)
+    model.load_state_dict(state_dict)
     model.to(device)
-    print("Init model")
+    print(f"Initialized model from {state_dict_path")
 
     # generate model outputs
     # We currently generate outputs for each readout key for each training example
