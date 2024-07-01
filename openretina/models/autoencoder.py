@@ -16,14 +16,15 @@ class SparsityMSELoss:
         return mse
 
     @staticmethod
-    def sparsity_loss(x_hat: torch.Tensor, activations_dimension: int) -> torch.Tensor:
+    def sparsity_loss(z: torch.Tensor, activations_dimension: int) -> torch.Tensor:
         """ Sum over all activations, mean over batch and time dimension """
-        sparsity_loss = torch.mean(torch.sum(x_hat, dim=activations_dimension))
+        summed_activations = torch.sum(torch.abs(z), dim=activations_dimension)
+        sparsity_loss = torch.mean(summed_activations)
         return sparsity_loss
 
-    def forward(self, x: torch.Tensor, x_hat: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, z: torch.Tensor, x_hat: torch.Tensor) -> torch.Tensor:
         mse_loss = self.mse_loss(x, x_hat)
-        sparsity_loss = self.sparsity_loss(x_hat, activations_dimension=-1)
+        sparsity_loss = self.sparsity_loss(z, activations_dimension=-1)
         total_loss = mse_loss + self.sparsity_factor * sparsity_loss
         return total_loss
 
@@ -62,7 +63,7 @@ class Autoencoder(lightning.LightningModule):
         x, _ = batch
         z = self.encoder(x)
         x_hat = self.decoder(z)
-        loss = self.loss.forward(x, x_hat)
+        loss = self.loss.forward(x, z, x_hat)
         self.log("train_loss", loss)
         return loss
 
