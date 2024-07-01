@@ -11,7 +11,7 @@ from openretina.models.autoencoder import SparsityMSELoss
     (np.ones((5, 3, 2)), 2.0),
     (np.array([[1.0, 0.0], [2.0, 2.0]]), 5.0/2.0),
 ])
-def test_sparsity_loss(x_hat: np.array, desired_loss: float):
+def test_sparsity_loss(x_hat: np.ndarray, desired_loss: float):
     x_hat_tensor = torch.Tensor(x_hat)
     loss = SparsityMSELoss.sparsity_loss(x_hat_tensor, activations_dimension=-1)
     loss_float = float(loss.float())
