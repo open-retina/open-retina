@@ -62,13 +62,14 @@ def transfer_readout_mask(source_model, target_model, ignore_source_key_suffix=N
         source_model (nn.Module): The trained source model from which to transfer the readout masks.
         target_model (nn.Module): The target model to which the readout masks will be transferred.
         ignore_source_key_suffix (str, optional): Suffix of the source model key to ignore when transferring the masks.
-                                            This is useful when the source model was trained on e.g. moving bars. Default is None.
+                                            This is useful when the source model was trained on e.g. moving bars.
+                                            Default is None.
         freeze_mask (bool, optional): Whether to freeze the transferred masks in the target model. Default is False.
 
     Note:
         - The source and target models should have the same architecture.
-        - The source and target models should be initialized on the same dataloaders (or at least have the same sessions, if trained
-        on stimuli of different types like moving bars and natural movies).
+        - The source and target models should be initialized on the same dataloaders (or at least have the same sessions
+            if trained on stimuli of different types like moving bars and natural movies).
 
     """
     for name, param in source_model.named_parameters():
@@ -157,7 +158,9 @@ class ReadoutWeightShifter(nn.Module):
         self.embeddings = nn.ModuleList(
             [
                 nn.Embedding(vocab_size, categorical_embedding_dim)
-                for vocab_size, categorical_embedding_dim in zip(categorical_vocab_sizes, categorical_embedding_dims, strict=True)
+                for vocab_size, categorical_embedding_dim in zip(
+                    categorical_vocab_sizes, categorical_embedding_dims, strict=True
+                )
             ]
         )
 
@@ -212,7 +215,8 @@ class FrozenFactorisedReadout2d(Readout):
         Args:
             in_shape (tuple): The shape of the input tensor (c, t, w, h).
             outdims (int): The number of output dimensions (usually the number of neurons in the session).
-            from_gaussian (bool, optional): Whether the masks are coming from a readout with Gaussian masks. Defaults to False.
+            from_gaussian (bool, optional): Whether the masks are coming from a readout with Gaussian masks.
+                                            Defaults to False.
             positive (bool, optional): Whether the output should be positive. Defaults to False.
             scale (bool, optional): Whether to include a scale parameter. Defaults to False.
             bias (bool, optional): Whether to include a bias parameter. Defaults to True.

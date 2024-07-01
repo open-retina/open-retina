@@ -1,6 +1,5 @@
 # ruff: noqa: E501  # for long link in this file, it didn't work to put it at that specific line for some reason
 from collections import OrderedDict
-from collections.abc import Iterable
 from operator import itemgetter
 from typing import Any, Dict, Literal, Optional, Tuple
 

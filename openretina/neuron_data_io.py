@@ -339,7 +339,7 @@ class NeuronData:
 
         if self.use_base_sequence:
             # Reorder training responses to use the same "base" sequence, which follows the numbering of clips.
-            # This way all training responses are wrt the same order of clips, which might be useful for some applications.
+            # This way all training responses are wrt the same order of clips, which can be useful for some applications
 
             train_clip_idx = [i for i in range(self.num_clips) if i not in self.val_clip_idx]
             self.responses_train = np.zeros([len(train_clip_idx) * self.clip_length, self.num_neurons])

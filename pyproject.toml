@@ -15,6 +15,12 @@ find = {exclude = ["scripts"]}
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
 
+[tool.ruff]
+line-length = 120
+
 [tool.ruff.lint]
 ignore = ["F722"]
+extend-select = ["E501"]
 
+[tool.ruff.lint.pycodestyle]
+max-doc-length = 100

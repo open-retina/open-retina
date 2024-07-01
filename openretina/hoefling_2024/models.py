@@ -313,10 +313,11 @@ class SpatialXFeature3d(nn.Module):
         nonlinearity=True,
     ):
         """
-        This readout is essentialy unifying the implementation of the FullFactorized2d readout and the DeterministicGaussian2d
-        readout as found in the neuralpredictors codebase. If gaussian_masks is set to True, the readout will learn only
-        mean and variance of an isotropic Gaussian mask per neuron. If gaussian_masks is set to False, the readout acts as
-        a full factorised readout, with the spatial mask being learned as a full 2D tensor for each neuron.
+        This readout is essentialy unifying the implementation of the FullFactorized2d readout and the
+        DeterministicGaussian2d readout as found in the neuralpredictors codebase. If gaussian_masks is set to True,
+        the readout will learn only mean and variance of an isotropic Gaussian mask per neuron. If gaussian_masks is
+        set to False, the readout acts as a full factorised readout, with the spatial mask being learned as a full 2D
+        tensor for each neuron.
 
         Args:
             in_shape (tuple): The shape of the input tensor (c, t, w, h).

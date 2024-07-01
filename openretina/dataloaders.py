@@ -1,7 +1,6 @@
 import bisect
-import warnings
 from collections import namedtuple
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -235,11 +234,7 @@ def get_movie_dataloader(
         )
 
     return DataLoader(
-        dataset,
-        sampler=sampler,
-        batch_size=batch_size,
-        drop_last=True if (split == "train" and drop_last) else False,
-        **kwargs,
+        dataset, sampler=sampler, batch_size=batch_size, drop_last=split == "train" and drop_last, **kwargs
     )
 
 
