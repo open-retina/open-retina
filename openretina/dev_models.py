@@ -48,10 +48,11 @@ class RNNCore:
 
     def __repr__(self):
         s = super().__repr__()
-        s += " [{} regularizers: ".format(self.__class__.__name__)
-        ret = []
-        for attr in filter(lambda x: not x.startswith("_") and "gamma" in x, dir(self)):
-            ret.append("{} = {}".format(attr, getattr(self, attr)))
+        s += f" [{self.__class__.__name__} regularizers: "
+        ret = [
+            f"{attr} = {getattr(self, attr)}"
+            for attr in filter(lambda x: not x.startswith("_") and "gamma" in x, dir(self))
+        ]
         return s + "|".join(ret) + "]\n"
 
 
@@ -162,9 +163,9 @@ class ConvGRUCell(RNNCore, nn.Module):
 
     def bias_l1(self):
         return (
-            self.reset_gate_hidden.bias.abs().mean() / 3
+            self.reset_gate_hidden.bias.abs().mean() / 3  # type: ignore
             + self.update_gate_hidden.weight.abs().mean() / 3
-            + self.out_gate_hidden.bias.abs().mean() / 3
+            + self.out_gate_hidden.bias.abs().mean() / 3  # type: ignore
         )
 
 
@@ -320,11 +321,11 @@ class GRUEnabledCore(Core3d, nn.Module):
 
     def forward(self, input_, data_key=None):
         ret = []
+        do_skip = False
         for layer_num, feat in enumerate(self.features):
-            do_skip = False
             input_ = feat(
                 (
-                    input_ if not do_skip else torch.cat(ret[-min(self.skip, layer_num) :], dim=1),
+                    torch.cat(ret[-min(self.skip, layer_num) :], dim=1) if do_skip else input_,
                     data_key,
                 )
             )
@@ -353,16 +354,16 @@ class GRUEnabledCore(Core3d, nn.Module):
         )
         # abc are dummy dimensions
         weight = torch.einsum("oitab,oichw->oithw", weight_temporal, self.features[0].conv.weight_spatial)
-        ret = (weight.pow(2).sum([2, 3, 4]).sqrt().sum(1) / torch.sqrt(1e-8 + weight.pow(2).sum([1, 2, 3, 4]))).sum()
-        return ret
+        return (weight.pow(2).sum([2, 3, 4]).sqrt().sum(1) / torch.sqrt(1e-8 + weight.pow(2).sum([1, 2, 3, 4]))).sum()
 
     def temporal_smoothness(self):
-        ret = 0
-        for layer_num in range(self.layers):
-            ret += temporal_smoothing(
-                self.features[layer_num].conv.sin_weights, self.features[layer_num].conv.cos_weights
+        return sum(
+            temporal_smoothing(
+                self.features[layer_num].conv.sin_weights,
+                self.features[layer_num].conv.cos_weights,
             )
-        return ret
+            for layer_num in range(self.layers)
+        )
 
     def regularizer(self):
         if self.conv_class == STSeparableBatchConv3d:
@@ -512,15 +513,8 @@ def SFB3d_core_gaussian_readout(
     batch_adaptation: bool = True,
     readout_scale: bool = False,
     readout_bias: bool = True,
-    gaussian_masks: bool = False,  # readout args,
     gamma_readout: float = 0.1,
-    gamma_masks: float = 0,
-    gaussian_mean_scale: float = 1e0,
-    gaussian_var_scale: float = 1e0,
-    initialize_from_roi_masks: bool = False,
-    readout_positive: bool = False,
     stack=None,
-    readout_reg_avg: bool = False,
     use_avg_reg: bool = False,
     data_info: Optional[dict] = None,
     nonlinearity: str = "ELU",
@@ -528,6 +522,7 @@ def SFB3d_core_gaussian_readout(
     device=DEVICE,
     use_gru: bool = False,
     gru_kwargs: dict = {},
+    **kwargs,
 ):
     """
     Model class of a stacked2dCore (from mlutils) and a pointpooled (spatial transformer) readout
@@ -790,3 +785,93 @@ class MultipleDense(MultiReadoutBase):
             bias=bias,
             init_noise=init_noise,
         )
+
+
+class InverseCore(nn.Module):
+    def __init__(
+        self,
+        input_channels=2,
+        hidden_channels=[8],
+        temporal_kernel_size=[21],
+        spatial_kernel_size=[14],
+        layers=1,
+        gamma_hidden=0.0,
+        gamma_input=0.0,
+        gamma_in_sparse=0.0,
+        gamma_temporal=0.0,
+        bias=True,
+        input_padding=False,
+        hidden_padding=True,
+        stack=None,
+        use_avg_reg=False,
+        final_nonlinearity=True,
+        nonlinearity="ELU",
+        device=DEVICE,
+        **kwargs,
+    ):
+        super().__init__()
+
+        self.layers = layers
+        self.gamma_input = gamma_input
+        self.gamma_in_sparse = gamma_in_sparse
+        self.gamma_hidden = gamma_hidden
+        self.gamma_temporal = gamma_temporal
+        self.input_channels = input_channels
+        self.hidden_channels = hidden_channels
+        self.use_avg_reg = use_avg_reg
+
+        self.features = nn.Sequential()
+        if stack is None:
+            self.stack = range(self.layers)
+        else:
+            self.stack = [range(self.layers)[stack]] if isinstance(stack, int) else stack
+
+        if input_padding:
+            input_pad: Tuple[int, ...] | int = (0, spatial_kernel_size[0] // 2, spatial_kernel_size[0] // 2)
+        else:
+            input_pad = 0
+        if hidden_padding & (len(spatial_kernel_size) > 1):
+            hidden_pad: list[Tuple[int, ...] | int] = [
+                (0, spatial_kernel_size[x] // 2, spatial_kernel_size[x] // 2)
+                for x in range(1, len(spatial_kernel_size))
+            ]
+        else:
+            hidden_pad = [0 for _ in range(1, len(spatial_kernel_size))]
+
+        if not isinstance(hidden_channels, (list, tuple)):
+            hidden_channels = [hidden_channels] * (self.layers)
+        if not isinstance(temporal_kernel_size, (list, tuple)):
+            temporal_kernel_size = [temporal_kernel_size] * (self.layers)
+        if not isinstance(spatial_kernel_size, (list, tuple)):
+            spatial_kernel_size = [spatial_kernel_size] * (self.layers)
+
+        # --- first layers
+
+        for layer_num in reversed(range(1, self.layers)):
+            layer = OrderedDict()
+            layer["conv"] = nn.ConvTranspose3d(
+                hidden_channels[layer_num],
+                hidden_channels[layer_num - 1],
+                (temporal_kernel_size[layer_num], spatial_kernel_size[layer_num], spatial_kernel_size[layer_num]),
+                bias=bias,
+                padding=hidden_pad[layer_num - 1],  # type: ignore
+            )
+            if final_nonlinearity or layer_num < self.layers - 1:
+                layer["nonlin"] = getattr(nn, nonlinearity)()
+            self.features.add_module(f"layer{layer_num}", nn.Sequential(layer))
+
+        # --- last layer
+        layer: OrderedDict[str, Any] = OrderedDict()
+        layer["conv"] = nn.ConvTranspose3d(
+            hidden_channels[0],
+            input_channels,
+            (temporal_kernel_size[0], spatial_kernel_size[0], spatial_kernel_size[0]),
+            bias=bias,
+            padding=input_pad,
+        )
+        self.features.add_module("layer0", nn.Sequential(layer))
+
+    def forward(self, x):
+        for layer in self.features:
+            x = layer(x)
+        return x
