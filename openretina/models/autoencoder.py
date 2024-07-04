@@ -50,6 +50,7 @@ class Autoencoder(lightning.LightningModule):
             hidden_dim: int,
             loss: SparsityMSELoss,
             learning_rate: float = 0.0005,
+            unit_norm_loss_factor: float = 1.0
     ):
         # TODO: In transformer circuits talks about the decoder weights W_d having unit norm for its columns
         super().__init__()
@@ -58,6 +59,7 @@ class Autoencoder(lightning.LightningModule):
         self.decoder = nn.Linear(hidden_dim, input_dim, bias=False)
         self.loss = loss
         self.learning_rate = learning_rate
+        self.unit_norm_loss_factor = unit_norm_loss_factor
         self.save_hyperparameters()
 
     def encode(self, x: torch.Tensor) -> torch.Tensor:
@@ -75,13 +77,19 @@ class Autoencoder(lightning.LightningModule):
         x_reconstruct = self.decoder(x_hidden)
         return x_reconstruct
 
+    def unit_norm_loss(self):
+        return 0.0
+
     def training_step(self, batch, batch_idx) -> torch.Tensor:
         x, _ = batch
         z = self.encoder(x)
         x_hat = self.decoder(z)
         loss = self.loss.forward(x, z, x_hat)
+        unit_norm_loss_tensor = self.unit_norm_loss()
+        total_loss = loss + self.unit_norm_loss_factor * unit_norm_loss_tensor
+        self.log("unit_norm_loss", on_epoch=True, on_step=True, logger=True)
         self.log("train_loss", loss, prog_bar=True, on_epoch=True, logger=True, on_step=False)
-        return loss
+        return total_loss
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
