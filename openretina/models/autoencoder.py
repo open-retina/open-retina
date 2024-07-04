@@ -23,11 +23,16 @@ class SparsityMSELoss:
         sparsity_loss = torch.mean(summed_activations)
         return sparsity_loss
 
-    def forward(self, x: torch.Tensor, z: torch.Tensor, x_hat: torch.Tensor) -> torch.Tensor:
+    def forward(
+            self,
+            x: torch.Tensor,
+            z: torch.Tensor,
+            x_hat: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         mse_loss = self.mse_loss(x, x_hat)
         sparsity_loss = self.sparsity_loss(z, activations_dimension=-1)
         total_loss = mse_loss + self.sparsity_factor * sparsity_loss
-        return total_loss
+        return total_loss, mse_loss, sparsity_loss
 
 
 class ActivationsDataset(Dataset):
@@ -78,16 +83,21 @@ class Autoencoder(lightning.LightningModule):
         return x_reconstruct
 
     def unit_norm_loss(self):
-        return 0.0
+        column_norms_decoder = self.decoder.weight.norm(dim=1)
+        diff_from_unit_norm = torch.abs(1.0 - column_norms_decoder)
+        norm_loss = torch.sum(diff_from_unit_norm)
+        return norm_loss
 
     def training_step(self, batch, batch_idx) -> torch.Tensor:
         x, _ = batch
         z = self.encoder(x)
         x_hat = self.decoder(z)
-        loss = self.loss.forward(x, z, x_hat)
+        loss, mse_loss, sparsity_loss = self.loss.forward(x, z, x_hat)
         unit_norm_loss_tensor = self.unit_norm_loss()
         total_loss = loss + self.unit_norm_loss_factor * unit_norm_loss_tensor
-        self.log("unit_norm_loss", on_epoch=True, on_step=True, logger=True)
+        self.log("unit_norm_loss", unit_norm_loss_tensor, on_epoch=True, on_step=True, logger=True)
+        self.log("mse_loss", mse_loss, on_epoch=True, on_step=True, logger=True)
+        self.log("sparsity_loss", sparsity_loss, on_epoch=True, on_step=True, logger=True)
         self.log("train_loss", loss, prog_bar=True, on_epoch=True, logger=True, on_step=False)
         return total_loss
 
