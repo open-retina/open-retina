@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
+from typing import Callable
 import argparse
 import functools
-from collections import defaultdict
 import operator
-from typing import Callable
+import time
 import os
 import pickle
-import time
 
 import torch
 import lightning
@@ -41,17 +40,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def main(
-    data_folder: str,
-    save_folder: str,
-    device: str,
-    datasets: str,
-) -> None:
-    dataset_names_list = datasets.split("_")
-    for name in dataset_names_list:
-        if name not in {"natural", "chirp", "mb"}:
-            raise ValueError(f"Unsupported dataset name {name}")
-
+def generate_neuron_activations(data_folder: str, dataset_names_list: list[str], device: str) -> list[torch.Tensor]:
     movies_path = os.path.join(data_folder, "2024-01-11_movies_dict_8c18928.pkl")
     with open(movies_path, "rb") as f:
         movies_dict = pickle.load(f)
@@ -116,6 +105,28 @@ def main(
         if (batch_no+1) % 20 == 0:
             print(f"Generated {batch_no+1} batches")
     print(f"Generated {len(outputs_model)} examples in {time.time()-time_generation_start:.1f}s")
+    return outputs_model
+
+
+def main(
+    data_folder: str,
+    save_folder: str,
+    device: str,
+    datasets: str,
+) -> None:
+    dataset_names_list = datasets.split("_")
+    for name in dataset_names_list:
+        if name not in {"natural", "chirp", "mb"}:
+            raise ValueError(f"Unsupported dataset name {name}")
+
+    outputs_model_path = f"{save_folder}/outputs_model.pkl"
+    if os.path.exists(outputs_model_path):
+        with open(outputs_model_path, "rb") as fr:
+            outputs_model = pickle.load(fr)
+    else:
+        outputs_model = generate_neuron_activations(data_folder, dataset_names_list, device)
+        with open(outputs_model_path, "wb") as fw:
+            pickle.dump(outputs_model, fw)
 
     # How to treat activations across different session?
     # - Train independent autoencoders?
