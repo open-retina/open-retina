@@ -57,6 +57,7 @@ class Autoencoder(lightning.LightningModule):
         self.decoder = nn.Linear(hidden_dim, input_dim, bias=False)
         self.loss = loss
         self.learning_rate = learning_rate
+        self.save_hyperparameters()
 
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         x_bar = x - self.bias
@@ -78,7 +79,7 @@ class Autoencoder(lightning.LightningModule):
         z = self.encoder(x)
         x_hat = self.decoder(z)
         loss = self.loss.forward(x, z, x_hat)
-        self.log("train_loss", loss)
+        self.log("train_loss", loss, on_step=True, on_epoch=True, logger=True)
         return loss
 
     def configure_optimizers(self):

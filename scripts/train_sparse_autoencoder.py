@@ -93,7 +93,7 @@ def main(
     state_dict = torch.load(state_dict_path)
     model.load_state_dict(state_dict)
     center_class = Center(target_mean=[0.0, 0.0])
-    model = center_class(model)
+    center_class(model)
     model.to(device)
     print(f"Initialized model from {state_dict_path}")
 
@@ -128,7 +128,7 @@ def main(
     activations_dataset = ActivationsDataset(outputs_model)
     train_loader = torch.utils.data.DataLoader(activations_dataset, batch_size=30)
 
-    trainer = lightning.Trainer(max_epochs=10, default_root_dir=save_folder)
+    trainer = lightning.Trainer(max_epochs=10, default_root_dir=save_folder, logger=True)
     trainer.fit(model=sparse_autoencoder, train_dataloaders=train_loader)
 
 
