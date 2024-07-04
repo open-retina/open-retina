@@ -31,6 +31,8 @@ def parse_args():
     parser.add_argument("--data_folder", type=str, help="Path to the base data folder", default="/Data/fd_export")
     parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
     parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda")
+    parser.add_argument("--sparsity_factor", type=float, default=0.1)
+    parser.add_argument("--hidden_dim", type=int, default=1000, help="Hidden dim for autoencoder")
     parser.add_argument(
         "--datasets",
         type=str,
@@ -116,13 +118,16 @@ def main(
     save_folder: str,
     device: str,
     datasets: str,
+    sparsity_factor: float,
+    hidden_dim: int,
 ) -> None:
     dataset_names_list = datasets.split("_")
     for name in dataset_names_list:
         if name not in {"natural", "chirp", "mb"}:
             raise ValueError(f"Unsupported dataset name {name}")
 
-    outputs_model_path = f"{save_folder}/outputs_model.pkl"
+    outputs_model_path = f"{save_folder}/../outputs_model.pkl"
+    print(outputs_model_path)
     if os.path.exists(outputs_model_path):
         with open(outputs_model_path, "rb") as fr:
             outputs_model = torch.load(fr)
@@ -138,15 +143,17 @@ def main(
     # - Train independent autoencoders?
     # - Same autoencoder but with zero weights for neurons not in that session?
     # - Just sample all data, or is input data the same (ignore outputs, feed input through all data_keys)
-    sparsity_mse_loss = SparsityMSELoss(sparsity_factor=0.1)
+    sparsity_mse_loss = SparsityMSELoss(sparsity_factor=sparsity_factor)
     num_model_neurons = outputs_model[0].shape[-1]
-    sparse_autoencoder = Autoencoder(num_model_neurons, 1000, sparsity_mse_loss)
+    sparse_autoencoder = Autoencoder(num_model_neurons, hidden_dim, sparsity_mse_loss)
     sparse_autoencoder.to(device)
     activations_dataset = ActivationsDataset(outputs_model)
-    train_loader = torch.utils.data.DataLoader(activations_dataset, batch_size=30)
+    # when num_workers > 0 the docker container needs more shared memory
+    train_loader = torch.utils.data.DataLoader(activations_dataset, batch_size=30, num_workers=0)
 
-    csv_logger = CSVLogger(save_folder)
-    trainer = lightning.Trainer(max_epochs=10, default_root_dir=save_folder, logger=csv_logger)
+    lightning_folder = f"{save_folder}_{hidden_dim}_neurons"
+    csv_logger = CSVLogger(lightning_folder)
+    trainer = lightning.Trainer(max_epochs=10, default_root_dir=lightning_folder, logger=csv_logger)
     trainer.fit(model=sparse_autoencoder, train_dataloaders=train_loader)
 
 

@@ -79,7 +79,7 @@ class Autoencoder(lightning.LightningModule):
         z = self.encoder(x)
         x_hat = self.decoder(z)
         loss = self.loss.forward(x, z, x_hat)
-        self.log("train_loss", loss, prog_bar=True, on_step=True, on_epoch=True, logger=True)
+        self.log("train_loss", loss, prog_bar=True, on_epoch=True, logger=True, on_step=False)
         return loss
 
     def configure_optimizers(self):
