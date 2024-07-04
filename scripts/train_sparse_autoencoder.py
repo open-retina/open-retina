@@ -9,6 +9,7 @@ import pickle
 
 import torch
 import lightning
+from lightning.pytorch.loggers import CSVLogger
 
 from openretina.neuron_data_io import make_final_responses
 from openretina.models.autoencoder import SparsityMSELoss, Autoencoder, ActivationsDataset
@@ -105,7 +106,9 @@ def generate_neuron_activations(data_folder: str, dataset_names_list: list[str],
         if (batch_no+1) % 20 == 0:
             print(f"Generated {batch_no+1} batches")
     print(f"Generated {len(outputs_model)} examples in {time.time()-time_generation_start:.1f}s")
-    return outputs_model
+    outputs_model_single_tensor = torch.stack(outputs_model)
+    # I/O is more efficient on a single tensor
+    return outputs_model_single_tensor
 
 
 def main(
@@ -122,11 +125,14 @@ def main(
     outputs_model_path = f"{save_folder}/outputs_model.pkl"
     if os.path.exists(outputs_model_path):
         with open(outputs_model_path, "rb") as fr:
-            outputs_model = pickle.load(fr)
+            outputs_model = torch.load(fr)
+        print(f"Loaded model outputs from {outputs_model_path}")
     else:
         outputs_model = generate_neuron_activations(data_folder, dataset_names_list, device)
         with open(outputs_model_path, "wb") as fw:
-            pickle.dump(outputs_model, fw)
+            # it's more efficient to save a single tensor instead of a list of tensors
+            torch.save(outputs_model, fw)
+        print(f"Saved model outputs to {outputs_model_path}")
 
     # How to treat activations across different session?
     # - Train independent autoencoders?
@@ -139,7 +145,8 @@ def main(
     activations_dataset = ActivationsDataset(outputs_model)
     train_loader = torch.utils.data.DataLoader(activations_dataset, batch_size=30)
 
-    trainer = lightning.Trainer(max_epochs=10, default_root_dir=save_folder, logger=True)
+    csv_logger = CSVLogger(save_folder)
+    trainer = lightning.Trainer(max_epochs=10, default_root_dir=save_folder, logger=csv_logger)
     trainer.fit(model=sparse_autoencoder, train_dataloaders=train_loader)
 
 
