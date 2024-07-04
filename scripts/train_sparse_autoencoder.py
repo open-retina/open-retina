@@ -92,6 +92,8 @@ def main(
     state_dict_path = "models/debug_2024-07-01/models/SFB3d_core_SxF3d_readout_hoefling_2022_2024-07-01_model_weights.pt"
     state_dict = torch.load(state_dict_path)
     model.load_state_dict(state_dict)
+    center_class = Center(target_mean=[0.0, 0.0])
+    model = center_class(model)
     model.to(device)
     print(f"Initialized model from {state_dict_path}")
 
