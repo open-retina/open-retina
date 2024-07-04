@@ -26,32 +26,37 @@ from .hoefling_2024.data_io import (
     gen_start_indices,
     get_all_movie_combinations,
 )
-from .neuron_data_io import NeuronData
+from .neuron_data_io import NeuronData, upsample_traces
+from .utils.misc import tensors_to_device
 
 DataPoint = namedtuple("DataPoint", ("inputs", "targets"))
 
 
 BARCODE_MEANS = {
-    "chirp_features": np.array([[0.18], [0.67], [2.29], [1.25], [7.57]]),
+    "chirp_features": np.array([[0.19, 0.68, 2.27, 1.24, 7.38]]),
     "ds_index": np.array([0.23]),
     "os_index": np.array([0.36]),
-    "temporal_nasal_pos_um": np.array([178.84]),
+    "temporal_nasal_pos_um": np.array([271.27]),
     "chirp_qi": np.array([0.44]),
-    "ventral_dorsal_pos_um": np.array([-770.34]),
-    "d_qi": np.array([0.76]),
-    "roi_size_um2": np.array([79.88]),
+    "ventral_dorsal_pos_um": np.array([-764.9]),
+    "d_qi": np.array([0.75]),
+    "roi_size_um2": np.array([81.13]),
 }
 
 BARCODES_STDEVS = {
-    "chirp_features": np.array([[0.03], [0.08], [0.78], [0.46], [2.81]]),
+    "chirp_features": np.array([[0.03, 0.07, 0.72, 0.44, 2.52]]),
     "ds_index": np.array([0.12]),
-    "os_index": np.array([0.15]),
-    "temporal_nasal_pos_um": np.array([844.06]),
+    "os_index": np.array([0.14]),
+    "temporal_nasal_pos_um": np.array([623.39]),
     "chirp_qi": np.array([0.2]),
-    "ventral_dorsal_pos_um": np.array([381.11]),
+    "ventral_dorsal_pos_um": np.array([392.18]),
     "d_qi": np.array([0.15]),
-    "roi_size_um2": np.array([40.53]),
+    "roi_size_um2": np.array([40.74]),
 }
+
+# Stimuli repetitions in the hoefling_2024 dataset
+CHIRP_REPEATS = 5
+MB_REPEATS = 3
 
 
 def transfer_readout_mask(source_model, target_model, ignore_source_key_suffix=None, freeze_mask=False):
@@ -119,24 +124,26 @@ def calculate_chirp_features(chirp_trace: Float[np.ndarray, "n_neurons n_timepoi
     return np.stack([spectral_centroid_value, spectral_flatness_value, mean_value, std_value, range_value])
 
 
-def generate_cell_barcodes(responses_dict, normalize=True):
+def generate_cell_barcodes(
+    responses_dict, normalize=True
+) -> Dict[str, Dict[str, Float[np.ndarray, "n_neurons n_features"]]]:
     cell_barcodes = {}
 
     for field_id in responses_dict:
         field_barcode = {
             "cell_types": responses_dict[field_id]["group_assignment"].astype(str),
-            "chirp_features": calculate_chirp_features(responses_dict[field_id]["chirp_preprocessed_traces"]),
-            "roi_size_um2": responses_dict[field_id]["roi_size_um2"],
-            "chirp_qi": responses_dict[field_id]["chirp_qi"],
-            "d_qi": responses_dict[field_id]["d_qi"],
-            "ds_index": responses_dict[field_id]["ds_index"],
-            "os_index": responses_dict[field_id]["os_index"],
+            "chirp_features": calculate_chirp_features(responses_dict[field_id]["chirp_preprocessed_traces"]).T,
+            "roi_size_um2": responses_dict[field_id]["roi_size_um2"][:, None],
+            "chirp_qi": responses_dict[field_id]["chirp_qi"][:, None],
+            "d_qi": responses_dict[field_id]["d_qi"][:, None],
+            "ds_index": responses_dict[field_id]["ds_index"][:, None],
+            "os_index": responses_dict[field_id]["os_index"][:, None],
             "temporal_nasal_pos_um": np.repeat(
                 responses_dict[field_id]["temporal_nasal_pos_um"], len(responses_dict[field_id]["group_assignment"])
-            ),
+            )[:, None],
             "ventral_dorsal_pos_um": np.repeat(
                 responses_dict[field_id]["ventral_dorsal_pos_um"], len(responses_dict[field_id]["group_assignment"])
-            ),
+            )[:, None],
         }
 
         # Normalize the features before concatenating
@@ -150,6 +157,53 @@ def generate_cell_barcodes(responses_dict, normalize=True):
     return cell_barcodes
 
 
+def extract_chirp_mb(response_dict) -> Dict[str, Dict[str, Float[np.ndarray, "n_neurons n_features "]]]:
+    """
+    Extracts and averages over repetitions chirp and moving bar (mb) traces from the response dictionary.
+
+    Args:
+        response_dict: A dictionary containing response traces for chirp and mb stimuli.
+
+    Returns:
+        dict: A dictionary with averaged chirp and mb traces for each field ID.
+    """
+    traces = {}
+
+    for field_id in response_dict:
+        field_average_traces = {
+            "chirp": np.stack(
+                np.split(
+                    upsample_traces(
+                        response_dict[field_id]["chirp_trigger_times"][0],
+                        response_dict[field_id]["chirp_preprocessed_traces"],
+                        response_dict[field_id]["chirp_traces_times"],
+                        stim_id=1,
+                    ),
+                    CHIRP_REPEATS,
+                    axis=1,
+                ),
+                axis=2,
+            ).mean(2),
+            "mb": np.stack(
+                np.split(
+                    upsample_traces(
+                        response_dict[field_id]["mb_trigger_times"][0],
+                        response_dict[field_id]["mb_preprocessed_traces"],
+                        response_dict[field_id]["mb_traces_times"],
+                        stim_id=2,
+                    ),
+                    MB_REPEATS,
+                    axis=1,
+                ),
+                axis=2,
+            ).mean(2),
+        }
+
+        traces[field_id] = field_average_traces
+
+    return traces
+
+
 class ReadoutWeightShifter(nn.Module):
     def __init__(
         self,
@@ -157,10 +211,19 @@ class ReadoutWeightShifter(nn.Module):
         categorical_vocab_sizes,
         categorical_embedding_dims,
         output_dim,
+        num_layers=2,
+        hidden_units=(64, 32),
         use_bn=True,
-        constrain_output=True,
+        tanh_output=True,
+        sigmoid_output=False,
+        learn_scale=False,
+        learn_bias=False,
+        gamma_activations=0.1,
     ):
         super(ReadoutWeightShifter, self).__init__()
+
+        if sigmoid_output and tanh_output:
+            raise ValueError("Only one of sigmoid_output and tanh_output can be True.")
 
         # Embedding layers for categorical features
         self.embeddings = nn.ModuleList(
@@ -175,41 +238,62 @@ class ReadoutWeightShifter(nn.Module):
         # Dense layers for numerical features
         self.num_numerical_features = num_numerical_features
         self.fc1 = nn.Linear(
-            num_numerical_features + np.sum(categorical_embedding_dims) * len(categorical_vocab_sizes), 64
+            num_numerical_features + int(np.sum(categorical_embedding_dims) * len(categorical_vocab_sizes)),
+            hidden_units[0],
         )
-        self.bn1 = nn.BatchNorm1d(64)
-        self.fc2 = nn.Linear(64, 32)
-        self.fc3 = nn.Linear(32, output_dim)
+        self.bn1 = nn.BatchNorm1d(hidden_units[0])
 
+        # Additional hidden layers
+        self.hidden_layers = nn.ModuleList()
+        for i, _ in enumerate(range(num_layers - 1)):
+            self.hidden_layers.append(nn.Linear(hidden_units[i], hidden_units[i + 1]))
+            self.hidden_layers.append(nn.GELU())
+            self.hidden_layers.append(nn.Dropout(0.1))
+
+        # Output layer
+        additional_output = (1 if learn_bias else 0) + (1 if learn_scale else 0)
+        self.output_layer = nn.Linear(hidden_units[-1], output_dim + additional_output)
+
+        # Additional parameters
         self.use_bn = use_bn
-        self.constrain_output = constrain_output
+        self.learn_scale = learn_scale
+        self.learn_bias = learn_bias
+
+        self.final_nonlinearity = nn.Sigmoid() if sigmoid_output else nn.Tanh() if tanh_output else nn.Identity()
+
+        # Regularization
+        self.gamma_activations = gamma_activations
 
     def forward(
         self,
         categorical_inputs: List[Float[torch.Tensor, "batch n_neurons"]],
         numerical_input: Float[torch.Tensor, "batch n_neurons n_features"],
-    ):
-        # Embed the categorical inputs. Output is (batch, n_neurons, n_cat_features)
+    ) -> Float[torch.Tensor, "n_neurons n_features"]:
+        # Batch dimensions is redundant, as all neuron come from the same session, so we remove it
+        # TODO: consider if this is the best way to handle this: can also reshape neurons and batch together
+        categorical_inputs = [categorical_input[0] for categorical_input in categorical_inputs]
+        numerical_input = numerical_input[0]
+
+        # Embed the categorical inputs. Output is (n_neurons, n_cat_features)
         embedded_cats = [embedding(cat_input) for embedding, cat_input in zip(self.embeddings, categorical_inputs)]
 
-        # Concatenate the embedded categorical features along the last dimension
-        embedded_cats = torch.cat(embedded_cats, dim=-1)
+        # Concatenate the embedded categorical features along the feature dimension
+        embedded_cats = (
+            torch.cat(embedded_cats, dim=-1) if embedded_cats else torch.tensor([], device=numerical_input.device)
+        )
 
         # Concatenate numerical and embedded categorical features
         x = torch.cat([numerical_input, embedded_cats], dim=-1)
 
-        # Forward pass, then put features as second dimension for batch norm
-        x = self.fc1(x).transpose(1, 2)
+        x = self.fc1(x)
 
-        # Transpose again after batchnorm to have feature dimension as last again
-        if self.use_bn:
-            x = F.relu(self.bn1(x)).transpose(1, 2)
-        else:
-            x = F.relu(x).transpose(1, 2)
+        x = F.gelu(self.bn1(x)) if self.use_bn else F.gelu(x)
 
-        x = F.relu(self.fc2(x))
+        # Forward pass through the additional hidden layers
+        for layer in self.hidden_layers:
+            x = layer(x)
 
-        return F.tanh(self.fc3(x)) if self.constrain_output else self.fc3(x)
+        return self.final_nonlinearity(self.output_layer(x))
 
 
 class FrozenFactorisedReadout2d(Readout):
@@ -219,8 +303,6 @@ class FrozenFactorisedReadout2d(Readout):
         outdims,
         from_gaussian=False,
         positive=False,
-        scale=False,
-        bias=True,
         nonlinearity=True,
         mean_activity=None,
     ):
@@ -237,7 +319,6 @@ class FrozenFactorisedReadout2d(Readout):
                                             Defaults to False.
             positive (bool, optional): Whether the output should be positive. Defaults to False.
             scale (bool, optional): Whether to include a scale parameter. Defaults to False.
-            bias (bool, optional): Whether to include a bias parameter. Defaults to True.
             nonlinearity (bool, optional): Whether to include a nonlinearity. Defaults to True.
         """
         super().__init__()
@@ -256,18 +337,6 @@ class FrozenFactorisedReadout2d(Readout):
             self.masks = self.normal_pdf().permute(1, 2, 0)
         else:
             self.masks = nn.Parameter(torch.Tensor(w, h, outdims), requires_grad=False)
-
-        if scale:
-            scale = nn.Parameter(torch.Tensor(outdims))
-            self.register_parameter("scale", scale)
-        else:
-            self.register_parameter("scale", None)
-
-        if bias:
-            bias = nn.Parameter(torch.Tensor(outdims))
-            self.register_parameter("bias", bias)
-        else:
-            self.register_parameter("bias", None)
 
     @property
     def _masks(self):
@@ -291,10 +360,17 @@ class FrozenFactorisedReadout2d(Readout):
         pdf = torch.nan_to_num(pdf / normalisation)
         return pdf
 
-    def forward(self, x, features, subs_idx=None):
+    def forward(
+        self,
+        x: Float[torch.Tensor, "batch channels width height"],
+        features: Float[torch.Tensor, "batch channels neurons"],
+        scale=None,
+        bias=None,
+        subs_idx=None,
+    ):
         b, c, w, h = x.size()
 
-        features = features.view(-1, c, self.outdims)
+        features = features.view(b, c, self.outdims)
 
         if self.positive:
             torch.clamp(features, min=0.0)
@@ -310,10 +386,11 @@ class FrozenFactorisedReadout2d(Readout):
         y = torch.einsum("ncwh,whd->ncd", x, masks)
         y = (y * feat).sum(1)
 
-        if self.scale is not None:
-            y = y * self.scale
-        if self.bias is not None:
-            y = y + self.bias if subs_idx is None else y + self.bias[subs_idx]
+        if scale is not None:
+            y = y * scale
+        if bias is not None:
+            y = y + bias if subs_idx is None else y + bias[subs_idx]
+
         if self.nonlinearity:
             y = F.softplus(y)
         return y
@@ -370,6 +447,7 @@ class ShifterVideoEncoder(nn.Module):
         numerical_metadata: torch.Tensor,
         data_key=None,
         detach_core=False,
+        return_features=False,
         **kwargs,
     ):
         self.detach_core = detach_core
@@ -380,6 +458,19 @@ class ShifterVideoEncoder(nn.Module):
 
         feature_weights = self.readout_shifter(categorical_metadata, numerical_metadata)
 
+        # Extract the scale and bias if they are learned
+        if self.readout_shifter.learn_scale:
+            readout_scale = feature_weights[..., -1]
+            feature_weights = feature_weights[..., :-1]
+        else:
+            readout_scale = None
+
+        if self.readout_shifter.learn_bias:
+            readout_bias = feature_weights[..., -1]
+            feature_weights = feature_weights[..., :-1]
+        else:
+            readout_bias = None
+
         # Make time the second dimension again for the readout
         x = torch.transpose(x, 1, 2)
 
@@ -387,19 +478,24 @@ class ShifterVideoEncoder(nn.Module):
         batch_size = x.shape[0]
         time_points = x.shape[1]
 
+        # Transpose the feature weights to have neurons as the last dimension
+        feature_weights = feature_weights.T
+
         # Repeat the feature weights for each time point
-        feature_weights = feature_weights.unsqueeze(1).repeat(1, time_points, 1, 1)
+        feature_weights = feature_weights.unsqueeze(0).unsqueeze(0).repeat(batch_size, time_points, 1, 1)
 
         # Treat time as an indipendent (batch) dimension for the readout
         x = x.reshape(((-1,) + x.size()[2:]))
 
         # Even though the readout can be session-independent, it is going to be used
         # in a multiple-readout context during training, so we need to pass the data_key
-        x = self.readout(x, feature_weights, data_key=data_key)
+        x = self.readout(x, feature_weights, scale=readout_scale, bias=readout_bias, data_key=data_key)
 
         # Reshape back to the correct dimensions before returning
         x = x.reshape(((batch_size, time_points) + x.size()[1:]))
-        return x
+
+        # Return the features if requested, used in regularisation
+        return (x, feature_weights[0, 0, ...]) if return_features else x
 
 
 def conv_core_frozen_readout(
@@ -426,8 +522,13 @@ def conv_core_frozen_readout(
     readout_bias: bool = False,
     readout_from_gaussian: bool = False,
     shifter_num_numerical_features: int = 5,
-    shifter_categorical_vocab_sizes: Tuple[int, ...] = (50, 60),
-    shifter_categorical_embedding_dims: Tuple[int, ...] = (10, 5),
+    shifter_categorical_vocab_sizes: Tuple[int, ...] = (47,),
+    shifter_categorical_embedding_dims: Tuple[int, ...] = (10,),
+    shifter_num_layer: int = 2,
+    shifter_hidden_units: Tuple[int, ...] = (64, 32),
+    shifter_batch_norm: bool = True,
+    shifter_tanh_output: bool = True,
+    shifter_gamma: float = 0.0,
     stack=None,
     use_avg_reg: bool = False,
     data_info: Optional[dict] = None,
@@ -464,7 +565,7 @@ def conv_core_frozen_readout(
         in_name, *_, out_name = next(iter(list(dataloaders.values())[0]))._fields
 
         session_shape_dict = get_dims_for_loader_dict(dataloaders)
-        print(session_shape_dict)
+
         n_neurons_dict = {
             k: v[out_name][-1] for k, v in session_shape_dict.items()
         }  # dictionary containing # neurons per session
@@ -516,8 +617,6 @@ def conv_core_frozen_readout(
         in_shape_dict=in_shapes_readout,
         n_neurons_dict=n_neurons_dict,
         from_gaussian=readout_from_gaussian,
-        scale=readout_scale,
-        bias=readout_bias,
         nonlinearity=True,
     )
 
@@ -526,16 +625,23 @@ def conv_core_frozen_readout(
         shifter_categorical_vocab_sizes,
         shifter_categorical_embedding_dims,
         output_dim=core.hidden_channels[-1],
+        num_layers=shifter_num_layer,
+        hidden_units=shifter_hidden_units,
+        use_bn=shifter_batch_norm,
+        tanh_output=shifter_tanh_output,
+        learn_scale=readout_scale,
+        learn_bias=readout_bias,
+        gamma_activations=shifter_gamma,
     )
 
     # initializing readout bias to mean response
-    if readout_bias is True:
-        if data_info is None:
-            for k in dataloaders:
-                readout[k].bias.data = dataloaders[k].dataset[:]._asdict()[out_name].mean(0)
-        else:
-            for k in data_info.keys():
-                readout[k].bias.data = torch.from_numpy(data_info[k]["mean_response"])
+    # if readout_bias is True:
+    #     if data_info is None:
+    #         for k in dataloaders:
+    #             readout[k].bias.data = dataloaders[k].dataset[:]._asdict()[out_name].mean(0)
+    #     else:
+    #         for k in data_info.keys():
+    #             readout[k].bias.data = torch.from_numpy(data_info[k]["mean_response"])
 
     model = ShifterVideoEncoder(core, readout, readout_shifter)
 
@@ -638,6 +744,7 @@ def natmov_and_meta_dataloaders(
     clip_length: int = CLIP_LENGTH,
     num_val_clips: int = NUM_VAL_CLIPS,
     use_base_sequence: bool = False,
+    use_raw_traces: bool = False,
 ):
     """
     Train, test and validation dataloaders for natural movies responses datasets and metadata.
@@ -688,7 +795,11 @@ def natmov_and_meta_dataloaders(
     )
     start_indices = gen_start_indices(random_sequences, val_clip_idx, clip_length, train_chunk_size, num_clips)
 
-    barcodes = generate_cell_barcodes(neuron_data_dictionary)
+    # Extract cell barcodes from the neuron data dictionary
+    if use_raw_traces:
+        barcodes = extract_chirp_mb(neuron_data_dictionary)
+    else:
+        barcodes = generate_cell_barcodes(neuron_data_dictionary)
 
     for session_key, session_data in tqdm(neuron_data_dictionary.items(), desc="Creating movie dataloaders"):
         neuron_data = NeuronData(
@@ -717,3 +828,44 @@ def natmov_and_meta_dataloaders(
             )
 
     return dataloaders
+
+
+def metadata_model_full_objective(
+    model: ShifterVideoEncoder,
+    *inputs: torch.Tensor,
+    targets,
+    data_key,
+    detach_core,
+    device,
+    criterion,
+    scale_loss,
+    dataset_length,
+) -> torch.Tensor:
+    """
+    Slightly modified version of the standard training objective which includes regularisation on the readout `feature`
+    weights, which in this specific model instance are activations of the readout shifter network and not parameters of
+    the readout itself.
+    """
+    standard_regularizers = int(not detach_core) * model.core.regularizer() + model.readout.regularizer(data_key)
+    if scale_loss:
+        m = dataset_length
+        # Assuming first input is always images, and batch size is the first dimension
+        k = inputs[0].shape[0]
+        loss_scale = np.sqrt(m / k)
+    else:
+        loss_scale = 1.0
+
+    predictions, feature_weights = model(
+        *tensors_to_device(inputs, device),
+        data_key=data_key,
+        detach_core=detach_core,
+        return_features=True,
+    )
+
+    loss_criterion = criterion(predictions, targets.to(device))
+
+    return (
+        loss_scale * loss_criterion
+        + standard_regularizers
+        + model.readout_shifter.gamma_activations * feature_weights.abs().sum()
+    )
