@@ -1,7 +1,7 @@
 import datetime
 import os
 from functools import partial
-from typing import Optional
+from typing import Callable, Optional
 
 try:
     import wandb
@@ -19,10 +19,32 @@ from .tracking import MultipleObjectiveTracker
 from .utils.misc import set_seed, tensors_to_device
 
 
+def standard_full_objective(
+    model, *inputs: torch.Tensor, targets, data_key, detach_core, device, criterion, scale_loss, dataset_length
+) -> torch.Tensor:
+    """
+    Standard full training objective for a model with a core and readout. It computes the loss, regularizers and
+    scales the loss if necessary. This function is designed to be used in a training loop, and passed to a trainer.
+    """
+    regularizers = int(not detach_core) * model.core.regularizer() + model.readout.regularizer(data_key)
+    if scale_loss:
+        m = dataset_length
+        # Assuming first input is always images, and batch size is the first dimension
+        k = inputs[0].shape[0]
+        loss_scale = np.sqrt(m / k)
+    else:
+        loss_scale = 1.0
+
+    predictions = model(*tensors_to_device(inputs, device), data_key=data_key, detach_core=detach_core)
+    loss_criterion = criterion(predictions, targets.to(device))
+    return loss_scale * loss_criterion + regularizers
+
+
 def standard_early_stop_trainer(
     model: torch.nn.Module,
     dataloaders,
     seed: int,
+    objective_function: Callable = standard_full_objective,
     scale_loss: bool = True,  # trainer args
     loss_function: str = "PoissonLoss3d",
     stop_function: str = "corr_stop",
@@ -47,22 +69,6 @@ def standard_early_stop_trainer(
     multiple_stimuli: bool = False,
     **kwargs,
 ):
-    # Defines objective function; criterion is resolved to the loss_function that is passed as input
-    def full_objective(model, *inputs: torch.Tensor, targets, data_key, detach_core=detach_core) -> torch.Tensor:
-        regularizers = int(not detach_core) * model.core.regularizer() + model.readout.regularizer(data_key)
-        if scale_loss:
-            m = len(trainloaders[data_key].dataset)
-            # Assuming first input is always images, and batch size is the first dimension
-            k = inputs[0].shape[0]
-            loss_scale = np.sqrt(m / k)
-        else:
-            loss_scale = 1.0
-
-        predictions = model(*tensors_to_device(inputs, device), data_key=data_key, detach_core=detach_core)
-        loss_criterion = criterion(predictions, targets.to(device))
-        res = loss_scale * loss_criterion + regularizers
-        return res
-
     trainloaders = dataloaders["train"]
     valloaders = dataloaders.get("validation", dataloaders["val"] if "val" in dataloaders.keys() else None)
     testloaders = dataloaders["test"]
@@ -150,7 +156,17 @@ def standard_early_stop_trainer(
             # clean the data key to use the same readout if we are training on multiple stimuli
             clean_data_key = clean_session_key(data_key) if multiple_stimuli else data_key
             *inputs, targets = data
-            loss = full_objective(model, *inputs, targets=targets, data_key=clean_data_key)
+            loss = objective_function(
+                model,
+                *inputs,
+                targets=targets,
+                data_key=clean_data_key,
+                detach_core=detach_core,
+                device=device,
+                criterion=criterion,
+                scale_loss=scale_loss,
+                dataset_length=len(trainloaders[data_key].dataset),
+            )
             loss.backward()
 
             if clip_gradient_norm is not None:
