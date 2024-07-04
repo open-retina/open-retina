@@ -22,7 +22,10 @@ from openretina.hoefling_2024.data_io import (
     natmov_dataloaders_v2,
 )
 from openretina.cyclers import LongCycler
-from openretina.hoefling_2024.nnfabrik_model_loading import Center
+from openretina.hoefling_2024.nnfabrik_model_loading import Center, load_ensemble_retina_model_from_directory
+
+ENSEMBLE_MODEL_PATH = ("/gpfs01/euler/data/SharedFiles/projects/Hoefling2024/"
+                       "models/nonlinear/9d574ab9fcb85e8251639080c8d402b7")
 
 
 def parse_args():
@@ -41,6 +44,14 @@ def parse_args():
     )
 
     return parser.parse_args()
+
+
+def load_model(path: str = ENSEMBLE_MODEL_PATH, device: str = "cuda"):
+    center_readout = Center(target_mean=(0.0, 0.0))
+    data_info, ensemble_model = load_ensemble_retina_model_from_directory(
+        path, device, center_readout=center_readout)
+    print(f"Initialized ensemble model from {path}")
+    return ensemble_model
 
 
 def generate_neuron_activations(data_folder: str, dataset_names_list: list[str], device: str) -> torch.Tensor:
@@ -80,21 +91,14 @@ def generate_neuron_activations(data_folder: str, dataset_names_list: list[str],
     }
     print("Initialized dataloaders")
 
-    model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=joint_dataloaders, seed=42)  # type: ignore
-    state_dict_path = "models/debug_2024-07-01/models/SFB3d_core_SxF3d_readout_hoefling_2022_2024-07-01_model_weights.pt"
-    state_dict = torch.load(state_dict_path)
-    model.load_state_dict(state_dict)
-    center_class = Center(target_mean=[0.0, 0.0])
-    center_class(model)
-    model.to(device)
-    print(f"Initialized model from {state_dict_path}")
+    model = load_model(device=device)
 
     # generate model outputs
     # We currently generate outputs for each readout key for each training example
     # This likely results in duplicate examples, as the training examples for each readout key are
     # the same or at least similar.
     outputs_model: list[torch.Tensor] = []
-    readout_keys_list = model.readout.readout_keys()
+    readout_keys_list = model.readout_keys()
     time_generation_start = time.time()
     for batch_no, (_, data) in enumerate(LongCycler(joint_dataloaders["train"])):
         all_activations_list = []
