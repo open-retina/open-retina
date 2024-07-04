@@ -300,7 +300,7 @@ class SpatialXFeature3dReadout(nn.ModuleDict):
         return ret
 
     def readout_keys(self) -> list[str]:
-        return list(self._modules.keys())
+        return sorted(self._modules.keys())
 
 
 class SpatialXFeature3d(nn.Module):
@@ -499,6 +499,9 @@ class Encoder(nn.Module):
             x = x.detach()
         x = self.readout(x, data_key=data_key)
         return x
+
+    def readout_keys(self) -> list[str]:
+        return self.readout.readout_keys()
 
 
 def compute_temporal_kernel(log_speed, sin_weights, cos_weights, length):

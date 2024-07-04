@@ -51,6 +51,7 @@ class Autoencoder(lightning.LightningModule):
             loss: SparsityMSELoss,
             learning_rate: float = 0.0005,
     ):
+        # TODO: In transformer circuits talks about the decoder weights W_d having unit norm for its columns
         super().__init__()
         self.bias = nn.Parameter(torch.zeros(input_dim))
         self.encoder = nn.Linear(input_dim, hidden_dim, bias=True)
@@ -85,3 +86,19 @@ class Autoencoder(lightning.LightningModule):
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
         return optimizer
+
+
+class AutoencoderWithModel:
+    def __init__(self, model, autoencoder: Autoencoder):
+        self.model = model
+        self.autoencoder = autoencoder
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        model_outputs: list[torch.Tensor] = []
+        for key in self.model.readout_keys():
+            out = self.model.forward(x, key)
+            model_outputs.append(out)
+        activations = torch.cat(model_outputs)
+
+        hidden = self.autoencoder.encode(activations)
+        return hidden

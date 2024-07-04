@@ -41,14 +41,17 @@ class AbstractObjective(ABC):
 
 class SingleNeuronObjective(AbstractObjective):
 
-    def __init__(self, model, neuron_idx: int, data_key: str, response_reducer: ResponseReducer):
+    def __init__(self, model, neuron_idx: int, data_key: str | None, response_reducer: ResponseReducer):
         super().__init__(model)
         self._neuron_idx = neuron_idx
         self._data_key = data_key
         self._response_reducer = response_reducer
 
     def forward(self, stimulus: torch.Tensor) -> torch.Tensor:
-        responses = self._model(stimulus, data_key=self._data_key)
+        if self._data_key is not None:
+            responses = self._model(stimulus, data_key=self._data_key)
+        else:
+            responses = self._model(stimulus)
         # responses.shape = (batch=1, time, neuron)
         responses = responses.squeeze(axis=0)
         single_response = responses[:, self._neuron_idx]

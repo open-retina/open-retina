@@ -322,5 +322,8 @@ class EnsembleModel(nn.Module):
         mean_output = torch.stack(outputs, dim=0).mean(dim=0)
         return mean_output
 
+    def readout_keys(self) -> list[str]:
+        return self.members[0].readout_keys  # type: ignore
+
     def __repr__(self):
         return f"{self.__class__.__qualname__}({', '.join(m.__repr__() for m in self.members)})"
