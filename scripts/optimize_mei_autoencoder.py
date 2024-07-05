@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from openretina.hoefling_2024.constants import STIMULUS_RANGE_CONSTRAINTS
-from openretina.optimization.objective import SingleNeuronObjective, MeanReducer
+from openretina.optimization.objective import AbstractObjective, SingleNeuronObjective, ContrastiveNeuronObjective, MeanReducer
 from openretina.optimization.optimizer import optimize_stimulus
 from openretina.optimization.optimization_stopper import OptimizationStopper
 from openretina.optimization.regularizer import (
@@ -29,6 +29,7 @@ def parse_args():
     parser.add_argument("--autoencoder_path", required=True, type=str)
     parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
     parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda")
+    parser.add_argument("--use_contrastive_objective", action="store_true")
 
     return parser.parse_args()
 
@@ -41,11 +42,15 @@ def load_model(path: str = ENSEMBLE_MODEL_PATH, device: str = "cuda"):
     return ensemble_model
 
 
-def main(autoencoder_path: str, save_folder: str, device: str) -> None:
+def main(autoencoder_path: str, save_folder: str, device: str, use_contrastive_objective: bool) -> None:
     device = "cuda"
     model = load_model(device=device)
     autoencoder = Autoencoder.load_from_checkpoint(autoencoder_path)
     autoencoder_with_model = AutoencoderWithModel(model, autoencoder)
+    if use_contrastive_objective:
+        objective_class: AbstractObjective = ContrastiveNeuronObjective
+    else:
+        objective_class = SingleNeuronObjective
 
     # from controversial stimuli: (2, 50, 18, 16): (channels, time, height, width)
     stimulus_shape = (1, 2, 50, 18, 16)
@@ -69,8 +74,8 @@ def main(autoencoder_path: str, save_folder: str, device: str) -> None:
 
     for neuron_id in range(autoencoder.hidden_dim()):
         print(f"Generating MEI for {neuron_id=}")
-        objective = SingleNeuronObjective(autoencoder_with_model, neuron_idx=neuron_id,
-                                          data_key=None, response_reducer=mean_response_reducer)
+        objective = objective_class(autoencoder_with_model, neuron_idx=neuron_id,
+                                    data_key=None, response_reducer=mean_response_reducer)
 
         stimulus = torch.randn(stimulus_shape, requires_grad=True, device=device)
 
@@ -97,8 +102,10 @@ def main(autoencoder_path: str, save_folder: str, device: str) -> None:
             spatial_ax=axes[1, 0],
             highlight_x_list=[(40, 49)],
         )
-        img_path = f"{save_folder}/mei_{neuron_id}.pdf"
-        np_path = f"{save_folder}/mei_{neuron_id}.npy"
+
+        mei_str = "cei" if use_contrastive_objective else "mei"
+        img_path = f"{save_folder}/{mei_str}_{neuron_id}.pdf"
+        np_path = f"{save_folder}/{mei_str}_{neuron_id}.npy"
         with open(np_path, "wb") as fwb:
             np.save(fwb, stimulus_np)
         fig.savefig(img_path, bbox_inches="tight", facecolor="w", dpi=300)

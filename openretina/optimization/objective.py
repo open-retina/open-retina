@@ -85,7 +85,7 @@ class ContrastiveNeuronObjective(AbstractObjective):
         obj = (
             (1 / t) * on_score
             - torch.logsumexp((1 / t) * all_scores, dim=0)
-            + torch.log(all_scores.shape(0))
+            + torch.log(torch.tensor(all_scores.size(0)))
         )
         return obj
 
