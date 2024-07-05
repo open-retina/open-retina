@@ -67,6 +67,9 @@ class Autoencoder(lightning.LightningModule):
         self.unit_norm_loss_factor = unit_norm_loss_factor
         self.save_hyperparameters()
 
+    def hidden_dim(self) -> int:
+        return self.encoder.out_features
+
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         x_bar = x - self.bias
         # b_e is already present in self.encoder
@@ -106,8 +109,9 @@ class Autoencoder(lightning.LightningModule):
         return optimizer
 
 
-class AutoencoderWithModel:
+class AutoencoderWithModel(nn.Module):
     def __init__(self, model, autoencoder: Autoencoder):
+        super().__init__()
         self.model = model
         self.autoencoder = autoencoder
 
@@ -116,7 +120,7 @@ class AutoencoderWithModel:
         for key in self.model.readout_keys():
             out = self.model.forward(x, key)
             model_outputs.append(out)
-        activations = torch.cat(model_outputs)
+        activations = torch.cat(model_outputs, dim=-1)
 
         hidden = self.autoencoder.encode(activations)
         return hidden
