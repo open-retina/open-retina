@@ -14,8 +14,6 @@ from lightning.pytorch.loggers import CSVLogger
 from openretina.neuron_data_io import make_final_responses
 from openretina.models.autoencoder import SparsityMSELoss, Autoencoder, ActivationsDataset
 from openretina.utils.h5_handling import load_h5_into_dict
-from openretina.hoefling_2024.configs import model_config
-from openretina.hoefling_2024.models import SFB3d_core_SxF3d_readout
 from openretina.hoefling_2024.data_io import (
     get_chirp_dataloaders,
     get_mb_dataloaders,
