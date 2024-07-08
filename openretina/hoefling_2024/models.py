@@ -11,6 +11,7 @@ from neuralpredictors.layers.affine import Bias3DLayer, Scale2DLayer, Scale3DLay
 from neuralpredictors.regularizers import Laplace, Laplace1d
 from neuralpredictors.utils import get_module_output
 
+from openretina.models.readout_rnn import ReadoutRnn
 from ..dataloaders import get_dims_for_loader_dict
 from ..utils.misc import set_seed
 
@@ -263,6 +264,7 @@ class SpatialXFeature3dReadout(nn.ModuleDict):
         gamma_readout,
         gamma_masks=0.0,
         readout_reg_avg=False,
+        use_readout_rnn: bool = False,
     ):
         super().__init__()
         for k in n_neurons_dict:  # iterate over sessions
@@ -281,6 +283,7 @@ class SpatialXFeature3dReadout(nn.ModuleDict):
                     positive=positive,
                     scale=scale,
                     bias=bias,
+                    use_readout_rnn=use_readout_rnn,
                 ),
             )
 
@@ -303,17 +306,18 @@ class SpatialXFeature3dReadout(nn.ModuleDict):
 class SpatialXFeature3d(nn.Module):
     def __init__(
         self,
-        in_shape,
-        outdims,
-        gaussian_masks=False,
-        gaussian_mean_scale=1e0,
-        gaussian_var_scale=1e0,
-        initialize_from_roi_masks=False,
+        in_shape: tuple[int, int, int, int],
+        outdims: int,
+        gaussian_masks: bool = False,
+        gaussian_mean_scale: float = 1e0,
+        gaussian_var_scale: float = 1e0,
+        initialize_from_roi_masks: bool = False,
         roi_mask=[],
-        positive=False,
-        scale=False,
-        bias=True,
-        nonlinearity=True,
+        positive: bool = False,
+        scale: bool = False,
+        bias: bool = True,
+        nonlinearity: bool = True,
+        use_readout_rnn: bool = False,
     ):
         """
         TODO write docstring
@@ -333,7 +337,7 @@ class SpatialXFeature3d(nn.Module):
         """
         super().__init__()
         self.in_shape = in_shape
-        c, t, w, h = in_shape
+        num_channels, t, w, h = in_shape
         self.outdims = outdims
         self.gaussian_masks = gaussian_masks
         self.gaussian_mean_scale = gaussian_mean_scale
@@ -357,19 +361,29 @@ class SpatialXFeature3d(nn.Module):
             else:
                 self.masks = nn.Parameter(torch.Tensor(w, h, outdims))
 
-        self.features = nn.Parameter(torch.Tensor(1, c, 1, outdims))
+        self.features = nn.Parameter(torch.Tensor(1, num_channels, 1, outdims))
 
         if scale:
-            scale = nn.Parameter(torch.Tensor(outdims))
-            self.register_parameter("scale", scale)
+            scale_parameter = nn.Parameter(torch.Tensor(outdims))
+            self.register_parameter("scale", scale_parameter)
         else:
             self.register_parameter("scale", None)
 
         if bias:
-            bias = nn.Parameter(torch.Tensor(outdims))
-            self.register_parameter("bias", bias)
+            bias_parameter = nn.Parameter(torch.Tensor(outdims))
+            self.register_parameter("bias", bias_parameter)
         else:
             self.register_parameter("bias", None)
+
+        if use_readout_rnn:
+            self._readout_rnn: ReadoutRnn | None = ReadoutRnn(
+                input_dim=num_channels,
+                n_layers=2,
+                hidden_dim=256,
+                output_dim=outdims,
+            )
+        else:
+            self._readout_rnn = None
 
         self.initialize()
 
@@ -446,8 +460,13 @@ class SpatialXFeature3d(nn.Module):
             feat = self.features
             masks = self.masks
 
-        y = torch.einsum("nctwh,whd->nctd", x, masks)
-        y = (y * feat).sum(1)
+        y_einsum = torch.einsum("nctwh,whd->nctd", x, masks)
+
+        if self._readout_rnn is not None:
+            y = torch.permute(y_einsum[:, :, :, 0], (0, 2, 1))
+            y = self._readout_rnn(y)
+        else:
+            y = (y_einsum * feat).sum(1)
 
         if self.scale is not None:
             y = y * self.scale
@@ -907,6 +926,7 @@ def SFB3d_core_SxF3d_readout(
     nonlinearity: str = "ELU",
     conv_type: Literal["full", "separable", "custom_separable", "time_independent"] = "custom_separable",
     device=DEVICE,
+    use_readout_rnn: bool = False,
 ):
     """
     Model class of a stacked2dCore (from mlutils) and a pointpooled (spatial transformer) readout
@@ -992,6 +1012,7 @@ def SFB3d_core_SxF3d_readout(
         gamma_readout=gamma_readout,
         gamma_masks=gamma_masks,
         readout_reg_avg=readout_reg_avg,
+        use_readout_rnn=use_readout_rnn,
     )
 
     # initializing readout bias to mean response
