@@ -82,7 +82,7 @@ def main() -> None:
             )
             stimulus_np = stimulus[0].cpu().numpy()
             fig_axes = plt.subplots(2, 2, figsize=(7 * 3, 12))
-            axes: np.ndarray = fig_axes[1]
+            axes: np.ndarray = fig_axes[1]  # type: ignore
             plot_stimulus_composition(
                 stimulus=stimulus_np,
                 temporal_trace_ax=axes[0, 0],
