@@ -82,7 +82,7 @@ class Autoencoder(lightning.LightningModule):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x_hidden = self.encode(x)
-        x_reconstruct = self.decoder(x_hidden)
+        x_reconstruct = self.decode(x_hidden)
         return x_reconstruct
 
     def unit_norm_loss(self):
@@ -93,8 +93,8 @@ class Autoencoder(lightning.LightningModule):
 
     def training_step(self, batch, batch_idx) -> torch.Tensor:
         x, _ = batch
-        z = self.encoder(x)
-        x_hat = self.decoder(z)
+        z = self.encode(x)
+        x_hat = self.decode(z)
         loss, mse_loss, sparsity_loss = self.loss.forward(x, z, x_hat)
         unit_norm_loss_tensor = self.unit_norm_loss()
         total_loss = loss + self.unit_norm_loss_factor * unit_norm_loss_tensor
