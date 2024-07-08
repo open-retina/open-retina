@@ -17,7 +17,10 @@ class ReadoutRnn(nn.Module):
 
         self.gru = nn.GRU(input_dim, hidden_dim, n_layers, batch_first=True, dropout=drop_prob)
         self.fc = nn.Linear(hidden_dim, output_dim)
-        self._initial_hidden_vector = torch.randn((self.n_layers, 1, hidden_dim), requires_grad=True)
+        self._initial_hidden_vector = torch.nn.Parameter(
+            data=torch.randn((self.n_layers, 1, hidden_dim)),
+            requires_grad=True,
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         initial_with_repeated_batch_dim = self._initial_hidden_vector.repeat((1, x.size(0), 1))
