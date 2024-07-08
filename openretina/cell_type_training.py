@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from jaxtyping import Float
 from neuralpredictors.layers.readouts import MultiReadoutBase, Readout
 from scipy.fftpack import fft
+from sklearn.preprocessing import OrdinalEncoder
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
@@ -41,6 +42,7 @@ BARCODE_MEANS = {
     "ventral_dorsal_pos_um": np.array([-764.9]),
     "d_qi": np.array([0.75]),
     "roi_size_um2": np.array([81.13]),
+    "pref_dir": np.array([0.31]),
 }
 
 BARCODES_STDEVS = {
@@ -52,6 +54,7 @@ BARCODES_STDEVS = {
     "ventral_dorsal_pos_um": np.array([392.18]),
     "d_qi": np.array([0.15]),
     "roi_size_um2": np.array([40.74]),
+    "pref_dir": np.array([1.54]),
 }
 
 # Stimuli repetitions in the hoefling_2024 dataset
@@ -125,9 +128,13 @@ def calculate_chirp_features(chirp_trace: Float[np.ndarray, "n_neurons n_timepoi
 
 
 def generate_cell_barcodes(
-    responses_dict, normalize=True
+    responses_dict, normalize=True, include_field_id=False
 ) -> Dict[str, Dict[str, Float[np.ndarray, "n_neurons n_features"]]]:
     cell_barcodes = {}
+
+    if include_field_id:
+        field_encoder = OrdinalEncoder()
+        field_encoder.fit(np.array(list(responses_dict.keys())).reshape(-1, 1))
 
     for field_id in responses_dict:
         field_barcode = {
@@ -138,6 +145,7 @@ def generate_cell_barcodes(
             "d_qi": responses_dict[field_id]["d_qi"][:, None],
             "ds_index": responses_dict[field_id]["ds_index"][:, None],
             "os_index": responses_dict[field_id]["os_index"][:, None],
+            "pref_dir": responses_dict[field_id]["pref_dir"][:, None],
             "temporal_nasal_pos_um": np.repeat(
                 responses_dict[field_id]["temporal_nasal_pos_um"], len(responses_dict[field_id]["group_assignment"])
             )[:, None],
@@ -145,6 +153,14 @@ def generate_cell_barcodes(
                 responses_dict[field_id]["ventral_dorsal_pos_um"], len(responses_dict[field_id]["group_assignment"])
             )[:, None],
         }
+
+        if include_field_id:
+            field_barcode["field_id"] = (
+                field_encoder.transform(np.repeat(field_id, len(responses_dict[field_id]["group_assignment"]))[:, None])
+                .squeeze()
+                .astype(int)
+                .astype(str)
+            )
 
         # Normalize the features before concatenating
         if normalize:
@@ -215,10 +231,11 @@ class ReadoutWeightShifter(nn.Module):
         hidden_units=(64, 32),
         use_bn=True,
         tanh_output=True,
-        sigmoid_output=False,
+        sigmoid_output=False,  # TODO pass class directly
         learn_scale=False,
         learn_bias=False,
         gamma_activations=0.1,
+        gamma_variance=0.0,
     ):
         super(ReadoutWeightShifter, self).__init__()
 
@@ -238,7 +255,7 @@ class ReadoutWeightShifter(nn.Module):
         # Dense layers for numerical features
         self.num_numerical_features = num_numerical_features
         self.fc1 = nn.Linear(
-            num_numerical_features + int(np.sum(categorical_embedding_dims) * len(categorical_vocab_sizes)),
+            num_numerical_features + int(np.sum(categorical_embedding_dims)),
             hidden_units[0],
         )
         self.bn1 = nn.BatchNorm1d(hidden_units[0])
@@ -263,6 +280,7 @@ class ReadoutWeightShifter(nn.Module):
 
         # Regularization
         self.gamma_activations = gamma_activations
+        self.gamma_variance = gamma_variance
 
     def forward(
         self,
@@ -369,6 +387,8 @@ class FrozenFactorisedReadout2d(Readout):
         subs_idx=None,
     ):
         b, c, w, h = x.size()
+
+        assert features.shape[-1] == self.outdims, "Number of neurons in features does not match outdims"
 
         features = features.view(b, c, self.outdims)
 
@@ -529,6 +549,7 @@ def conv_core_frozen_readout(
     shifter_batch_norm: bool = True,
     shifter_tanh_output: bool = True,
     shifter_gamma: float = 0.0,
+    shifter_gamma_variance: float = 0.0,
     stack=None,
     use_avg_reg: bool = False,
     data_info: Optional[dict] = None,
@@ -632,6 +653,7 @@ def conv_core_frozen_readout(
         learn_scale=readout_scale,
         learn_bias=readout_bias,
         gamma_activations=shifter_gamma,
+        gamma_variance=shifter_gamma_variance,
     )
 
     # initializing readout bias to mean response
@@ -745,6 +767,7 @@ def natmov_and_meta_dataloaders(
     num_val_clips: int = NUM_VAL_CLIPS,
     use_base_sequence: bool = False,
     use_raw_traces: bool = False,
+    include_field_info: bool = False,
 ):
     """
     Train, test and validation dataloaders for natural movies responses datasets and metadata.
@@ -799,7 +822,7 @@ def natmov_and_meta_dataloaders(
     if use_raw_traces:
         barcodes = extract_chirp_mb(neuron_data_dictionary)
     else:
-        barcodes = generate_cell_barcodes(neuron_data_dictionary)
+        barcodes = generate_cell_barcodes(neuron_data_dictionary, include_field_id=include_field_info)
 
     for session_key, session_data in tqdm(neuron_data_dictionary.items(), desc="Creating movie dataloaders"):
         neuron_data = NeuronData(
@@ -864,8 +887,10 @@ def metadata_model_full_objective(
 
     loss_criterion = criterion(predictions, targets.to(device))
 
+    # Penalties encourage the feature weights to be sparse and to have high variance across neurons
     return (
         loss_scale * loss_criterion
         + standard_regularizers
         + model.readout_shifter.gamma_activations * feature_weights.abs().sum()
+        + model.readout_shifter.gamma_variance * (1.0 / (feature_weights.var(dim=0).mean() + 1e-5))
     )
