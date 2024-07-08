@@ -1,6 +1,6 @@
 from collections import OrderedDict
 from collections.abc import Iterable
-from typing import Literal, Optional, Tuple
+from typing import Literal, Optional, Tuple, Callable
 
 import numpy as np
 import torch
@@ -31,16 +31,11 @@ class Core:
 
 
 class Core3d(Core):
-    def initialize(self, cuda=False):
+    def initialize(self):
         self.apply(self.init_conv)
-        self.put_to_cuda(cuda=cuda)
-
-    def put_to_cuda(self, cuda):
-        if cuda:
-            self = self.cuda()
 
     @staticmethod
-    def init_conv(m):
+    def init_conv(m) -> None:
         if isinstance(m, nn.Conv3d):
             nn.init.xavier_normal_(m.weight.data)
             if m.bias is not None:
@@ -51,29 +46,29 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
     def __init__(
         self,
         n_neurons_dict,
-        input_channels=2,
-        num_scans=1,
+        input_channels: int = 2,
+        num_scans: int = 1,
         hidden_channels=[8],
         temporal_kernel_size=[21],
         spatial_kernel_size=[14],
-        layers=1,
-        gamma_hidden=0.0,
-        gamma_input=0.0,
-        gamma_in_sparse=0.0,
-        gamma_temporal=0.0,
-        final_nonlinearity=True,
-        bias=True,
-        momentum=0.1,
-        input_padding=False,
-        hidden_padding=True,
-        batch_norm=True,
-        batch_norm_scale=True,
-        laplace_padding=0,
+        layers: int = 1,
+        gamma_hidden: float = 0.0,
+        gamma_input: float = 0.0,
+        gamma_in_sparse: float = 0.0,
+        gamma_temporal: float = 0.0,
+        final_nonlinearity: bool = True,
+        bias: bool = True,
+        momentum: float = 0.1,
+        input_padding: bool = False,
+        hidden_padding: bool = True,
+        batch_norm: bool = True,
+        batch_norm_scale: bool = True,
+        laplace_padding: int = 0,
         stack=None,
-        batch_adaptation=True,
-        use_avg_reg=False,
-        nonlinearity="ELU",
-        conv_type="custom_separable",
+        batch_adaptation: bool = True,
+        use_avg_reg: bool = False,
+        nonlinearity: str = "ELU",
+        conv_type: str = "custom_separable",
         device=DEVICE,
     ):
         super().__init__()
@@ -81,7 +76,7 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
         self._input_weights_regularizer_temporal = TimeLaplaceL23dnorm(padding=laplace_padding)
 
         if conv_type == "separable":
-            self.conv_class = TorchSTSeparableConv3D
+            self.conv_class: type[torch.nn.Module] = TorchSTSeparableConv3D
         elif conv_type == "custom_separable":
             self.conv_class = STSeparableBatchConv3d
         elif conv_type == "full":
@@ -115,11 +110,12 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
             log_speed_dict[var_name] = log_speed_val
 
         if input_padding:
-            input_pad = (0, spatial_kernel_size[0] // 2, spatial_kernel_size[0] // 2)
+            input_pad: tuple[int, int, int] | int = (0, spatial_kernel_size[0] // 2,
+                                                     spatial_kernel_size[0] // 2)
         else:
             input_pad = 0
         if hidden_padding & (len(spatial_kernel_size) > 1):
-            hidden_pad = [
+            hidden_pad: list[tuple[int, int, int] | int] = [
                 (0, spatial_kernel_size[x] // 2, spatial_kernel_size[x] // 2)
                 for x in range(1, len(spatial_kernel_size))
             ]
@@ -242,7 +238,7 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
             return 0
 
     @property
-    def outchannels(self):
+    def outchannels(self) -> list[int]:
         return len(self.features) * self.hidden_channels[-1]
 
 
@@ -373,7 +369,7 @@ class SpatialXFeature3d(nn.Module):
 
         self.initialize()
 
-    def initialize(self, init_noise=1e-3, grid=True):
+    def initialize(self) -> None:
         if (not self.gaussian_masks) and (not self.initialize_from_roi_masks):
             self.masks.data.normal_(0.0, 0.01)
         self.features.data.normal_(0.0, 0.01)
@@ -408,7 +404,7 @@ class SpatialXFeature3d(nn.Module):
             else:
                 return self.masks[..., subs_idx].abs().sum()
 
-    def make_mask_grid(self, w, h):
+    def make_mask_grid(self, w: int, h: int) -> torch.Tensor:
         """Actually mixed up: w (width) is height, and vice versa"""
         grid_w = torch.linspace(-1 * w / max(w, h), 1 * w / max(w, h), w)
         grid_h = torch.linspace(-1 * h / max(w, h), 1 * h / max(w, h), h)
@@ -460,16 +456,18 @@ class SpatialXFeature3d(nn.Module):
             y = F.softplus(y)
         return y
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         c, _, w, h = self.in_shape
-        r = self.__class__.__name__ + " (" + "{} x {} x {}".format(c, w, h) + " -> " + str(self.outdims) + ")"
+        res_array: list[str] = []
+        r = f"{self.__class__.__name__} ( {c} x {w} x {h} -> {str(self.outdims)})"
         if self.bias is not None:
             r += " with bias"
-        r += "\n"
+        res_array.append(r)
 
         for ch in self.children():
-            r += "  -> " + ch.__repr__() + "\n"
-        return r
+            r += "  -> " + ch.__repr__()
+            res_array.append(r)
+        return "\n".join(res_array)
 
 
 class Encoder(nn.Module):
@@ -772,7 +770,7 @@ class STSeparableBatchConv3d(nn.Module):
         return sin_weights, cos_weights
 
     @staticmethod
-    def temporal_basis(stretches, T):
+    def temporal_basis(stretches: torch.Tensor, T: int) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Generates the basis for the temporal component of the convolution.
 
@@ -792,12 +790,12 @@ class STSeparableBatchConv3d(nn.Module):
         for k in range(K):
             sines.append(mask * torch.sin(freq * k))
             cosines.append(mask * torch.cos(freq * k))
-        sines = torch.stack(sines, 0)
-        cosines = torch.stack(cosines, 0)
-        return sines, cosines
+        sines_stacked = torch.stack(sines, 0)
+        cosines_stacked = torch.stack(cosines, 0)
+        return sines_stacked, cosines_stacked
 
     @staticmethod
-    def mask_tf(time, stretch, T):
+    def mask_tf(time: torch.Tensor, stretch: torch.Tensor, T: int) -> torch.Tensor:
         """
         Generates a mask for the temporal basis functions.
 
@@ -823,7 +821,7 @@ class TimeLaplaceL23dnorm(nn.Module):
         super().__init__()
         self.laplace = Laplace1d(padding=padding)
 
-    def forward(self, x, avg=False):
+    def forward(self, x: torch.Tensor, avg: bool = False) -> torch.Tensor:
         agg_fn = torch.mean if avg else torch.sum
 
         oc, ic, k1, k2, k3 = x.size()
@@ -841,7 +839,7 @@ class FlatLaplaceL23dnorm(nn.Module):
         super().__init__()
         self.laplace = Laplace(padding=padding)
 
-    def forward(self, x, avg=False):
+    def forward(self, x: torch.Tensor, avg: bool = False) -> torch.Tensor:
         agg_fn = torch.mean if avg else torch.sum
 
         oc, ic, k1, k2, k3 = x.size()
@@ -859,7 +857,13 @@ def temporal_smoothing(sin, cos):
 
 class LocalEncoder(Encoder):
 
-    def forward(self, x, data_key=None, detach_core=False, **kwargs):
+    def forward(
+            self,
+            x: torch.Tensor,
+            data_key: str | None = None,
+            detach_core: bool = False,
+            **kwargs
+    ) -> torch.Tensor:
         self.detach_core = detach_core
         if self.detach_core:
             for name, param in self.core.features.named_parameters():
@@ -907,7 +911,7 @@ def SFB3d_core_SxF3d_readout(
     nonlinearity: str = "ELU",
     conv_type: Literal["full", "separable", "custom_separable", "time_independent"] = "custom_separable",
     device=DEVICE,
-):
+) -> torch.nn.Module:
     """
     Model class of a stacked2dCore (from mlutils) and a pointpooled (spatial transformer) readout
     Args:
