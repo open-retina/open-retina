@@ -21,6 +21,7 @@ model_config = {
     "gamma_in_sparse": 1.0,
     "gamma_hidden": 0.0,
     "gamma_temporal": 40.0,
+    "use_readout_rnn": False,
 }
 
 trainer_config = {
