@@ -153,7 +153,7 @@ def main(
     # when num_workers > 0 the docker container needs more shared memory
     train_loader = torch.utils.data.DataLoader(activations_dataset, batch_size=30, num_workers=0)
 
-    lightning_folder = f"{save_folder}_{hidden_dim}_neurons"
+    lightning_folder = f"{save_folder}_{hidden_dim}_neurons_sparsity_{sparsity_factor}"
     csv_logger = CSVLogger(lightning_folder)
     trainer = lightning.Trainer(max_epochs=10, default_root_dir=lightning_folder, logger=csv_logger)
     trainer.fit(model=sparse_autoencoder, train_dataloaders=train_loader)
