@@ -191,14 +191,14 @@ class GRUEnabledCore(Core3d, nn.Module):
         batch_norm=True,
         batch_norm_scale=True,
         laplace_padding: Optional[int] = 0,
-        stack=None,
         batch_adaptation=True,
         use_avg_reg=False,
         nonlinearity="ELU",
         conv_type="custom_separable",
         use_gru=False,
-        device=DEVICE,
+        use_projections=False,
         gru_kwargs: Optional[Dict[str, int | float]] = None,
+        **kwargs,
     ):
         super().__init__()
         self._input_weights_regularizer_spatial = FlatLaplaceL23dnorm(padding=laplace_padding)
@@ -226,12 +226,8 @@ class GRUEnabledCore(Core3d, nn.Module):
         self.use_avg_reg = use_avg_reg
 
         self.features = nn.Sequential()
-        if stack is None:
-            self.stack = range(self.layers)
-        else:
-            self.stack = [range(self.layers)[stack]] if isinstance(stack, int) else stack
 
-        log_speed_dict = dict()
+        log_speed_dict = {}
         for k in n_neurons_dict:
             var_name = "_".join(["log_speed", k])
             log_speed_val = torch.nn.Parameter(data=torch.zeros(1), requires_grad=batch_adaptation)
@@ -281,8 +277,24 @@ class GRUEnabledCore(Core3d, nn.Module):
             elif batch_norm_scale:
                 layer["scale"] = Scale3DLayer(hidden_channels[0])
         if final_nonlinearity:
-            layer["nonlin"] = getattr(nn, nonlinearity)()  # TODO add back in place if necessary
-        self.features.add_module("layer0", nn.Sequential(layer))  # type: ignore
+            layer["nonlin"] = getattr(nn, nonlinearity)()
+        self.features.add_module("layer0", nn.Sequential(layer))
+
+        if use_projections:
+            self.features.add_module(
+                "projection",
+                nn.Sequential(
+                    TorchFullConv3D(
+                        hidden_channels[0],
+                        hidden_channels[0],
+                        log_speed_dict,
+                        1,
+                        1,
+                        bias=False,
+                    ),
+                    getattr(nn, nonlinearity)(),
+                ),
+            )
 
         # --- other layers
 
@@ -329,20 +341,22 @@ class GRUEnabledCore(Core3d, nn.Module):
                     data_key,
                 )
             )
-            ret.append(input_)
 
-        return torch.cat([ret[ind] for ind in self.stack], dim=1)
+        return input_
 
     def spatial_laplace(self):
         return self._input_weights_regularizer_spatial(self.features[0].conv.weight_spatial, avg=self.use_avg_reg)
 
     def group_sparsity(self):  # check if this is really what we want
         sparsity_loss = 0
-        for layer_num in range(1, self.layers):
-            spatial_weight_layer = self.features[layer_num].conv.weight_spatial
-            norm = spatial_weight_layer.pow(2).sum([2, 3, 4]).sqrt().sum(1)
-            sparsity_loss_layer = (spatial_weight_layer.pow(2).sum([2, 3, 4]).sqrt().sum(1) / norm).sum()
-            sparsity_loss += sparsity_loss_layer
+        for layer in self.features:
+            if hasattr(layer, "conv"):
+                spatial_weight_layer = layer.conv.weight_spatial
+                norm = spatial_weight_layer.pow(2).sum([2, 3, 4]).sqrt().sum(1)
+                sparsity_loss_layer = (spatial_weight_layer.pow(2).sum([2, 3, 4]).sqrt().sum(1) / norm).sum()
+                sparsity_loss += sparsity_loss_layer
+            else:
+                continue
         return sparsity_loss
 
     def group_sparsity0(self):  # check if this is really what we want
@@ -359,10 +373,11 @@ class GRUEnabledCore(Core3d, nn.Module):
     def temporal_smoothness(self):
         return sum(
             temporal_smoothing(
-                self.features[layer_num].conv.sin_weights,
-                self.features[layer_num].conv.cos_weights,
+                layer.conv.sin_weights,
+                layer.conv.cos_weights,
             )
-            for layer_num in range(self.layers)
+            for layer in self.features
+            if hasattr(layer, "conv")
         )
 
     def regularizer(self):
