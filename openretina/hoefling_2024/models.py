@@ -17,21 +17,20 @@ from ..utils.misc import set_seed
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 
-class Core:
-    def initialize(self):
+class Core(nn.Module):
+    def initialize(self) -> None:
         raise NotImplementedError("Not initializing")
 
-    def __repr__(self):
-        s = super().__repr__()
-        s += " [{} regularizers: ".format(self.__class__.__name__)
+    def __repr__(self) -> str:
+        s = f"{repr(super())} [{self.__class__.__name__} regularizers: "
         ret = []
         for attr in filter(lambda x: "gamma" in x or "skip" in x, dir(self)):
-            ret.append("{} = {}".format(attr, getattr(self, attr)))
+            ret.append(f"{attr} = {getattr(self, attr)}")
         return s + "|".join(ret) + "]\n"
 
 
 class Core3d(Core):
-    def initialize(self):
+    def initialize(self) -> None:
         self.apply(self.init_conv)
 
     @staticmethod
@@ -42,7 +41,7 @@ class Core3d(Core):
                 m.bias.data.fill_(0)
 
 
-class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
+class ParametricFactorizedBatchConv3dCore(Core3d):
     def __init__(
         self,
         n_neurons_dict,
@@ -69,7 +68,6 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
         use_avg_reg: bool = False,
         nonlinearity: str = "ELU",
         conv_type: str = "custom_separable",
-        device=DEVICE,
     ):
         super().__init__()
         self._input_weights_regularizer_spatial = FlatLaplaceL23dnorm(padding=laplace_padding)
@@ -245,7 +243,7 @@ class ParametricFactorizedBatchConv3dCore(Core3d, nn.Module):
 class SpatialXFeature3dReadout(nn.ModuleDict):
     def __init__(
         self,
-        core,
+        core: Core,
         in_shape_dict,
         n_neurons_dict,
         scale,
@@ -299,17 +297,17 @@ class SpatialXFeature3dReadout(nn.ModuleDict):
 class SpatialXFeature3d(nn.Module):
     def __init__(
         self,
-        in_shape,
-        outdims,
-        gaussian_masks=False,
-        gaussian_mean_scale=1e0,
-        gaussian_var_scale=1e0,
-        initialize_from_roi_masks=False,
+        in_shape: tuple[int, int, int, int],
+        outdims: int,
+        gaussian_masks: bool = False,
+        gaussian_mean_scale: float = 1e0,
+        gaussian_var_scale: float = 1e0,
+        initialize_from_roi_masks: bool = False,
         roi_mask=[],
-        positive=False,
-        scale=False,
-        bias=True,
-        nonlinearity=True,
+        positive: bool = False,
+        scale: bool = False,
+        bias: bool = True,
+        nonlinearity: bool = True,
     ):
         """
         TODO write docstring
@@ -356,14 +354,14 @@ class SpatialXFeature3d(nn.Module):
         self.features = nn.Parameter(torch.Tensor(1, c, 1, outdims))
 
         if scale:
-            scale = nn.Parameter(torch.Tensor(outdims))
-            self.register_parameter("scale", scale)
+            scale_param = nn.Parameter(torch.Tensor(outdims))
+            self.register_parameter("scale", scale_param)
         else:
             self.register_parameter("scale", None)
 
         if bias:
-            bias = nn.Parameter(torch.Tensor(outdims))
-            self.register_parameter("bias", bias)
+            bias_param = nn.Parameter(torch.Tensor(outdims))
+            self.register_parameter("bias", bias_param)
         else:
             self.register_parameter("bias", None)
 
@@ -378,14 +376,14 @@ class SpatialXFeature3d(nn.Module):
         if self.bias is not None:
             self.bias.data.fill_(0)
 
-    def feature_l1(self, average=False, subs_idx=None):
+    def feature_l1(self, average: bool = False, subs_idx=None) -> torch.Tensor:
         subs_idx = subs_idx if subs_idx is not None else slice(None)
         if average:
             return self.features[..., subs_idx].abs().mean()
         else:
             return self.features[..., subs_idx].abs().sum()
 
-    def mask_l1(self, average=False, subs_idx=None):
+    def mask_l1(self, average: bool = False, subs_idx=None) -> torch.Tensor:
         subs_idx = subs_idx if subs_idx is not None else slice(None)
         if self.gaussian_masks:
             if average:
@@ -412,7 +410,7 @@ class SpatialXFeature3d(nn.Module):
         grid = torch.stack([xx, yy], 2)[None, ...]
         return grid.repeat([self.outdims, 1, 1, 1])
 
-    def normal_pdf(self):
+    def normal_pdf(self) -> torch.Tensor:
         """Gets the actual mask values in terms of a PDF from the mean and SD"""
         # self.mask_var_ = torch.exp(self.mask_log_var * self.gaussian_var_scale).view(-1, 1, 1)
         scaled_log_var = self.mask_log_var * self.gaussian_var_scale
@@ -424,7 +422,7 @@ class SpatialXFeature3d(nn.Module):
         pdf = torch.nan_to_num(pdf / normalisation)
         return pdf
 
-    def forward(self, x, shift=None, subs_idx=None):
+    def forward(self, x: torch.Tensor, shift=None, subs_idx=None) -> torch.Tensor:
         if self.gaussian_masks:
             self.masks = self.normal_pdf().permute(1, 2, 0)
         else:
@@ -479,7 +477,7 @@ class Encoder(nn.Module):
 
     def __init__(
         self,
-        core,
+        core: Core,
         readout,
     ):
         super().__init__()
@@ -487,7 +485,7 @@ class Encoder(nn.Module):
         self.readout = readout
         self.detach_core = False
 
-    def forward(self, x, data_key=None, detach_core=False, **kwargs):
+    def forward(self, x: torch.Tensor, data_key: str | None = None, detach_core: bool = False, **kwargs):
         self.detach_core = detach_core
         x = self.core(x, data_key=data_key)
         if self.detach_core:
@@ -496,7 +494,7 @@ class Encoder(nn.Module):
         return x
 
 
-def compute_temporal_kernel(log_speed, sin_weights, cos_weights, length):
+def compute_temporal_kernel(log_speed, sin_weights, cos_weights, length: int) -> torch.Tensor:
     """
     Computes the temporal kernel for the convolution.
 
@@ -549,7 +547,7 @@ class TorchFullConv3D(nn.Module):
             bias=bias,
         )
 
-    def forward(self, input_):
+    def forward(self, input_: torch.Tensor) -> torch.Tensor:
         x, data_key = input_
 
         # Compute temporal kernel based on the provided data key
@@ -633,7 +631,7 @@ class TorchSTSeparableConv3D(nn.Module):
             out_channels, out_channels, (temporal_kernel_size, 1, 1), stride=stride, padding=padding, bias=bias
         )
 
-    def forward(self, input_):
+    def forward(self, input_: torch.Tensor) -> torch.Tensor:
         x, data_key = input_
 
         # Compute temporal kernel based on the provided data key
@@ -668,16 +666,16 @@ class STSeparableBatchConv3d(nn.Module):
 
     def __init__(
         self,
-        in_channels,
-        out_channels,
-        log_speed_dict,
-        temporal_kernel_size,
-        spatial_kernel_size,
-        spatial_kernel_size2=None,
-        stride=1,
-        padding=0,
-        num_scans=1,
-        bias=True,
+        in_channels: int,
+        out_channels: int,
+        log_speed_dict: dict,
+        temporal_kernel_size: int,
+        spatial_kernel_size: int,
+        spatial_kernel_size2: int | None = None,
+        stride: int = 1,
+        padding: int = 0,
+        num_scans: int = 1,
+        bias: bool = True,
     ):
         """
         Initializes the STSeparableBatchConv3d layer.
@@ -720,7 +718,7 @@ class STSeparableBatchConv3d(nn.Module):
         for key, val in log_speed_dict.items():
             setattr(self, key, val)
 
-    def forward(self, input_):
+    def forward(self, input_: tuple[torch.Tensor, str]) -> torch.Tensor:
         """
         Forward pass of the STSeparableBatchConv3d layer.
 
@@ -751,7 +749,8 @@ class STSeparableBatchConv3d(nn.Module):
         return self.conv
 
     @staticmethod
-    def temporal_weights(length, num_channels, num_feat, scale=0.01):
+    def temporal_weights(length: int, num_channels: int, num_feat: int, scale: float = 0.01
+                         ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Generates initial weights for the temporal components of the convolution.
 
@@ -817,7 +816,7 @@ class TimeLaplaceL23dnorm(nn.Module):
         returns |laplace(filters)| / |filters|
     """
 
-    def __init__(self, padding=None):
+    def __init__(self, padding: int | None = None):
         super().__init__()
         self.laplace = Laplace1d(padding=padding)
 
@@ -835,7 +834,7 @@ class FlatLaplaceL23dnorm(nn.Module):
         returns |laplace(filters)| / |filters|
     """
 
-    def __init__(self, padding=None):
+    def __init__(self, padding: int | None = None):
         super().__init__()
         self.laplace = Laplace(padding=padding)
 
@@ -847,7 +846,7 @@ class FlatLaplaceL23dnorm(nn.Module):
         return agg_fn(self.laplace(x.view(oc * ic, 1, k2, k3)).pow(2)) / agg_fn(x.view(oc * ic, 1, k2, k3).pow(2))
 
 
-def temporal_smoothing(sin, cos):
+def temporal_smoothing(sin: torch.Tensor, cos: torch.Tensor) -> torch.Tensor:
     smoother = torch.linspace(0.1, 0.9, sin.shape[2], device=sin.device)[None, None, :]
     F = float(sin.shape[0])
     reg = torch.sum((smoother * sin) ** 2) / F
@@ -877,7 +876,7 @@ class LocalEncoder(Encoder):
 # Batch adaption model
 def SFB3d_core_SxF3d_readout(
     dataloaders,
-    seed,
+    seed: int | None = None,
     hidden_channels: Tuple[int] = (8,),  # core args
     temporal_kernel_size: Tuple[int] = (21,),
     spatial_kernel_size: Tuple[int] = (11,),
@@ -885,7 +884,7 @@ def SFB3d_core_SxF3d_readout(
     gamma_hidden: float = 0,
     gamma_input: float = 0.1,
     gamma_temporal: float = 0.1,
-    gamma_in_sparse=0.0,
+    gamma_in_sparse: float = 0.0,
     final_nonlinearity: bool = True,
     core_bias: bool = False,
     momentum: float = 0.1,
@@ -910,7 +909,6 @@ def SFB3d_core_SxF3d_readout(
     data_info: Optional[dict] = None,
     nonlinearity: str = "ELU",
     conv_type: Literal["full", "separable", "custom_separable", "time_independent"] = "custom_separable",
-    device=DEVICE,
 ) -> torch.nn.Module:
     """
     Model class of a stacked2dCore (from mlutils) and a pointpooled (spatial transformer) readout
@@ -978,7 +976,6 @@ def SFB3d_core_SxF3d_readout(
         use_avg_reg=use_avg_reg,
         nonlinearity=nonlinearity,
         conv_type=conv_type,
-        device=device,
     )
 
     readout = SpatialXFeature3dReadout(

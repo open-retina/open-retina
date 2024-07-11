@@ -13,7 +13,7 @@ import torch
 import yaml
 
 
-def set_seed(seed: int | None =None, seed_torch: bool = True) -> int:
+def set_seed(seed: int | None = None, seed_torch: bool = True) -> int:
     """
     Function that controls randomness. NumPy and random modules must be imported.
 
