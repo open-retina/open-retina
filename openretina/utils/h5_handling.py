@@ -9,7 +9,7 @@ from tqdm.auto import tqdm
 from .misc import CustomPrettyPrinter
 
 
-def count_items(group: h5.Group):
+def count_items(group: h5.Group) -> int:
     count = 0
     for _, item in group.items():
         if isinstance(item, h5.Dataset):
