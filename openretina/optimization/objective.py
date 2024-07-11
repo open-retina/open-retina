@@ -37,7 +37,7 @@ class AbstractObjective(ABC):
 
     def model_forward(self, stimulus: torch.Tensor) -> torch.Tensor:
         if self._data_key is not None:
-            responses =  self._model(stimulus, data_key=self._data_key)
+            responses = self._model(stimulus, data_key=self._data_key)
         else:
             responses = self._model(stimulus)
         # squeeze batch dimension

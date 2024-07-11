@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from typing import Type
 import argparse
 from functools import partial
 
@@ -7,7 +8,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from openretina.hoefling_2024.constants import STIMULUS_RANGE_CONSTRAINTS
-from openretina.optimization.objective import AbstractObjective, SingleNeuronObjective, ContrastiveNeuronObjective, MeanReducer
+from openretina.optimization.objective import (AbstractObjective, SingleNeuronObjective,
+                                               ContrastiveNeuronObjective, MeanReducer)
 from openretina.optimization.optimizer import optimize_stimulus
 from openretina.optimization.optimization_stopper import OptimizationStopper
 from openretina.optimization.regularizer import (
@@ -48,7 +50,7 @@ def main(autoencoder_path: str, save_folder: str, device: str, use_contrastive_o
     autoencoder = Autoencoder.load_from_checkpoint(autoencoder_path)
     autoencoder_with_model = AutoencoderWithModel(model, autoencoder)
     if use_contrastive_objective:
-        objective_class: AbstractObjective = ContrastiveNeuronObjective
+        objective_class: Type[AbstractObjective] = ContrastiveNeuronObjective
     else:
         objective_class = SingleNeuronObjective
 
@@ -74,7 +76,7 @@ def main(autoencoder_path: str, save_folder: str, device: str, use_contrastive_o
 
     for neuron_id in range(autoencoder.hidden_dim()):
         print(f"Generating MEI for {neuron_id=}")
-        objective = objective_class(autoencoder_with_model, neuron_idx=neuron_id,
+        objective = objective_class(autoencoder_with_model, neuron_idx=neuron_id,  # type: ignore
                                     data_key=None, response_reducer=mean_response_reducer)
 
         stimulus = torch.randn(stimulus_shape, requires_grad=True, device=device)

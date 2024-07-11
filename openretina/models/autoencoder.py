@@ -65,8 +65,8 @@ class Autoencoder(lightning.LightningModule):
         self.learning_rate = learning_rate
         self.unit_norm_loss_factor = unit_norm_loss_factor
         self.save_hyperparameters()
-        self.maximum_activations_neurons = []
-        self.mean_activations_neurons = []
+        self.maximum_activations_neurons: list[torch.Tensor] = []
+        self.mean_activations_neurons: list[torch.Tensor] = []
 
     def hidden_dim(self) -> int:
         return self.encoder.out_features
@@ -115,8 +115,7 @@ class Autoencoder(lightning.LightningModule):
         fraction_inactive_neurons = inactive_neurons / self.hidden_dim()
         return fraction_inactive_neurons
 
-
-    def on_train_epoch_end(self):
+    def on_train_epoch_end(self) -> None:
         epoch_mean = torch.mean(torch.stack(self.mean_activations_neurons), dim=0)
         epoch_max = torch.max(torch.stack(self.maximum_activations_neurons), dim=0).values
         self.mean_activations_neurons = []
@@ -125,7 +124,12 @@ class Autoencoder(lightning.LightningModule):
         mean_activation = float(torch.mean(epoch_mean))
         fraction_inactive_neurons = self.fraction_neurons_below_threshold(epoch_max, 0.0)
         fraction_barely_active_neurons = self.fraction_neurons_below_threshold(epoch_max, 0.1)
-        print(f"{fraction_inactive_neurons=:.1%} {fraction_barely_active_neurons=:.1%} (under 0.1), {mean_activation=:.3f} {max_hidden_activation=:.3f}")
+        self.log("mean_hidden_activations", mean_activation, on_epoch=True, logger=True)
+        self.log("fraction_inactive_neurons", fraction_inactive_neurons, on_epoch=True, logger=True)
+        self.log("fraction_barely_active_neurons", fraction_barely_active_neurons, on_epoch=True, logger=True)
+        print(f"{fraction_inactive_neurons=:.1%} "
+              f"{fraction_barely_active_neurons=:.1%} (under 0.1), "
+              f"{mean_activation=:.3f} {max_hidden_activation=:.3f}")
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
@@ -133,7 +137,7 @@ class Autoencoder(lightning.LightningModule):
 
 
 class AutoencoderWithModel(nn.Module):
-    def __init__(self, model, autoencoder: Autoencoder):
+    def __init__(self, model: torch.nn.Module, autoencoder: Autoencoder):
         super().__init__()
         self.model = model
         self.autoencoder = autoencoder
