@@ -349,10 +349,10 @@ class FrozenFactorisedReadout2d(Readout):
         self.mean_activity = mean_activity
 
         if from_gaussian:
+            # self.mask_mean = torch.nn.Parameter(data=torch.zeros(self.outdims, 2), requires_grad=False)
+            # self.mask_log_var = torch.nn.Parameter(data=torch.zeros(self.outdims), requires_grad=False)
+            # self.masks = self.normal_pdf().permute(1, 2, 0)
             raise NotImplementedError("FrozenFactorisedReadout2d does not support Gaussian masks yet.")
-            self.mask_mean = torch.nn.Parameter(data=torch.zeros(self.outdims, 2), requires_grad=False)
-            self.mask_log_var = torch.nn.Parameter(data=torch.zeros(self.outdims), requires_grad=False)
-            self.masks = self.normal_pdf().permute(1, 2, 0)
         else:
             self.masks = nn.Parameter(torch.Tensor(w, h, outdims), requires_grad=False)
 
@@ -382,8 +382,8 @@ class FrozenFactorisedReadout2d(Readout):
         self,
         x: Float[torch.Tensor, "batch channels width height"],
         features: Float[torch.Tensor, "batch channels neurons"],
-        scale=None,
-        bias=None,
+        scale: Optional[Float[torch.Tensor, " neurons"]] = None,
+        bias: Optional[Float[torch.Tensor, " neurons"]] = None,
         subs_idx=None,
     ):
         b, c, w, h = x.size()
@@ -418,7 +418,6 @@ class FrozenFactorisedReadout2d(Readout):
     def __repr__(self):
         c, h, w = self.in_shape
         r = f"{self.__class__.__name__} (" + f"{c} x {w} x {h}" + " -> " + str(self.outdims) + ")"
-        r += " with bias" if self.bias is not None else ", unnormalized"
         for ch in self.children():
             r += f"  -> {ch.__repr__()}" + "\n"
         return r
@@ -521,6 +520,7 @@ class ShifterVideoEncoder(nn.Module):
 def conv_core_frozen_readout(
     dataloaders,
     seed,
+    readout_mask_from: nn.Module,
     hidden_channels: Tuple[int, ...] = (8,),  # core args
     temporal_kernel_size: Tuple[int, ...] = (21,),
     spatial_kernel_size: Tuple[int, ...] = (11,),
@@ -537,7 +537,6 @@ def conv_core_frozen_readout(
     batch_norm: bool = True,
     batch_norm_scale: bool = False,
     laplace_padding: Optional[int] = None,
-    batch_adaptation: bool = True,
     readout_scale: bool = False,
     readout_bias: bool = False,
     readout_from_gaussian: bool = False,
@@ -557,21 +556,12 @@ def conv_core_frozen_readout(
     conv_type: Literal["full", "separable", "custom_separable", "time_independent"] = "custom_separable",
     device=DEVICE,
     use_gru: bool = False,
+    use_projections: bool = False,
     gru_kwargs: dict = {},
     **kwargs,
 ):
     """
-    Model class of a stacked2dCore (from mlutils) and a pointpooled (spatial transformer) readout
-    Args:
-        dataloaders: a dictionary of dataloaders, one loader per sessionin the format:
-            {'train': {'session1': dataloader1, 'session2': dataloader2, ...},
-             'validation': {'session1': dataloader1, 'session2': dataloader2, ...},
-             'test': {'session1': dataloader1, 'session2': dataloader2, ...}}
-        seed: random seed
-        elu_offset: Offset for the output non-linearity [F.elu(x + self.offset)]
-        all other args: See Documentation of Stacked2dCore in mlutils.layers.cores and
-            PointPooled2D in mlutils.layers.readouts
-    Returns: An initialized model which consists of model.core and model.readout
+    TODO docstring
     """
 
     # make sure trainloader is being used
@@ -620,12 +610,12 @@ def conv_core_frozen_readout(
         batch_norm_scale=batch_norm_scale,
         laplace_padding=laplace_padding,
         stack=stack,
-        batch_adaptation=batch_adaptation,
+        batch_adaptation=False,
         use_avg_reg=use_avg_reg,
         nonlinearity=nonlinearity,
         conv_type=conv_type,
-        device=device,
         use_gru=use_gru,
+        use_projections=use_projections,
         gru_kwargs=gru_kwargs,
     )
 
@@ -656,16 +646,11 @@ def conv_core_frozen_readout(
         gamma_variance=shifter_gamma_variance,
     )
 
-    # initializing readout bias to mean response
-    # if readout_bias is True:
-    #     if data_info is None:
-    #         for k in dataloaders:
-    #             readout[k].bias.data = dataloaders[k].dataset[:]._asdict()[out_name].mean(0)
-    #     else:
-    #         for k in data_info.keys():
-    #             readout[k].bias.data = torch.from_numpy(data_info[k]["mean_response"])
+    un_init_mask_model = ShifterVideoEncoder(core, readout, readout_shifter)
 
-    model = ShifterVideoEncoder(core, readout, readout_shifter)
+    model = transfer_readout_mask(
+        readout_mask_from, un_init_mask_model, ignore_source_key_suffix="_mb", freeze_mask=True
+    )
 
     return model
 
