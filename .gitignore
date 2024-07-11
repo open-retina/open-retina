@@ -167,4 +167,4 @@ random.ipynb
 *.jpg
 *.pdf
 figures/
-models/
+/models
