@@ -4,7 +4,7 @@ import torch
 
 class ResponseReducer(ABC):
     def __init__(self, axis: int = 0):
-        self._axis = 0
+        self._axis = axis
 
     @abstractmethod
     def forward(self, responses: torch.Tensor) -> torch.Tensor:
