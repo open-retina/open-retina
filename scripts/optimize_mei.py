@@ -5,6 +5,7 @@ import pickle
 from functools import partial
 
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
 from openretina.hoefling_2024.configs import model_config
 from openretina.hoefling_2024.data_io import natmov_dataloaders_v2
@@ -80,7 +81,8 @@ def main() -> None:
                 stimulus_postprocessor=stimulus_postprocessor,
             )
             stimulus_np = stimulus[0].cpu().numpy()
-            fig, axes = plt.subplots(2, 2, figsize=(7 * 3, 12))
+            fig_axes = plt.subplots(2, 2, figsize=(7 * 3, 12))
+            axes: np.ndarray = fig_axes[1]  # type: ignore
             plot_stimulus_composition(
                 stimulus=stimulus_np,
                 temporal_trace_ax=axes[0, 0],
@@ -89,7 +91,7 @@ def main() -> None:
                 highlight_x_list=[(40, 49)],
             )
             img_path = f"meis/mei_{session_id}_{neuron_id}.pdf"
-            fig.savefig(img_path, bbox_inches="tight", facecolor="w", dpi=300)
+            fig_axes[0].savefig(img_path, bbox_inches="tight", facecolor="w", dpi=300)
 
 
 if __name__ == "__main__":
