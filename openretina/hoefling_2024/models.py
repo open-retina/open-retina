@@ -377,7 +377,7 @@ class SpatialXFeature3d(nn.Module):
 
         if use_readout_rnn:
             self._readout_rnn: ReadoutRnn | None = ReadoutRnn(
-                input_dim=num_channels,
+                input_dim=num_channels * 8 * 6,
                 n_layers=2,
                 hidden_dim=256,
                 output_dim=outdims,
@@ -460,12 +460,15 @@ class SpatialXFeature3d(nn.Module):
             feat = self.features
             masks = self.masks
 
-        y_einsum = torch.einsum("nctwh,whd->nctd", x, masks)
-
         if self._readout_rnn is not None:
-            y = torch.permute(y_einsum[:, :, :, 0], (0, 2, 1))
-            y = self._readout_rnn(y)
+            # Use a single readout rnn for the whole session
+            # As a first experiment ignore the mask and just feed in the whole tensor x
+            # Flattening the channel, height and width dimensions into a single dimension
+            batch_dim, _, time_dim, _, _ = x.size()
+            x_flat = x.permute([0, 2, 1, 3, 4]).reshape(batch_dim, time_dim, -1)
+            y = self._readout_rnn(x_flat)
         else:
+            y_einsum = torch.einsum("nctwh,whd->nctd", x, masks)
             y = (y_einsum * feat).sum(1)
 
         if self.scale is not None:
