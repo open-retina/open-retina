@@ -14,8 +14,6 @@ from neuralpredictors.utils import get_module_output
 from ..dataloaders import get_dims_for_loader_dict
 from ..utils.misc import set_seed
 
-DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
-
 
 class Core(nn.Module):
     def initialize(self) -> None:
