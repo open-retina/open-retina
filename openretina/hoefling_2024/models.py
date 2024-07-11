@@ -56,7 +56,7 @@ class Scale3DLayer(nn.Module):
 
         self.scale = torch.nn.Parameter(torch.empty((1, num_channels, 1, 1, 1)).fill_(initial))
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x * self.scale
 
 
