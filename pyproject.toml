@@ -5,9 +5,19 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "openretina"
 version = "0.1"
+authors = [
+  { name="Federico D'Agostino"},
+  { name="Thomas Zenkel"},
+  { name="Larissa Höfling"},
+]
 description = "Open source retina model architectures and training setups"
 requires-python = ">=3.10"
 dynamic = ["dependencies"]
+readme = "README.md"
+
+[project.urls]
+Homepage = "https://github.com/open-retina/open-retina"
+Issues = "https://github.com/open-retina/open-retina/issues"
 
 [tool.setuptools.packages]
 find = {exclude = ["scripts"]}
