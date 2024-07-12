@@ -1,7 +1,7 @@
 import datetime
 import os
 from functools import partial
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 try:
     import wandb
@@ -44,7 +44,8 @@ def standard_early_stop_trainer(
     model: torch.nn.Module,
     dataloaders,
     seed: int,
-    objective_function: Callable = standard_full_objective,
+    objective_function: Callable[..., torch.Tensor] = standard_full_objective,
+    optimizer: torch.optim.Optimizer = torch.optim.Adam,  # type: ignore
     scale_loss: bool = True,  # trainer args
     loss_function: str = "PoissonLoss3d",
     stop_function: str = "corr_stop",
@@ -83,7 +84,7 @@ def standard_early_stop_trainer(
 
     n_iterations = len(LongCycler(trainloaders))
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr_init)
+    optimizer = optimizer(model.parameters(), lr=lr_init)  # type: ignore
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
         mode="max" if maximize else "min",

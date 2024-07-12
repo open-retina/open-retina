@@ -907,6 +907,7 @@ def SFB3d_core_SxF3d_readout(
     nonlinearity: str = "ELU",
     conv_type: Literal["full", "separable", "custom_separable", "time_independent"] = "custom_separable",
     device=DEVICE,
+    **kwargs,
 ):
     """
     Model class of a stacked2dCore (from mlutils) and a pointpooled (spatial transformer) readout
@@ -935,7 +936,7 @@ def SFB3d_core_SxF3d_readout(
         in_name, out_name, *_ = next(iter(list(dataloaders.values())[0]))._fields
 
         session_shape_dict = get_dims_for_loader_dict(dataloaders)
-        print(session_shape_dict)
+        # print(session_shape_dict)
         n_neurons_dict = {
             k: v[out_name][-1] for k, v in session_shape_dict.items()
         }  # dictionary containing # neurons per session
