@@ -82,7 +82,7 @@ def main(autoencoder_path: str, save_folder: str, device: str, use_contrastive_o
         stimulus = torch.randn(stimulus_shape, requires_grad=True, device=device)
 
         stimulus.data = stimulus_postprocessor.process(stimulus.data)
-        optimizer_init_fn = partial(torch.optim.SGD, lr=10.0)
+        optimizer_init_fn = partial(torch.optim.SGD, lr=100.0)
 
         # Throws: RuntimeError: Expected all tensors to be on the same device,
         # but found at least two devices, cuda:0 and cpu!
@@ -91,7 +91,7 @@ def main(autoencoder_path: str, save_folder: str, device: str, use_contrastive_o
             stimulus,
             optimizer_init_fn,
             objective,
-            OptimizationStopper(max_iterations=100),
+            OptimizationStopper(max_iterations=10),
             stimulus_regularization_loss=stimulus_regularizing_loss,
             stimulus_postprocessor=stimulus_postprocessor,
         )

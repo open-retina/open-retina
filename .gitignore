@@ -168,3 +168,4 @@ random.ipynb
 *.pdf
 figures/
 models/*.pt
+/models

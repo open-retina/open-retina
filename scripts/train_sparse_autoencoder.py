@@ -9,7 +9,7 @@ import pickle
 
 import torch
 import lightning
-from lightning.pytorch.loggers import CSVLogger
+from lightning.pytorch.loggers import CSVLogger, TensorBoardLogger
 
 from openretina.neuron_data_io import make_final_responses
 from openretina.models.autoencoder import SparsityMSELoss, Autoencoder, ActivationsDataset
@@ -153,9 +153,11 @@ def main(
     # when num_workers > 0 the docker container needs more shared memory
     train_loader = torch.utils.data.DataLoader(activations_dataset, batch_size=30, num_workers=0)
 
-    lightning_folder = f"{save_folder}_{hidden_dim}_neurons_sparsity_{sparsity_factor}"
+    model_name = f"{hidden_dim}_neurons_sparsity_{sparsity_factor}"
+    lightning_folder = f"{save_folder}_{model_name}"
     csv_logger = CSVLogger(lightning_folder)
-    trainer = lightning.Trainer(max_epochs=10, default_root_dir=lightning_folder, logger=csv_logger)
+    tensorboard_logger = TensorBoardLogger("models/tensorboard", name=model_name)
+    trainer = lightning.Trainer(max_epochs=40, default_root_dir=lightning_folder, logger=[csv_logger, tensorboard_logger])
     trainer.fit(model=sparse_autoencoder, train_dataloaders=train_loader)
 
 
