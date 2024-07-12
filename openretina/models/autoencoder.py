@@ -12,16 +12,16 @@ class SparsityMSELoss:
 
     @staticmethod
     def mse_loss(x: torch.Tensor, x_hat: torch.Tensor) -> torch.Tensor:
-        """ Mean over all dimension (batch size, time, activations) """
-        mse = nn.functional.mse_loss(x, x_hat, reduction="mean")
+        """ Mean over all examples, sum over hidden neurons """
+        mse_full = nn.functional.mse_loss(x, x_hat, reduction="none")
+        mse = mse_full.sum(axis=-1).mean()
         return mse
 
     @staticmethod
     def sparsity_loss(z: torch.Tensor, activations_dimension: int) -> torch.Tensor:
-        """ Sum over all activations, mean over batch and time dimension """
-        summed_activations = torch.sum(torch.abs(z), dim=activations_dimension)
-        sparsity_loss = torch.mean(summed_activations)
-        return sparsity_loss
+        # The anthropic paper would just sum over all neurons
+        # when using that I had to set the interpolation factor quite low.
+        return z.abs().sum()
 
     def forward(
             self,
@@ -86,28 +86,42 @@ class Autoencoder(lightning.LightningModule):
         x_reconstruct = self.decode(x_hidden)
         return x_reconstruct
 
-    def unit_norm_loss(self) -> torch.Tensor:
+    def decoder_norm_diff_from_unit_norm(self) -> torch.Tensor:
         column_norms_decoder = self.decoder.weight.norm(dim=1)
         diff_from_unit_norm = torch.abs(1.0 - column_norms_decoder)
         norm_loss = torch.sum(diff_from_unit_norm)
         return norm_loss
 
+    def on_after_backward(self) -> None:
+        # remove parallel information of gradient to decoder weight columns
+        with torch.no_grad():
+            weight_decoder = self.decoder
+            weight_normed = self.decoder.weight / self.decoder.weight.norm(dim=-1, keepdim=True)
+            weight_grad_proj = (self.decoder.weight.grad * weight_normed).sum(-1, keepdim=True) * weight_normed
+            self.decoder.weight.grad -= weight_grad_proj
+
     def training_step(self, batch, batch_idx) -> torch.Tensor:
+        # make decoder weight unit norm
+        self.decoder.weight.data[:] = self.decoder.weight / self.decoder.weight.norm(dim=-1, keepdim=True)
+
         x, _ = batch
         z = self.encode(x)
         x_hat = self.decode(z)
+
         # Statistics
+        l0_norm = (z > 0).sum(axis=-1, dtype=torch.float).mean()
         z_hat_mean = torch.mean(z, dim=(0, 1))
         z_hat_max = torch.max(torch.max(z, dim=0).values, dim=0).values
         self.mean_activations_neurons.append(z_hat_mean.detach().cpu())
         self.maximum_activations_neurons.append(z_hat_max.detach().cpu())
-        loss, mse_loss, sparsity_loss = self.loss.forward(x, z, x_hat)
-        unit_norm_loss_tensor = self.unit_norm_loss()
-        total_loss = loss + self.unit_norm_loss_factor * unit_norm_loss_tensor
+        total_loss, mse_loss, sparsity_loss = self.loss.forward(x, z, x_hat)
+        decoder_norm_diff_tensor = self.decoder_norm_diff_from_unit_norm()
         self.log("mse_loss", mse_loss, prog_bar=True, on_epoch=True, on_step=False, logger=True)
         self.log("sparsity_loss", sparsity_loss, prog_bar=True, on_epoch=True, on_step=False, logger=True)
-        self.log("unit_norm_loss", unit_norm_loss_tensor, prog_bar=True, on_epoch=True, on_step=False, logger=True)
+        self.log("decoder_norm_diff", decoder_norm_diff_tensor, prog_bar=False, on_epoch=True, on_step=False, logger=True)
         self.log("train_loss", total_loss, prog_bar=True, on_epoch=True, logger=True, on_step=False)
+        self.log("active_neurons", l0_norm, prog_bar=True, on_epoch=True, logger=True, on_step=False)
+
         return total_loss
 
     def fraction_neurons_below_threshold(self, epoch_max: torch.Tensor, threshold: float) -> float:
