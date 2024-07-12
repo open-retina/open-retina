@@ -20,8 +20,11 @@ Homepage = "https://github.com/open-retina/open-retina"
 Issues = "https://github.com/open-retina/open-retina/issues"
 
 [tool.setuptools.packages]
-find = {exclude = ["scripts"]}
+find = {exclude = ["tests", "scripts"]}
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools.package-data]
+"openretina" = ["data/stimuli/*.pickle"]
 
