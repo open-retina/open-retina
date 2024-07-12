@@ -52,7 +52,7 @@ def load_model(path: str = ENSEMBLE_MODEL_PATH, device: str = "cuda"):
     return ensemble_model
 
 
-def generate_neuron_activations(data_folder: str, dataset_names_list: list[str], device: str) -> torch.Tensor:
+def generate_neuron_activations(data_folder: str, dataset_names_list: list[str], device: str, remove_nonlinearity: bool) -> torch.Tensor:
     movies_path = os.path.join(data_folder, "2024-01-11_movies_dict_8c18928.pkl")
     with open(movies_path, "rb") as f:
         movies_dict = pickle.load(f)
@@ -90,6 +90,13 @@ def generate_neuron_activations(data_folder: str, dataset_names_list: list[str],
     print("Initialized dataloaders")
 
     model = load_model(device=device)
+    if remove_nonlinearity:
+        for m in model.members:
+            for k in m.readout.keys():
+                readout_layer = m.readout[k]
+                readout_layer.nonlinearity = False
+                readout_layer.scale = None
+                readout_layer.bias = None
 
     # generate model outputs
     # We currently generate outputs for each readout key for each training example
@@ -122,20 +129,22 @@ def main(
     datasets: str,
     sparsity_factor: float,
     hidden_dim: int,
+    remove_nonlinearity: bool = True
 ) -> None:
     dataset_names_list = datasets.split("_")
     for name in dataset_names_list:
         if name not in {"natural", "chirp", "mb"}:
             raise ValueError(f"Unsupported dataset name {name}")
 
-    outputs_model_path = f"{save_folder}/../outputs_model.pkl"
+    model_postfix = "_no_nonlinearity" if remove_nonlinearity else ""
+    outputs_model_path = f"{save_folder}/../outputs_model{model_postfix}.pkl"
     print(outputs_model_path)
     if os.path.exists(outputs_model_path):
         with open(outputs_model_path, "rb") as fr:
             outputs_model = torch.load(fr)
         print(f"Loaded model outputs from {outputs_model_path}")
     else:
-        outputs_model = generate_neuron_activations(data_folder, dataset_names_list, device)
+        outputs_model = generate_neuron_activations(data_folder, dataset_names_list, device, remove_nonlinearity)
         with open(outputs_model_path, "wb") as fw:
             # it's more efficient to save a single tensor instead of a list of tensors
             torch.save(outputs_model, fw)
@@ -153,7 +162,7 @@ def main(
     # when num_workers > 0 the docker container needs more shared memory
     train_loader = torch.utils.data.DataLoader(activations_dataset, batch_size=30, num_workers=0)
 
-    model_name = f"{hidden_dim}_neurons_sparsity_{sparsity_factor}"
+    model_name = f"{hidden_dim}_neurons_sparsity_{sparsity_factor}{model_postfix}"
     lightning_folder = f"{save_folder}_{model_name}"
     csv_logger = CSVLogger(lightning_folder)
     tensorboard_logger = TensorBoardLogger("models/tensorboard", name=model_name)
