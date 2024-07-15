@@ -5,7 +5,7 @@ from typing import Optional
 import numpy as np
 
 _CURRENT_FOLDER_PATH = os.path.dirname(os.path.abspath(__file__))
-_STIMULUS_FOLDER_PATH = _CURRENT_FOLDER_PATH + "/../data/stimuli"
+_STIMULUS_FOLDER_PATH = os.path.join(_CURRENT_FOLDER_PATH, "data/stimuli")
 _CHIRP_PATH = _STIMULUS_FOLDER_PATH + "/RGC_Chirp_30Hz_18_16.pickle"
 _MOVING_BAR_PATH = _STIMULUS_FOLDER_PATH + "/RGC_MovingBar_30Hz_18_16.pickle"
 _FRAME_RATE = 30  # Hz
