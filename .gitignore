@@ -166,5 +166,5 @@ data/
 random.ipynb
 *.jpg
 *.pdf
-/figures
+figures/
 /models
