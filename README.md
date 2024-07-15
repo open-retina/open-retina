@@ -1,6 +1,6 @@
 # OpenRetina
 
-Open source repository containing neural network models of the retina.
+Open-source repository containing neural network models of the retina.
 The models in this repository are inspired by and partially contain adapted code of [sinzlab/neuralpredictors](https://github.com/sinzlab/neuralpredictors).
 
 ## Installation
@@ -17,7 +17,7 @@ pip install -e .
 ```
 
 ## Related papers
-The model in `openretina/hoefling_2024` was used in the paper [A chromatic feature detector in the retina signals visual context changes](https://www.biorxiv.org/content/10.1101/2022.11.30.518492.abstract) and can be cited as:
+The model in `openretina/hoefling_2024` was developed in the paper [A chromatic feature detector in the retina signals visual context changes](https://www.biorxiv.org/content/10.1101/2022.11.30.518492.abstract) and can be cited as:
 ```
 @article{hofling2022chromatic,
   title={A chromatic feature detector in the retina signals visual context changes},
