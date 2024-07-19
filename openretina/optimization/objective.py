@@ -143,6 +143,8 @@ class InnerNeuronVisualizationObjective(AbstractObjective):
 
 
 class ContrastiveNeuronObjective(AbstractObjective):
+    """ Objective described in [Most discriminative stimuli for functional cell type clustering]
+    (https://openreview.net/forum?id=9W6KaAcYlr)"""
     def __init__(
             self,
             model,
@@ -157,7 +159,11 @@ class ContrastiveNeuronObjective(AbstractObjective):
         self._temperature = temperature
 
     @staticmethod
-    def contrastive_objective(on_score, all_scores, temperature: float):
+    def contrastive_objective(
+            on_score: torch.Tensor,
+            all_scores: torch.Tensor,
+            temperature: float
+    ) -> torch.Tensor:
         t = temperature
         obj = (
             (1 / t) * on_score

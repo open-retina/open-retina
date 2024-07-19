@@ -510,20 +510,21 @@ class SpatialXFeature3d(nn.Module):
         masks = self.get_masks().detach().cpu().numpy()
         mask_abs_max = np.abs(masks).max()
         features = self.features.detach().cpu().numpy()
-        features_min = features.min()
-        features_max = features.max()
+        features_min = float(features.min())
+        features_max = float(features.max())
         for neuron_id in range(masks.shape[-1]):
             mask_neuron = masks[:, :, neuron_id]
-            fig, axes = plt.subplots(ncols=2, figsize=(2*6, 6))
+            fig_axes_tuple = plt.subplots(ncols=2, figsize=(2*6, 6))
+            axes: list[plt.Axes] = fig_axes_tuple[1]
             axes[0].imshow(mask_neuron, interpolation="none", cmap="RdBu_r",
                            norm=Normalize(-mask_abs_max, mask_abs_max))
 
             features_neuron = features[0, :, 0, neuron_id]
             axes[1].bar(range(features_neuron.shape[0]), features_neuron)
-            axes[1].set_ylim([features_min, features_max])
+            axes[1].set_ylim((features_min, features_max))
 
             plot_path = f"{folder_path}/neuron_{neuron_id}.pdf"
-            fig.savefig(plot_path, bbox_inches="tight", facecolor="w", dpi=300)
+            fig_axes_tuple[0].savefig(plot_path, bbox_inches="tight", facecolor="w", dpi=300)
             plt.close()
 
     def __repr__(self) -> str:
@@ -843,7 +844,9 @@ class STSeparableBatchConv3d(nn.Module):
 
     def plot_weights(self, in_channel: int, out_channel: int, plot_log_speed: bool = False) -> plt.Figure:
         ncols = 4 if plot_log_speed else 3
-        fig, axes = plt.subplots(ncols=ncols, figsize=(ncols*6, 6))
+        fig_axes_tuple = plt.subplots(ncols=ncols, figsize=(ncols*6, 6))
+        fig: plt.Figure = fig_axes_tuple[0]
+        axes: list[plt.Axes] = fig_axes_tuple[1]
         fig.suptitle(f"Weights for {in_channel=} {out_channel=}")
         axes[0].set_title("Spatial Weight")
         spatial_weight = self.get_spatial_weight(in_channel, out_channel)

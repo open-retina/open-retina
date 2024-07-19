@@ -3,8 +3,10 @@
 import argparse
 import os
 from functools import partial
+from typing import Any
 
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
 from openretina.hoefling_2024.constants import STIMULUS_RANGE_CONSTRAINTS
 from openretina.optimization.objective import (InnerNeuronVisualizationObjective, SliceMeanReducer)
@@ -101,7 +103,9 @@ def main(
                 stimulus_postprocessor=stimulus_postprocessor,
             )
             stimulus_np = stimulus[0].cpu().numpy()
-            fig, axes = plt.subplots(2, 2, figsize=(7 * 3, 12))
+            fig_axes_tuple = plt.subplots(2, 2, figsize=(7 * 3, 12))
+            axes: np.ndarray[Any, plt.Axes] = fig_axes_tuple[1]  # type: ignore
+
             plot_stimulus_composition(
                 stimulus=stimulus_np,
                 temporal_trace_ax=axes[0, 0],
@@ -112,7 +116,7 @@ def main(
             output_folder = f"{save_folder}/{layer_name}"
             os.makedirs(output_folder, exist_ok=True)
             fig_path = f"{output_folder}/{channel_id}.jpg"
-            fig.savefig(fig_path, bbox_inches="tight", facecolor="w", dpi=300)
+            fig_axes_tuple[0].savefig(fig_path, bbox_inches="tight", facecolor="w", dpi=300)
             print(f"Saved figure at {fig_path=}")
 
     for session_key in model.readout.keys():
