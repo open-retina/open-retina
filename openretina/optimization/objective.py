@@ -95,17 +95,13 @@ class InnerNeuronVisualizationObjective(AbstractObjective):
             self,
             model,
             data_key: str | None,
-            layer_name: str,
-            channel_id: int,
             response_reducer: ResponseReducer
     ):
         super().__init__(model, data_key)
         self.features_dict = self.hook_model(model)
         self._response_reducer = response_reducer
-        self.layer_name = layer_name
-        if self.layer_name not in self.features_dict:
-            raise ValueError("{self.layer_name=} not in features. {self.features_dict.keys=}")
-        self.channel_id = channel_id
+        self.layer_name = ""
+        self.channel_id = -1
 
     def set_layer_channel(self, layer: str, channel: int):
         if layer not in self.features_dict:
@@ -114,6 +110,8 @@ class InnerNeuronVisualizationObjective(AbstractObjective):
         self.channel_id = channel
 
     def forward(self, stimulus: torch.Tensor) -> torch.Tensor:
+        if len(self.layer_name) == 0 or self.channel_id < 0:
+            raise ValueError("layer_name and channel_id not set. Please call `set_layer_channel`.")
         # The forward call is just used to update the model hooks
         self.model_forward(stimulus)
         module_hook = self.features_dict[self.layer_name]
