@@ -29,7 +29,8 @@ ENSEMBLE_MODEL_PATH = ("/gpfs01/euler/data/SharedFiles/projects/Hoefling2024/"
 def parse_args():
     parser = argparse.ArgumentParser(description="Model training")
 
-    parser.add_argument("--data_folder", type=str, help="Path to the base data folder", default="/Data/fd_export")
+    parser.add_argument("--data_folder", type=str, help="Path to the base data folder",
+                        default="/Data/fd_export")
     parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
     parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda")
     parser.add_argument("--sparsity_factor", type=float, default=0.1)
@@ -157,7 +158,8 @@ def main(
     lightning_folder = f"{save_folder}_{model_name}"
     csv_logger = CSVLogger(lightning_folder)
     tensorboard_logger = TensorBoardLogger("models/tensorboard", name=model_name)
-    trainer = lightning.Trainer(max_epochs=40, default_root_dir=lightning_folder, logger=[csv_logger, tensorboard_logger])
+    trainer = lightning.Trainer(max_epochs=40, default_root_dir=lightning_folder,
+                                logger=[csv_logger, tensorboard_logger])
     trainer.fit(model=sparse_autoencoder, train_dataloaders=train_loader)
 
 

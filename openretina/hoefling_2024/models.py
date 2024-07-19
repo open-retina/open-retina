@@ -6,6 +6,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import matplotlib.pyplot as plt
+from matplotlib.colors import Normalize
 
 from openretina.models.model_utils import get_module_output_shape
 from openretina.dataloaders import get_dims_for_loader_dict
@@ -469,11 +471,14 @@ class SpatialXFeature3d(nn.Module):
         pdf = torch.nan_to_num(pdf / normalisation)
         return pdf
 
-    def forward(self, x: torch.Tensor, shift=None, subs_idx=None) -> torch.Tensor:
+    def get_masks(self) -> torch.Tensor:
         if self.gaussian_masks:
-            self.masks = self.normal_pdf().permute(1, 2, 0)
+            return self.normal_pdf().permute(1, 2, 0)
         else:
-            self.masks.data.abs_()
+            return self.masks.data.abs_()
+
+    def forward(self, x: torch.Tensor, shift=None, subs_idx=None) -> torch.Tensor:
+        self.masks = self.get_masks()
 
         if self.positive:
             self.features.data.clamp_(0)
@@ -500,6 +505,26 @@ class SpatialXFeature3d(nn.Module):
         if self.nonlinearity:
             y = F.softplus(y)
         return y
+
+    def save_weight_visualizations(self, folder_path: str) -> None:
+        masks = self.get_masks().detach().cpu().numpy()
+        mask_abs_max = np.abs(masks).max()
+        features = self.features.detach().cpu().numpy()
+        features_min = features.min()
+        features_max = features.max()
+        for neuron_id in range(masks.shape[-1]):
+            mask_neuron = masks[:, :, neuron_id]
+            fig, axes = plt.subplots(ncols=2, figsize=(2*6, 6))
+            axes[0].imshow(mask_neuron, interpolation="none", cmap="RdBu_r",
+                           norm=Normalize(-mask_abs_max, mask_abs_max))
+
+            features_neuron = features[0, :, 0, neuron_id]
+            axes[1].bar(range(features_neuron.shape[0]), features_neuron)
+            axes[1].set_ylim([features_min, features_max])
+
+            plot_path = f"{folder_path}/neuron_{neuron_id}.pdf"
+            fig.savefig(plot_path, bbox_inches="tight", facecolor="w", dpi=300)
+            plt.close()
 
     def __repr__(self) -> str:
         c, _, w, h = self.in_shape
@@ -797,6 +822,68 @@ class STSeparableBatchConv3d(nn.Module):
         # Perform the convolution
         self.conv = F.conv3d(x, self.weight, bias=self.bias, stride=self.stride, padding=self.padding)
         return self.conv
+
+    def get_spatial_weight(self, in_channel: int, out_channel: int) -> np.ndarray:
+        spatial_2d_tensor = self.weight_spatial[out_channel, in_channel, 0]
+        spatial_2d_np = spatial_2d_tensor.detach().cpu().numpy()
+        return spatial_2d_np
+
+    def get_temporal_weight(self, in_channel: int, out_channel: int) -> tuple[np.ndarray, float]:
+        weight_temporal = compute_temporal_kernel(self._log_speed_default, self.sin_weights,
+                                                  self.cos_weights, self.temporal_kernel_size)
+        global_abs_max = float(weight_temporal.detach().abs().max().item())
+        temporal_trace_tensor = weight_temporal[out_channel, in_channel, :, 0, 0]
+        temporal_trace_np = temporal_trace_tensor.detach().cpu().numpy()
+        return temporal_trace_np, global_abs_max
+
+    def get_sin_cos_weights(self, in_channel: int, out_channel: int) -> tuple[np.ndarray, np.ndarray]:
+        sin_trace = self.sin_weights[out_channel, in_channel].detach().cpu().numpy()
+        cos_trace = self.cos_weights[out_channel, in_channel].detach().cpu().numpy()
+        return sin_trace, cos_trace
+
+    def plot_weights(self, in_channel: int, out_channel: int, plot_log_speed: bool = False) -> plt.Figure:
+        ncols = 4 if plot_log_speed else 3
+        fig, axes = plt.subplots(ncols=ncols, figsize=(ncols*6, 6))
+        fig.suptitle(f"Weights for {in_channel=} {out_channel=}")
+        axes[0].set_title("Spatial Weight")
+        spatial_weight = self.get_spatial_weight(in_channel, out_channel)
+        abs_max = float(self.weight_spatial.detach().abs().max().item())
+        im = axes[0].imshow(spatial_weight, interpolation='none', cmap="RdBu_r",
+                            norm=Normalize(vmin=-abs_max, vmax=abs_max))
+        fig.colorbar(im, orientation='vertical')
+        axes[0].set_axis_off()
+
+        axes[1].set_title("Temporal Weight")
+        temporal_weight, temporal_abs_max = self.get_temporal_weight(in_channel, out_channel)
+        axes[1].set_ylim(-temporal_abs_max, temporal_abs_max)
+        axes[1].plot(temporal_weight)
+        sin_trace, cos_trace = self.get_sin_cos_weights(in_channel, out_channel)
+        trace_max = max(self.sin_weights.detach().abs().max().item(),
+                        self.cos_weights.detach().abs().max().item())
+        trace_max *= 1.1
+
+        axes[2].set_ylim(-trace_max, trace_max)
+        axes[2].set_title("Sin/Cos Weights")
+        axes[2].plot(sin_trace, label="sin")
+        axes[2].plot(cos_trace, label="cos")
+        axes[2].legend()
+
+        if plot_log_speed:
+            log_speeds = {n[len("log_speed_"):]: float(getattr(self, n).detach().item())
+                          for n in dir(self) if n.startswith("log_speed_")}
+            log_speeds_names = sorted(log_speeds.keys())
+            axes[3].bar(log_speeds_names, [log_speeds[n] for n in log_speeds_names])
+            axes[3].set_xticklabels(log_speeds_names, rotation=90)
+
+        return fig
+
+    def save_weight_visualizations(self, folder_path: str) -> None:
+        for in_channel in range(self.in_channels):
+            for out_channel in range(self.out_channels):
+                plot_path = f"{folder_path}/{in_channel}_{out_channel}.jpg"
+                fig = self.plot_weights(in_channel, out_channel)
+                fig.savefig(plot_path, bbox_inches="tight", facecolor="w", dpi=300)
+                plt.close()
 
     @staticmethod
     def temporal_weights(length: int, num_channels: int, num_feat: int, scale: float = 0.01
