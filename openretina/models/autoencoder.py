@@ -14,7 +14,7 @@ class SparsityMSELoss:
     def mse_loss(x: torch.Tensor, x_hat: torch.Tensor) -> torch.Tensor:
         """ Mean over all examples, sum over hidden neurons """
         mse_full = nn.functional.mse_loss(x, x_hat, reduction="none")
-        mse = mse_full.sum(axis=-1).mean()
+        mse = mse_full.sum(dim=-1).mean()
         return mse
 
     @staticmethod
@@ -95,9 +95,8 @@ class Autoencoder(lightning.LightningModule):
     def on_after_backward(self) -> None:
         # remove parallel information of gradient to decoder weight columns
         with torch.no_grad():
-            weight_decoder = self.decoder
             weight_normed = self.decoder.weight / self.decoder.weight.norm(dim=-1, keepdim=True)
-            weight_grad_proj = (self.decoder.weight.grad * weight_normed).sum(-1, keepdim=True) * weight_normed
+            weight_grad_proj = (self.decoder.weight.grad * weight_normed).sum(dim=-1, keepdim=True) * weight_normed
             self.decoder.weight.grad -= weight_grad_proj
 
     def training_step(self, batch, batch_idx) -> torch.Tensor:
@@ -109,7 +108,7 @@ class Autoencoder(lightning.LightningModule):
         x_hat = self.decode(z)
 
         # Statistics
-        l0_norm = (z > 0).sum(axis=-1, dtype=torch.float).mean()
+        l0_norm = (z > 0).sum(dim=-1, dtype=torch.float).mean()
         z_hat_mean = torch.mean(z, dim=(0, 1))
         z_hat_max = torch.max(torch.max(z, dim=0).values, dim=0).values
         self.mean_activations_neurons.append(z_hat_mean.detach().cpu())
@@ -118,7 +117,8 @@ class Autoencoder(lightning.LightningModule):
         decoder_norm_diff_tensor = self.decoder_norm_diff_from_unit_norm()
         self.log("mse_loss", mse_loss, prog_bar=True, on_epoch=True, on_step=False, logger=True)
         self.log("sparsity_loss", sparsity_loss, prog_bar=True, on_epoch=True, on_step=False, logger=True)
-        self.log("decoder_norm_diff", decoder_norm_diff_tensor, prog_bar=False, on_epoch=True, on_step=False, logger=True)
+        self.log("decoder_norm_diff", decoder_norm_diff_tensor, prog_bar=False,
+                 on_epoch=True, on_step=False, logger=True)
         self.log("train_loss", total_loss, prog_bar=True, on_epoch=True, logger=True, on_step=False)
         self.log("active_neurons", l0_norm, prog_bar=True, on_epoch=True, logger=True, on_step=False)
 

@@ -57,7 +57,6 @@ def main(autoencoder_path: str, save_folder: str, device: str, use_contrastive_o
     # from controversial stimuli: (2, 50, 18, 16): (channels, time, height, width)
     stimulus_shape = (1, 2, 50, 18, 16)
 
-    response_reducer = MeanReducer()
     response_reducer = SliceMeanReducer(axis=0, start=10, length=10)
     stimulus_postprocessor = ChangeNormJointlyClipRangeSeparately(
         min_max_values=(

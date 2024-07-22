@@ -53,7 +53,12 @@ def load_model(path: str = ENSEMBLE_MODEL_PATH, device: str = "cuda"):
     return ensemble_model
 
 
-def generate_neuron_activations(data_folder: str, dataset_names_list: list[str], device: str, remove_nonlinearity: bool) -> torch.Tensor:
+def generate_neuron_activations(
+        data_folder: str,
+        dataset_names_list: list[str],
+        device: str,
+        remove_nonlinearity: bool,
+) -> torch.Tensor:
     movies_path = os.path.join(data_folder, "2024-01-11_movies_dict_8c18928.pkl")
     with open(movies_path, "rb") as f:
         movies_dict = pickle.load(f)
