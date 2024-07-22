@@ -99,9 +99,9 @@ def main(autoencoder_path: str, save_folder: str, device: str, use_contrastive_o
         fig, axes = plt.subplots(2, 2, figsize=(7 * 3, 12))
         plot_stimulus_composition(
             stimulus=stimulus_np,
-            temporal_trace_ax=axes[0, 0],
-            freq_ax=axes[0, 1],
-            spatial_ax=axes[1, 0],
+            temporal_trace_ax=axes[0, 0],  # type: ignore
+            freq_ax=axes[0, 1],  # type: ignore
+            spatial_ax=axes[1, 0],  # type: ignore
             highlight_x_list=[(40, 49)],
         )
 

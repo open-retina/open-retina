@@ -3,13 +3,26 @@ import warnings
 import numpy as np
 import torch
 
-from neuralpredictors.measures import corr
-from neuralpredictors.training import eval_state
-
-from .utils.constants import EPSILON
+from openretina.models.model_utils import eval_state
+from openretina.utils.constants import EPSILON
 
 
-def model_predictions(loader, model, data_key, device):
+def correlation_numpy(
+        y1: np.ndarray,
+        y2: np.ndarray,
+        axis: None | int | tuple[int] = -1,
+        eps: float = 1e-8,
+        **kwargs
+) -> np.ndarray:
+    """ Compute the correlation between two NumPy arrays along the specified dimension(s). """
+    y1 = (y1 - y1.mean(axis=axis, keepdims=True)) / (y1.std(axis=axis, keepdims=True, ddof=0) + eps)
+    y2 = (y2 - y2.mean(axis=axis, keepdims=True)) / (y2.std(axis=axis, keepdims=True, ddof=0) + eps)
+    corr = (y1 * y2).mean(axis=axis, **kwargs)
+
+    return corr
+
+
+def model_predictions(loader, model: torch.nn.Module, data_key, device):
     """
     computes model predictions for a given dataloader and a model
     Returns:
@@ -32,7 +45,7 @@ def model_predictions(loader, model, data_key, device):
     return target[:, lag:, ...], output
 
 
-def corr_stop(model, loader, avg: bool = True, device: str = "cpu"):
+def corr_stop(model: torch.nn.Module, loader, avg: bool = True, device: str = "cpu"):
     """
     Returns either the average correlation of all neurons or the correlations per neuron.
         Gets called by early stopping and the model performance evaluation
@@ -46,7 +59,7 @@ def corr_stop(model, loader, avg: bool = True, device: str = "cpu"):
         with eval_state(model):
             target, output = model_predictions(loader, model, data_key, device)
 
-        ret = corr(target, output, axis=0)
+        ret = correlation_numpy(target, output, axis=0)
 
         if np.any(np.isnan(ret)):
             warnings.warn("{}% NaNs ".format(np.isnan(ret).mean() * 100))
@@ -62,7 +75,7 @@ def corr_stop(model, loader, avg: bool = True, device: str = "cpu"):
     return corr_ret
 
 
-def corr_stop3d(model, loader, avg: bool = True, device: str = "cpu"):
+def corr_stop3d(model: torch.nn.Module, loader, avg: bool = True, device: str = "cpu"):
     """
     Returns either the average correlation of all neurons or the correlations per neuron.
         Gets called by early stopping and the model performance evaluation
@@ -76,7 +89,7 @@ def corr_stop3d(model, loader, avg: bool = True, device: str = "cpu"):
         with eval_state(model):
             target, output = model_predictions(loader, model, data_key, device)
 
-        ret = corr(target, output, axis=1)
+        ret = correlation_numpy(target, output, axis=1)
         ret = ret.mean(axis=0)
 
         if np.any(np.isnan(ret)):
@@ -93,7 +106,7 @@ def corr_stop3d(model, loader, avg: bool = True, device: str = "cpu"):
     return corr_ret
 
 
-def poisson_stop(model, loader, avg: bool = False, device: str = "cpu"):
+def poisson_stop(model: torch.nn.Module, loader, avg: bool = False, device: str = "cpu"):
     poisson_losses = np.array([])
     n_neurons = 0
     for data_key in loader:
@@ -109,7 +122,7 @@ def poisson_stop(model, loader, avg: bool = False, device: str = "cpu"):
     return poisson_losses.sum() / n_neurons if avg else poisson_losses.sum()
 
 
-def poisson_stop3d(model, loader, avg: bool = True, device: str = "cpu"):
+def poisson_stop3d(model: torch.nn.Module, loader, avg: bool = True, device: str = "cpu"):
     poisson_losses = np.array([])
     n_neurons = 0
     n_batch = 0
@@ -127,8 +140,8 @@ def poisson_stop3d(model, loader, avg: bool = True, device: str = "cpu"):
     return poisson_losses.sum() / (n_neurons * n_batch) if avg else poisson_losses.sum()
 
 
-def MSE_stop3d(model, loader, avg: bool = True, device: str = "cpu"):
-    MSE_losses = np.array([])
+def MSE_stop3d(model: torch.nn.Module, loader, avg: bool = True, device: str = "cpu"):
+    mse_losses = np.array([])
     n_neurons = 0
     n_batch = 0
     for data_key in loader:
@@ -137,12 +150,12 @@ def MSE_stop3d(model, loader, avg: bool = True, device: str = "cpu"):
 
         ret = (output - target) ** 2
         if np.any(np.isnan(ret)):
-            warnings.warn(" {}% NaNs ".format(np.isnan(ret).mean() * 100))
+            warnings.warn(f"{np.isnan(ret).mean:.1%} NaNs")
 
-        MSE_losses = np.append(MSE_losses, np.nansum(ret, axis=(0, 1)))  # sum over batches (0) and time (1)
+        mse_losses = np.append(mse_losses, np.nansum(ret, axis=(0, 1)))  # sum over batches (0) and time (1)
         n_neurons += output.shape[-1]
         n_batch += output.shape[0]
-    return MSE_losses.sum() / (n_neurons * n_batch) if avg else MSE_losses.sum()
+    return mse_losses.sum() / (n_neurons * n_batch) if avg else mse_losses.sum()
 
 
 def evaluate_fev(model, loader, device: str = "cpu", ddof: int = 0):
@@ -189,7 +202,7 @@ def evaluate_fev(model, loader, device: str = "cpu", ddof: int = 0):
     return noise_variance_dict, total_variance_dict, mse_dict, fev_dict, repeated_predictions_dict
 
 
-def compute_oracle(responses, predictions=None):
+def compute_oracle(responses, predictions=None) -> tuple[np.ndarray, np.ndarray]:
     """
     computes oracle score for test responses
     :param responses: array of shape #cells x time x repetitions
@@ -211,7 +224,7 @@ def compute_oracle(responses, predictions=None):
             # print(responses[cell].shape)
             x = oracle[cell].reshape(-1, order="C")
             y = responses[cell].reshape(-1, order="C")
-            oracle_score[cell] = corr(x, y)
+            oracle_score[cell] = correlation_numpy(x, y)
         return oracle, oracle_score
     else:
         n_cells, _, n_reps = responses.shape
@@ -219,11 +232,11 @@ def compute_oracle(responses, predictions=None):
         for cell in range(n_cells):
             x = np.tile(predictions[:, cell], n_reps)
             y = responses[cell].reshape(-1, order="F")
-            oracle_score[cell] = corr(x, y)
+            oracle_score[cell] = correlation_numpy(x, y)
         return x, oracle_score
 
 
-def crop_responses(responses, predictions):
+def crop_responses(responses: np.ndarray, predictions: np.ndarray) -> np.ndarray:
     """
 
     :param responses: array of responses, last axis is time
