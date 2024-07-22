@@ -46,7 +46,7 @@ def load_model(path: str = ENSEMBLE_MODEL_PATH, device: str = "cuda"):
 
 def main(autoencoder_path: str, save_folder: str, device: str, use_contrastive_objective: bool) -> None:
     model = load_model(device=device)
-    autoencoder = Autoencoder.load_from_checkpoint(autoencoder_path)
+    autoencoder = Autoencoder.load_from_checkpoint(autoencoder_path)  # type: ignore
     autoencoder_with_model = AutoencoderWithModel(model, autoencoder)
     if use_contrastive_objective:
         objective_class: Type[AbstractObjective] = ContrastiveNeuronObjective
