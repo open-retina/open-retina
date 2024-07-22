@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from openretina.hoefling_2024.constants import STIMULUS_RANGE_CONSTRAINTS
 from openretina.optimization.objective import (AbstractObjective, SingleNeuronObjective,
-                                               ContrastiveNeuronObjective, MeanReducer, SliceMeanReducer)
+                                               ContrastiveNeuronObjective, SliceMeanReducer)
 from openretina.optimization.optimizer import optimize_stimulus
 from openretina.optimization.optimization_stopper import OptimizationStopper
 from openretina.optimization.regularizer import (
