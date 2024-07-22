@@ -45,7 +45,6 @@ def load_model(path: str = ENSEMBLE_MODEL_PATH, device: str = "cuda"):
 
 
 def main(autoencoder_path: str, save_folder: str, device: str, use_contrastive_objective: bool) -> None:
-    device = "cuda"
     model = load_model(device=device)
     autoencoder = Autoencoder.load_from_checkpoint(autoencoder_path)
     autoencoder_with_model = AutoencoderWithModel(model, autoencoder)
