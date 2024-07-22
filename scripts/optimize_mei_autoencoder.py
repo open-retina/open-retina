@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from openretina.hoefling_2024.constants import STIMULUS_RANGE_CONSTRAINTS
 from openretina.optimization.objective import (AbstractObjective, SingleNeuronObjective,
-                                               ContrastiveNeuronObjective, MeanReducer)
+                                               ContrastiveNeuronObjective, MeanReducer, SliceMeanReducer)
 from openretina.optimization.optimizer import optimize_stimulus
 from openretina.optimization.optimization_stopper import OptimizationStopper
 from openretina.optimization.regularizer import (
@@ -57,7 +57,8 @@ def main(autoencoder_path: str, save_folder: str, device: str, use_contrastive_o
     # from controversial stimuli: (2, 50, 18, 16): (channels, time, height, width)
     stimulus_shape = (1, 2, 50, 18, 16)
 
-    mean_response_reducer = MeanReducer()
+    response_reducer = MeanReducer()
+    response_reducer = SliceMeanReducer(axis=0, start=10, length=10)
     stimulus_postprocessor = ChangeNormJointlyClipRangeSeparately(
         min_max_values=(
             (STIMULUS_RANGE_CONSTRAINTS["x_min_green"], STIMULUS_RANGE_CONSTRAINTS["x_max_green"]),
@@ -77,7 +78,7 @@ def main(autoencoder_path: str, save_folder: str, device: str, use_contrastive_o
     for neuron_id in range(autoencoder.hidden_dim()):
         print(f"Generating MEI for {neuron_id=}")
         objective = objective_class(autoencoder_with_model, neuron_idx=neuron_id,  # type: ignore
-                                    data_key=None, response_reducer=mean_response_reducer)
+                                    data_key=None, response_reducer=response_reducer)
 
         stimulus = torch.randn(stimulus_shape, requires_grad=True, device=device)
 
@@ -106,8 +107,8 @@ def main(autoencoder_path: str, save_folder: str, device: str, use_contrastive_o
         )
 
         mei_str = "cei" if use_contrastive_objective else "mei"
-        img_path = f"{save_folder}/{mei_str}_{neuron_id}.pdf"
-        np_path = f"{save_folder}/{mei_str}_{neuron_id}.npy"
+        img_path = f"{save_folder}/{mei_str}_{neuron_id}_slice_mean.pdf"
+        np_path = f"{save_folder}/{mei_str}_{neuron_id}_slice_mean.npy"
         with open(np_path, "wb") as fwb:
             np.save(fwb, stimulus_np)
         fig.savefig(img_path, bbox_inches="tight", facecolor="w", dpi=300)
