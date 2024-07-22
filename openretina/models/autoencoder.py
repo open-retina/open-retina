@@ -18,9 +18,9 @@ class SparsityMSELoss:
         return mse
 
     @staticmethod
-    def sparsity_loss(z: torch.Tensor, activations_dimension: int) -> torch.Tensor:
-        # The anthropic paper would just sum over all neurons
-        # when using that I had to set the interpolation factor quite low.
+    def sparsity_loss(z: torch.Tensor) -> torch.Tensor:
+        # The anthropic paper just sums over all neurons
+        # Make sure the interpolation factor is small enough to not have a dominating sparsity loss
         return z.abs().sum()
 
     def forward(
@@ -30,7 +30,7 @@ class SparsityMSELoss:
             x_hat: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         mse_loss = self.mse_loss(x, x_hat)
-        sparsity_loss = self.sparsity_loss(z, activations_dimension=-1)
+        sparsity_loss = self.sparsity_loss(z)
         total_loss = mse_loss + self.sparsity_factor * sparsity_loss
         return total_loss, mse_loss, sparsity_loss
 
