@@ -178,6 +178,32 @@ def plot_stimulus_composition(
             temporal_trace_ax.fill_betweenx(temporal_trace_ax.get_ylim(), x_0, x_1, color="k", alpha=0.1)
 
 
+def polar_plot_of_direction_of_motion_responses(
+        direction_in_degree: list[int],
+        peak_response_per_directions: list[float],
+) -> None:
+    # Convert directions to radians
+    directions_with_peak_response = sorted([(d, v) for d, v in zip(direction_in_degree, peak_response_per_directions)])
+
+    # Add the first direction and data point to the end to close the plot
+    directions_with_peak_response.append(directions_with_peak_response[0])
+
+    # Create the polar plot
+    plt.figure(figsize=(6, 6))
+    sorted_directions = [x[0] for x in directions_with_peak_response]
+    sorted_data = [x[1] for x in directions_with_peak_response]
+    plt.polar(np.deg2rad(sorted_directions), sorted_data, marker='o')
+
+    # Set the direction of the zero point to the top
+    plt.gca().set_theta_zero_location("N")
+
+    # Set the direction of rotation to clockwise
+    plt.gca().set_theta_direction(-1)
+
+    # Set the labels for the directions
+    plt.gca().set_xticklabels([f"{x}°" for x in sorted_directions])
+
+
 def save_figure(filename: str, folder: str, fig=None):
     if not os.path.exists(folder):
         os.makedirs(folder, exist_ok=True)
