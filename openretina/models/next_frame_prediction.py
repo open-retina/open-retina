@@ -48,16 +48,23 @@ class TorchSTSeparableConv3D(nn.Module):
 class NextFramePredictionModel(lightning.LightningModule):
     def __init__(
             self,
-            model: torch.nn.Module,
+            channel_sizes: list[int],
             learning_rate: float = 0.0005,
             frame_offset: int = 3,
     ):
         if frame_offset < 0:
             raise ValueError(f"Frame offset has to be positive, but was: {frame_offset=}")
         super().__init__()
+        self.save_hyperparameters()
+
         self.learning_rate = learning_rate
-        self.model = model
         self.frame_offset = frame_offset
+
+        conv_models = []
+        for in_channels, out_channels in zip(channel_sizes, channel_sizes[1:]):
+            conv_models.append(
+                    TorchSTSeparableConv3D(in_channels, out_channels, 15, (9, 9)))
+        self.model = torch.nn.Sequential(*conv_models)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         model_out = self.model.forward(x)

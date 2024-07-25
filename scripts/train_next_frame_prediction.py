@@ -32,6 +32,7 @@ def main(
     save_folder: str,
     device: str,
 ) -> None:
+    next_frame_pred_model = NextFramePredictionModel([2, 16, 2])
 
     movies_path = os.path.join(data_folder, "2024-01-11_movies_dict_8c18928.pkl")
     with open(movies_path, "rb") as f:
@@ -43,22 +44,13 @@ def main(
     data_dict = make_final_responses(responses, response_type="natural")  # type: ignore
     dataloaders = natmov_dataloaders_v2(data_dict, movies_dictionary=movies_dict, train_chunk_size=100, seed=1000)
 
-    channel_sizes = [2, 16, 2]
-    conv_models = []
-    for in_channels, out_channels in zip(channel_sizes, channel_sizes[1:]):
-        conv_models.append(
-            TorchSTSeparableConv3D(in_channels, out_channels, 15, (9, 9)))
-    reconstruction_model = torch.nn.Sequential(*conv_models)
-
-    next_frame_pred_model = NextFramePredictionModel(reconstruction_model)
-
     # when num_workers > 0 the docker container needs more shared memory
     train_loader = torch.utils.data.DataLoader(LongCycler(dataloaders["train"], shuffle=True), batch_size=None, num_workers=0)
     valid_loader = torch.utils.data.DataLoader(LongCycler(dataloaders["validation"], shuffle=False), batch_size=None, num_workers=0)
     test_loader = torch.utils.data.DataLoader(LongCycler(dataloaders["test"], shuffle=False), batch_size=None, num_workers=0)
 
     lightning_folder = f"{save_folder}_next_frame_pred"
-    os.makedirs(lightning_folder)
+    os.makedirs(lightning_folder, exist_ok=True)
     csv_logger = CSVLogger(lightning_folder)
     tensorboard_logger = TensorBoardLogger("models/tensorboard", name="next_frame_pred")
     trainer = lightning.Trainer(max_epochs=40, default_root_dir=lightning_folder,
