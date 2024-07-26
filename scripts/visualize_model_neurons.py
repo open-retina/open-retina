@@ -36,8 +36,13 @@ def parse_args():
     return parser.parse_args()
 
 
-def load_model(path: str = ENSEMBLE_MODEL_PATH, device: str = "cuda", model_id: int = 0):
-    center_readout = Center(target_mean=(0.0, 0.0))
+def load_model(
+        path: str = ENSEMBLE_MODEL_PATH,
+        device: str = "cuda",
+        model_id: int = 0,
+        do_center_readout: bool = False
+):
+    center_readout = Center(target_mean=(0.0, 0.0)) if do_center_readout else None
     data_info, ensemble_model = load_ensemble_retina_model_from_directory(
         path, device, center_readout=center_readout)
     print(f"Initialized ensemble model from {path}")
@@ -49,7 +54,7 @@ def main(
         device: str,
         model_id: int,
 ) -> None:
-    model = load_model(device=device, model_id=model_id)
+    model = load_model(device=device, model_id=model_id, do_center_readout=True)
     model.to(device).eval()
 
     # from controversial stimuli: (2, 50, 18, 16): (channels, time, height, width)
@@ -154,6 +159,9 @@ def main(
             plt.close()
             del stimulus_np
 
+    # Reload model without centered readouts
+    model = load_model(device=device, model_id=model_id, do_center_readout=False)
+    model.to(device).eval()
     for session_key in model.readout_keys():
         folder_path = f"{save_folder}/weights_readout/{session_key}"
         os.makedirs(folder_path, exist_ok=True)
