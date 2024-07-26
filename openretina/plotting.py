@@ -183,7 +183,8 @@ def polar_plot_of_direction_of_motion_responses(
         peak_response_per_directions: list[float],
 ) -> None:
     # Convert directions to radians
-    directions_with_peak_response = sorted([(d, v) for d, v in zip(direction_in_degree, peak_response_per_directions)])
+    directions_with_peak_response = sorted(
+        [(d, v) for d, v in zip(direction_in_degree, peak_response_per_directions, strict=True)])
 
     # Add the first direction and data point to the end to close the plot
     directions_with_peak_response.append(directions_with_peak_response[0])
@@ -195,10 +196,10 @@ def polar_plot_of_direction_of_motion_responses(
     plt.polar(np.deg2rad(sorted_directions), sorted_data, marker='o')
 
     # Set the direction of the zero point to the top
-    plt.gca().set_theta_zero_location("N")
+    plt.gca().set_theta_zero_location("N")  # type: ignore
 
     # Set the direction of rotation to clockwise
-    plt.gca().set_theta_direction(-1)
+    plt.gca().set_theta_direction(-1)  # type: ignore
 
     # Set the labels for the directions
     plt.gca().set_xticklabels([f"{x}°" for x in sorted_directions])
