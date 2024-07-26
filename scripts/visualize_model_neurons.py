@@ -94,17 +94,20 @@ def main(
             elif "layer1" in layer_name or layer_name == "core":
                 response_reducer._start = 10
             else:
-                raise ValueError(layer_name)
-
-            optimize_stimulus(
-                stimulus,
-                optimizer_init_fn,
-                inner_neuron_objective,
-                OptimizationStopper(max_iterations=10),
-                stimulus_regularization_loss=stimulus_regularizing_loss,
-                stimulus_postprocessor=stimulus_postprocessor,
-            )
-            stimulus_np = stimulus[0].cpu().numpy()
+                response_reducer._start = 20
+            try:
+                optimize_stimulus(
+                    stimulus,
+                    optimizer_init_fn,
+                    inner_neuron_objective,
+                    OptimizationStopper(max_iterations=10),
+                    stimulus_regularization_loss=stimulus_regularizing_loss,
+                    stimulus_postprocessor=stimulus_postprocessor,
+                )
+            except Exception as e:
+                print(f"Skipping {layer_name=} {channel_id=} because of Exception: {e}")
+                continue
+            stimulus_np = stimulus[0].detach().cpu().numpy()
             fig_axes_tuple = plt.subplots(2, 2, figsize=(7 * 3, 12))
             axes: np.ndarray[Any, plt.Axes] = fig_axes_tuple[1]  # type: ignore
 

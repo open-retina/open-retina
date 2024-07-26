@@ -105,7 +105,7 @@ class InnerNeuronVisualizationObjective(AbstractObjective):
 
     def set_layer_channel(self, layer: str, channel: int):
         if layer not in self.features_dict:
-            raise ValueError("{layer=} not in features. {self.features_dict.keys=}")
+            raise ValueError(f"{layer=} not in features {self.features_dict.keys=}")
         self.layer_name = layer
         self.channel_id = channel
 
@@ -115,6 +115,8 @@ class InnerNeuronVisualizationObjective(AbstractObjective):
         # The forward call is just used to update the model hooks
         self.model_forward(stimulus)
         module_hook = self.features_dict[self.layer_name]
+        if module_hook.module_output_tensor is None:
+            raise ValueError(f"Module hook output tensor is None for layer {self.layer_name}: {module_hook=}")
         output = module_hook.module_output_tensor[:, self.channel_id]
         batch, time, y, x = output.shape
         middle_neuron_trace_batch = output[:, :, y//2, x//2]
@@ -133,7 +135,7 @@ class InnerNeuronVisualizationObjective(AbstractObjective):
                     if layer is not None:
                         new_prefix_tuple = prefix + (name,)
                         features_key = "_".join(new_prefix_tuple)
-                        features[features_key] = _ModuleHook(layer)  # , features_key)
+                        features[features_key] = _ModuleHook(layer)
                         hook_layers(layer, prefix=new_prefix_tuple)
         hook_layers(model)
 
