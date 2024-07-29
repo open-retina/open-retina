@@ -118,8 +118,8 @@ class InnerNeuronVisualizationObjective(AbstractObjective):
         if module_hook.module_output_tensor is None:
             raise ValueError(f"Module hook output tensor is None for layer {self.layer_name}: {module_hook=}")
         output = module_hook.module_output_tensor[:, self.channel_id]
-        batch, time, y, x = output.shape
-        middle_neuron_trace_batch = output[:, :, y//2, x//2]
+        y, x = output.shape[-2:]
+        middle_neuron_trace_batch = output[..., y//2, x//2]
         middle_neuron_trace = middle_neuron_trace_batch.mean(axis=0)
         loss = self._response_reducer.forward(middle_neuron_trace)
         return loss
