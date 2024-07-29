@@ -88,6 +88,7 @@ def main(
         output_shape = inner_neuron_objective.get_output_shape_for_layer(layer_name, stimulus_shape)
         assert output_shape is not None, f"Could not determine output shape for {layer_name=}"
         num_channels, num_timesteps = output_shape[1:3]
+        # We maximize the last frames of the time dimension of the output of the layer
         response_reducer.start = num_timesteps - response_reducer.length
         print(response_reducer.start, response_reducer.length)
         for channel_id in range(num_channels):
