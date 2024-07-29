@@ -8,6 +8,7 @@ scipy
 torch
 torchaudio
 torchvision
+lightning
 wandb
 # Type Checks
 ruff

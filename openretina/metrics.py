@@ -22,7 +22,7 @@ def correlation_numpy(
     return corr
 
 
-def model_predictions(loader, model: torch.nn.Module, data_key, device):
+def model_predictions(loader, model: torch.nn.Module, data_key, device) -> tuple[np.ndarray, np.ndarray]:
     """
     computes model predictions for a given dataloader and a model
     Returns:
@@ -38,11 +38,11 @@ def model_predictions(loader, model: torch.nn.Module, data_key, device):
         #             output = torch.cat((output, curr_output.detach().cpu()), dim=0)
         output = torch.cat((output, (model(images.to(device), data_key=data_key).detach().cpu())), dim=0)
         target = torch.cat((target, responses.detach().cpu()), dim=0)
-    output = output.numpy()
-    target = target.numpy()
-    lag = target.shape[1] - output.shape[1]
+    output_np = output.numpy()
+    target_np = target.numpy()
+    lag = target_np.shape[1] - output_np.shape[1]
 
-    return target[:, lag:, ...], output
+    return target_np[:, lag:, ...], output_np
 
 
 def corr_stop(model: torch.nn.Module, loader, avg: bool = True, device: str = "cpu"):

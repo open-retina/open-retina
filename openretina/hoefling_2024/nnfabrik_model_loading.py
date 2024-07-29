@@ -305,7 +305,7 @@ class EnsembleModel(nn.Module):
         super().__init__()
         self.members = self._module_container_cls(members)
 
-    def __call__(self, x: torch.Tensor, *args, **kwargs) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, *args, **kwargs) -> torch.Tensor:
         """Calculates the forward pass through the ensemble.
 
         The input is passed through all individual members of the ensemble and their outputs are averaged.
@@ -321,6 +321,9 @@ class EnsembleModel(nn.Module):
         outputs = [m(x, *args, **kwargs) for m in self.members]
         mean_output = torch.stack(outputs, dim=0).mean(dim=0)
         return mean_output
+
+    def readout_keys(self) -> list[str]:
+        return self.members[0].readout_keys()  # type: ignore
 
     def __repr__(self):
         return f"{self.__class__.__qualname__}({', '.join(m.__repr__() for m in self.members)})"
