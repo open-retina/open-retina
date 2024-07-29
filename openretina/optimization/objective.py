@@ -1,3 +1,4 @@
+import functools
 from abc import abstractmethod, ABC
 from collections import OrderedDict
 
@@ -24,11 +25,11 @@ class MeanReducer(ResponseReducer):
 class SliceMeanReducer(ResponseReducer):
     def __init__(self, axis: int, start: int, length: int):
         super().__init__(axis)
-        self._start = start
-        self._length = length
+        self.start = start
+        self.length = length
 
     def forward(self, responses: torch.Tensor) -> torch.Tensor:
-        narrowed_responses = torch.narrow(responses, self._axis, self._start, self._length)
+        narrowed_responses = torch.narrow(responses, self._axis, self.start, self.length)
         return torch.mean(narrowed_responses, dim=self._axis)
 
 
@@ -108,6 +109,19 @@ class InnerNeuronVisualizationObjective(AbstractObjective):
             raise ValueError(f"{layer=} not in features {self.features_dict.keys=}")
         self.layer_name = layer
         self.channel_id = channel
+
+    @functools.lru_cache
+    def get_output_shape_for_layer(self, layer_name: str, stimulus_shape: tuple[int, ...]) -> tuple[int, ...] | None:
+        if layer_name not in self.features_dict:
+            return None
+
+        with torch.no_grad():
+            model_device = next(self._model.parameters()).device
+            stimulus = torch.rand(stimulus_shape, device=model_device, requires_grad=False)
+            self.model_forward(stimulus)
+            output_tensor = self.features_dict[layer_name].module_output_tensor
+            output_shape = output_tensor.shape
+        return output_shape
 
     def forward(self, stimulus: torch.Tensor) -> torch.Tensor:
         if len(self.layer_name) == 0 or self.channel_id < 0:

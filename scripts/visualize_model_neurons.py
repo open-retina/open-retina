@@ -30,7 +30,7 @@ def parse_args():
 
     parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
     parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda")
-    parser.add_argument("--model_id", type=int, default=1)
+    parser.add_argument("--model_id", type=int, default=0)
     parser.add_argument("--ensemble_path", default=DEFAULT_ENSEMBLE_MODEL_PATH)
 
     return parser.parse_args()
@@ -85,18 +85,17 @@ def main(
                          if "readout" not in x and "regularizer" not in x and x != "core_features"]
     print(layer_names_array)
     for layer_name in layer_names_array:
-        for channel_id in range(16):
+        output_shape = inner_neuron_objective.get_output_shape_for_layer(layer_name, stimulus_shape)
+        assert output_shape is not None, f"Could not determine output shape for {layer_name=}"
+        num_channels, num_timesteps = output_shape[1:3]
+        response_reducer.start = num_timesteps - response_reducer.length
+        print(response_reducer.start, response_reducer.length)
+        for channel_id in range(num_channels):
             print(f"Optimizing {layer_name=} {channel_id=}")
             stimulus = torch.randn(stimulus_shape, requires_grad=True, device=device)
             stimulus.data = stimulus_postprocessor.process(stimulus.data)
             inner_neuron_objective.set_layer_channel(layer_name, channel_id)
-            breakpoint()
-            if "layer0" in layer_name:
-                response_reducer._start = 20
-            elif "layer1" in layer_name or layer_name == "core":
-                response_reducer._start = 10
-            else:
-                response_reducer._start = 20
+
             try:
                 optimize_stimulus(
                     stimulus,
