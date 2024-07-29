@@ -7,11 +7,13 @@ import pickle
 from copy import deepcopy
 from functools import partial
 from importlib import import_module
-from typing import Tuple
+from typing import Tuple, Optional
 
 import torch
 import torch.nn as nn
 import yaml
+
+from openretina.utils.misc import SafeLoaderWithTuple, tuple_constructor
 
 
 def split_module_name(abs_class_name: str) -> Tuple[str, str]:
@@ -95,13 +97,14 @@ def get_model(
     )
 
     if state_dict is not None:
+        ignore_missing = model_config.get("transfer", False) or not strict
         load_state_dict(
             net,
             state_dict,
             match_names=model_config.get("transfer", False),
             ignore_unused=model_config.get("transfer", False),
             ignore_dim_mismatch=model_config.get("transfer", False),
-            ignore_missing=model_config.get("transfer", False),
+            ignore_missing=ignore_missing,
         )  # we want the most flexible loading in the case of transfer
 
     return net
@@ -171,7 +174,7 @@ def load_state_dict(
     model.load_state_dict(updated_model_dict, strict=(not ignore_missing))
 
 
-def find_prefix(keys: list, p_agree: float = 0.66, separator=".") -> Tuple[str, int]:
+def find_prefix(keys: list, p_agree: float = 0.66, separator: str = ".") -> Tuple[str, int]:
     """
     Finds common prefix among state_dict keys
     :param keys: list of strings to find a common prefix
@@ -227,7 +230,11 @@ class Center:
         model.load_state_dict(mod_state_dict)
 
 
-def load_ensemble_retina_model_from_directory(directory_path: str, device: str = "cuda") -> Tuple:
+def load_ensemble_retina_model_from_directory(
+        directory_path: str,
+        device: str = "cuda",
+        center_readout: Optional[Center] = None,
+) -> Tuple:
     """
     Returns an ensemble data_info object and an ensemble model that it loads from the directory path.
 
@@ -237,9 +244,10 @@ def load_ensemble_retina_model_from_directory(directory_path: str, device: str =
     - data_info_{seed:05d}.pkl
     where seed is an integer that represents the random seed the model was trained with
     """
-
+    yaml.add_constructor('tag:yaml.org,2002:python/tuple', tuple_constructor, Loader=SafeLoaderWithTuple)
     file_names = [f for f in os.listdir(directory_path) if f.endswith("yaml")]
     seed_array = [int(file_name[: -len(".yaml")].split("_")[1]) for file_name in file_names]
+    seed_array.sort()
     model_list = []
     data_info_list = []
 
@@ -250,22 +258,29 @@ def load_ensemble_retina_model_from_directory(directory_path: str, device: str =
 
         state_dict = torch.load(state_dir_path)
         with open(model_config_path, "r") as f:
-            config = yaml.safe_load(f)
-
+            config = yaml.load(f, SafeLoaderWithTuple)
         with open(data_info_path, "rb") as fb:
             data_info = pickle.load(fb)
         data_info_list.append(data_info)
 
         model_fn = config["model_fn"]
+        repo, _, _, model_type = model_fn.split('.')
+        if repo == "nnfabrik_euler":  # convert model_fn from nnfabrik to openretina
+            #ToDo check robustness across model types
+            model_fn = '.'.join(['openretina', 'hoefling_2024', 'models', model_type])
+        elif repo == "openretina":
+            pass  # nothing to change
+        else:
+            raise ValueError(f"Unsupported repository {repo} for loading a model. Please implement this manually.")
         model_config = config["model_config"]
-        model = get_model(model_fn, model_config, seed=seed, data_info=data_info, state_dict=state_dict)
+        model = get_model(model_fn, model_config, seed=seed, data_info=data_info, state_dict=state_dict, strict=False)
         model_list.append(model)
 
     # Just put inside wrapper for ensemble
     ensemble_model = EnsembleModel(*model_list)
     # Center readouts
-    model_transform = Center(target_mean=[0.0, 0.0])
-    model_transform(ensemble_model)
+    if center_readout is not None:
+        center_readout(ensemble_model)
     ensemble_model.to(device)
     ensemble_model.eval()
 
@@ -277,7 +292,7 @@ def load_ensemble_retina_model_from_directory(directory_path: str, device: str =
 
 
 class EnsembleModel(nn.Module):
-    """A ensemble model consisting of several individual ensemble members.
+    """An ensemble model consisting of several individual ensemble members.
 
     Attributes:
         *members: PyTorch modules representing the members of the ensemble.
@@ -290,7 +305,7 @@ class EnsembleModel(nn.Module):
         super().__init__()
         self.members = self._module_container_cls(members)
 
-    def __call__(self, x: torch.Tensor, *args, **kwargs) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, *args, **kwargs) -> torch.Tensor:
         """Calculates the forward pass through the ensemble.
 
         The input is passed through all individual members of the ensemble and their outputs are averaged.
@@ -306,6 +321,9 @@ class EnsembleModel(nn.Module):
         outputs = [m(x, *args, **kwargs) for m in self.members]
         mean_output = torch.stack(outputs, dim=0).mean(dim=0)
         return mean_output
+
+    def readout_keys(self) -> list[str]:
+        return self.members[0].readout_keys()  # type: ignore
 
     def __repr__(self):
         return f"{self.__class__.__qualname__}({', '.join(m.__repr__() for m in self.members)})"

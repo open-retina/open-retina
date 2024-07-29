@@ -176,11 +176,8 @@ def standard_early_stop_trainer(
             if (batch_no + 1) % optim_step_count == 0:
                 optimizer.step()
                 optimizer.zero_grad()
-            epoch_loss += loss.item()
-
-        if np.isnan(loss.item()):
-            raise ValueError(f"Loss is NaN on batch {batch_no} from {data_key}, stopping training.")
-
+            if np.isnan(loss.item()):
+                raise ValueError(f"Loss is NaN on batch {batch_no} from {data_key}, stopping training.")
         if wandb_logger is not None:
             tracker_info = tracker.asdict(make_copy=True)
             wandb.log(
@@ -208,7 +205,7 @@ def standard_early_stop_trainer(
     return avg_test_corr, avg_val_corr, output, model.state_dict()
 
 
-def save_checkpoint(model, optimizer, epoch, loss, save_folder, model_name):
+def save_checkpoint(model, optimizer, epoch, loss, save_folder: str, model_name: str) -> None:
     if not os.path.exists(save_folder):
         # only create the lower level directory if it does not exist
         os.mkdir(save_folder)
@@ -233,7 +230,7 @@ def save_model(model: torch.nn.Module, save_folder: str, model_name: str) -> Non
     torch.save(model, os.path.join(save_folder, f"{model_name}_{date}_model_object.pt"))
 
 
-def clean_session_key(session_key):
+def clean_session_key(session_key: str) -> str:
     if "_chirp" in session_key:
         session_key = session_key.split("_chirp")[0]
     if "_mb" in session_key:

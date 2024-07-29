@@ -7,17 +7,20 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from neuralpredictors import regularizers
-from neuralpredictors.layers.affine import Bias3DLayer, Scale2DLayer, Scale3DLayer
-from neuralpredictors.layers.readouts import (
+
+from neuralpredictors import regularizers  # type: ignore
+from neuralpredictors.layers.readouts import (  # type: ignore
     FullGaussian2d,
     Gaussian3d,
     MultiReadoutBase,
 )
-from neuralpredictors.utils import get_module_output
+from neuralpredictors.utils import get_module_output  # type: ignore
 
-from .dataloaders import get_dims_for_loader_dict
-from .hoefling_2024.models import (
+from openretina.dataloaders import get_dims_for_loader_dict
+from openretina.hoefling_2024.models import (
+    Bias3DLayer,
+    Scale2DLayer,
+    Scale3DLayer,
     Core3d,
     Encoder,
     FlatLaplaceL23dnorm,

@@ -223,13 +223,17 @@ def natmov_dataloaders_v2(
             clip_length=clip_length,
             use_base_sequence=use_base_sequence,
         )
+        _eye = neuron_data.eye
 
+        if session_key == 'session_2_ventral2_20200626':
+            # session incorrectly labeled as left
+            _eye = 'right'
         # if neuron_data.responses_train.shape[-1] == 0:
         #     print("skipped: {}".format(session_key))
         #     break
         for fold in ["train", "validation", "test"]:
             dataloaders[fold][session_key] = get_movie_dataloader(
-                movies=movies[neuron_data.eye][fold],
+                movies=movies[_eye][fold],
                 responses=neuron_data.response_dict[fold],
                 roi_ids=neuron_data.roi_ids,
                 roi_coords=neuron_data.roi_coords,

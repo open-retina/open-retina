@@ -10,9 +10,10 @@ from typing import Iterable, Union
 
 import numpy as np
 import torch
+import yaml
 
 
-def set_seed(seed=None, seed_torch=True):
+def set_seed(seed: int | None = None, seed_torch: bool = True) -> int:
     """
     Function that controls randomness. NumPy and random modules must be imported.
 
@@ -136,3 +137,11 @@ def tensors_to_device(tensors: Union[Iterable[torch.Tensor], torch.Tensor], devi
         return tuple(tensors_to_device(item, device) for item in tensors)
 
     raise TypeError("Input must be a tensor, list of tensors, or tuple of tensors.")
+
+
+def tuple_constructor(loader, node):
+    return tuple(loader.construct_sequence(node))
+
+
+class SafeLoaderWithTuple(yaml.SafeLoader):
+    pass

@@ -5,15 +5,18 @@ import pickle
 from functools import partial
 
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
 from openretina.hoefling_2024.configs import model_config
 from openretina.hoefling_2024.data_io import natmov_dataloaders_v2
 from openretina.hoefling_2024.models import SFB3d_core_SxF3d_readout
-from openretina.optimization.objective import SingleNeuronObjective
+from openretina.hoefling_2024.constants import STIMULUS_RANGE_CONSTRAINTS
+from openretina.optimization.objective import SingleNeuronObjective, MeanReducer
 from openretina.optimization.optimizer import optimize_stimulus
+from openretina.optimization.optimization_stopper import OptimizationStopper
 from openretina.optimization.regularizer import (
     ChangeNormJointlyClipRangeSeparately,
-    range_regularizer_fn,
+    RangeRegularizationLoss,
 )
 from openretina.plotting import plot_stimulus_composition
 
@@ -42,16 +45,29 @@ def main() -> None:
     # from controversial stimuli: (2, 50, 18, 16): (channels, time, height, width)
     stimulus_shape = (1, 2, 50, 18, 16)
 
+    mean_response_reducer = MeanReducer()
     for session_id in model.readout.keys():
         for neuron_id in range(model.readout[session_id].outdims):
             print(f"Generating MEI for {session_id=} {neuron_id=}")
-            objective = SingleNeuronObjective(model, neuron_idx=neuron_id, data_key=session_id)
+            objective = SingleNeuronObjective(model, neuron_idx=neuron_id,
+                                              data_key=session_id, response_reducer=mean_response_reducer)
             stimulus = torch.randn(stimulus_shape, requires_grad=True, device=device)
-            stimulus_postprocessor = ChangeNormJointlyClipRangeSeparately()
+            stimulus_postprocessor = ChangeNormJointlyClipRangeSeparately(
+                min_max_values=(
+                    (STIMULUS_RANGE_CONSTRAINTS["x_min_green"], STIMULUS_RANGE_CONSTRAINTS["x_max_green"]),
+                    (STIMULUS_RANGE_CONSTRAINTS["x_min_uv"], STIMULUS_RANGE_CONSTRAINTS["x_max_uv"]),
+                ),
+                norm=STIMULUS_RANGE_CONSTRAINTS["norm"],
+            )
             stimulus.data = stimulus_postprocessor.process(stimulus.data)
             optimizer_init_fn = partial(torch.optim.SGD, lr=10.0)
-            stimulus_regularizing_fn = partial(
-                range_regularizer_fn,
+            stimulus_regularizing_loss = RangeRegularizationLoss(
+                min_max_values=(
+                    (STIMULUS_RANGE_CONSTRAINTS["x_min_green"], STIMULUS_RANGE_CONSTRAINTS["x_max_green"]),
+                    (STIMULUS_RANGE_CONSTRAINTS["x_min_uv"], STIMULUS_RANGE_CONSTRAINTS["x_max_uv"]),
+                ),
+                max_norm=STIMULUS_RANGE_CONSTRAINTS["norm"],
+                factor=0.1,
             )
             # Throws: RuntimeError: Expected all tensors to be on the same device,
             # but found at least two devices, cuda:0 and cpu!
@@ -60,12 +76,13 @@ def main() -> None:
                 stimulus,
                 optimizer_init_fn,
                 objective,
-                stimulus_regularizing_fn=stimulus_regularizing_fn,
-                postprocess_stimulus_fn=stimulus_postprocessor.process,
-                max_iterations=100,
+                OptimizationStopper(max_iterations=100),
+                stimulus_regularization_loss=stimulus_regularizing_loss,
+                stimulus_postprocessor=stimulus_postprocessor,
             )
             stimulus_np = stimulus[0].cpu().numpy()
-            fig, axes = plt.subplots(2, 2, figsize=(7 * 3, 12))
+            fig_axes = plt.subplots(2, 2, figsize=(7 * 3, 12))
+            axes: np.ndarray = fig_axes[1]  # type: ignore
             plot_stimulus_composition(
                 stimulus=stimulus_np,
                 temporal_trace_ax=axes[0, 0],
@@ -74,7 +91,7 @@ def main() -> None:
                 highlight_x_list=[(40, 49)],
             )
             img_path = f"meis/mei_{session_id}_{neuron_id}.pdf"
-            fig.savefig(img_path, bbox_inches="tight", facecolor="w", dpi=300)
+            fig_axes[0].savefig(img_path, bbox_inches="tight", facecolor="w", dpi=300)
 
 
 if __name__ == "__main__":
