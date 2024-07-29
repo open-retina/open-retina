@@ -21,9 +21,8 @@ from openretina.plotting import plot_stimulus_composition
 from openretina.hoefling_2024.nnfabrik_model_loading import load_ensemble_retina_model_from_directory, Center
 
 
-BASE_PATH = "/gpfs01/euler/data/SharedFiles/projects/Hoefling2024/"
-BASE_PATH = "/home/tzenkel/GitRepos/rgc-natstim-model/data/"
-ENSEMBLE_MODEL_PATH = BASE_PATH + "models/nonlinear/9d574ab9fcb85e8251639080c8d402b7"
+DEFAULT_BASE_PATH = "/gpfs01/euler/data/SharedFiles/projects/Hoefling2024/"
+DEFAULT_ENSEMBLE_MODEL_PATH = os.path.join(DEFAULT_BASE_PATH, "models/nonlinear/9d574ab9fcb85e8251639080c8d402b7")
 
 
 def parse_args():
@@ -32,12 +31,13 @@ def parse_args():
     parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
     parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda")
     parser.add_argument("--model_id", type=int, default=1)
+    parser.add_argument("--ensemble_path", default=DEFAULT_ENSEMBLE_MODEL_PATH)
 
     return parser.parse_args()
 
 
 def load_model(
-        path: str = ENSEMBLE_MODEL_PATH,
+        path: str,
         device: str = "cuda",
         model_id: int = 0,
         do_center_readout: bool = False
@@ -50,11 +50,12 @@ def load_model(
 
 
 def main(
+        ensemble_path: str,
         save_folder: str,
         device: str,
         model_id: int,
 ) -> None:
-    model = load_model(device=device, model_id=model_id, do_center_readout=True)
+    model = load_model(ensemble_path, device=device, model_id=model_id, do_center_readout=True)
     model.to(device).eval()
 
     # from controversial stimuli: (2, 50, 18, 16): (channels, time, height, width)
@@ -89,6 +90,7 @@ def main(
             stimulus = torch.randn(stimulus_shape, requires_grad=True, device=device)
             stimulus.data = stimulus_postprocessor.process(stimulus.data)
             inner_neuron_objective.set_layer_channel(layer_name, channel_id)
+            breakpoint()
             if "layer0" in layer_name:
                 response_reducer._start = 20
             elif "layer1" in layer_name or layer_name == "core":
@@ -163,7 +165,7 @@ def main(
             del stimulus_np
 
     # Reload model without centered readouts
-    model = load_model(device=device, model_id=model_id, do_center_readout=False)
+    model = load_model(ensemble_path, device=device, model_id=model_id, do_center_readout=False)
     model.to(device).eval()
     for session_key in model.readout_keys():
         folder_path = f"{save_folder}/weights_readout/{session_key}"
