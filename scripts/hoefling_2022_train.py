@@ -30,7 +30,8 @@ def parse_args():
 
     parser.add_argument("--data_folder", type=str, help="Path to the base data folder", default="/Data/fd_export")
     parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
-    parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda")
+    parser.add_argument("--device", type=str, choices=["cuda", "cpu"],
+                        default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument(
         "--datasets",
         type=str,

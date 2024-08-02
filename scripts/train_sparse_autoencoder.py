@@ -32,7 +32,8 @@ def parse_args():
     parser.add_argument("--data_folder", type=str, help="Path to the base data folder",
                         default="/Data/fd_export")
     parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
-    parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda")
+    parser.add_argument("--device", type=str, choices=["cuda", "cpu"],
+                        default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--sparsity_factor", type=float, default=0.1)
     parser.add_argument("--hidden_dim", type=int, default=1000, help="Hidden dim for autoencoder")
     parser.add_argument(

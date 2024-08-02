@@ -29,9 +29,12 @@ def parse_args():
     parser = argparse.ArgumentParser(description="")
 
     parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
-    parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda")
-    parser.add_argument("--model_id", type=int, default=0)
-    parser.add_argument("--ensemble_path", default=DEFAULT_ENSEMBLE_MODEL_PATH)
+    parser.add_argument("--device", type=str, choices=["cuda", "cpu"],
+                        default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument("--model_path", default=DEFAULT_ENSEMBLE_MODEL_PATH)
+    parser.add_argument("--model_id", type=int, default=-1,
+                        help="If >= 0 load the ensemble model with that model_id, "
+                             "else use torch.load to load the model")
 
     return parser.parse_args()
 
@@ -42,21 +45,30 @@ def load_model(
         model_id: int = 0,
         do_center_readout: bool = False
 ):
-    center_readout = Center(target_mean=(0.0, 0.0)) if do_center_readout else None
-    data_info, ensemble_model = load_ensemble_retina_model_from_directory(
-        path, device, center_readout=center_readout)
-    print(f"Initialized ensemble model from {path}")
-    return ensemble_model.members[model_id]
+    if model_id < 0:
+        model = torch.load(path, map_location=torch.device(device))
+
+        print(f"Initialized model from {path}")
+    else:
+        _, ensemble_model = load_ensemble_retina_model_from_directory(
+            path, device)
+        print(f"Initialized ensemble model from {path}")
+        model = ensemble_model.members[model_id]
+
+    if do_center_readout:
+        center_readout = Center(target_mean=(0.0, 0.0))
+        center_readout(model)
+    return model
 
 
 def main(
-        ensemble_path: str,
+        model_path: str,
         save_folder: str,
         device: str,
         model_id: int,
 ) -> None:
-    model = load_model(ensemble_path, device=device, model_id=model_id, do_center_readout=True)
-    model.to(device).eval()
+    model = load_model(model_path, device=device, model_id=model_id, do_center_readout=True)
+    model.eval()
 
     # from controversial stimuli: (2, 50, 18, 16): (channels, time, height, width)
     stimulus_shape = (1, 2, 50, 18, 16)
@@ -165,7 +177,7 @@ def main(
             del stimulus_np
 
     # Reload model without centered readouts
-    model = load_model(ensemble_path, device=device, model_id=model_id, do_center_readout=False)
+    model = load_model(model_path, device=device, model_id=model_id, do_center_readout=False)
     model.to(device).eval()
     for session_key in model.readout_keys():
         folder_path = f"{save_folder}/weights_readout/{session_key}"

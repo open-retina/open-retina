@@ -3,6 +3,7 @@
 from typing import Type
 import argparse
 from functools import partial
+import os
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -21,31 +22,41 @@ from openretina.hoefling_2024.nnfabrik_model_loading import load_ensemble_retina
 from openretina.models.autoencoder import Autoencoder, AutoencoderWithModel
 
 
-ENSEMBLE_MODEL_PATH = ("/gpfs01/euler/data/SharedFiles/projects/Hoefling2024/"
-                       "models/nonlinear/9d574ab9fcb85e8251639080c8d402b7")
-
-
 def parse_args():
     parser = argparse.ArgumentParser(description="")
-
+    parser.add_argument("--model_path", required=True, type=str,
+                        help="Path to a model, if this is a directory loads an ensemble model, "
+                             "otherwise calls torch.load")
     parser.add_argument("--autoencoder_path", required=True, type=str)
     parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
-    parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda")
+    parser.add_argument("--device", type=str, choices=["cuda", "cpu"],
+                        default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--use_contrastive_objective", action="store_true")
 
     return parser.parse_args()
 
 
-def load_model(path: str = ENSEMBLE_MODEL_PATH, device: str = "cuda"):
+def load_model(path: str, device: str):
+    if os.path.isdir(path):
+        _, model = load_ensemble_retina_model_from_directory(
+            path, device)
+        print(f"Initialized ensemble model from {path}")
+    else:
+        model = torch.load(path, map_location=torch.device(device))
+
     center_readout = Center(target_mean=(0.0, 0.0))
-    data_info, ensemble_model = load_ensemble_retina_model_from_directory(
-        path, device, center_readout=center_readout)
-    print(f"Initialized ensemble model from {path}")
-    return ensemble_model
+    center_readout(model)
+    return model
 
 
-def main(autoencoder_path: str, save_folder: str, device: str, use_contrastive_objective: bool) -> None:
-    model = load_model(device=device)
+def main(
+        model_path: str,
+        autoencoder_path: str,
+        save_folder: str,
+        device: str,
+        use_contrastive_objective: bool
+) -> None:
+    model = load_model(model_path, device)
     autoencoder = Autoencoder.load_from_checkpoint(autoencoder_path)  # type: ignore
     autoencoder_with_model = AutoencoderWithModel(model, autoencoder)
     if use_contrastive_objective:
