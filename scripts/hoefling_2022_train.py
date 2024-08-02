@@ -18,11 +18,14 @@ from openretina.hoefling_2024.data_io import (
     natmov_dataloaders_v2,
 )
 from openretina.hoefling_2024.models import SFB3d_core_SxF3d_readout
+import openretina.neuron_data_io
 from openretina.neuron_data_io import make_final_responses
 from openretina.plotting import save_figure
 from openretina.training import save_model
 from openretina.training import standard_early_stop_trainer as trainer
 from openretina.utils.h5_handling import load_h5_into_dict
+from openretina.hoefling_2024.constants import RGC_GROUP_NAMES_DICT
+from openretina.metrics import correlation_numpy as corr
 
 
 def parse_args():
@@ -38,8 +41,79 @@ def parse_args():
         default="natural",
         help="Underscore separated list of datasets, " "e.g. 'natural', 'chirp', 'mb', or 'natural_mb'",
     )
+    parser.add_argument(
+        "--cells",
+        default="all",
+        choices=["all", "on", "off", "on-off"],
+    )
+    parser.add_argument(
+        "--max_id",
+        type=int,
+        default=99,
+    )
 
     return parser.parse_args()
+
+
+def plot_examples(
+    dataloaders,
+    example_field: str,
+    ensemble_model,
+    save_folder: str,
+    device: str,
+) -> None:
+    test_sample = next(iter(dataloaders["test"][example_field]))
+
+    inputs, targets = test_sample[:-1], test_sample[-1]
+
+    ensemble_model.eval()
+    ensemble_model.to(device)
+
+    with torch.no_grad():
+        reconstructions = ensemble_model(inputs[0].to(device), example_field)
+    reconstructions = reconstructions.cpu().numpy().squeeze()
+
+    targets_numpy = targets.cpu().numpy().squeeze()
+    window = 750
+    neuron = 1
+
+    fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+
+    ax.plot(np.arange(0, window), targets_numpy[:window, neuron], label="target")
+    ax.plot(np.arange(30, window), reconstructions[:window, neuron], label="prediction")
+    ax.set_title(f"Neuron {neuron} in field {example_field}")
+    ax.legend()
+    ax.set_xlabel("Time (frames)")
+    ax.set_ylabel("Firing rate (a.u.)")
+    sns.despine()
+    fig.savefig(f"{save_folder}/{example_field}_neuron_{neuron}.jpg", bbox_inches="tight", facecolor="w", dpi=300)
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+    axes[0].plot(reconstructions, alpha=0.15)
+    axes[0].plot(reconstructions.mean(axis=1), color="black", linestyle="--", label="mean reconstruction")
+    axes[0].legend()
+    axes[0].set_title("Reconstructed responses")
+    axes[0].set_xlabel("Time (frames)")
+    axes[0].set_ylabel("Firing rate (a.u.)")
+
+    axes[1].plot(targets_numpy, alpha=0.15)
+    axes[1].plot(targets_numpy.mean(axis=1), label="mean target", color="black", linestyle="--")
+    axes[1].legend()
+    axes[1].set_title("Target responses")
+    axes[1].set_xlabel("Time (frames)")
+
+    session_performance = corr(
+        reconstructions,
+        targets_numpy[30:],
+        axis=1,
+    ).mean()
+
+    plt.suptitle(
+        f"Reconstucted vs target responses for session {example_field} (n = {reconstructions.shape[1]} neurons). \n Model average test correlation for the session: {session_performance:.3g}"
+    )
+    plt.tight_layout()
+    fig.savefig(f"{save_folder}/{example_field}_all.jpg", bbox_inches="tight", facecolor="w", dpi=300)
 
 
 def main(
@@ -47,7 +121,23 @@ def main(
     save_folder: str,
     device: str,
     datasets: str,
+    cells: str,
+    max_id: int,
 ) -> None:
+
+    if cells == "all":
+        relevant_ids = np.array([id_ - 1 for id_ in RGC_GROUP_NAMES_DICT.keys() if id_ <= max_id])
+    elif cells == "on":
+        relevant_ids = np.array([id_ - 1 for id_, name in RGC_GROUP_NAMES_DICT.items() if "ON" in name and "OFF" not in name and id_ <= max_id])
+    elif cells == "off":
+        relevant_ids = np.array([id_ - 1 for id_, name in RGC_GROUP_NAMES_DICT.items() if "OFF" in name and "ON" not in name and id_ <= max_id])
+    elif cells == "on-off":
+        relevant_ids = np.array([id_ - 1 for id_, name in RGC_GROUP_NAMES_DICT.items() if "ON-OFF" in name and id_ <= max_id])
+    else:
+        raise ValueError(f"Unsupported option {cells=}")
+    openretina.neuron_data_io.relevant_rgc_ids = relevant_ids
+    print(f"Overwrote {openretina.neuron_data_io.relevant_rgc_ids=}")
+
     dataset_names_list = datasets.split("_")
     for name in dataset_names_list:
         if name not in {"natural", "chirp", "mb"}:
@@ -100,7 +190,7 @@ def main(
         wandb_logger=None,
         device=device,
     )
-    print(f"Training finished with test_score: {test_score} and val_score: {val_score}")
+    print(f"Training finished with test_score: {test_score:.5f} and val_score: {val_score:.5f}")
 
     save_model(
         model=model,
@@ -118,26 +208,10 @@ def main(
 
     model.eval()
     model.cpu()
-
-    with torch.no_grad():
-        reconstructions = model(input_samples.cpu(), sample_session)
-    reconstructions = reconstructions.cpu().numpy().squeeze()
-
-    targets = targets.cpu().numpy().squeeze()
-    if len(targets.shape) == 3:
-        print("Targets still have a batch dimensions, taking the first element")
-        targets = targets[0]
-        assert len(reconstructions.shape) == 3
-        reconstructions = reconstructions[0]
-
-    window = min(targets.shape[0], 500)
-    neuron = 2
-    plt.plot(np.arange(0, window), targets[:window, neuron], label="target")
-    window = min(reconstructions.shape[0], 500)
-    plt.plot(np.arange(30, window + 30), reconstructions[:window, neuron], label="prediction")
-    plt.legend()
-    sns.despine()
-    save_figure("mouse_reconstruction_example.pdf", os.path.join(save_folder, "figures"))
+    plot_folder = f"{save_folder}/plots"
+    os.makedirs(plot_folder, exist_ok=True)
+    for example_field in model.readout_keys():
+        plot_examples(joint_dataloaders, example_field, model, plot_folder, device)
 
 
 if __name__ == "__main__":

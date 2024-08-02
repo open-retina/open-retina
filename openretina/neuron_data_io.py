@@ -11,6 +11,8 @@ from tqdm.auto import tqdm
 
 from .hoefling_2024.constants import RGC_GROUP_NAMES_DICT, STIMULI_IDS
 
+relevant_rgc_ids = None  # Overwrite this!
+
 SingleNeuronInfoStruct = namedtuple(
     "SingleNeuronInfoStruct",
     [
@@ -228,7 +230,9 @@ class NeuronData:
             num_clips (int): The number of clips.
             clip_length (int): The length of each clip.
         """
-        self.neural_responses = responses_final
+        assert relevant_rgc_ids is not None, "Overwrite relevant_rgc_ids!"
+        mask = np.isin(group_assignment, relevant_rgc_ids)
+        self.neural_responses = responses_final[mask]
 
         self.num_neurons = (
             self.neural_responses.shape[0]
@@ -238,9 +242,10 @@ class NeuronData:
 
         self.eye = eye if eye is not None else "right"
         self.group_assignment = group_assignment
-        self.key = key
-        self.roi_coords = roi_coords
         self.roi_ids = roi_ids
+        self.key = key
+        assert roi_coords.shape == (0, )
+        self.roi_coords = roi_coords
         self.scan_sequence_idx = scan_sequence_idx
         self.stim_id = stim_id
         self.traces = traces
