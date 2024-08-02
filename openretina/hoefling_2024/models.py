@@ -1102,7 +1102,6 @@ def SFB3d_core_SxF3d_readout(
     data_info: Optional[dict] = None,
     nonlinearity: str = "ELU",
     conv_type: Literal["full", "separable", "custom_separable", "time_independent"] = "custom_separable",
-    device=DEVICE,
     **kwargs,
 ):
     """
