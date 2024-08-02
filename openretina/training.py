@@ -195,9 +195,7 @@ def save_checkpoint(model, optimizer, epoch, loss, save_folder: str, model_name:
 
 
 def save_model(model: torch.nn.Module, save_folder: str, model_name: str) -> None:
-    if not os.path.exists(save_folder):
-        # only create the lower level directory if it does not exist
-        os.mkdir(save_folder)
+    os.makedirs(save_folder, exist_ok=True)
     date = datetime.datetime.now().strftime("%Y-%m-%d")
     torch.save(model.state_dict(), os.path.join(save_folder, f"{model_name}_{date}_model_weights.pt"))
     torch.save(model, os.path.join(save_folder, f"{model_name}_{date}_model.pt"))
