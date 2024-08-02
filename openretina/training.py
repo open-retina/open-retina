@@ -1,6 +1,7 @@
 import datetime
 import os
 from functools import partial
+from typing import Any, Callable, Optional
 
 try:
     import wandb
@@ -15,13 +16,36 @@ from . import measures, metrics
 from .cyclers import LongCycler
 from .early_stopping import early_stopping
 from .tracking import MultipleObjectiveTracker
-from .utils.misc import set_seed
+from .utils.misc import set_seed, tensors_to_device
+
+
+def standard_full_objective(
+    model, *inputs: torch.Tensor, targets, data_key, detach_core, device, criterion, scale_loss, dataset_length
+) -> torch.Tensor:
+    """
+    Standard full training objective for a model with a core and readout. It computes the loss, regularizers and
+    scales the loss if necessary. This function is designed to be used in a training loop, and passed to a trainer.
+    """
+    regularizers = int(not detach_core) * model.core.regularizer() + model.readout.regularizer(data_key)
+    if scale_loss:
+        m = dataset_length
+        # Assuming first input is always images, and batch size is the first dimension
+        k = inputs[0].shape[0]
+        loss_scale = np.sqrt(m / k)
+    else:
+        loss_scale = 1.0
+
+    predictions = model(*tensors_to_device(inputs, device), data_key=data_key, detach_core=detach_core)
+    loss_criterion = criterion(predictions, targets.to(device))
+    return loss_scale * loss_criterion + regularizers
 
 
 def standard_early_stop_trainer(
     model: torch.nn.Module,
     dataloaders,
     seed: int,
+    objective_function: Callable[..., torch.Tensor] = standard_full_objective,
+    optimizer: torch.optim.Optimizer = torch.optim.Adam,  # type: ignore
     scale_loss: bool = True,  # trainer args
     loss_function: str = "PoissonLoss3d",
     stop_function: str = "corr_stop",
@@ -42,23 +66,10 @@ def standard_early_stop_trainer(
     detach_core: bool = False,
     wandb_logger=None,
     cb=None,
+    clip_gradient_norm: Optional[float] = None,
+    multiple_stimuli: bool = False,
     **kwargs,
 ):
-    # Defines objective function; criterion is resolved to the loss_function that is passed as input
-    def full_objective(model, data_key, inputs, targets, detach_core):
-        regularizers = int(not detach_core) * model.core.regularizer() + model.readout.regularizer(data_key)
-        if scale_loss:
-            m = len(trainloaders[data_key].dataset)
-            k = inputs.shape[0]
-            loss_scale = np.sqrt(m / k)
-        else:
-            loss_scale = 1.0
-
-        predictions = model(inputs.to(device), data_key, detach_core=detach_core)
-        loss_criterion = criterion(predictions, targets.to(device))
-        res = loss_scale * loss_criterion + regularizers
-        return res
-
     trainloaders = dataloaders["train"]
     valloaders = dataloaders.get("validation", dataloaders["val"] if "val" in dataloaders.keys() else None)
     testloaders = dataloaders["test"]
@@ -73,7 +84,7 @@ def standard_early_stop_trainer(
 
     n_iterations = len(LongCycler(trainloaders))
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr_init)
+    optimizer = optimizer(model.parameters(), lr=lr_init)  # type: ignore
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
         mode="max" if maximize else "min",
@@ -86,9 +97,9 @@ def standard_early_stop_trainer(
     )
 
     # set the number of iterations over which you would like to accummulate gradients
-    optim_step_count = (
-        len(trainloaders.keys()) if loss_accum_batch_n is None else loss_accum_batch_n
-    )  # will be equal to number of sessions (dict keys) if not specified
+    # will be equal to number of sessions (dict keys) if not specified, which combined with
+    # the longcycler means we step after we have seen one batch from each recording session.
+    optim_step_count = len(trainloaders.keys()) if loss_accum_batch_n is None else loss_accum_batch_n
 
     # define some trackers
     tracker_dict = dict(
@@ -132,7 +143,7 @@ def standard_early_stop_trainer(
         # executes callback function if passed in keyword args
         if cb is not None:
             cb()
-
+        epoch_loss = 0
         # train over batches
         optimizer.zero_grad()
         for batch_no, (data_key, data) in tqdm(
@@ -143,9 +154,25 @@ def standard_early_stop_trainer(
             leave=True,
             disable=not verbose,
         ):
-            clean_data_key = clean_session_key(data_key)
-            loss = full_objective(model, clean_data_key, *data, detach_core)  # type: ignore
+            # clean the data key to use the same readout if we are training on multiple stimuli
+            clean_data_key = clean_session_key(data_key) if multiple_stimuli else data_key
+            *inputs, targets = data
+            loss = objective_function(
+                model,
+                *inputs,
+                targets=targets,
+                data_key=clean_data_key,
+                detach_core=detach_core,
+                device=device,
+                criterion=criterion,
+                scale_loss=scale_loss,
+                dataset_length=len(trainloaders[data_key].dataset),
+            )
             loss.backward()
+
+            if clip_gradient_norm is not None:
+                torch.nn.utils.clip_grad.clip_grad_norm_(model.parameters(), max_norm=clip_gradient_norm)
+
             if (batch_no + 1) % optim_step_count == 0:
                 optimizer.step()
                 optimizer.zero_grad()
@@ -155,7 +182,7 @@ def standard_early_stop_trainer(
             tracker_info = tracker.asdict(make_copy=True)
             wandb.log(
                 {
-                    "train_loss": loss.item(),
+                    "train_loss": epoch_loss / n_iterations,
                     "lr": optimizer.param_groups[0]["lr"],
                     "epoch": epoch,
                     "val_corr": tracker_info["val_correlation"][-1],
@@ -198,12 +225,10 @@ def save_model(model: torch.nn.Module, save_folder: str, model_name: str) -> Non
     os.makedirs(save_folder, exist_ok=True)
     date = datetime.datetime.now().strftime("%Y-%m-%d")
     torch.save(model.state_dict(), os.path.join(save_folder, f"{model_name}_{date}_model_weights.pt"))
-    torch.save(model, os.path.join(save_folder, f"{model_name}_{date}_model.pt"))
+    torch.save(model, os.path.join(save_folder, f"{model_name}_{date}_model_object.pt"))
 
 
 def clean_session_key(session_key: str) -> str:
-    # Ignore this function when only training on the chirp or movingbar by uncommenting the following line
-    # return session_key
     if "_chirp" in session_key:
         session_key = session_key.split("_chirp")[0]
     if "_mb" in session_key:
