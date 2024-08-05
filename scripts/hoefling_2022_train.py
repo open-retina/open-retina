@@ -56,13 +56,13 @@ def parse_args():
 
 
 def plot_examples(
-    dataloaders,
+    dataloader,
     example_field: str,
     ensemble_model,
     save_folder: str,
     device: str,
 ) -> None:
-    test_sample = next(iter(dataloaders["test"][example_field]))
+    test_sample = next(iter(dataloader[example_field]))
 
     inputs, targets = test_sample[:-1], test_sample[-1]
 
@@ -72,9 +72,13 @@ def plot_examples(
     with torch.no_grad():
         reconstructions = ensemble_model(inputs[0].to(device), example_field)
     reconstructions = reconstructions.cpu().numpy().squeeze()
-
     targets_numpy = targets.cpu().numpy().squeeze()
-    window = 750
+
+    assert len(reconstructions.shape) == len(targets_numpy.shape)
+    if len(reconstructions.shape) == 3:
+        reconstructions = np.mean(reconstructions, 0)
+        targets_numpy = np.mean(targets_numpy, 0)
+    window = min(750, targets_numpy.shape[0])
     neuron = 1
 
     fig, ax = plt.subplots(1, 1, figsize=(10, 5))
@@ -205,14 +209,19 @@ def main(
     plot_folder = f"{save_folder}/plots_natural"
     os.makedirs(plot_folder, exist_ok=True)
     for example_field in model.readout_keys():
-        plot_examples(joint_dataloaders, example_field, model, plot_folder, device)
+        plot_examples(joint_dataloaders["test"], example_field, model, plot_folder, device)
 
     chirp_data_dict = make_final_responses(responses, response_type="chirp")  # type: ignore
-    chirp_dataloaders = get_chirp_dataloaders(chirp_data_dict, train_chunk_size=100)
+    chirp_dataloaders = get_chirp_dataloaders(chirp_data_dict, train_chunk_size=None)
     plot_folder = f"{save_folder}/plots_chirp"
     os.makedirs(plot_folder, exist_ok=True)
+    chirp_dl = {n.rstrip("_chirp"): v for n, v in chirp_dataloaders["train"].items()}
     for example_field in model.readout_keys():
-        plot_examples(chirp_dataloaders, example_field, model, plot_folder, device)
+        if example_field in chirp_dl:
+            try:
+                plot_examples(chirp_dl, example_field, model, plot_folder, device)
+            except Exception as e:
+                print(f"Exception during plotting chirp for field {example_field}: {e}")
 
 
 if __name__ == "__main__":
