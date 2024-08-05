@@ -202,7 +202,7 @@ def main(
     # Plotting example fields
     model.eval()
     model.cpu()
-    plot_folder = f"{save_folder}/plots"
+    plot_folder = f"{save_folder}/plots_natural"
     os.makedirs(plot_folder, exist_ok=True)
     for example_field in model.readout_keys():
         plot_examples(joint_dataloaders, example_field, model, plot_folder, device)
