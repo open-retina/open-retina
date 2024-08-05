@@ -1,0 +1,244 @@
+import torch
+from torch import nn
+import lightning
+
+from openretina.measures import PoissonLoss3d, CorrelationLoss3d
+from openretina.dataloaders import DataPoint
+from openretina.models.dwiseneuro import DepthwiseCore
+
+
+class SimpleSpatialXFeature3d(torch.nn.Module):
+    def __init__(
+            self,
+            in_shape: tuple[int, int, int, int],
+            outdims: int,
+            gaussian_mean_scale: float = 1e0,
+            gaussian_var_scale: float = 1e0,
+            positive: bool = False,
+            scale: bool = False,
+            bias: bool = True,
+            nonlinearity_function=torch.nn.functional.softplus,
+    ):
+        """
+        Args:
+            in_shape (tuple): The shape of the input tensor (c, t, w, h).
+            outdims (int): The number of output dimensions (usually the number of neurons in the session).
+            gaussian_mean_scale (float, optional): The scale factor for the Gaussian mean. Defaults to 1e0.
+            gaussian_var_scale (float, optional): The scale factor for the Gaussian variance. Defaults to 1e0.
+            positive (bool, optional): Whether the output should be positive. Defaults to False.
+            scale (bool, optional): Whether to include a scale parameter. Defaults to False.
+            bias (bool, optional): Whether to include a bias parameter. Defaults to True.
+            nonlinearity_function (bool, optional): Whether to include a nonlinearity. Defaults to True.
+        """
+        super().__init__()
+        self.in_shape = in_shape
+        c, t, w, h = in_shape
+        self.outdims = outdims
+        self.gaussian_mean_scale = gaussian_mean_scale
+        self.gaussian_var_scale = gaussian_var_scale
+        self.positive = positive
+        self.nonlinearity_function = nonlinearity_function
+
+        """we train on the log var and transform to var in a separate step"""
+        self.mask_mean = torch.nn.Parameter(data=torch.zeros(self.outdims, 2), requires_grad=True)
+        self.mask_log_var = torch.nn.Parameter(data=torch.zeros(self.outdims), requires_grad=True)
+        self.grid = torch.nn.Parameter(data=self.make_mask_grid(outdims, w, h), requires_grad=False)
+
+        self.features = nn.Parameter(torch.ones((1, c, 1, outdims)) / c)
+        self.scale_param = nn.Parameter(torch.ones(outdims), requires_grad=scale)
+        self.bias_param = nn.Parameter(torch.zeros(outdims), requires_grad=bias)
+
+    def feature_l1(self, average: bool = False) -> torch.Tensor:
+        features_abs = self.features.abs()
+        if average:
+            return features_abs.mean()
+        else:
+            return features_abs.sum()
+
+    def mask_l1(self, average: bool = False) -> torch.Tensor:
+        if average:
+            return (
+                    torch.exp(self.mask_log_var * self.gaussian_var_scale).mean()
+                    + (self.mask_mean * self.gaussian_mean_scale).pow(2).mean()
+            )
+        else:
+            return (
+                    torch.exp(self.mask_log_var * self.gaussian_var_scale).sum()
+                    + (self.mask_mean * self.gaussian_mean_scale).pow(2).sum()
+            )
+
+    @staticmethod
+    def make_mask_grid(outdims: int, w: int, h: int) -> torch.Tensor:
+        """Actually mixed up: w (width) is height, and vice versa"""
+        grid_w = torch.linspace(-1 * w / max(w, h), 1 * w / max(w, h), w)
+        grid_h = torch.linspace(-1 * h / max(w, h), 1 * h / max(w, h), h)
+        xx, yy = torch.meshgrid([grid_w, grid_h], indexing="ij")
+        grid = torch.stack([xx, yy], 2)[None, ...]
+        return grid.repeat([outdims, 1, 1, 1])
+
+    def get_mask(self) -> torch.Tensor:
+        """Gets the actual mask values in terms of a PDF from the mean and SD"""
+        # self.mask_var_ = torch.exp(self.mask_log_var * self.gaussian_var_scale).view(-1, 1, 1)
+        scaled_log_var = self.mask_log_var * self.gaussian_var_scale
+        mask_var_ = torch.exp(torch.clamp(scaled_log_var, min=-20, max=20)).view(-1, 1, 1)
+        pdf = self.grid - self.mask_mean.view(self.outdims, 1, 1, -1) * self.gaussian_mean_scale
+        pdf = torch.sum(pdf**2, dim=-1) / (mask_var_ + 1e-8)
+        pdf = torch.exp(-0.5 * torch.clamp(pdf, max=20))
+        normalisation = torch.sum(pdf, dim=(1, 2), keepdim=True)
+        pdf = torch.nan_to_num(pdf / normalisation)
+        return pdf
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        masks = self.get_mask().permute(1, 2, 0)
+        y = torch.einsum("nctwh,whd->nctd", x, masks)
+        y = (y * self.features).sum(1)
+
+        y = self.nonlinearity_function(y * self.scale_param + self.bias_param)
+        return y
+
+    def __repr__(self) -> str:
+        c, _, w, h = self.in_shape
+        res_array: list[str] = []
+        r = f"{self.__class__.__name__} ( {c} x {w} x {h} -> {str(self.outdims)})"
+        if not self.bias_param.requires_grad:
+            r += " with bias"
+        res_array.append(r)
+
+        for ch in self.children():
+            r += "  -> " + ch.__repr__()
+            res_array.append(r)
+        return "\n".join(res_array)
+
+
+class ReadoutWrapper(torch.nn.ModuleDict):
+    def __init__(
+            self,
+            in_shape: tuple[int, int, int, int],
+            n_neurons_dict: dict[str, int],
+            scale: bool,
+            bias: bool,
+            gaussian_masks: bool,
+            gaussian_mean_scale: float,
+            gaussian_var_scale: float,
+            positive: bool,
+            gamma_readout: float,
+            gamma_masks: float = 0.0,
+            readout_reg_avg: bool = False,
+    ):
+        super().__init__()
+        for k in n_neurons_dict:  # iterate over sessions
+            n_neurons = n_neurons_dict[k]
+            assert len(in_shape) == 4
+            self.add_module(
+                k,
+                SimpleSpatialXFeature3d(  # add a readout for each session
+                    in_shape,
+                    n_neurons,
+                    gaussian_mean_scale=gaussian_mean_scale,
+                    gaussian_var_scale=gaussian_var_scale,
+                    positive=positive,
+                    scale=scale,
+                    bias=bias,
+                ),
+            )
+
+        self.gamma_readout = gamma_readout
+        self.gamma_masks = gamma_masks
+        self.gaussian_masks = gaussian_masks
+        self.readout_reg_avg = readout_reg_avg
+
+    def forward(self, *args, data_key: str | None, **kwargs) -> torch.Tensor:
+        if data_key is None:
+            readout_responses = []
+            for readout_key in self.readout_keys():
+                resp = self[readout_key](*args, **kwargs)
+                readout_responses.append(resp)
+            response = torch.concatenate(readout_responses, dim=0)
+        else:
+            response = self[data_key](*args, **kwargs)
+        return response
+
+    def regularizer(self, data_key: str) -> torch.Tensor:
+        feature_loss = self[data_key].feature_l1(average=self.readout_reg_avg) * self.gamma_readout
+        mask_loss = self[data_key].mask_l1(average=self.readout_reg_avg) * self.gamma_masks
+        return feature_loss + mask_loss
+
+    def readout_keys(self) -> list[str]:
+        return sorted(self._modules.keys())
+
+
+class CoreReadout(lightning.LightningModule):
+    def __init__(
+            self,
+            in_channels: int,
+            features_core: tuple[int, ...],
+            in_shape: tuple[int, int, int, int],
+            n_neurons_dict: dict[str, int],
+            scale: bool,
+            bias: bool,
+            gaussian_masks: bool,
+            gaussian_mean_scale: float,
+            gaussian_var_scale: float,
+            positive: bool,
+            gamma_readout: float,
+            gamma_masks: float = 0.0,
+            readout_reg_avg: bool = False,
+            learning_rate: float = 0.0005,
+
+    ):
+        super().__init__()
+        self.core = DepthwiseCore(
+            in_channels,
+            features_core,
+            spatial_strides=tuple(1 for _ in range(len(features_core))),
+        )
+        in_shape_readout = (features_core[-1], ) + in_shape[1:]
+        self.readout_layers = ReadoutWrapper(
+            in_shape_readout, n_neurons_dict, scale, bias, gaussian_masks, gaussian_mean_scale, gaussian_var_scale,
+            positive, gamma_readout, gamma_masks, readout_reg_avg
+        )
+        self.learning_rate = learning_rate
+        self.loss = PoissonLoss3d()
+        self.correlation_loss = CorrelationLoss3d(avg=True)
+
+    def forward(self, x: torch.Tensor, session_id: str) -> torch.Tensor:
+        output_core = self.core(x)
+        output_readout = self.readout_layers(output_core, data_key=session_id)
+        return output_readout
+
+    def training_step(self, batch: tuple[str, DataPoint], batch_idx: int) -> torch.Tensor:
+        session_id, data_point = batch
+        model_output = self.forward(data_point.inputs, session_id)
+        loss = self.loss.forward(model_output, data_point.targets)
+        regularization_loss_readout = self.readout_layers.regularizer(session_id)
+        self.log("loss", loss)
+        self.log("regularization_loss", regularization_loss_readout)
+        total_loss = loss + regularization_loss_readout
+
+        return total_loss
+
+    def validation_step(self, batch: tuple[str, DataPoint], batch_idx: int) -> torch.Tensor:
+        session_id, data_point = batch
+        model_output = self.forward(data_point.inputs, session_id)
+        loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
+        correlation = -self.correlation_loss.forward(model_output, data_point.targets)
+        self.log("val_loss", loss, logger=True, prog_bar=True)
+        self.log("val_correlation", correlation, logger=False)
+
+        return loss
+
+    def test_step(self, batch: tuple[str, DataPoint], batch_idx: int, dataloader_idx) -> torch.Tensor:
+        session_id, data_point = batch
+        model_output = self.forward(data_point.inputs, session_id)
+        loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
+        correlation = -self.correlation_loss.forward(model_output, data_point.targets)
+        self.log_dict({
+            f"test_loss": loss,
+            f"test_correlation": correlation,
+        })
+
+        return loss
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+        return optimizer
