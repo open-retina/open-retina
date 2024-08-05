@@ -126,13 +126,13 @@ def main(
 ) -> None:
 
     if cells == "all":
-        relevant_ids = np.array([id_ - 1 for id_ in RGC_GROUP_NAMES_DICT.keys() if id_ <= max_id])
+        relevant_ids = np.array([id_ for id_ in RGC_GROUP_NAMES_DICT.keys() if id_ <= max_id])
     elif cells == "on":
-        relevant_ids = np.array([id_ - 1 for id_, name in RGC_GROUP_NAMES_DICT.items() if "ON" in name and "OFF" not in name and id_ <= max_id])
+        relevant_ids = np.array([id_ for id_, name in RGC_GROUP_NAMES_DICT.items() if "ON" in name and "OFF" not in name and id_ <= max_id])
     elif cells == "off":
-        relevant_ids = np.array([id_ - 1 for id_, name in RGC_GROUP_NAMES_DICT.items() if "OFF" in name and "ON" not in name and id_ <= max_id])
+        relevant_ids = np.array([id_ for id_, name in RGC_GROUP_NAMES_DICT.items() if "OFF" in name and "ON" not in name and id_ <= max_id])
     elif cells == "on-off":
-        relevant_ids = np.array([id_ - 1 for id_, name in RGC_GROUP_NAMES_DICT.items() if "ON-OFF" in name and id_ <= max_id])
+        relevant_ids = np.array([id_ for id_, name in RGC_GROUP_NAMES_DICT.items() if "ON-OFF" in name and id_ <= max_id])
     else:
         raise ValueError(f"Unsupported option {cells=}")
     openretina.neuron_data_io.relevant_rgc_ids = relevant_ids
