@@ -110,7 +110,8 @@ def plot_examples(
     ).mean()
 
     plt.suptitle(
-        f"Reconstucted vs target responses for session {example_field} (n = {reconstructions.shape[1]} neurons). \n Model average test correlation for the session: {session_performance:.3g}"
+        f"Reconstructed vs target responses for session {example_field} (n = {reconstructions.shape[1]} neurons). "
+        f"\n Model average test correlation for the session: {session_performance:.3g}"
     )
     plt.tight_layout()
     fig.savefig(f"{save_folder}/{example_field}_all.jpg", bbox_inches="tight", facecolor="w", dpi=300)
@@ -198,20 +199,20 @@ def main(
         model_name="SFB3d_core_SxF3d_readout_hoefling_2022",
     )
 
-    # Plotting an example field
-    sample_loader = joint_dataloaders["train"]
-    sample_session = list(sample_loader.keys())[0]
-    test_sample = next(iter(joint_dataloaders["test"][sample_session]))
-
-    input_samples = test_sample.inputs
-    targets = test_sample.targets
-
+    # Plotting example fields
     model.eval()
     model.cpu()
     plot_folder = f"{save_folder}/plots"
     os.makedirs(plot_folder, exist_ok=True)
     for example_field in model.readout_keys():
         plot_examples(joint_dataloaders, example_field, model, plot_folder, device)
+
+    chirp_data_dict = make_final_responses(responses, response_type="chirp")  # type: ignore
+    chirp_dataloaders = get_chirp_dataloaders(chirp_data_dict, train_chunk_size=100)
+    plot_folder = f"{save_folder}/plots_chirp"
+    os.makedirs(plot_folder, exist_ok=True)
+    for example_field in model.readout_keys():
+        plot_examples(chirp_dataloaders, example_field, model, plot_folder, device)
 
 
 if __name__ == "__main__":
