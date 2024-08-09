@@ -1,5 +1,5 @@
 from collections import namedtuple
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -14,7 +14,6 @@ from tqdm.auto import tqdm
 
 from .dataloaders import MovieAndMetadataDataSet, MovieSampler
 from .dev_models import (  # ! TODO: move the model to dev models once done developing.
-    DEVICE,
     GRUEnabledCore,
     get_dims_for_loader_dict,
     get_module_output,
@@ -61,8 +60,18 @@ BARCODES_STDEVS = {
 CHIRP_REPEATS = 5
 MB_REPEATS = 3
 
+BADEN_GROUPS = ["fast ON", "slow ON", "OFF", "ON-OFF", "AC", "uncertain RGC"]
+BADEN_GROUPS_MAP = {"fast ON": 0, "slow ON": 1, "OFF": 2, "ON-OFF": 3, "AC": 4, "uncertain RGC": 5}
+INVERSE_BADEN_GROUPS_MAP = {v: k for k, v in BADEN_GROUPS_MAP.items()}
 
-def transfer_readout_mask(source_model, target_model, ignore_source_key_suffix=None, freeze_mask=False):
+
+def transfer_readout_mask(
+    source_model: nn.Module,
+    target_model: nn.Module,
+    ignore_source_key_suffix: Optional[str] = None,
+    freeze_mask: bool = False,
+    return_masks: bool = False,
+) -> Union[nn.Module, Dict[str, torch.Tensor]]:
     """
     Given a trained source model and a target model, transfer the readout masks from the source to the target model.
 
@@ -80,6 +89,8 @@ def transfer_readout_mask(source_model, target_model, ignore_source_key_suffix=N
             if trained on stimuli of different types like moving bars and natural movies).
 
     """
+    if return_masks:
+        masks = {}
     for name, param in source_model.named_parameters():
         if "readout" in name and "mask" in name:
             if ignore_source_key_suffix is not None:
@@ -92,17 +103,24 @@ def transfer_readout_mask(source_model, target_model, ignore_source_key_suffix=N
                 new_name = name
             # copy the mask to the target model
             try:
-                target_model.state_dict()[new_name].copy_(param)
+                if return_masks:
+                    masks[session_key] = param
+                else:
+                    target_model.state_dict()[new_name].copy_(param)
             except KeyError:
                 print(f"Could not find {new_name} in the target model.")
                 continue
 
     # Freeze the mask parameters if requested
     if freeze_mask:
-        for name, param in target_model.named_parameters():
-            if "readout" in name and "mask" in name:
-                param.requires_grad = False
-    return target_model
+        if return_masks:
+            for name in masks:
+                masks[name].requires_grad = False
+        else:
+            for name, param in target_model.named_parameters():
+                if "readout" in name and "mask" in name:
+                    param.requires_grad = False
+    return masks if return_masks else target_model
 
 
 def calculate_chirp_features(chirp_trace: Float[np.ndarray, "n_neurons n_timepoints"]):
@@ -316,19 +334,14 @@ class ReadoutWeightShifter(nn.Module):
 
 class FrozenFactorisedReadout2d(Readout):
     def __init__(
-        self,
-        in_shape,
-        outdims,
-        from_gaussian=False,
-        positive=False,
-        nonlinearity=True,
-        mean_activity=None,
+        self, in_shape, outdims, positive=False, nonlinearity=True, attention=True, return_channels=False, **kwargs
     ):
         """
-        A readout layer with frozen factorised masks, that expects feature weights as input in the forward pass.
+        A readout layer with frozen factorised masks and (optional) self attention, that expects feature weights,
+        cell classes and spatials masks as input in the forward pass.
         To be used in conjunction with a core that outputs feature weights through a shifter network.
 
-        NB: The masks from this model are not trainable, and are expected to be loaded from a pre-trained model.
+        NB: This readout has no masks, which are expected to be passed in the forward pass.
 
         Args:
             in_shape (tuple): The shape of the input tensor (c, t, w, h).
@@ -345,20 +358,12 @@ class FrozenFactorisedReadout2d(Readout):
         self.outdims = outdims
         self.positive = positive
         self.nonlinearity = nonlinearity
-        self.from_gaussian = from_gaussian
-        self.mean_activity = mean_activity
+        self.attention = attention
+        self.return_channels = return_channels
 
-        if from_gaussian:
-            # self.mask_mean = torch.nn.Parameter(data=torch.zeros(self.outdims, 2), requires_grad=False)
-            # self.mask_log_var = torch.nn.Parameter(data=torch.zeros(self.outdims), requires_grad=False)
-            # self.masks = self.normal_pdf().permute(1, 2, 0)
-            raise NotImplementedError("FrozenFactorisedReadout2d does not support Gaussian masks yet.")
-        else:
-            self.masks = nn.Parameter(torch.Tensor(w, h, outdims), requires_grad=False)
-
-    @property
-    def _masks(self):
-        return self.normal_pdf().permute(1, 2, 0) if self.from_gaussian else self.masks
+        if self.attention:
+            self.embed_cell_classes = nn.Embedding(len(BADEN_GROUPS), c)
+            self.encoder_layer = nn.TransformerEncoderLayer(d_model=c, nhead=2, dim_feedforward=32, dropout=0.1)
 
     def initialize(self, *args, **kwargs):
         """
@@ -366,22 +371,12 @@ class FrozenFactorisedReadout2d(Readout):
         """
         pass
 
-    def normal_pdf(self):
-        """Gets the actual mask values in terms of a PDF from the mean and SD"""
-        # self.mask_var_ = torch.exp(self.mask_log_var * self.gaussian_var_scale).view(-1, 1, 1)
-        scaled_log_var = self.mask_log_var * self.gaussian_var_scale
-        self.mask_var_ = torch.exp(torch.clamp(scaled_log_var, min=-20, max=20)).view(-1, 1, 1)
-        pdf = self.grid - self.mask_mean.view(self.outdims, 1, 1, -1) * self.gaussian_mean_scale
-        pdf = torch.sum(pdf**2, dim=-1) / (self.mask_var_ + 1e-8)
-        pdf = torch.exp(-0.5 * torch.clamp(pdf, max=20))
-        normalisation = torch.sum(pdf, dim=(1, 2), keepdim=True)
-        pdf = torch.nan_to_num(pdf / normalisation)
-        return pdf
-
     def forward(
         self,
         x: Float[torch.Tensor, "batch channels width height"],
         features: Float[torch.Tensor, "batch channels neurons"],
+        spatial_masks: Float[torch.Tensor, "width height neurons"],
+        cell_classes: Float[torch.Tensor, "batch neurons"],
         scale: Optional[Float[torch.Tensor, " neurons"]] = None,
         bias: Optional[Float[torch.Tensor, " neurons"]] = None,
         subs_idx=None,
@@ -397,30 +392,57 @@ class FrozenFactorisedReadout2d(Readout):
 
         if subs_idx is not None:
             feat = features[..., subs_idx]
-            masks = self._masks[..., subs_idx]
+            masks = spatial_masks[..., subs_idx]
 
         else:
             feat = features
-            masks = self._masks
+            masks = spatial_masks
 
         y = torch.einsum("ncwh,whd->ncd", x, masks)
-        y = (y * feat).sum(1)
+        # NB: not summing over features yet.
+        y = y * feat
 
         if scale is not None:
             y = y * scale
         if bias is not None:
             y = y + bias if subs_idx is None else y + bias[subs_idx]
 
+        if self.attention:
+            # Compute embedding for neuron class, and add to the output
+            embed_cell_classes = self.embed_cell_classes(cell_classes)
+
+            # If batch dim includes time, need to expand the embedding to match the output
+            if embed_cell_classes.size(0) != b:
+                time = y.size(0) // embed_cell_classes.size(0)
+                neurons = y.size(-1)
+                embed_cell_classes = embed_cell_classes.unsqueeze(1).expand(-1, time, -1, -1).reshape(-1, neurons, c)
+
+            y = y + embed_cell_classes.transpose(1, 2)
+
+            # y is now (batch, channels, neurons), need to reshape to do attention on neurons.
+            y = y.permute(2, 0, 1)
+
+            # Compute self attention
+            y = self.encoder_layer(y)
+
+            # Reshape back to (batch, channels, neurons)
+            y = y.permute(1, 2, 0)
+
+        if self.return_channels:
+            return y
+
+        # Sum over channels
+        y = y.sum(1)
+
         if self.nonlinearity:
             y = F.softplus(y)
+
         return y
 
     def __repr__(self):
         c, h, w = self.in_shape
         r = f"{self.__class__.__name__} (" + f"{c} x {w} x {h}" + " -> " + str(self.outdims) + ")"
-        for ch in self.children():
-            r += f"  -> {ch.__repr__()}" + "\n"
-        return r
+        return
 
 
 class MultipleFrozenFactorisedReadout2d(MultiReadoutBase):
@@ -436,6 +458,8 @@ class MultipleFrozenFactorisedReadout2d(MultiReadoutBase):
             base_readout=FrozenFactorisedReadout2d,
             **readout_kwargs,
         )
+        for kwarg in readout_kwargs:
+            setattr(self, kwarg, readout_kwargs[kwarg])
 
     def regularizer(self, data_key):
         return 0
@@ -452,12 +476,62 @@ class ShifterVideoEncoder(nn.Module):
         core,
         readout,
         readout_shifter: ReadoutWeightShifter,
+        readout_mask_dict: Optional[Dict[str, torch.Tensor]] = None,
     ):
         super().__init__()
         self.core = core
         self.readout = readout
         self.readout_shifter = readout_shifter
         self.detach_core = False
+
+        if readout_mask_dict is not None:
+            self.set_readout_mask_dict(readout_mask_dict)
+
+    def set_readout_mask_dict(self, readout_mask_dict: Dict[str, torch.Tensor]):
+        self.readout_mask_dict = nn.ParameterDict()
+        for name, tensor in readout_mask_dict.items():
+            # Register each tensor as a buffer
+            self.register_buffer(f"{name}_readout_mask", tensor)
+            # Also add it to readout_mask_dict for easy access
+            self.readout_mask_dict[name] = tensor
+
+    @staticmethod
+    def extract_baden_group(value):
+        if value <= 9:
+            group = "OFF"
+        elif value >= 10 and value <= 14:
+            group = "ON-OFF"
+        elif value >= 15 and value <= 20:
+            group = "fast ON"
+        elif value >= 21 and value <= 28:
+            group = "slow ON"
+        elif value >= 28 and value <= 32:
+            group = "uncertain RGC"
+        else:
+            group = "AC"
+        return BADEN_GROUPS_MAP[group]
+
+    @staticmethod
+    def extract_baden_group_from_tensor(tensor):
+        # Define the boundaries and corresponding groups for bucketization
+        boundaries = torch.tensor([9, 14, 20, 28, 32], device=tensor.device)
+        groups = torch.tensor(
+            [
+                BADEN_GROUPS_MAP["OFF"],
+                BADEN_GROUPS_MAP["ON-OFF"],
+                BADEN_GROUPS_MAP["fast ON"],
+                BADEN_GROUPS_MAP["slow ON"],
+                BADEN_GROUPS_MAP["uncertain RGC"],
+                BADEN_GROUPS_MAP["AC"],
+            ],
+            device=tensor.device,
+        )
+
+        # Use bucketize to map cell types to group indices
+        bucket_indices = torch.bucketize(tensor, boundaries)
+        baden_groups = groups[bucket_indices]
+
+        return baden_groups.to(tensor.device)
 
     def forward(
         self,
@@ -476,6 +550,11 @@ class ShifterVideoEncoder(nn.Module):
             x = x.detach()
 
         feature_weights = self.readout_shifter(categorical_metadata, numerical_metadata)
+
+        # Cell types are assumed to be always the first passed categorical metadata
+        cell_types = categorical_metadata[0]
+
+        baden_groups = self.extract_baden_group_from_tensor(cell_types)
 
         # Extract the scale and bias if they are learned
         if self.readout_shifter.learn_scale:
@@ -508,7 +587,15 @@ class ShifterVideoEncoder(nn.Module):
 
         # Even though the readout can be session-independent, it is going to be used
         # in a multiple-readout context during training, so we need to pass the data_key
-        x = self.readout(x, feature_weights, scale=readout_scale, bias=readout_bias, data_key=data_key)
+        x = self.readout(
+            x,
+            feature_weights,
+            spatial_masks=self.readout_mask_dict[data_key],  # type: ignore
+            cell_classes=baden_groups,
+            scale=readout_scale,
+            bias=readout_bias,
+            data_key=data_key,
+        )
 
         # Reshape back to the correct dimensions before returning
         x = x.reshape(((batch_size, time_points) + x.size()[1:]))
@@ -539,7 +626,7 @@ def conv_core_frozen_readout(
     laplace_padding: Optional[int] = None,
     readout_scale: bool = False,
     readout_bias: bool = False,
-    readout_from_gaussian: bool = False,
+    readout_attention: bool = False,
     shifter_num_numerical_features: int = 5,
     shifter_categorical_vocab_sizes: Tuple[int, ...] = (47,),
     shifter_categorical_embedding_dims: Tuple[int, ...] = (10,),
@@ -554,7 +641,6 @@ def conv_core_frozen_readout(
     data_info: Optional[dict] = None,
     nonlinearity: str = "ELU",
     conv_type: Literal["full", "separable", "custom_separable", "time_independent"] = "custom_separable",
-    device=DEVICE,
     use_gru: bool = False,
     use_projections: bool = False,
     gru_kwargs: dict = {},
@@ -619,16 +705,14 @@ def conv_core_frozen_readout(
         gru_kwargs=gru_kwargs,
     )
 
-    in_shapes_readout = {}
     subselect = itemgetter(0, 2, 3)
-    for k in n_neurons_dict:  # iterate over sessions
-        in_shapes_readout[k] = subselect(tuple(get_module_output(core, in_shapes_dict[k])[1:]))
-
+    in_shapes_readout = {k: subselect(tuple(get_module_output(core, in_shapes_dict[k])[1:])) for k in n_neurons_dict}
     readout = MultipleFrozenFactorisedReadout2d(
         in_shape_dict=in_shapes_readout,
         n_neurons_dict=n_neurons_dict,
-        from_gaussian=readout_from_gaussian,
         nonlinearity=True,
+        attention=readout_attention,
+        return_channels=False,
     )
 
     readout_shifter = ReadoutWeightShifter(
@@ -646,11 +730,13 @@ def conv_core_frozen_readout(
         gamma_variance=shifter_gamma_variance,
     )
 
-    un_init_mask_model = ShifterVideoEncoder(core, readout, readout_shifter)
+    model = ShifterVideoEncoder(core, readout, readout_shifter)
 
-    model = transfer_readout_mask(
-        readout_mask_from, un_init_mask_model, ignore_source_key_suffix="_mb", freeze_mask=True
+    masks = transfer_readout_mask(
+        readout_mask_from, model, ignore_source_key_suffix="_mb", freeze_mask=True, return_masks=True
     )
+
+    model.set_readout_mask_dict(masks)
 
     return model
 

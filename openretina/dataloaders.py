@@ -24,7 +24,7 @@ class MovieDataSet(Dataset):
             self.samples = movies, responses
         self.chunk_size = chunk_size
         # Calculate the mean response per neuron (used for bias init in the model)
-        self.mean_response = torch.mean(self.samples[1], dim=0)
+        self.mean_response = torch.mean(torch.Tensor(self.samples[1]), dim=0)
         self.group_assignment = group_assignment
         self.roi_coords = roi_coords
 

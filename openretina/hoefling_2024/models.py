@@ -1,15 +1,15 @@
 from collections import OrderedDict
 from typing import Literal, Optional, Tuple
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 
-from openretina.models.model_utils import get_module_output_shape
 from openretina.dataloaders import get_dims_for_loader_dict
+from openretina.models.model_utils import get_module_output_shape
 from openretina.utils.misc import set_seed
 
 # Laplace filters
@@ -483,7 +483,7 @@ class SpatialXFeature3d(nn.Module):
         if self.gaussian_masks:
             return self.normal_pdf().permute(1, 2, 0)
         else:
-            return self.masks.data.abs_()
+            return self.masks.abs_()
 
     def forward(self, x: torch.Tensor, shift=None, subs_idx=None) -> torch.Tensor:
         self.masks = self.get_masks()
