@@ -23,7 +23,7 @@ def parse_args():
     parser.add_argument("--data_folder", type=str, help="Path to the base data folder", default="/Data/fd_export")
     parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
     parser.add_argument("--device", type=str, choices=["cuda", "cpu"],
-                        default = "cuda" if torch.cuda.is_available() else "cpu")
+                        default="cuda" if torch.cuda.is_available() else "cpu")
 
     return parser.parse_args()
 
@@ -54,14 +54,17 @@ def main(
     n_neurons_dict = {
        name: data_point.targets.shape[-1] for name, data_point in iter(train_loader)
     }
+
     model = CoreReadout(
         in_channels=2,
-        features_core=(8, 8, 8),
+        features_core=(16, 16),
+        temporal_kernel_sizes=(21, 11),
+        spatial_kernel_sizes=(11, 5),
         in_shape=(2, 750, 18, 16),
         n_neurons_dict=n_neurons_dict,
         scale=True,
         bias=True,
-        gaussian_masks = True,
+        gaussian_masks=True,
         gaussian_mean_scale=6.0,
         gaussian_var_scale=4.0,
         positive=True,
