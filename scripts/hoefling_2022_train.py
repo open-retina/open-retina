@@ -78,13 +78,14 @@ def plot_examples(
     if len(reconstructions.shape) == 3:
         reconstructions = np.mean(reconstructions, 0)
         targets_numpy = np.mean(targets_numpy, 0)
-    window = min(750, targets_numpy.shape[0])
+    window = targets_numpy.shape[0]
+    shift_prediction = targets_numpy.shape[0] - reconstructions.shape[0]
     neuron = 1
 
     fig, ax = plt.subplots(1, 1, figsize=(10, 5))
 
     ax.plot(np.arange(0, window), targets_numpy[:window, neuron], label="target")
-    ax.plot(np.arange(30, window), reconstructions[:window, neuron], label="prediction")
+    ax.plot(np.arange(shift_prediction, window), reconstructions[:window, neuron], label="prediction")
     ax.set_title(f"Neuron {neuron} in field {example_field}")
     ax.legend()
     ax.set_xlabel("Time (frames)")
@@ -109,7 +110,7 @@ def plot_examples(
 
     session_performance = corr(
         reconstructions,
-        targets_numpy[30:],
+        targets_numpy[shift_prediction:],
         axis=1,
     ).mean()
 
