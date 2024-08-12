@@ -2,8 +2,10 @@ import warnings
 
 import numpy as np
 import torch
+
 from openretina.models.model_utils import eval_state
 from openretina.utils.constants import EPSILON
+
 from .utils.misc import tensors_to_device
 
 
@@ -13,9 +15,19 @@ def correlation_numpy(
     """Compute the correlation between two NumPy arrays along the specified dimension(s)."""
     y1 = (y1 - y1.mean(axis=axis, keepdims=True)) / (y1.std(axis=axis, keepdims=True, ddof=0) + eps)
     y2 = (y2 - y2.mean(axis=axis, keepdims=True)) / (y2.std(axis=axis, keepdims=True, ddof=0) + eps)
-    corr = (y1 * y2).mean(axis=axis, **kwargs)
+    return (y1 * y2).mean(axis=axis, **kwargs)
 
-    return corr
+
+def MSE_numpy(y1: np.ndarray, y2: np.ndarray, axis: None | int | tuple[int] = -1, **kwargs) -> np.ndarray:
+    """Compute the mean squared error between two NumPy arrays along the specified dimension(s)."""
+    return ((y1 - y2) ** 2).mean(axis=axis, **kwargs)
+
+
+def poisson_loss_numpy(
+    y_true: np.ndarray, y_pred: np.ndarray, eps: float = 1e-8, mean_axis: None | int | tuple[int] = -1
+) -> np.ndarray:
+    """Compute the Poisson loss between two NumPy arrays."""
+    return (y_pred - y_true * np.log(y_pred + eps)).mean(axis=mean_axis)
 
 
 def model_predictions(loader, model: torch.nn.Module, data_key, device) -> tuple[np.ndarray, np.ndarray]:
@@ -87,7 +99,10 @@ def corr_stop3d(model: torch.nn.Module, loader, avg: bool = True, device: str = 
         with eval_state(model):
             target, output = model_predictions(loader, model, data_key, device)
 
+        # Correlation over time axis (1)
         ret = correlation_numpy(target, output, axis=1)
+
+        # Average over batches
         ret = ret.mean(axis=0)
 
         if np.any(np.isnan(ret)):
