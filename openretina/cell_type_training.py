@@ -334,7 +334,15 @@ class ReadoutWeightShifter(nn.Module):
 
 class FrozenFactorisedReadout2d(Readout):
     def __init__(
-        self, in_shape, outdims, positive=False, nonlinearity=True, attention=True, return_channels=False, **kwargs
+        self,
+        in_shape,
+        outdims,
+        positive=False,
+        nonlinearity=True,
+        attention=True,
+        return_channels=False,
+        attention_kwargs: Optional[dict] = None,
+        **kwargs,
     ):
         """
         A readout layer with frozen factorised masks and (optional) self attention, that expects feature weights,
@@ -363,7 +371,9 @@ class FrozenFactorisedReadout2d(Readout):
 
         if self.attention:
             self.embed_cell_classes = nn.Embedding(len(BADEN_GROUPS), c)
-            self.encoder_layer = nn.TransformerEncoderLayer(d_model=c, nhead=2, dim_feedforward=32, dropout=0.1)
+            if attention_kwargs is None:
+                attention_kwargs = {"nhead": 2, "dim_feedforward": 32, "dropout": 0.1}
+            self.encoder_layer = nn.TransformerEncoderLayer(d_model=c, **attention_kwargs)
 
     def initialize(self, *args, **kwargs):
         """
@@ -644,6 +654,7 @@ def conv_core_frozen_readout(
     use_gru: bool = False,
     use_projections: bool = False,
     gru_kwargs: dict = {},
+    readout_attn_kwargs: dict = {},
     **kwargs,
 ):
     """
@@ -713,6 +724,7 @@ def conv_core_frozen_readout(
         nonlinearity=True,
         attention=readout_attention,
         return_channels=False,
+        attention_kwargs=readout_attn_kwargs,
     )
 
     readout_shifter = ReadoutWeightShifter(
