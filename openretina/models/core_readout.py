@@ -255,8 +255,7 @@ class CoreReadout(lightning.LightningModule):
             gamma_readout: float,
             gamma_masks: float = 0.0,
             readout_reg_avg: bool = False,
-            learning_rate: float = 0.0005,
-
+            learning_rate: float = 0.01,
     ):
         super().__init__()
         self.core = CoreWrapper(
@@ -301,7 +300,7 @@ class CoreReadout(lightning.LightningModule):
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
         correlation = -self.correlation_loss.forward(model_output, data_point.targets)
         self.log("val_loss", loss, logger=True, prog_bar=True)
-        self.log("val_correlation", correlation, logger=False)
+        self.log("val_correlation", correlation, logger=True, prog_bar=True)
 
         return loss
 
@@ -318,5 +317,26 @@ class CoreReadout(lightning.LightningModule):
         return loss
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
-        return optimizer
+        optimizer = torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
+        lr_decay_steps = 5
+        lr_decay_factor = 0.3
+        patience = 5
+        tolerance = 0.0005
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode="max",
+            factor=lr_decay_factor,
+            patience=patience,
+            threshold=tolerance,
+            verbose=True,
+            threshold_mode="abs",
+        )
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler": scheduler,
+                "monitor": "val_correlation",
+                "frequency": 1,
+            },
+        }
+
