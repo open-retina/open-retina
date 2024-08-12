@@ -264,7 +264,11 @@ class CoreReadout(lightning.LightningModule):
             temporal_kernel_sizes=temporal_kernel_sizes,
             spatial_kernel_sizes=spatial_kernel_sizes,
         )
-        in_shape_readout: tuple[int, int, int, int] = (features_core[-1], ) + in_shape[1:]  # type: ignore
+        # Run one forward path to determine output shape of core
+        core_test_output = self.core.forward(torch.zeros((1, ) + in_shape))
+        in_shape_readout: tuple[int, int, int, int] =  core_test_output.shape[1:]  # type: ignore
+        print(f"{in_shape_readout=}")
+
         self.readout_layers = ReadoutWrapper(
             in_shape_readout, n_neurons_dict, scale, bias, gaussian_masks, gaussian_mean_scale, gaussian_var_scale,
             positive, gamma_readout, gamma_masks, readout_reg_avg

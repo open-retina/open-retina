@@ -808,7 +808,11 @@ class STSeparableBatchConv3d(nn.Module):
         Returns:
             torch.Tensor: The output of the convolution.
         """
-        x, data_key = input_
+        if type(input_) is torch.Tensor:
+            x = input_
+            data_key: str | None = None
+        else:
+            x, data_key = input_
 
         # Compute temporal kernel based on the provided data key
         if data_key is None:
