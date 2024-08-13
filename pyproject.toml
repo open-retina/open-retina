@@ -28,3 +28,5 @@ dependencies = {file = ["requirements.txt"]}
 [tool.setuptools.package-data]
 "openretina" = ["data/stimuli/*.pickle"]
 
+[tool.ruff]
+ignore = ["F722"]
