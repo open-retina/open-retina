@@ -310,7 +310,7 @@ class NeuronData:
             },
         }
 
-    def compute_validation_responses(self):
+    def compute_validation_responses(self) -> None:
         movie_ordering = (
             np.arange(self.num_clips)
             if (len(self.random_sequences) == 0 or self.scan_sequence_idx is None)
@@ -345,12 +345,12 @@ class NeuronData:
             self.responses_train = np.zeros([len(train_clip_idx) * self.clip_length, self.num_neurons])
             for i, train_idx in enumerate(train_clip_idx):
                 grab_index = base_movie_sorting[train_idx]
-                self.responses_train[
-                    i * self.clip_length : (i + 1) * self.clip_length, :
-                ] = self.responses_train_and_val[
-                    grab_index * self.clip_length : (grab_index + 1) * self.clip_length,
-                    :,
-                ]
+                self.responses_train[i * self.clip_length : (i + 1) * self.clip_length, :] = (
+                    self.responses_train_and_val[
+                        grab_index * self.clip_length : (grab_index + 1) * self.clip_length,
+                        :,
+                    ]
+                )
         else:
             self.responses_train = self.responses_train_and_val[validation_mask].reshape(-1, self.num_neurons)
 
@@ -536,7 +536,7 @@ def _clean_up_empty_fields(data_dict, check_field="group_assignment"):
     return {k: v for k, v in data_dict.items() if len(v[check_field]) > 0}
 
 
-def _mask_by_cell_type(data_dict, cell_types: List[int]):
+def _mask_by_cell_type(data_dict, cell_types: List[int] | int):
     if not isinstance(cell_types, list):
         if isinstance(cell_types, int):
             cell_types = [cell_types]
@@ -545,6 +545,15 @@ def _mask_by_cell_type(data_dict, cell_types: List[int]):
     new_data_dict = deepcopy(data_dict)
     for field in new_data_dict.keys():
         mask = np.isin(new_data_dict[field]["group_assignment"], cell_types)
+        _apply_mask_to_field(new_data_dict, field, mask)
+
+    return _clean_up_empty_fields(new_data_dict)
+
+
+def _mask_by_classifier_confidence(data_dict, min_confidence: float):
+    new_data_dict = deepcopy(data_dict)
+    for field in new_data_dict.keys():
+        mask = new_data_dict[field]["group_confidences"].max(axis=1) >= min_confidence
         _apply_mask_to_field(new_data_dict, field, mask)
 
     return _clean_up_empty_fields(new_data_dict)
@@ -633,3 +642,135 @@ def make_final_responses(
         new_data_dict = _apply_qi_mask(new_data_dict, "chirp", chirp_qi)
 
     return new_data_dict
+
+
+def filter_responses(
+    all_responses: Dict[str, dict],
+    filter_cell_types: bool = False,
+    cell_types_list: Optional[List[int] | int] = None,
+    chirp_qi: float = 0.35,
+    d_qi: float = 0.6,
+    filter_counts: bool = True,
+    count_threshold: int = 10,
+    classifier_confidence: float = 0.3,
+    verbose: bool = False,
+) -> Dict[str, dict]:
+    """
+    This function processes the input dictionary of neuron responses, applying various filters
+    to exclude unwanted data based on the provided parameters. It can filter by cell types,
+    quality indices, classifier confidence, and the number of responding cells, while also
+    providing verbose output for tracking the filtering process.
+
+    Args:
+        all_responses (Dict[str, dict]): A dictionary containing neuron response data.
+        filter_cell_types (bool, optional): Whether to filter by specific cell types. Defaults to False.
+        cell_types_list (Optional[List[int] | int], optional): List or single value of cell types to filter.
+                                                                Defaults to None.
+        chirp_qi (float, optional): Quality index threshold for chirp responses. Defaults to 0.35.
+        d_qi (float, optional): Quality index threshold for d responses. Defaults to 0.6.
+        filter_counts (bool, optional): Whether to filter based on response counts. Defaults to True.
+        count_threshold (int, optional): Minimum number of responding cells required. Defaults to 10.
+        classifier_confidence (float, optional): Minimum confidence level for classifier responses. Defaults to 0.3.
+        verbose (bool, optional): If True, prints detailed filtering information. Defaults to False.
+
+    Returns:
+        Dict[str, dict]: A filtered dictionary of neuron responses that meet the specified criteria.
+    """
+
+    def print_verbose(message):
+        if verbose:
+            print(message)
+
+    def get_n_neurons(all_responses):
+        return sum(len(field["group_assignment"]) for field in all_responses.values())
+
+    original_neuron_count = get_n_neurons(all_responses)
+    print_verbose(f"Original dataset contains {original_neuron_count} neurons over {len(all_responses)} fields")
+    print_verbose(" ------------------------------------ ")
+
+    # Filter by cell types
+    if filter_cell_types and cell_types_list is not None:
+        all_rgcs_responses_ct_filtered = _mask_by_cell_type(all_responses, cell_types_list)
+        print_verbose(
+            f"Dropped {len(all_responses) - len(all_rgcs_responses_ct_filtered)} fields that did not "
+            f"contain the target cell types ({len(all_rgcs_responses_ct_filtered)} remaining)"
+        )
+        dropped_n_cell_types = original_neuron_count - get_n_neurons(all_rgcs_responses_ct_filtered)
+        print_verbose(
+            f"Overall, dropped {dropped_n_cell_types} neurons of non-target cell types "
+            f"(-{(dropped_n_cell_types) / original_neuron_count :.2%})."
+        )
+        print_verbose(" ------------------------------------ ")
+    else:
+        all_rgcs_responses_ct_filtered = deepcopy(all_responses)
+
+    count_before_checks = get_n_neurons(all_rgcs_responses_ct_filtered)
+
+    # Apply quality checks
+    if d_qi is not None and d_qi > 0.0:
+        all_rgcs_responses_ct_filtered = _apply_qi_mask(all_rgcs_responses_ct_filtered, "d", d_qi)
+    if chirp_qi is not None and chirp_qi > 0.0:
+        all_rgcs_responses_ct_filtered = _apply_qi_mask(all_rgcs_responses_ct_filtered, "chirp", chirp_qi)
+
+    dropped_n_qi = count_before_checks - get_n_neurons(all_rgcs_responses_ct_filtered)
+
+    print_verbose(
+        f"Dropped {len(all_responses) - len(all_rgcs_responses_ct_filtered)} fields with quality indices "
+        f"below threshold ({len(all_rgcs_responses_ct_filtered)} remaining)"
+    )
+    print_verbose(
+        f"Overall, dropped {dropped_n_qi} neurons over quality checks (-{dropped_n_qi / count_before_checks:.2%})."
+    )
+    print_verbose(" ------------------------------------ ")
+
+    # Filter by classifier confidence
+    if classifier_confidence is not None and classifier_confidence > 0.0:
+        all_rgcs_responses_confidence_filtered = _mask_by_classifier_confidence(
+            all_rgcs_responses_ct_filtered, classifier_confidence
+        )
+        dropped_n_classifier = get_n_neurons(all_rgcs_responses_ct_filtered) - get_n_neurons(
+            all_rgcs_responses_confidence_filtered
+        )
+        print_verbose(
+            f"Dropped {len(all_rgcs_responses_ct_filtered) - len(all_rgcs_responses_confidence_filtered)} fields with "
+            f"classifier confidences below {classifier_confidence}"
+        )
+        print_verbose(
+            f"Overall, dropped {dropped_n_classifier} neurons with classifier confidences below {classifier_confidence} "
+            f"(-{dropped_n_classifier / get_n_neurons(all_rgcs_responses_ct_filtered):.2%})."
+        )
+        print_verbose(" ------------------------------------ ")
+    else:
+        all_rgcs_responses_confidence_filtered = all_rgcs_responses_ct_filtered
+
+    # Filter by low counts
+    if filter_counts:
+        all_rgcs_responses = {
+            k: v
+            for k, v in all_rgcs_responses_confidence_filtered.items()
+            if len(v["group_assignment"]) > count_threshold
+        }
+        dropped_n_counts = get_n_neurons(all_rgcs_responses_confidence_filtered) - get_n_neurons(all_rgcs_responses)
+        print_verbose(
+            f"Dropped {len(all_rgcs_responses_confidence_filtered) - len(all_rgcs_responses)} fields with less than "
+            f"{count_threshold} responding cells ({len(all_rgcs_responses)} remaining)"
+        )
+        print_verbose(
+            f"Overall, dropped {dropped_n_counts} neurons in fields with less than {count_threshold} responding cells "
+            f"(-{dropped_n_counts / get_n_neurons(all_rgcs_responses_confidence_filtered):.2%})."
+        )
+    else:
+        all_rgcs_responses = all_rgcs_responses_confidence_filtered
+
+    print_verbose(" ------------------------------------ ")
+    print_verbose(
+        f"Final dataset contains {get_n_neurons(all_rgcs_responses)} neurons over {len(all_rgcs_responses)} fields"
+    )
+    final_n_dropped = original_neuron_count - get_n_neurons(all_rgcs_responses)
+    print(f"Total number of cells dropped: {final_n_dropped} " f"(-{(final_n_dropped) / original_neuron_count :.2%})")
+
+    # Clean up RAM
+    del all_rgcs_responses_ct_filtered
+    del all_rgcs_responses_confidence_filtered
+
+    return all_rgcs_responses
