@@ -46,6 +46,8 @@ def standard_early_stop_trainer(
     seed: int,
     objective_function: Callable[..., torch.Tensor] = standard_full_objective,
     optimizer: torch.optim.Optimizer = torch.optim.Adam,  # type: ignore
+    scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
+    reduce_lr_on_plateau: bool = True,
     scale_loss: bool = True,  # trainer args
     loss_function: str = "PoissonLoss3d",
     stop_function: str = "corr_stop",
@@ -62,12 +64,12 @@ def standard_early_stop_trainer(
     restore_best: bool = True,
     lr_decay_steps: int = 3,
     lr_decay_factor: float = 0.3,
-    min_lr: float = 0.0001,  # lr scheduler args
     detach_core: bool = False,
     wandb_logger=None,
     cb=None,
     clip_gradient_norm: Optional[float] = None,
     multiple_stimuli: bool = False,
+    scheduler_kwargs: Optional[dict] = None,
     **kwargs,
 ):
     trainloaders = dataloaders["train"]
@@ -85,16 +87,20 @@ def standard_early_stop_trainer(
     n_iterations = len(LongCycler(trainloaders))
 
     optimizer = optimizer(model.parameters(), lr=lr_init)  # type: ignore
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer,
-        mode="max" if maximize else "min",
-        factor=lr_decay_factor,
-        patience=patience,
-        threshold=tolerance,
-        min_lr=min_lr,
-        verbose=verbose,
-        threshold_mode="abs",
-    )
+
+    if reduce_lr_on_plateau:
+        assert scheduler is None, "Cannot pass both scheduler and reduce_lr_on_plateau"
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode="max" if maximize else "min",
+            factor=lr_decay_factor,
+            patience=patience,
+            threshold=tolerance,
+            min_lr=1e-6,
+            threshold_mode="abs",
+        )
+    else:
+        lr_scheduler = scheduler(optimizer, **(scheduler_kwargs or {})) if scheduler is not None else None
 
     # set the number of iterations over which you would like to accummulate gradients
     # will be equal to number of sessions (dict keys) if not specified, which combined with
@@ -126,14 +132,16 @@ def standard_early_stop_trainer(
             tolerance=tolerance,
             restore_best=restore_best,
             tracker=tracker,
-            scheduler=scheduler,
-            lr_decay_steps=lr_decay_steps,
+            scheduler=lr_scheduler if reduce_lr_on_plateau else None,
+            lr_decay_steps=lr_decay_steps if reduce_lr_on_plateau else 1,
         ),
         desc="Epochs",
         total=max_iter,
         position=0,
         leave=True,
     ):
+        epoch_loss = 0
+
         # print the quantities from tracker
         if verbose and tracker is not None:
             print("=======================================")
@@ -143,7 +151,7 @@ def standard_early_stop_trainer(
         # executes callback function if passed in keyword args
         if cb is not None:
             cb()
-        epoch_loss = 0
+
         # train over batches
         optimizer.zero_grad()
         for batch_no, (data_key, data) in tqdm(
@@ -170,12 +178,18 @@ def standard_early_stop_trainer(
             )
             loss.backward()
 
+            epoch_loss += loss.item()
+
             if clip_gradient_norm is not None:
                 torch.nn.utils.clip_grad.clip_grad_norm_(model.parameters(), max_norm=clip_gradient_norm)
 
             if (batch_no + 1) % optim_step_count == 0:
                 optimizer.step()
                 optimizer.zero_grad()
+
+            if isinstance(lr_scheduler, torch.optim.lr_scheduler.OneCycleLR):
+                lr_scheduler.step()
+
             if np.isnan(loss.item()):
                 raise ValueError(f"Loss is NaN on batch {batch_no} from {data_key}, stopping training.")
         if wandb_logger is not None:
@@ -190,6 +204,8 @@ def standard_early_stop_trainer(
                     "val_MSE_loss": tracker_info["val_MSE_loss"][-1],
                 }
             )
+        if not reduce_lr_on_plateau and scheduler is not None:
+            lr_scheduler.step()  # type: ignore
 
     # Model evaluation
     model.eval()
