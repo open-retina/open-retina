@@ -56,7 +56,7 @@ def main(conf: DictConfig) -> None:
                                 logger=logger_array, callbacks=[early_stopping])
     trainer.fit(model=model, train_dataloaders=train_loader,
                 val_dataloaders=valid_loader)
-    test_res = trainer.test(model, dataloaders=[train_loader, valid_loader, test_loader])
+    trainer.test(model, dataloaders=[train_loader, valid_loader, test_loader])
 
 
 if __name__ == "__main__":
