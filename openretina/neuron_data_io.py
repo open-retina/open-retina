@@ -580,6 +580,7 @@ def make_final_responses(
     d_qi: Optional[float] = None,
     chirp_qi: Optional[float] = None,
     qi_logic: Literal["and", "or"] = "or",
+    scale_traces: float = 1.0,
 ):
     """
     Converts inferred spikes into final responses by upsampling the traces.
@@ -633,11 +634,14 @@ def make_final_responses(
             )
             tracestimes = np.tile(np.arange(traces.shape[1]), reps=(traces.shape[0], 1)) * traces_dt + traces_t0
 
-        upsampled_traces = upsample_traces(
-            triggertimes=triggertimes,
-            traces=traces,
-            tracestimes=tracestimes,
-            stim_id=stim_id,
+        upsampled_traces = (
+            upsample_traces(
+                triggertimes=triggertimes,
+                traces=traces,
+                tracestimes=tracestimes,
+                stim_id=stim_id,
+            )
+            * scale_traces
         )
 
         new_data_dict[field][f"{response_type}_responses_final"] = upsampled_traces
