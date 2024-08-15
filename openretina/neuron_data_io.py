@@ -501,23 +501,37 @@ def _apply_mask_to_field(data_dict, field, mask):
                 raise IndexError(f"Index out of bounds for field {field} and key {key}.")
 
 
-def _apply_qi_mask(data_dict, qi_type, qi_threshold):
+def _apply_qi_mask(data_dict, qi_types: list[str], qi_thresholds: list[float], logic="or"):
     """
-    Applies a quality threshold as a mask to the data dictionary.
+    Applies quality thresholds as a mask to the data dictionary.
 
     Args:
         data_dict (dict): The data dictionary.
-        qi_type (str): The quality index type.
-        qi_threshold (float): The quality threshold.
+        qi_types (list): List of quality index types.
+        qi_threshold (list): List of quality index thresholds.
+        logic (str): The logic to combine different qi_types. Can be 'and' or 'or'. Default is 'and'.
 
     Returns:
         dict: The updated data dictionary.
     """
     new_data_dict = deepcopy(data_dict)
 
+    if logic not in ["and", "or"]:
+        raise ValueError("logic must be either 'and' or 'or'")
+    assert len(qi_types) == len(qi_thresholds), "qi_types and qi_thresholds must have the same length"
+
     for field in new_data_dict.keys():
-        mask = new_data_dict[field][f"{qi_type}_qi"] >= qi_threshold
-        _apply_mask_to_field(new_data_dict, field, mask)
+        masks = [
+            new_data_dict[field][f"{qi_type}_qi"] >= qi_threshold
+            for qi_type, qi_threshold in zip(qi_types, qi_thresholds)
+        ]
+
+        if logic == "and":
+            combined_mask = np.logical_and.reduce(masks)
+        else:  # logic == 'or'
+            combined_mask = np.logical_or.reduce(masks)
+
+        _apply_mask_to_field(new_data_dict, field, combined_mask)
 
     return _clean_up_empty_fields(new_data_dict)
 
@@ -565,6 +579,7 @@ def make_final_responses(
     trace_type: Literal["spikes", "raw", "preprocessed", "detrended"] = "spikes",
     d_qi: Optional[float] = None,
     chirp_qi: Optional[float] = None,
+    qi_logic: Literal["and", "or"] = "or",
 ):
     """
     Converts inferred spikes into final responses by upsampling the traces.
@@ -636,10 +651,9 @@ def make_final_responses(
         new_data_dict[field]["responses_final"] = upsampled_traces
         new_data_dict[field]["stim_id"] = stim_id
 
-    if d_qi is not None and d_qi > 0.0:
-        new_data_dict = _apply_qi_mask(new_data_dict, "d", d_qi)
-    if chirp_qi is not None and chirp_qi > 0.0:
-        new_data_dict = _apply_qi_mask(new_data_dict, "chirp", chirp_qi)
+    d_qi = d_qi if d_qi is not None else 0.0
+    chirp_qi = chirp_qi if chirp_qi is not None else 0.0
+    new_data_dict = _apply_qi_mask(new_data_dict, ["d", "chirp"], [d_qi, chirp_qi], qi_logic)
 
     return new_data_dict
 
@@ -650,9 +664,10 @@ def filter_responses(
     cell_types_list: Optional[List[int] | int] = None,
     chirp_qi: float = 0.35,
     d_qi: float = 0.6,
+    qi_logic: Literal["and", "or"] = "or",
     filter_counts: bool = True,
     count_threshold: int = 10,
-    classifier_confidence: float = 0.3,
+    classifier_confidence: float = 0.25,
     verbose: bool = False,
 ) -> Dict[str, dict]:
     """
@@ -660,6 +675,7 @@ def filter_responses(
     to exclude unwanted data based on the provided parameters. It can filter by cell types,
     quality indices, classifier confidence, and the number of responding cells, while also
     providing verbose output for tracking the filtering process.
+    Note: default arguments are from the Hoefling et al., 2024 paper.
 
     Args:
         all_responses (Dict[str, dict]): A dictionary containing neuron response data.
@@ -668,6 +684,7 @@ def filter_responses(
                                                                 Defaults to None.
         chirp_qi (float, optional): Quality index threshold for chirp responses. Defaults to 0.35.
         d_qi (float, optional): Quality index threshold for d responses. Defaults to 0.6.
+        qi_logic (Literal["and", "or"], optional): The logic to combine different quality indices. Defaults to "and".
         filter_counts (bool, optional): Whether to filter based on response counts. Defaults to True.
         count_threshold (int, optional): Minimum number of responding cells required. Defaults to 10.
         classifier_confidence (float, optional): Minimum confidence level for classifier responses. Defaults to 0.3.
@@ -707,10 +724,10 @@ def filter_responses(
     count_before_checks = get_n_neurons(all_rgcs_responses_ct_filtered)
 
     # Apply quality checks
-    if d_qi is not None and d_qi > 0.0:
-        all_rgcs_responses_ct_filtered = _apply_qi_mask(all_rgcs_responses_ct_filtered, "d", d_qi)
-    if chirp_qi is not None and chirp_qi > 0.0:
-        all_rgcs_responses_ct_filtered = _apply_qi_mask(all_rgcs_responses_ct_filtered, "chirp", chirp_qi)
+    d_qi = d_qi if d_qi is not None else 0.0
+    all_rgcs_responses_ct_filtered = _apply_qi_mask(
+        all_rgcs_responses_ct_filtered, ["d", "chirp"], [d_qi, chirp_qi], qi_logic
+    )
 
     dropped_n_qi = count_before_checks - get_n_neurons(all_rgcs_responses_ct_filtered)
 
