@@ -753,7 +753,7 @@ class STSeparableBatchConv3d(nn.Module):
         spatial_kernel_size: int,
         spatial_kernel_size2: int | None = None,
         stride: int = 1,
-        padding: int = 0,
+        padding: int | str | tuple[int, ...] = 0,
         num_scans: int = 1,
         bias: bool = True,
     ):

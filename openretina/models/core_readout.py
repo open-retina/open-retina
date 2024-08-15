@@ -47,8 +47,11 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         self.mask_log_var = torch.nn.Parameter(data=torch.zeros(self.outdims), requires_grad=True)
         self.grid = torch.nn.Parameter(data=self.make_mask_grid(outdims, w, h), requires_grad=False)
 
-        self.features = nn.Parameter(torch.ones((1, c, 1, outdims)) / c)
+        self.features = nn.Parameter(torch.Tensor(1, c, 1, outdims))
+        self.features.data.normal_(1.0 / c, 0.01)
         self.scale_param = nn.Parameter(torch.ones(outdims), requires_grad=scale)
+        if scale:
+            self.scale_param.data.normal_(1.0, 0.01)
         self.bias_param = nn.Parameter(torch.zeros(outdims), requires_grad=bias)
 
     def feature_l1(self, average: bool = False) -> torch.Tensor:
@@ -204,7 +207,7 @@ class CoreWrapper(torch.nn.Module):
                 temporal_kernel_size=temporal_kernel_sizes[layer_id],
                 spatial_kernel_size=spatial_kernel_sizes[layer_id],
                 bias=False,
-                padding=0,
+                padding="same",
             )
             layer["norm"] = nn.BatchNorm3d(num_out_channels, momentum=0.1, affine=True)
             layer["bias"] = Bias3DLayer(num_out_channels)
