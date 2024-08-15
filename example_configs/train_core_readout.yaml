@@ -1,5 +1,5 @@
 exp_name: example_core_readout
-data_folder: ~/Data/TP12
+data_folder: /gpfs01/euler/data/SharedFiles/projects/TP12/
 save_folder: exp/
 max_epochs: 100
 

@@ -24,14 +24,14 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
     ):
         """
         Args:
-            in_shape (tuple): The shape of the input tensor (c, t, w, h).
-            outdims (int): The number of output dimensions (usually the number of neurons in the session).
-            gaussian_mean_scale (float, optional): The scale factor for the Gaussian mean. Defaults to 1e0.
-            gaussian_var_scale (float, optional): The scale factor for the Gaussian variance. Defaults to 1e0.
-            positive (bool, optional): Whether the output should be positive. Defaults to False.
-            scale (bool, optional): Whether to include a scale parameter. Defaults to False.
-            bias (bool, optional): Whether to include a bias parameter. Defaults to True.
-            nonlinearity_function (bool, optional): Whether to include a nonlinearity. Defaults to True.
+            in_shape: The shape of the input tensor (c, t, w, h).
+            outdims: The number of output dimensions (usually the number of neurons in the session).
+            gaussian_mean_scale: The scale factor for the Gaussian mean. Defaults to 1e0.
+            gaussian_var_scale: The scale factor for the Gaussian variance. Defaults to 1e0.
+            positive: Whether the output should be positive. Defaults to False.
+            scale: Whether to include a scale parameter. Defaults to False.
+            bias: Whether to include a bias parameter. Defaults to True.
+            nonlinearity_function: torch nonlinearity function , e.g. nn.functional.softplus
         """
         super().__init__()
         self.in_shape = in_shape
@@ -322,6 +322,7 @@ class CoreReadout(lightning.LightningModule):
         lr_decay_factor = 0.3
         patience = 5
         tolerance = 0.0005
+        min_lr = self.learning_rate * (lr_decay_factor ** 3)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             mode="max",
@@ -330,6 +331,7 @@ class CoreReadout(lightning.LightningModule):
             threshold=tolerance,
             verbose=True,
             threshold_mode="abs",
+            min_lr=min_lr,
         )
         return {
             "optimizer": optimizer,

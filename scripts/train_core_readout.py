@@ -5,6 +5,7 @@ import pickle
 
 import torch
 import lightning
+from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 import hydra
 from omegaconf import DictConfig
 
@@ -50,12 +51,12 @@ def main(conf: DictConfig) -> None:
         logger = hydra.utils.instantiate(logger_params, save_dir=save_dir, name=conf.exp_name)
         logger_array.append(logger)
 
+    early_stopping = EarlyStopping(monitor="val_correlation", min_delta=0.00, patience=10, verbose=True, mode="max")
     trainer = lightning.Trainer(max_epochs=conf.max_epochs, default_root_dir=conf.save_folder,
-                                logger=logger_array)
+                                logger=logger_array, callbacks=[early_stopping])
     trainer.fit(model=model, train_dataloaders=train_loader,
                 val_dataloaders=valid_loader)
     test_res = trainer.test(model, dataloaders=[train_loader, valid_loader, test_loader])
-    print(test_res)
 
 
 if __name__ == "__main__":
