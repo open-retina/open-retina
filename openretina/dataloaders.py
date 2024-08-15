@@ -356,7 +356,8 @@ def extract_data_info_from_dataloaders(
         dataloaders: A dictionary of dataloaders for different sessions.
 
     Returns:
-        data_info: A dictionary containing input_dimensions, input_channels, and output_dimension for each session.
+        data_info: A dictionary containing input_dimensions, input_channels, and output_dimension for each session,
+                   nested with these attributes as the first level keys and sessions as the second level.
     """
     # Ensure train loader is used if available and not provided directly
     dataloaders = dataloaders.get("train", dataloaders)
@@ -367,11 +368,17 @@ def extract_data_info_from_dataloaders(
     # Get the input and output dimensions for each session
     session_shape_dict = get_dims_for_loader_dict(dataloaders)
 
-    return {
-        session_key: {
-            "input_dimensions": session_shape_dict[session_key][in_name],  # Input shape
-            "input_channels": session_shape_dict[session_key][in_name][1],  # Channel dimension
-            "output_dimension": session_shape_dict[session_key][out_name][-1],  # Last dimension (neurons)
-        }
-        for session_key in session_shape_dict.keys()
+    # Initialize the new structure
+    data_info = {
+        "input_dimensions": {},
+        "input_channels": {},
+        "output_dimension": {},
     }
+
+    # Populate the new structure
+    for session_key, shapes in session_shape_dict.items():
+        data_info["input_dimensions"][session_key] = shapes[in_name]
+        data_info["input_channels"][session_key] = shapes[in_name][1]
+        data_info["output_dimension"][session_key] = shapes[out_name][-1]
+
+    return data_info
