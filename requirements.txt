@@ -8,6 +8,7 @@ scipy
 torch
 torchaudio
 torchvision
+einops
 lightning
 wandb
 # Type Checks
