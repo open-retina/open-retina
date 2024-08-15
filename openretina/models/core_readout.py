@@ -49,7 +49,7 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         self.grid = torch.nn.Parameter(data=self.make_mask_grid(outdims, w, h), requires_grad=False)
 
         self.features = nn.Parameter(torch.Tensor(1, c, 1, outdims))
-        self.features.data.normal_(0.0, 0.01)
+        self.features.data.normal_(1.0/c, 0.01)
         self.scale_param = nn.Parameter(torch.ones(outdims), requires_grad=scale)
         if scale:
             self.scale_param.data.normal_(1.0, 0.01)
@@ -271,7 +271,6 @@ class CoreReadout(lightning.LightningModule):
         # Run one forward path to determine output shape of core
         core_test_output = self.core.forward(torch.zeros((1, ) + tuple(in_shape)))
         in_shape_readout: tuple[int, int, int, int] = core_test_output.shape[1:]  # type: ignore
-        print(f"{in_shape_readout=}")
 
         self.readout_layers = ReadoutWrapper(
             in_shape_readout, n_neurons_dict, scale, bias, gaussian_masks, gaussian_mean_scale, gaussian_var_scale,
@@ -284,7 +283,6 @@ class CoreReadout(lightning.LightningModule):
     def forward(self, x: torch.Tensor, session_id: str) -> torch.Tensor:
         output_core = self.core(x)
         output_readout = self.readout_layers(output_core, data_key=session_id)
-        print(session_id)
         return output_readout
 
     def training_step(self, batch: tuple[str, DataPoint], batch_idx: int) -> torch.Tensor:
@@ -293,13 +291,13 @@ class CoreReadout(lightning.LightningModule):
         loss = self.loss.forward(model_output, data_point.targets)
         regularization_loss_core = self.core.regularizer()
         regularization_loss_readout = self.readout_layers.regularizer(session_id)
-        trace_correlation_loss = simple_mean_variance_loss(model_output)
-        print(f"{trace_correlation_loss=}")
+        #trace_correlation_loss = simple_mean_variance_loss(model_output)
         self.log("loss", loss)
         self.log("regularization_loss_core", regularization_loss_core)
         self.log("regularization_loss_readout", regularization_loss_readout)
-        self.log("trace_correlation_loss", trace_correlation_loss)
-        total_loss = loss + regularization_loss_core + regularization_loss_readout + trace_correlation_loss
+        #self.log("trace_correlation_loss", trace_correlation_loss)
+        #print(f"{trace_correlation_loss.item()=}")
+        total_loss = loss + regularization_loss_core + regularization_loss_readout # + trace_correlation_loss
 
         return total_loss
 
