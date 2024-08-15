@@ -5,6 +5,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from einops import rearrange
 from jaxtyping import Float
 from neuralpredictors.layers.readouts import MultiReadoutBase, Readout
 from scipy.fftpack import fft
@@ -14,6 +15,7 @@ from tqdm.auto import tqdm
 
 from .dataloaders import MovieAndMetadataDataSet, MovieSampler
 from .dev_models import (  # ! TODO: move the model to dev models once done developing.
+    ConditionedGRUCore,
     GRUEnabledCore,
     get_dims_for_loader_dict,
     get_module_output,
@@ -92,7 +94,7 @@ def transfer_readout_mask(
     if return_masks:
         masks = {}
     for name, param in source_model.named_parameters():
-        if "readout" in name and "mask" in name:
+        if "readout" in name and "mask" in name and "mask_" not in name:
             if ignore_source_key_suffix is not None:
                 split_name = name.split(".")
                 session_key = split_name[1]
@@ -305,7 +307,7 @@ class ReadoutWeightShifter(nn.Module):
         categorical_inputs: List[Float[torch.Tensor, "batch n_neurons"]],
         numerical_input: Float[torch.Tensor, "batch n_neurons n_features"],
     ) -> Float[torch.Tensor, "n_neurons n_features"]:
-        # Batch dimensions is redundant, as all neuron come from the same session, so we remove it
+        # Batch dimensions is redundant, as all neuron come from the same session (with current loaders), so we remove it
         # TODO: consider if this is the best way to handle this: can also reshape neurons and batch together
         categorical_inputs = [categorical_input[0] for categorical_input in categorical_inputs]
         numerical_input = numerical_input[0]
@@ -332,16 +334,18 @@ class ReadoutWeightShifter(nn.Module):
         return self.final_nonlinearity(self.output_layer(x))
 
 
-class FrozenFactorisedReadout2d(Readout):
+class FrozenFactorisedReadout3d(Readout):
     def __init__(
         self,
         in_shape,
         outdims,
         positive=False,
         nonlinearity=True,
-        attention=True,
+        neurons_attention=True,
+        time_attention=False,
         return_channels=False,
-        attention_kwargs: Optional[dict] = None,
+        neurons_attention_kwargs: Optional[dict] = None,
+        time_attention_kwargs: Optional[dict] = None,
         **kwargs,
     ):
         """
@@ -357,8 +361,10 @@ class FrozenFactorisedReadout2d(Readout):
             from_gaussian (bool, optional): Whether the masks are coming from a readout with Gaussian masks.
                                             Defaults to False.
             positive (bool, optional): Whether the output should be positive. Defaults to False.
-            scale (bool, optional): Whether to include a scale parameter. Defaults to False.
-            nonlinearity (bool, optional): Whether to include a nonlinearity. Defaults to True.
+            nonlinearity (bool, optional): Whether to include a final softplus nonlinearity. Defaults to True.
+            neurons_attention (bool, optional): Whether to include self-attention over neurons. Defaults to True.
+            time_attention (bool, optional): Whether to include self-attention over time. Defaults to False.
+            return_channels (bool, optional): Whether to return the output over channels, before ELU. Defaults to False.
         """
         super().__init__()
         self.in_shape = in_shape
@@ -366,14 +372,31 @@ class FrozenFactorisedReadout2d(Readout):
         self.outdims = outdims
         self.positive = positive
         self.nonlinearity = nonlinearity
-        self.attention = attention
+        self.neurons_attention = neurons_attention
+        self.time_attention = time_attention
         self.return_channels = return_channels
 
-        if self.attention:
-            self.embed_cell_classes = nn.Embedding(len(BADEN_GROUPS), c)
-            if attention_kwargs is None:
-                attention_kwargs = {"nhead": 2, "dim_feedforward": 32, "dropout": 0.1}
-            self.encoder_layer = nn.TransformerEncoderLayer(d_model=c, **attention_kwargs)
+        if self.neurons_attention:
+            # self.embed_cell_classes = nn.Embedding(len(BADEN_GROUPS), c)
+            if neurons_attention_kwargs is None:
+                neurons_attention_kwargs = {"nhead": 2, "dim_feedforward": 32, "dropout": 0.1}
+            self.encoder_layer = nn.TransformerEncoderLayer(d_model=c, **neurons_attention_kwargs)
+
+        if self.time_attention:
+            # For time dependent attention, we need to add positional encoding
+            max_len = 2000
+            d_model = c
+            # Create the positional encoding matrix
+            position = torch.arange(max_len).unsqueeze(1)
+            div_term = torch.exp(torch.arange(0, d_model, 2) * (-torch.log(torch.tensor(10000.0)) / d_model))
+            pe = torch.zeros(max_len, 1, d_model)
+            pe[:, 0, 0::2] = torch.sin(position * div_term)
+            pe[:, 0, 1::2] = torch.cos(position * div_term)
+            self.register_buffer("pe", pe)
+            if time_attention_kwargs is None:
+                time_attention_kwargs = {"nhead": 2, "dim_feedforward": 32, "dropout": 0.1}
+
+            self.time_encoder_layer = nn.TransformerEncoderLayer(d_model=c, **time_attention_kwargs)
 
     def initialize(self, *args, **kwargs):
         """
@@ -383,19 +406,19 @@ class FrozenFactorisedReadout2d(Readout):
 
     def forward(
         self,
-        x: Float[torch.Tensor, "batch channels width height"],
-        features: Float[torch.Tensor, "batch channels neurons"],
+        x: Float[torch.Tensor, "batch time channels width height"],
+        features: Float[torch.Tensor, "batch time channels neurons"],
         spatial_masks: Float[torch.Tensor, "width height neurons"],
-        cell_classes: Float[torch.Tensor, "batch neurons"],
         scale: Optional[Float[torch.Tensor, " neurons"]] = None,
         bias: Optional[Float[torch.Tensor, " neurons"]] = None,
         subs_idx=None,
-    ):
-        b, c, w, h = x.size()
+    ) -> Float[torch.Tensor, "batch time neurons"] | Float[torch.Tensor, "batch time channels neurons"]:
+        b, t, c, w, h = x.size()
 
         assert features.shape[-1] == self.outdims, "Number of neurons in features does not match outdims"
 
-        features = features.view(b, c, self.outdims)
+        features = features.reshape(b * t, c, self.outdims)
+        x = x.reshape(b * t, c, w, h)
 
         if self.positive:
             torch.clamp(features, min=0.0)
@@ -417,28 +440,30 @@ class FrozenFactorisedReadout2d(Readout):
         if bias is not None:
             y = y + bias if subs_idx is None else y + bias[subs_idx]
 
-        if self.attention:
-            # Compute embedding for neuron class, and add to the output
-            embed_cell_classes = self.embed_cell_classes(cell_classes)
-
-            # If batch dim includes time, need to expand the embedding to match the output
-            if embed_cell_classes.size(0) != b:
-                time = y.size(0) // embed_cell_classes.size(0)
-                neurons = y.size(-1)
-                embed_cell_classes = embed_cell_classes.unsqueeze(1).expand(-1, time, -1, -1).reshape(-1, neurons, c)
-
-            y = y + embed_cell_classes.transpose(1, 2)
-
-            # y is now (batch, channels, neurons), need to reshape to do attention on neurons.
-            y = y.permute(2, 0, 1)
+        if self.neurons_attention:
+            # y is now (batch * time, channels, neurons), need to reshape to do attention on neurons.
+            y = rearrange(y, "bt c n -> n bt c")
 
             # Compute self attention
             y = self.encoder_layer(y)
 
-            # Reshape back to (batch, channels, neurons)
-            y = y.permute(1, 2, 0)
+            # Reshape back to (batch*time, channels, neurons)
+            y = rearrange(y, "n bt c -> bt c n")
+
+        if self.time_attention:
+            # Extract time and put neurons in batch
+            y = rearrange(y, "(b t) c n -> t (b n) c", b=b)
+
+            # Add positional encoding for time
+            y = y + self.pe[:t, ...]
+
+            y = self.time_encoder_layer(y)
+
+            # Reshape back to (batch*time, channels, neurons) to preapare for output
+            y = rearrange(y, "t (b n) c -> (b t) c n", b=b)
 
         if self.return_channels:
+            y = y.view(b, t, c, self.outdims)
             return y
 
         # Sum over channels
@@ -447,12 +472,13 @@ class FrozenFactorisedReadout2d(Readout):
         if self.nonlinearity:
             y = F.softplus(y)
 
+        y = y.view(b, t, self.outdims)
+
         return y
 
     def __repr__(self):
         c, h, w = self.in_shape
-        r = f"{self.__class__.__name__} (" + f"{c} x {w} x {h}" + " -> " + str(self.outdims) + ")"
-        return
+        return f"{self.__class__.__name__} (" + f"{c} x {w} x {h}" + " -> " + str(self.outdims) + ")"
 
 
 class MultipleFrozenFactorisedReadout2d(MultiReadoutBase):
@@ -465,7 +491,7 @@ class MultipleFrozenFactorisedReadout2d(MultiReadoutBase):
         super().__init__(
             in_shape_dict,
             n_neurons_dict,
-            base_readout=FrozenFactorisedReadout2d,
+            base_readout=FrozenFactorisedReadout3d,
             **readout_kwargs,
         )
         for kwarg in readout_kwargs:
@@ -487,12 +513,14 @@ class ShifterVideoEncoder(nn.Module):
         readout,
         readout_shifter: ReadoutWeightShifter,
         readout_mask_dict: Optional[Dict[str, torch.Tensor]] = None,
+        core_conditioning: bool = False,
     ):
         super().__init__()
         self.core = core
         self.readout = readout
         self.readout_shifter = readout_shifter
         self.detach_core = False
+        self.core_conditioning = core_conditioning
 
         if readout_mask_dict is not None:
             self.set_readout_mask_dict(readout_mask_dict)
@@ -553,18 +581,7 @@ class ShifterVideoEncoder(nn.Module):
         return_features=False,
         **kwargs,
     ):
-        self.detach_core = detach_core
-        # We should not pass data specific information to the core.
-        x = self.core(x)
-        if self.detach_core:
-            x = x.detach()
-
         feature_weights = self.readout_shifter(categorical_metadata, numerical_metadata)
-
-        # Cell types are assumed to be always the first passed categorical metadata
-        cell_types = categorical_metadata[0]
-
-        baden_groups = self.extract_baden_group_from_tensor(cell_types)
 
         # Extract the scale and bias if they are learned
         if self.readout_shifter.learn_scale:
@@ -579,10 +596,24 @@ class ShifterVideoEncoder(nn.Module):
         else:
             readout_bias = None
 
-        # Make time the second dimension again for the readout
+        self.detach_core = detach_core
+
+        # We should not pass data specific information to the core, as it is session-independent,
+        # unless conditioning is requested (i.e. the model version with session information)
+        if self.core_conditioning:
+            x = self.core(
+                x,
+                ...,  # TODO
+            )
+        else:
+            x = self.core(x)
+        if self.detach_core:
+            x = x.detach()
+
+        # Make time the second dimension for the readout
         x = torch.transpose(x, 1, 2)
 
-        # Get dims for later reshaping
+        # Get dims for reshaping features
         batch_size = x.shape[0]
         time_points = x.shape[1]
 
@@ -592,23 +623,16 @@ class ShifterVideoEncoder(nn.Module):
         # Repeat the feature weights for each time point
         feature_weights = feature_weights.unsqueeze(0).unsqueeze(0).repeat(batch_size, time_points, 1, 1)
 
-        # Treat time as an indipendent (batch) dimension for the readout
-        x = x.reshape(((-1,) + x.size()[2:]))
-
         # Even though the readout can be session-independent, it is going to be used
         # in a multiple-readout context during training, so we need to pass the data_key
         x = self.readout(
             x,
             feature_weights,
             spatial_masks=self.readout_mask_dict[data_key],  # type: ignore
-            cell_classes=baden_groups,
             scale=readout_scale,
             bias=readout_bias,
             data_key=data_key,
         )
-
-        # Reshape back to the correct dimensions before returning
-        x = x.reshape(((batch_size, time_points) + x.size()[1:]))
 
         # Return the features if requested, used in regularisation
         return (x, feature_weights[0, 0, ...]) if return_features else x
@@ -618,7 +642,7 @@ def conv_core_frozen_readout(
     dataloaders,
     seed,
     readout_mask_from: nn.Module,
-    hidden_channels: Tuple[int, ...] = (8,),  # core args
+    hidden_channels: Tuple[int, ...] = (8,),
     temporal_kernel_size: Tuple[int, ...] = (21,),
     spatial_kernel_size: Tuple[int, ...] = (11,),
     layers: int = 1,
@@ -636,7 +660,8 @@ def conv_core_frozen_readout(
     laplace_padding: Optional[int] = None,
     readout_scale: bool = False,
     readout_bias: bool = False,
-    readout_attention: bool = False,
+    readout_neurons_attention: bool = False,
+    readout_time_attention: bool = False,
     shifter_num_numerical_features: int = 5,
     shifter_categorical_vocab_sizes: Tuple[int, ...] = (47,),
     shifter_categorical_embedding_dims: Tuple[int, ...] = (10,),
@@ -653,13 +678,21 @@ def conv_core_frozen_readout(
     conv_type: Literal["full", "separable", "custom_separable", "time_independent"] = "custom_separable",
     use_gru: bool = False,
     use_projections: bool = False,
-    gru_kwargs: dict = {},
-    readout_attn_kwargs: dict = {},
+    gru_kwargs: Optional[dict] = None,
+    readout_neurons_attention_kwargs: Optional[dict] = None,
+    readout_time_attention_kwargs: Optional[dict] = None,
     **kwargs,
 ):
     """
     TODO docstring
     """
+
+    if gru_kwargs is None:
+        gru_kwargs = {}
+    if readout_neurons_attention_kwargs is None:
+        readout_neurons_attention_kwargs = {}
+    if readout_time_attention_kwargs is None:
+        readout_time_attention_kwargs = {}
 
     # make sure trainloader is being used
     if data_info is not None:
@@ -685,7 +718,6 @@ def conv_core_frozen_readout(
 
     set_seed(seed)
 
-    # get a stacked factorized 3d core from below
     core = GRUEnabledCore(
         n_neurons_dict=n_neurons_dict,
         input_channels=input_channels[0],
@@ -700,7 +732,7 @@ def conv_core_frozen_readout(
         gamma_temporal=gamma_temporal,
         final_nonlinearity=final_nonlinearity,
         bias=core_bias,
-        momentum=momentum,
+        batch_norm_momentum=momentum,
         input_padding=input_padding,
         hidden_padding=hidden_padding,
         batch_norm=batch_norm,
@@ -722,9 +754,11 @@ def conv_core_frozen_readout(
         in_shape_dict=in_shapes_readout,
         n_neurons_dict=n_neurons_dict,
         nonlinearity=True,
-        attention=readout_attention,
+        neurons_attention=readout_neurons_attention,
+        time_attention=readout_time_attention,
         return_channels=False,
-        attention_kwargs=readout_attn_kwargs,
+        neurons_attention_kwargs=readout_neurons_attention_kwargs,
+        time_attention_kwargs=readout_time_attention_kwargs,
     )
 
     readout_shifter = ReadoutWeightShifter(
