@@ -10,6 +10,7 @@ torchaudio
 torchvision
 lightning
 wandb
+hydra-core
 # Type Checks
 ruff
 mypy>=1.0
