@@ -398,7 +398,7 @@ class SpatialXFeature3d(nn.Module):
             self.mask_mean = torch.nn.Parameter(data=torch.zeros(self.outdims, 2), requires_grad=True)
             self.mask_log_var = torch.nn.Parameter(data=torch.zeros(self.outdims), requires_grad=True)
             self.grid = torch.nn.Parameter(data=self.make_mask_grid(w, h), requires_grad=False)
-            self.masks = self.normal_pdf().permute(1, 2, 0)
+            self.masks = torch.nn.Parameter(self.normal_pdf().permute(1, 2, 0), requires_grad=False)
         else:
             if initialize_from_roi_masks:
                 self.mask_mean = torch.nn.Parameter(data=roi_mask, requires_grad=False)
@@ -481,7 +481,7 @@ class SpatialXFeature3d(nn.Module):
 
     def get_masks(self) -> torch.Tensor:
         if self.gaussian_masks:
-            return self.normal_pdf().permute(1, 2, 0)
+            return torch.nn.Parameter(self.normal_pdf().permute(1, 2, 0), requires_grad=False)
         else:
             return self.masks.abs_()
 
