@@ -344,3 +344,34 @@ def filter_empty_videos(batch):
     # Filter out empty videos
     batch = [x for x in batch if x[0].shape[1] > 0]
     return default_collate(batch)
+
+
+def extract_data_info_from_dataloaders(
+    dataloaders: Dict[str, Dict[str, Any]] | Dict[str, Any],
+) -> Dict[str, Dict[str, Any]]:
+    """
+    Extracts the data_info dictionary from the provided dataloaders.
+
+    Args:
+        dataloaders: A dictionary of dataloaders for different sessions.
+
+    Returns:
+        data_info: A dictionary containing input_dimensions, input_channels, and output_dimension for each session.
+    """
+    # Ensure train loader is used if available and not provided directly
+    dataloaders = dataloaders.get("train", dataloaders)
+
+    # Obtain the named tuple fields from the first entry of the first dataloader in the dictionary
+    in_name, out_name, *_ = next(iter(list(dataloaders.values())[0]))._fields
+
+    # Get the input and output dimensions for each session
+    session_shape_dict = get_dims_for_loader_dict(dataloaders)
+
+    return {
+        session_key: {
+            "input_dimensions": session_shape_dict[session_key][in_name],  # Input shape
+            "input_channels": session_shape_dict[session_key][in_name][1],  # Channel dimension
+            "output_dimension": session_shape_dict[session_key][out_name][-1],  # Last dimension (neurons)
+        }
+        for session_key in session_shape_dict.keys()
+    }
