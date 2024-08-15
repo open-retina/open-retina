@@ -798,7 +798,7 @@ class STSeparableBatchConv3d(nn.Module):
         for key, val in log_speed_dict.items():
             setattr(self, key, val)
 
-    def forward(self, input_: tuple[torch.Tensor, str]) -> torch.Tensor:
+    def forward(self, input_: tuple[torch.Tensor, str] | torch.Tensor) -> torch.Tensor:
         """
         Forward pass of the STSeparableBatchConv3d layer.
 
@@ -808,7 +808,11 @@ class STSeparableBatchConv3d(nn.Module):
         Returns:
             torch.Tensor: The output of the convolution.
         """
-        x, data_key = input_
+        if type(input_) is torch.Tensor:
+            x = input_
+            data_key: str | None = None
+        else:
+            x, data_key = input_
 
         # Compute temporal kernel based on the provided data key
         if data_key is None:
