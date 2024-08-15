@@ -757,8 +757,8 @@ def filter_responses(
             f"classifier confidences below {classifier_confidence}"
         )
         print_verbose(
-            f"Overall, dropped {dropped_n_classifier} neurons with classifier confidences below {classifier_confidence} "
-            f"(-{dropped_n_classifier / get_n_neurons(all_rgcs_responses_ct_filtered):.2%})."
+            f"Overall, dropped {dropped_n_classifier} neurons with classifier confidences below {classifier_confidence}"
+            f" (-{dropped_n_classifier / get_n_neurons(all_rgcs_responses_ct_filtered):.2%})."
         )
         print_verbose(" ------------------------------------ ")
     else:
