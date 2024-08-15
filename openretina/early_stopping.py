@@ -2,10 +2,10 @@
 Copied from sinzlab/neuralpredictors/training/early_stopping.py
 """
 
-from typing import Generator
 import copy
 import logging
 from collections import OrderedDict
+from typing import Generator
 
 import numpy as np
 import torch
@@ -48,7 +48,6 @@ def early_stopping(
     scheduler=None,
     lr_decay_steps: int = 1,
 ) -> Generator:
-
     """
     Early stopping iterator. Keeps track of the best model state during training. Resets the model to its
         best state, when either the number of maximum epochs or the patience [number of epochs without improvement)
@@ -93,7 +92,7 @@ def early_stopping(
             model.train(training_status)
         return ret
 
-    def decay_lr(model, best_state_dict) -> None:
+    def restore_best_after_decay(model, best_state_dict) -> None:
         old_objective = _objective()
         if restore_best:
             model.load_state_dict(best_state_dict)
@@ -117,7 +116,6 @@ def early_stopping(
         patience_counter = 0
 
         while patience_counter < patience and epoch < max_iter:
-
             for _ in range(interval):
                 epoch += 1
                 if tracker is not None:
@@ -144,6 +142,6 @@ def early_stopping(
                 logger.info(f"[{epoch:03d}|{patience_counter:02d}/{patience:02d}] ---> {current_objective}")
 
         if (epoch < max_iter) & (lr_decay_steps > 1) & (repeat < lr_decay_steps):
-            decay_lr(model, best_state_dict)
+            restore_best_after_decay(model, best_state_dict)
 
     finalize(model, best_state_dict)
