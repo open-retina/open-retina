@@ -7,7 +7,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from neuralpredictors import regularizers  # type: ignore
 from neuralpredictors.layers.readouts import (  # type: ignore
     FullGaussian2d,
@@ -19,11 +18,11 @@ from neuralpredictors.utils import get_module_output  # type: ignore
 from openretina.dataloaders import get_dims_for_loader_dict
 from openretina.hoefling_2024.models import (
     Bias3DLayer,
-    Scale2DLayer,
-    Scale3DLayer,
     Core3d,
     Encoder,
     FlatLaplaceL23dnorm,
+    Scale2DLayer,
+    Scale3DLayer,
     STSeparableBatchConv3d,
     TimeIndependentConv3D,
     TimeLaplaceL23dnorm,
@@ -32,6 +31,7 @@ from openretina.hoefling_2024.models import (
     compute_temporal_kernel,
     temporal_smoothing,
 )
+
 from .utils.misc import set_seed
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -188,11 +188,11 @@ class GRUEnabledCore(Core3d, nn.Module):
         gamma_temporal=0.0,
         final_nonlinearity=True,
         bias=True,
-        momentum=0.1,
         input_padding=False,
         hidden_padding=True,
         batch_norm=True,
         batch_norm_scale=True,
+        batch_norm_momentum=0.1,
         laplace_padding: Optional[int] = 0,
         batch_adaptation=True,
         use_avg_reg=False,
@@ -271,7 +271,7 @@ class GRUEnabledCore(Core3d, nn.Module):
         if batch_norm:
             layer["norm"] = nn.BatchNorm3d(
                 hidden_channels[0],  # type: ignore
-                momentum=momentum,
+                momentum=batch_norm_momentum,
                 affine=bias and batch_norm_scale,
             )  # ok or should we ensure same batch norm?
             if bias:
@@ -316,7 +316,7 @@ class GRUEnabledCore(Core3d, nn.Module):
             if batch_norm:
                 layer["norm"] = nn.BatchNorm3d(
                     hidden_channels[layer_num],
-                    momentum=momentum,
+                    momentum=batch_norm_momentum,
                     affine=bias and batch_norm_scale,
                 )
                 if bias:
@@ -595,7 +595,7 @@ def SFB3d_core_gaussian_readout(
         gamma_temporal=gamma_temporal,
         final_nonlinearity=final_nonlinearity,
         bias=core_bias,
-        momentum=momentum,
+        batch_norm_momentum=momentum,
         input_padding=input_padding,
         hidden_padding=hidden_padding,
         batch_norm=batch_norm,
@@ -892,4 +892,68 @@ class InverseCore(nn.Module):
     def forward(self, x):
         for layer in self.features:
             x = layer(x)
+        return x
+
+
+class FiLM(nn.Module):
+    """
+    FiLM (Feature-wise Linear Modulation) is a neural network module that applies
+    conditional scaling and shifting to input features.
+
+    This module takes input features and a conditioning tensor, computes scaling (gamma)
+    and shifting (beta) parameters from the conditioning tensor, and applies these parameters to
+    the input features. The result is a modulated output that can adapt based on the provided conditions.
+
+    Args:
+        num_features (int): The number of features in the input tensor.
+        cond_dim (int): The dimensionality of the conditioning tensor.
+
+    Returns:
+        Tensor: The modulated output tensor after applying the scaling and shifting.
+    """
+
+    def __init__(self, num_features, cond_dim):
+        super(FiLM, self).__init__()
+        self.num_features = num_features
+        self.cond_dim = cond_dim
+
+        self.fc_gamma = nn.Linear(cond_dim, num_features)
+        self.fc_beta = nn.Linear(cond_dim, num_features)
+
+        # To avoid perturbations in early epochs, we set these defaults to match the identity function
+        nn.init.normal_(self.fc_gamma.weight, mean=0.0, std=0.01)
+        nn.init.constant_(self.fc_gamma.bias, 1.0)
+
+        nn.init.normal_(self.fc_beta.weight, mean=0.0, std=0.01)
+        nn.init.constant_(self.fc_beta.bias, 0.0)
+
+    def forward(self, x, cond):
+        # View the conditioning tensor to match the input tensor shape
+        gamma = self.fc_gamma(cond).view(cond.size(0), self.num_features, *[1] * (x.dim() - 2))
+        beta = self.fc_beta(cond).view(cond.size(0), self.num_features, *[1] * (x.dim() - 2))
+
+        return gamma * x + beta
+
+
+class ConditionedGRUCore(GRUEnabledCore, nn.Module):
+    def __init__(self, cond_dim, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.cond_dim = cond_dim
+
+        for i, layer in enumerate(self.features):
+            if hasattr(layer, "conv"):
+                setattr(self, f"film_{i}", FiLM(self.hidden_channels[i], self.cond_dim))
+
+    def forward(self, x, conditioning, data_key=None):
+        for layer_num, feat in enumerate(self.features):
+            x = feat(
+                (
+                    x,
+                    data_key,
+                )
+            )
+            if hasattr(feat, "conv"):
+                x = getattr(self, f"film_{layer_num}")(x, conditioning)
+
         return x
