@@ -8,6 +8,7 @@ import lightning
 from openretina.measures import PoissonLoss3d, CorrelationLoss3d
 from openretina.dataloaders import DataPoint
 from openretina.hoefling_2024.models import STSeparableBatchConv3d, Bias3DLayer, temporal_smoothing
+from openretina.correlation_loss import simple_mean_variance_loss, calculate_pairwise_correlations
 
 
 class SimpleSpatialXFeature3d(torch.nn.Module):
@@ -47,8 +48,11 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         self.mask_log_var = torch.nn.Parameter(data=torch.zeros(self.outdims), requires_grad=True)
         self.grid = torch.nn.Parameter(data=self.make_mask_grid(outdims, w, h), requires_grad=False)
 
-        self.features = nn.Parameter(torch.ones((1, c, 1, outdims)) / c)
+        self.features = nn.Parameter(torch.Tensor(1, c, 1, outdims))
+        self.features.data.normal_(0.0, 0.01)
         self.scale_param = nn.Parameter(torch.ones(outdims), requires_grad=scale)
+        if scale:
+            self.scale_param.data.normal_(1.0, 0.01)
         self.bias_param = nn.Parameter(torch.zeros(outdims), requires_grad=bias)
 
     def feature_l1(self, average: bool = False) -> torch.Tensor:
@@ -204,7 +208,7 @@ class CoreWrapper(torch.nn.Module):
                 temporal_kernel_size=temporal_kernel_sizes[layer_id],
                 spatial_kernel_size=spatial_kernel_sizes[layer_id],
                 bias=False,
-                padding=0,
+                padding="same",
             )
             layer["norm"] = nn.BatchNorm3d(num_out_channels, momentum=0.1, affine=True)
             layer["bias"] = Bias3DLayer(num_out_channels)
@@ -280,6 +284,7 @@ class CoreReadout(lightning.LightningModule):
     def forward(self, x: torch.Tensor, session_id: str) -> torch.Tensor:
         output_core = self.core(x)
         output_readout = self.readout_layers(output_core, data_key=session_id)
+        print(session_id)
         return output_readout
 
     def training_step(self, batch: tuple[str, DataPoint], batch_idx: int) -> torch.Tensor:
@@ -288,10 +293,13 @@ class CoreReadout(lightning.LightningModule):
         loss = self.loss.forward(model_output, data_point.targets)
         regularization_loss_core = self.core.regularizer()
         regularization_loss_readout = self.readout_layers.regularizer(session_id)
+        trace_correlation_loss = simple_mean_variance_loss(model_output)
+        print(f"{trace_correlation_loss=}")
         self.log("loss", loss)
         self.log("regularization_loss_core", regularization_loss_core)
         self.log("regularization_loss_readout", regularization_loss_readout)
-        total_loss = loss + regularization_loss_core + regularization_loss_readout
+        self.log("trace_correlation_loss", trace_correlation_loss)
+        total_loss = loss + regularization_loss_core + regularization_loss_readout + trace_correlation_loss
 
         return total_loss
 
@@ -300,8 +308,12 @@ class CoreReadout(lightning.LightningModule):
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
         correlation = -self.correlation_loss.forward(model_output, data_point.targets)
+        traces_correlations = calculate_pairwise_correlations(model_output)
+
         self.log("val_loss", loss, logger=True, prog_bar=True)
         self.log("val_correlation", correlation, logger=True, prog_bar=True)
+        self.log("mean", traces_correlations.mean(), logger=True, prog_bar=True)
+        self.log("var", traces_correlations.var(), logger=True, prog_bar=True)
 
         return loss
 
@@ -310,9 +322,12 @@ class CoreReadout(lightning.LightningModule):
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
         correlation = -self.correlation_loss.forward(model_output, data_point.targets)
+        traces_correlations = calculate_pairwise_correlations(model_output)
         self.log_dict({
             "test_loss": loss,
             "test_correlation": correlation,
+            "mean": traces_correlations.mean(),
+            "var": traces_correlations.var()
         })
 
         return loss

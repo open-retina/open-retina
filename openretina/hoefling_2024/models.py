@@ -753,7 +753,7 @@ class STSeparableBatchConv3d(nn.Module):
         spatial_kernel_size: int,
         spatial_kernel_size2: int | None = None,
         stride: int = 1,
-        padding: int = 0,
+        padding: int | str | tuple[int, ...] = 0,
         num_scans: int = 1,
         bias: bool = True,
     ):
@@ -1056,9 +1056,9 @@ class LocalEncoder(Encoder):
             for name, param in self.core.features.named_parameters():
                 if name.find("speed") < 0:
                     param.requires_grad = False
-        x = self.core(x, data_key=data_key)
-        x = self.readout(x, data_key=data_key)
-        return x
+        x_core = self.core(x, data_key=data_key)
+        x_readout = self.readout(x_core, data_key=data_key)
+        return x_readout
 
 
 # Batch adaption model
