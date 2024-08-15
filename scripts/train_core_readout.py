@@ -5,9 +5,8 @@ import pickle
 
 import torch
 import lightning
-from lightning.pytorch.loggers import CSVLogger, TensorBoardLogger
-from omegaconf import DictConfig, OmegaConf
 import hydra
+from omegaconf import DictConfig
 
 from openretina.cyclers import LongCycler
 from openretina.hoefling_2024.data_io import (

@@ -798,7 +798,7 @@ class STSeparableBatchConv3d(nn.Module):
         for key, val in log_speed_dict.items():
             setattr(self, key, val)
 
-    def forward(self, input_: tuple[torch.Tensor, str]) -> torch.Tensor:
+    def forward(self, input_: tuple[torch.Tensor, str] | torch.Tensor) -> torch.Tensor:
         """
         Forward pass of the STSeparableBatchConv3d layer.
 

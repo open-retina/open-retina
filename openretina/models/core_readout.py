@@ -311,15 +311,14 @@ class CoreReadout(lightning.LightningModule):
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
         correlation = -self.correlation_loss.forward(model_output, data_point.targets)
         self.log_dict({
-            f"test_loss": loss,
-            f"test_correlation": correlation,
+            "test_loss": loss,
+            "test_correlation": correlation,
         })
 
         return loss
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
-        lr_decay_steps = 5
         lr_decay_factor = 0.3
         patience = 5
         tolerance = 0.0005
