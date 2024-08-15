@@ -22,14 +22,8 @@ dataloader:
   batch_size: null
   num_workers: 0
 
-    
 loggers:
   csv:
     _target_: lightning.pytorch.loggers.CSVLogger
   tensorboard:
     _target_: lightning.pytorch.loggers.TensorBoardLogger
-
-
-
-
-
