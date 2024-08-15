@@ -1,5 +1,6 @@
 from collections import OrderedDict
 
+from typing import Iterable
 import torch
 from torch import nn
 import lightning
@@ -241,10 +242,10 @@ class CoreReadout(lightning.LightningModule):
     def __init__(
             self,
             in_channels: int,
-            features_core: tuple[int, ...],
-            temporal_kernel_sizes: tuple[int, ...],
-            spatial_kernel_sizes: tuple[int, ...],
-            in_shape: tuple[int, int, int, int],
+            features_core: Iterable[int],
+            temporal_kernel_sizes: Iterable[int],
+            spatial_kernel_sizes: Iterable[int],
+            in_shape: Iterable[int],
             n_neurons_dict: dict[str, int],
             scale: bool,
             bias: bool,
@@ -259,13 +260,13 @@ class CoreReadout(lightning.LightningModule):
     ):
         super().__init__()
         self.core = CoreWrapper(
-            channels=(in_channels, ) + features_core,
-            temporal_kernel_sizes=temporal_kernel_sizes,
-            spatial_kernel_sizes=spatial_kernel_sizes,
+            channels=(in_channels, ) + tuple(features_core),
+            temporal_kernel_sizes=tuple(temporal_kernel_sizes),
+            spatial_kernel_sizes=tuple(spatial_kernel_sizes),
         )
         # Run one forward path to determine output shape of core
-        core_test_output = self.core.forward(torch.zeros((1, ) + in_shape))
-        in_shape_readout: tuple[int, int, int, int] =  core_test_output.shape[1:]  # type: ignore
+        core_test_output = self.core.forward(torch.zeros((1, ) + tuple(in_shape)))
+        in_shape_readout: tuple[int, int, int, int] = core_test_output.shape[1:]  # type: ignore
         print(f"{in_shape_readout=}")
 
         self.readout_layers = ReadoutWrapper(
