@@ -27,3 +27,12 @@ loggers:
     _target_: lightning.pytorch.loggers.CSVLogger
   tensorboard:
     _target_: lightning.pytorch.loggers.TensorBoardLogger
+
+training_callbacks:
+  early_stopping:
+    _target_: lightning.pytorch.callbacks.early_stopping.EarlyStopping
+    monitor: "val_correlation"
+    min_delta: 0.001
+    patience: 15
+    verbose: True
+    mode: "max"
