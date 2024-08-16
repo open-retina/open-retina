@@ -100,7 +100,7 @@ def standard_early_stop_trainer(
             threshold_mode="abs",
         )
     else:
-        lr_scheduler = scheduler(optimizer, **(scheduler_kwargs or {})) if scheduler is not None else None
+        lr_scheduler = scheduler(optimizer, **(scheduler_kwargs or {})) if scheduler is not None else None  # type: ignore
 
     # set the number of iterations over which you would like to accummulate gradients
     # will be equal to number of sessions (dict keys) if not specified, which combined with
@@ -140,7 +140,7 @@ def standard_early_stop_trainer(
         position=0,
         leave=True,
     ):
-        epoch_loss = 0
+        epoch_loss: int | float = 0
 
         # print the quantities from tracker
         if verbose and tracker is not None:
@@ -188,7 +188,7 @@ def standard_early_stop_trainer(
                 optimizer.zero_grad()
 
             if isinstance(lr_scheduler, torch.optim.lr_scheduler.OneCycleLR):
-                lr_scheduler.step()
+                lr_scheduler.step()  # type: ignore
 
             if np.isnan(loss.item()):
                 raise ValueError(f"Loss is NaN on batch {batch_no} from {data_key}, stopping training.")
