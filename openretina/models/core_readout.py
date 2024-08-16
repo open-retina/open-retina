@@ -207,7 +207,7 @@ class CoreWrapper(torch.nn.Module):
                 temporal_kernel_size=temporal_kernel_sizes[layer_id],
                 spatial_kernel_size=spatial_kernel_sizes[layer_id],
                 bias=False,
-                padding="same",
+                padding=0,
             )
             layer["norm"] = nn.BatchNorm3d(num_out_channels, momentum=0.1, affine=True)
             layer["bias"] = Bias3DLayer(num_out_channels)
