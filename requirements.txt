@@ -11,11 +11,7 @@ torchaudio
 torchvision
 lightning
 wandb
-<<<<<<< Updated upstream
-=======
-hydra-core
 h5py
->>>>>>> Stashed changes
 # Type Checks
 ruff
 mypy>=1.0
