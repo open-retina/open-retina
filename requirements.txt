@@ -1,15 +1,21 @@
 IPython
 jaxtyping
 matplotlib
-numpy
+numpy<2.0  # h5py loading does not work with 2.0
 pandas
 seaborn
 scipy
+tensorboard
 torch
 torchaudio
 torchvision
 lightning
 wandb
+<<<<<<< Updated upstream
+=======
+hydra-core
+h5py
+>>>>>>> Stashed changes
 # Type Checks
 ruff
 mypy>=1.0
