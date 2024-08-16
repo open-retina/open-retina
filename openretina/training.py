@@ -46,7 +46,7 @@ def standard_early_stop_trainer(
     seed: int,
     objective_function: Callable[..., torch.Tensor] = standard_full_objective,
     optimizer: torch.optim.Optimizer = torch.optim.Adam,  # type: ignore
-    scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
+    scheduler: Optional[type[torch.optim.lr_scheduler.LRScheduler]] = None,
     reduce_lr_on_plateau: bool = True,
     scale_loss: bool = True,  # trainer args
     loss_function: str = "PoissonLoss3d",

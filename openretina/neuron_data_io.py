@@ -2,7 +2,7 @@ import pickle
 import warnings
 from collections import defaultdict, namedtuple
 from copy import deepcopy
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Literal, Optional, no_type_check
 
 import numpy as np
 import torch
@@ -70,7 +70,7 @@ class NeuronGroupMembersStore:
         new_neuron_list: List[SingleNeuronInfoStruct] = []
         for session_id, dataloader in dataloader_dict.items():
             batches_targets = torch.concat([x.targets for x in dataloader], dim=0)
-            targets = torch.concat([x for x in batches_targets], dim=0)
+            targets = torch.concat(list(batches_targets), dim=0)
             means = targets.mean(dim=0)
             targets_centered = targets - means
             std = targets_centered.std(dim=0)
@@ -96,7 +96,7 @@ class NeuronGroupMembersStore:
                     )
                     new_neuron_list.append(neuron)
 
-        diff_neurons = set(n.neuron_id for n in self._all_neurons) - set(n.neuron_id for n in new_neuron_list)
+        diff_neurons = {n.neuron_id for n in self._all_neurons} - {n.neuron_id for n in new_neuron_list}
         if len(diff_neurons) > 0:
             raise ValueError(f"Could not find mean and std for {len(diff_neurons)} neurons")
         self.reset()
@@ -233,9 +233,9 @@ class NeuronData:
         self.neural_responses = responses_final
 
         self.num_neurons = (
-            self.neural_responses.shape[0]
-            if not isinstance(self.neural_responses, dict)
-            else self.neural_responses["train"].shape[0]
+            self.neural_responses["train"].shape[0]
+            if isinstance(self.neural_responses, dict)
+            else self.neural_responses.shape[0]
         )
 
         self.eye = eye if eye is not None else "right"
@@ -243,7 +243,7 @@ class NeuronData:
         self.key = key
         self.roi_ids = roi_ids
         self.roi_coords = (
-            torch.tensor(self.transform_roi_mask(roi_mask), dtype=torch.float32) if roi_mask is not None else None
+            np.array(self.transform_roi_mask(roi_mask), dtype=np.float32) if roi_mask is not None else None
         )
         self.scan_sequence_idx = scan_sequence_idx
         self.stim_id = stim_id
@@ -252,7 +252,6 @@ class NeuronData:
         self.clip_length = clip_length
         self.num_clips = num_clips
         self.random_sequences = random_sequences if random_sequences is not None else np.array([])
-        self.val_clip_idx = val_clip_idx
         self.use_base_sequence = use_base_sequence
 
     # this has to become a regular method in the future!
@@ -274,6 +273,10 @@ class NeuronData:
             self.responses_train = self.neural_responses.T
 
         else:
+            assert self.clip_length is not None, "Clip length must be provided for natural scenes"
+            assert self.num_clips is not None, "Number of clips must be provided for natural scenes"
+            assert self.val_clip_idx is not None, "Validation clip indices must be provided for natural scenes"
+
             self.responses_test = np.zeros((5 * self.clip_length, self.num_neurons))
             self.responses_train_and_val = np.zeros((self.num_clips * self.clip_length, self.num_neurons))
 
@@ -310,6 +313,7 @@ class NeuronData:
             },
         }
 
+    @no_type_check
     def compute_validation_responses(self) -> None:
         movie_ordering = (
             np.arange(self.num_clips)
@@ -340,7 +344,6 @@ class NeuronData:
         if self.use_base_sequence:
             # Reorder training responses to use the same "base" sequence, which follows the numbering of clips.
             # This way all training responses are wrt the same order of clips, which can be useful for some applications
-
             train_clip_idx = [i for i in range(self.num_clips) if i not in self.val_clip_idx]
             self.responses_train = np.zeros([len(train_clip_idx) * self.clip_length, self.num_neurons])
             for i, train_idx in enumerate(train_clip_idx):
@@ -429,12 +432,7 @@ def upsample_traces(
     Raises:
         NotImplementedError: If the stimulus ID is not implemented.
     """
-    if stim_id == 5:
-        # Movie stimulus
-        # 4.966666 is the time between triggers in the movie stimulus.
-        # It is not exactly 5s because it is not a perfect world :)
-        upsampled_triggertimes = _upsample_triggertimes(4.9666667, 5, triggertimes, target_fr)
-    elif stim_id == 1:
+    if stim_id == 1:
         # Chirp: each chirp has two triggers, one at the start and one 5s later, after a 2s OFF and 3s full field ON.
         # We need only the first trigger of each chirp for the upsampling.
         # 32.98999999 is the total chirp duration in seconds. Should be 33 but there is a small discrepancy
@@ -444,6 +442,11 @@ def upsample_traces(
         # Moving bar: each bar has one trigger at the start of the bar stim. Bar duration is 4s.
         # It is a bit more because each trigger has a duration of 3 frames at 60Hz, so around 50 ms.
         upsampled_triggertimes = _upsample_triggertimes(4.054001, 4.1, triggertimes, target_fr)
+    elif stim_id == 5:
+        # Movie stimulus
+        # 4.966666 is the time between triggers in the movie stimulus.
+        # It is not exactly 5s because it is not a perfect world :)
+        upsampled_triggertimes = _upsample_triggertimes(4.9666667, 5, triggertimes, target_fr)
     else:
         raise NotImplementedError(f"Stimulus ID {stim_id} not implemented")
 
@@ -605,16 +608,16 @@ def make_final_responses(
         new_data_dict.keys(),
         desc=f"Upsampling {response_type} {trace_type} traces to get final responses.",
     ):
-        if trace_type == "spikes":
+        if trace_type == "detrended":
+            raw_traces = new_data_dict[field][f"{response_type}_raw_traces"]
+            smoothed_traces = new_data_dict[field][f"{response_type}_smoothed_traces"]
+            traces = raw_traces - smoothed_traces
+        elif trace_type == "spikes":
             try:
                 traces = new_data_dict[field][f"{response_type}_inferred_spikes"]
             except KeyError:
                 # For new data format
                 traces = new_data_dict[field][f"{response_type}_spikes"]
-        elif trace_type == "detrended":
-            raw_traces = new_data_dict[field][f"{response_type}_raw_traces"]
-            smoothed_traces = new_data_dict[field][f"{response_type}_smoothed_traces"]
-            traces = raw_traces - smoothed_traces
         else:
             traces = new_data_dict[field][f"{response_type}_{trace_type}_traces"]
 
