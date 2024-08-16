@@ -17,7 +17,8 @@ def parse_args():
 
     parser.add_argument("--model_path", type=str,
                         required=True, help="Path to the saved model")
-    parser.add_argument("--device", choices=["cpu", "cuda"], default="cuda")
+    parser.add_argument("--device", choices=["cpu", "cuda"],
+                        default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--data_folder", type=str, default=None,
                         help="Path to the base data folder")
 
