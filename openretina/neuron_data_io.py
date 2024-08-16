@@ -471,14 +471,14 @@ def _upsample_triggertimes(stim_empirical_duration, stim_theoretical_duration, t
     return upsampled_triggertimes
 
 
-def _apply_mask_to_field(data_dict, field, mask):
+def _apply_mask_to_field(data_dict: dict[str, dict], field: str, mask: Float[np.ndarray, " n_neurons"]) -> None:
     """
     Apply a mask to a specific field in a data dictionary.
 
     Args:
         data_dict (dict): A dictionary containing data fields.
         field (str): The field in the data dictionary to apply the mask to.
-        mask (np.ndarray): The mask to apply to the field.
+        mask (np.ndarray): The mask (assumed over neurons) to apply to each entry of the field.
 
     Returns:
         None
@@ -497,8 +497,10 @@ def _apply_mask_to_field(data_dict, field, mask):
                 data_dict[field][key] = data_dict[field][key][mask]
             elif len(data_dict[field][key].shape) == 2:
                 if data_dict[field][key].shape[0] == mask.shape[0]:
+                    # If neurons are in the first dimension of the target array
                     data_dict[field][key] = data_dict[field][key][mask, :]
                 else:
+                    # If neurons are in the second dimension of the target array
                     data_dict[field][key] = data_dict[field][key][:, mask]
             else:
                 raise IndexError(f"Index out of bounds for field {field} and key {key}.")
@@ -510,7 +512,8 @@ def _apply_qi_mask(data_dict, qi_types: list[str], qi_thresholds: list[float], l
 
     Args:
         data_dict (dict): The data dictionary.
-        qi_types (list): List of quality index types.
+        qi_types (list): List of quality index types. Supported types are 'd' and 'chirp', corresponding to the
+                        quality indices for the direction selectivity and chirp responses, respectively.
         qi_threshold (list): List of quality index thresholds.
         logic (str): The logic to combine different qi_types. Can be 'and' or 'or'. Default is 'and'.
 
@@ -521,12 +524,11 @@ def _apply_qi_mask(data_dict, qi_types: list[str], qi_thresholds: list[float], l
 
     if logic not in ["and", "or"]:
         raise ValueError("logic must be either 'and' or 'or'")
-    assert len(qi_types) == len(qi_thresholds), "qi_types and qi_thresholds must have the same length"
 
     for field in new_data_dict.keys():
         masks = [
             new_data_dict[field][f"{qi_type}_qi"] >= qi_threshold
-            for qi_type, qi_threshold in zip(qi_types, qi_thresholds)
+            for qi_type, qi_threshold in zip(qi_types, qi_thresholds, strict=True)
         ]
 
         if logic == "and":
@@ -705,7 +707,7 @@ def filter_responses(
         if verbose:
             print(message)
 
-    def get_n_neurons(all_responses):
+    def get_n_neurons(all_responses) -> int:
         return sum(len(field["group_assignment"]) for field in all_responses.values())
 
     original_neuron_count = get_n_neurons(all_responses)
@@ -731,7 +733,6 @@ def filter_responses(
     count_before_checks = get_n_neurons(all_rgcs_responses_ct_filtered)
 
     # Apply quality checks
-    d_qi = d_qi if d_qi is not None else 0.0
     all_rgcs_responses_ct_filtered = _apply_qi_mask(
         all_rgcs_responses_ct_filtered, ["d", "chirp"], [d_qi, chirp_qi], qi_logic
     )
