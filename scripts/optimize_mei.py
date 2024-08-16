@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
 
 import os
-import pickle
 from functools import partial
+import argparse
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from openretina.hoefling_2024.configs import model_config
-from openretina.hoefling_2024.data_io import natmov_dataloaders_v2
-from openretina.hoefling_2024.models import SFB3d_core_SxF3d_readout
 from openretina.hoefling_2024.constants import STIMULUS_RANGE_CONSTRAINTS
 from openretina.optimization.objective import SingleNeuronObjective, MeanReducer
 from openretina.optimization.optimizer import optimize_stimulus
@@ -21,27 +18,24 @@ from openretina.optimization.regularizer import (
 from openretina.plotting import plot_stimulus_composition
 
 
-def main() -> None:
-    data_folder = "/gpfs01/euler/data/SharedFiles/projects/TP12/"
-    data_path = os.path.join(data_folder, "2024-01-11_neuron_data_stim_8c18928_responses_99c71a0.pkl")
-    movies_path = os.path.join(data_folder, "2024-01-11_movies_dict_8c18928.pkl")
-    with open(data_path, "rb") as f:
-        neuron_data_dict = pickle.load(f)
+def parse_args():
+    parser = argparse.ArgumentParser(description="Optimize MEIs for all output neurons")
 
-    with open(movies_path, "rb") as f:
-        movies_dict = pickle.load(f)
+    parser.add_argument("model_path", type=str, help="Path to the pt file of the model")
+    parser.add_argument("save_folder", type=str, help="Output folder", default=".")
+    parser.add_argument("--device", type=str,
+                        default="cuda" if torch.cuda.is_available() else "cpu")
 
-    dataloaders = natmov_dataloaders_v2(neuron_data_dict, movies_dict)
-    print("Initialized dataloaders")
+    return parser.parse_args()
 
-    model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=dataloaders, seed=42)  # type: ignore
-    state_dict_path = "model_state_dict.tmp"
-    state_dict = torch.load(state_dict_path)
-    model.load_state_dict(state_dict)
-    model.cuda()
-    print(f"Init model from {state_dict_path=}")
 
-    device = "cuda"
+def main(model_path: str, save_folder: str, device: str) -> None:
+
+    model = torch.load(model_path, map_location=torch.device(device))
+    model.eval()
+    print(f"Init model from {model_path=}")
+    os.makedirs(save_folder, exist_ok=True)
+
     # from controversial stimuli: (2, 50, 18, 16): (channels, time, height, width)
     stimulus_shape = (1, 2, 50, 18, 16)
 
@@ -90,9 +84,10 @@ def main() -> None:
                 spatial_ax=axes[1, 0],
                 highlight_x_list=[(40, 49)],
             )
-            img_path = f"meis/mei_{session_id}_{neuron_id}.pdf"
+            img_path = f"{save_folder}/mei_{session_id}_{neuron_id}.pdf"
             fig_axes[0].savefig(img_path, bbox_inches="tight", facecolor="w", dpi=300)
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    main(**vars(args))

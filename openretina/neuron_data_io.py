@@ -2,7 +2,7 @@ import pickle
 import warnings
 from collections import defaultdict, namedtuple
 from copy import deepcopy
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Literal, Optional, no_type_check
 
 import numpy as np
 import torch
@@ -70,7 +70,7 @@ class NeuronGroupMembersStore:
         new_neuron_list: List[SingleNeuronInfoStruct] = []
         for session_id, dataloader in dataloader_dict.items():
             batches_targets = torch.concat([x.targets for x in dataloader], dim=0)
-            targets = torch.concat([x for x in batches_targets], dim=0)
+            targets = torch.concat(list(batches_targets), dim=0)
             means = targets.mean(dim=0)
             targets_centered = targets - means
             std = targets_centered.std(dim=0)
@@ -96,7 +96,7 @@ class NeuronGroupMembersStore:
                     )
                     new_neuron_list.append(neuron)
 
-        diff_neurons = set(n.neuron_id for n in self._all_neurons) - set(n.neuron_id for n in new_neuron_list)
+        diff_neurons = {n.neuron_id for n in self._all_neurons} - {n.neuron_id for n in new_neuron_list}
         if len(diff_neurons) > 0:
             raise ValueError(f"Could not find mean and std for {len(diff_neurons)} neurons")
         self.reset()
@@ -233,9 +233,9 @@ class NeuronData:
         self.neural_responses = responses_final
 
         self.num_neurons = (
-            self.neural_responses.shape[0]
-            if not isinstance(self.neural_responses, dict)
-            else self.neural_responses["train"].shape[0]
+            self.neural_responses["train"].shape[0]
+            if isinstance(self.neural_responses, dict)
+            else self.neural_responses.shape[0]
         )
 
         self.eye = eye if eye is not None else "right"
@@ -243,7 +243,7 @@ class NeuronData:
         self.key = key
         self.roi_ids = roi_ids
         self.roi_coords = (
-            torch.tensor(self.transform_roi_mask(roi_mask), dtype=torch.float32) if roi_mask is not None else None
+            np.array(self.transform_roi_mask(roi_mask), dtype=np.float32) if roi_mask is not None else None
         )
         self.scan_sequence_idx = scan_sequence_idx
         self.stim_id = stim_id
@@ -252,7 +252,6 @@ class NeuronData:
         self.clip_length = clip_length
         self.num_clips = num_clips
         self.random_sequences = random_sequences if random_sequences is not None else np.array([])
-        self.val_clip_idx = val_clip_idx
         self.use_base_sequence = use_base_sequence
 
     # this has to become a regular method in the future!
@@ -274,6 +273,10 @@ class NeuronData:
             self.responses_train = self.neural_responses.T
 
         else:
+            assert self.clip_length is not None, "Clip length must be provided for natural scenes"
+            assert self.num_clips is not None, "Number of clips must be provided for natural scenes"
+            assert self.val_clip_idx is not None, "Validation clip indices must be provided for natural scenes"
+
             self.responses_test = np.zeros((5 * self.clip_length, self.num_neurons))
             self.responses_train_and_val = np.zeros((self.num_clips * self.clip_length, self.num_neurons))
 
@@ -310,6 +313,7 @@ class NeuronData:
             },
         }
 
+    @no_type_check
     def compute_validation_responses(self) -> None:
         movie_ordering = (
             np.arange(self.num_clips)
@@ -340,7 +344,6 @@ class NeuronData:
         if self.use_base_sequence:
             # Reorder training responses to use the same "base" sequence, which follows the numbering of clips.
             # This way all training responses are wrt the same order of clips, which can be useful for some applications
-
             train_clip_idx = [i for i in range(self.num_clips) if i not in self.val_clip_idx]
             self.responses_train = np.zeros([len(train_clip_idx) * self.clip_length, self.num_neurons])
             for i, train_idx in enumerate(train_clip_idx):
@@ -429,12 +432,7 @@ def upsample_traces(
     Raises:
         NotImplementedError: If the stimulus ID is not implemented.
     """
-    if stim_id == 5:
-        # Movie stimulus
-        # 4.966666 is the time between triggers in the movie stimulus.
-        # It is not exactly 5s because it is not a perfect world :)
-        upsampled_triggertimes = _upsample_triggertimes(4.9666667, 5, triggertimes, target_fr)
-    elif stim_id == 1:
+    if stim_id == 1:
         # Chirp: each chirp has two triggers, one at the start and one 5s later, after a 2s OFF and 3s full field ON.
         # We need only the first trigger of each chirp for the upsampling.
         # 32.98999999 is the total chirp duration in seconds. Should be 33 but there is a small discrepancy
@@ -444,6 +442,11 @@ def upsample_traces(
         # Moving bar: each bar has one trigger at the start of the bar stim. Bar duration is 4s.
         # It is a bit more because each trigger has a duration of 3 frames at 60Hz, so around 50 ms.
         upsampled_triggertimes = _upsample_triggertimes(4.054001, 4.1, triggertimes, target_fr)
+    elif stim_id == 5:
+        # Movie stimulus
+        # 4.966666 is the time between triggers in the movie stimulus.
+        # It is not exactly 5s because it is not a perfect world :)
+        upsampled_triggertimes = _upsample_triggertimes(4.9666667, 5, triggertimes, target_fr)
     else:
         raise NotImplementedError(f"Stimulus ID {stim_id} not implemented")
 
@@ -468,14 +471,14 @@ def _upsample_triggertimes(stim_empirical_duration, stim_theoretical_duration, t
     return upsampled_triggertimes
 
 
-def _apply_mask_to_field(data_dict, field, mask):
+def _apply_mask_to_field(data_dict: dict[str, dict], field: str, mask: Float[np.ndarray, " n_neurons"]) -> None:
     """
     Apply a mask to a specific field in a data dictionary.
 
     Args:
         data_dict (dict): A dictionary containing data fields.
         field (str): The field in the data dictionary to apply the mask to.
-        mask (np.ndarray): The mask to apply to the field.
+        mask (np.ndarray): The mask (assumed over neurons) to apply to each entry of the field.
 
     Returns:
         None
@@ -494,8 +497,10 @@ def _apply_mask_to_field(data_dict, field, mask):
                 data_dict[field][key] = data_dict[field][key][mask]
             elif len(data_dict[field][key].shape) == 2:
                 if data_dict[field][key].shape[0] == mask.shape[0]:
+                    # If neurons are in the first dimension of the target array
                     data_dict[field][key] = data_dict[field][key][mask, :]
                 else:
+                    # If neurons are in the second dimension of the target array
                     data_dict[field][key] = data_dict[field][key][:, mask]
             else:
                 raise IndexError(f"Index out of bounds for field {field} and key {key}.")
@@ -507,7 +512,8 @@ def _apply_qi_mask(data_dict, qi_types: list[str], qi_thresholds: list[float], l
 
     Args:
         data_dict (dict): The data dictionary.
-        qi_types (list): List of quality index types.
+        qi_types (list): List of quality index types. Supported types are 'd' and 'chirp', corresponding to the
+                        quality indices for the direction selectivity and chirp responses, respectively.
         qi_threshold (list): List of quality index thresholds.
         logic (str): The logic to combine different qi_types. Can be 'and' or 'or'. Default is 'and'.
 
@@ -518,12 +524,11 @@ def _apply_qi_mask(data_dict, qi_types: list[str], qi_thresholds: list[float], l
 
     if logic not in ["and", "or"]:
         raise ValueError("logic must be either 'and' or 'or'")
-    assert len(qi_types) == len(qi_thresholds), "qi_types and qi_thresholds must have the same length"
 
     for field in new_data_dict.keys():
         masks = [
             new_data_dict[field][f"{qi_type}_qi"] >= qi_threshold
-            for qi_type, qi_threshold in zip(qi_types, qi_thresholds)
+            for qi_type, qi_threshold in zip(qi_types, qi_thresholds, strict=True)
         ]
 
         if logic == "and":
@@ -605,16 +610,16 @@ def make_final_responses(
         new_data_dict.keys(),
         desc=f"Upsampling {response_type} {trace_type} traces to get final responses.",
     ):
-        if trace_type == "spikes":
+        if trace_type == "detrended":
+            raw_traces = new_data_dict[field][f"{response_type}_raw_traces"]
+            smoothed_traces = new_data_dict[field][f"{response_type}_smoothed_traces"]
+            traces = raw_traces - smoothed_traces
+        elif trace_type == "spikes":
             try:
                 traces = new_data_dict[field][f"{response_type}_inferred_spikes"]
             except KeyError:
                 # For new data format
                 traces = new_data_dict[field][f"{response_type}_spikes"]
-        elif trace_type == "detrended":
-            raw_traces = new_data_dict[field][f"{response_type}_raw_traces"]
-            smoothed_traces = new_data_dict[field][f"{response_type}_smoothed_traces"]
-            traces = raw_traces - smoothed_traces
         else:
             traces = new_data_dict[field][f"{response_type}_{trace_type}_traces"]
 
@@ -702,7 +707,7 @@ def filter_responses(
         if verbose:
             print(message)
 
-    def get_n_neurons(all_responses):
+    def get_n_neurons(all_responses) -> int:
         return sum(len(field["group_assignment"]) for field in all_responses.values())
 
     original_neuron_count = get_n_neurons(all_responses)
@@ -728,7 +733,6 @@ def filter_responses(
     count_before_checks = get_n_neurons(all_rgcs_responses_ct_filtered)
 
     # Apply quality checks
-    d_qi = d_qi if d_qi is not None else 0.0
     all_rgcs_responses_ct_filtered = _apply_qi_mask(
         all_rgcs_responses_ct_filtered, ["d", "chirp"], [d_qi, chirp_qi], qi_logic
     )
@@ -757,8 +761,8 @@ def filter_responses(
             f"classifier confidences below {classifier_confidence}"
         )
         print_verbose(
-            f"Overall, dropped {dropped_n_classifier} neurons with classifier confidences below {classifier_confidence} "
-            f"(-{dropped_n_classifier / get_n_neurons(all_rgcs_responses_ct_filtered):.2%})."
+            f"Overall, dropped {dropped_n_classifier} neurons with classifier confidences below {classifier_confidence}"
+            f" (-{dropped_n_classifier / get_n_neurons(all_rgcs_responses_ct_filtered):.2%})."
         )
         print_verbose(" ------------------------------------ ")
     else:

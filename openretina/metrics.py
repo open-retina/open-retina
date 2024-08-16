@@ -15,7 +15,8 @@ def correlation_numpy(
     """Compute the correlation between two NumPy arrays along the specified dimension(s)."""
     y1 = (y1 - y1.mean(axis=axis, keepdims=True)) / (y1.std(axis=axis, keepdims=True, ddof=0) + eps)
     y2 = (y2 - y2.mean(axis=axis, keepdims=True)) / (y2.std(axis=axis, keepdims=True, ddof=0) + eps)
-    return (y1 * y2).mean(axis=axis, **kwargs)
+    corr = (y1 * y2).mean(axis=axis, **kwargs)
+    return corr
 
 
 def MSE_numpy(y1: np.ndarray, y2: np.ndarray, axis: None | int | tuple[int] = -1, **kwargs) -> np.ndarray:
@@ -72,7 +73,7 @@ def corr_stop(model: torch.nn.Module, loader, avg: bool = True, device: str = "c
         ret = correlation_numpy(target, output, axis=0)
 
         if np.any(np.isnan(ret)):
-            warnings.warn("{}% NaNs ".format(np.isnan(ret).mean() * 100))
+            warnings.warn(f"{np.isnan(ret).mean() * 100}% NaNs ")
         ret[np.isnan(ret)] = 0
 
         if not avg:
@@ -106,7 +107,7 @@ def corr_stop3d(model: torch.nn.Module, loader, avg: bool = True, device: str = 
         ret = ret.mean(axis=0)
 
         if np.any(np.isnan(ret)):
-            warnings.warn("{}% NaNs in corr_stop3d".format(np.isnan(ret).mean() * 100))
+            warnings.warn(f"{np.isnan(ret).mean() * 100}% NaNs in corr_stop3d")
         ret[np.isnan(ret)] = 0
 
         if not avg:
@@ -128,7 +129,7 @@ def poisson_stop(model: torch.nn.Module, loader, avg: bool = False, device: str 
 
         ret = output - target * np.log(output + EPSILON)
         if np.any(np.isnan(ret)):
-            warnings.warn(" {}% NaNs ".format(np.isnan(ret).mean() * 100))
+            warnings.warn(f" {np.isnan(ret).mean() * 100}% NaNs ")
 
         poisson_losses = np.append(poisson_losses, np.nansum(ret, 0))
         n_neurons += output.shape[1]
@@ -223,8 +224,8 @@ def compute_oracle(responses, predictions=None) -> tuple[np.ndarray, np.ndarray]
     :param predictions: array of shape time x #cells
     :return: array of shape #cells containing oracle scores
     """
+    n_cells, _, n_reps = responses.shape
     if predictions is None:
-        n_cells, _, n_reps = responses.shape
         oracle = np.zeros_like(responses)
         oracle_score = np.zeros(n_cells)
         for cell in range(n_cells):
@@ -241,7 +242,6 @@ def compute_oracle(responses, predictions=None) -> tuple[np.ndarray, np.ndarray]
             oracle_score[cell] = correlation_numpy(x, y)
         return oracle, oracle_score
     else:
-        n_cells, _, n_reps = responses.shape
         oracle_score = np.zeros(n_cells)
         for cell in range(n_cells):
             x = np.tile(predictions[:, cell], n_reps)
