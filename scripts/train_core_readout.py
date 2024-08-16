@@ -5,7 +5,6 @@ import pickle
 
 import torch
 import lightning
-from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 import hydra
 from omegaconf import DictConfig
 
