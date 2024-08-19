@@ -120,7 +120,10 @@ class InnerNeuronVisualizationObjective(AbstractObjective):
             stimulus = torch.rand(stimulus_shape, device=model_device, requires_grad=False)
             self.model_forward(stimulus)
             output_tensor = self.features_dict[layer_name].module_output_tensor
-            output_shape = output_tensor.shape
+            if output_tensor is None:
+                output_shape = None
+            else:
+                output_shape = output_tensor.shape
         return output_shape
 
     def forward(self, stimulus: torch.Tensor) -> torch.Tensor:

@@ -89,7 +89,6 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
 
     def get_mask(self) -> torch.Tensor:
         """Gets the actual mask values in terms of a PDF from the mean and SD"""
-        # self.mask_var_ = torch.exp(self.mask_log_var * self.gaussian_var_scale).view(-1, 1, 1)
         scaled_log_var = self.mask_log_var * self.gaussian_var_scale
         mask_var_ = torch.exp(torch.clamp(scaled_log_var, min=-20, max=20)).view(-1, 1, 1)
         pdf = self.grid - self.mask_mean.view(self.outdims, 1, 1, -1) * self.gaussian_mean_scale
@@ -316,7 +315,7 @@ class CoreReadout(lightning.LightningModule):
         core_test_output = self.core.forward(torch.zeros((1, ) + tuple(in_shape)))
         in_shape_readout: tuple[int, int, int, int] = core_test_output.shape[1:]  # type: ignore
 
-        self.readout_layers = ReadoutWrapper(
+        self.readout = ReadoutWrapper(
             in_shape_readout, n_neurons_dict, scale, bias, gaussian_masks, gaussian_mean_scale, gaussian_var_scale,
             positive, gamma_readout, gamma_masks, readout_reg_avg
         )
@@ -325,9 +324,9 @@ class CoreReadout(lightning.LightningModule):
         self.correlation_loss = CorrelationLoss3d(avg=True)
         self.correlation_loss_weight = correlation_loss_weight
 
-    def forward(self, x: torch.Tensor, session_id: str) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, data_key: str) -> torch.Tensor:
         output_core = self.core(x)
-        output_readout = self.readout_layers(output_core, data_key=session_id)
+        output_readout = self.readout(output_core, data_key=data_key)
         return output_readout
 
     def training_step(self, batch: tuple[str, DataPoint], batch_idx: int) -> torch.Tensor:
@@ -335,7 +334,7 @@ class CoreReadout(lightning.LightningModule):
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets)
         regularization_loss_core = self.core.regularizer()
-        regularization_loss_readout = self.readout_layers.regularizer(session_id)
+        regularization_loss_readout = self.readout.regularizer(session_id)
         self.log("loss", loss)
         self.log("regularization_loss_core", regularization_loss_core)
         self.log("regularization_loss_readout", regularization_loss_readout)
@@ -402,4 +401,4 @@ class CoreReadout(lightning.LightningModule):
 
     def save_weight_visualizations(self, folder_path: str) -> None:
         self.core.save_weight_visualizations(os.path.join(folder_path, "core"))
-        self.readout_layers.save_weight_visualizations(os.path.join(folder_path, "readout"))
+        self.readout.save_weight_visualizations(os.path.join(folder_path, "readout"))
