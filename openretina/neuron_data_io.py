@@ -253,6 +253,7 @@ class NeuronData:
         self.num_clips = num_clips
         self.random_sequences = random_sequences if random_sequences is not None else np.array([])
         self.use_base_sequence = use_base_sequence
+        self.val_clip_idx = val_clip_idx
 
     # this has to become a regular method in the future!
     @property
@@ -662,7 +663,9 @@ def make_final_responses(
 
     d_qi = d_qi if d_qi is not None else 0.0
     chirp_qi = chirp_qi if chirp_qi is not None else 0.0
-    new_data_dict = _apply_qi_mask(new_data_dict, ["d", "chirp"], [d_qi, chirp_qi], qi_logic)
+    # Apply quality indices mask only if requested
+    if d_qi > 0.0 or chirp_qi > 0.0:
+        new_data_dict = _apply_qi_mask(new_data_dict, ["d", "chirp"], [d_qi, chirp_qi], qi_logic)
 
     return new_data_dict
 

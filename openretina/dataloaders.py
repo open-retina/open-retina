@@ -127,12 +127,13 @@ class MovieAndMetadataDataSet(Dataset):
 
 
 class MovieSampler(Sampler):
-    def __init__(self, start_indices, split, chunk_size, movie_length, scene_length=None):
+    def __init__(self, start_indices, split, chunk_size, movie_length, scene_length=None, allow_over_boundaries=False):
         self.indices = start_indices
         self.split = split
         self.chunk_size = chunk_size
         self.movie_length = movie_length
         self.scene_length = SCENE_LENGTH if scene_length is None else scene_length
+        self.allow_over_boundaries = allow_over_boundaries
 
     def __iter__(self):
         if self.split == "train" and (self.scene_length != self.chunk_size):
@@ -142,6 +143,7 @@ class MovieSampler(Sampler):
                 np.arange(0, self.movie_length + 1, self.scene_length),
                 self.indices,
                 self.chunk_size,
+                self.allow_over_boundaries,
             )
 
             # Shuffle the indices
@@ -157,7 +159,7 @@ class MovieSampler(Sampler):
         return len(self.indices)
 
 
-def gen_shifts(clip_bounds, start_indices, clip_chunk_size=50):
+def gen_shifts(clip_bounds, start_indices, clip_chunk_size=50, allow_over_boundaries=False):
     """
     Generate shifted indices based on clip bounds and start indices.
     Assumes that the original start indices are already within the clip bounds.
@@ -167,6 +169,8 @@ def gen_shifts(clip_bounds, start_indices, clip_chunk_size=50):
         clip_bounds (list): A list of clip bounds.
         start_indices (list): A list of start indices.
         clip_chunk_size (int, optional): The size of each clip chunk. Defaults to 50.
+        allow_over_boundaries (bool, optional): Whether to allow training clips to be
+                                sampled over single-clip boundaries. Defaults to False.
 
     Returns:
         list: A list of shifted indices.
@@ -182,12 +186,19 @@ def gen_shifts(clip_bounds, start_indices, clip_chunk_size=50):
 
     for i, start_idx in enumerate(start_indices):
         next_bound = get_next_bound(start_idx, clip_bounds)
-        if start_idx + shifts[i] + clip_chunk_size < next_bound:
+        if allow_over_boundaries:
             shifted_indices.append(start_idx + shifts[i])
-        elif start_idx + clip_chunk_size > next_bound:
-            shifted_indices.append(next_bound - clip_chunk_size)
         else:
-            shifted_indices.append(start_idx)
+            if start_idx + shifts[i] + clip_chunk_size < next_bound:
+                shifted_indices.append(start_idx + shifts[i])
+            elif start_idx + clip_chunk_size > next_bound:
+                shifted_indices.append(next_bound - clip_chunk_size)
+            else:
+                shifted_indices.append(start_idx)
+
+    # Ensure we do not exceed the movie length when allowing over boundaries
+    if allow_over_boundaries and shifted_indices[-1] + clip_chunk_size > clip_bounds[-1]:
+        shifted_indices[-1] = clip_bounds[-1] - clip_chunk_size
     return shifted_indices
 
 
@@ -205,6 +216,7 @@ def get_movie_dataloader(
     scene_length: Optional[int] = None,
     drop_last=True,
     use_base_sequence=False,
+    allow_over_boundaries=False,
     **kwargs,
 ):
     """
@@ -230,11 +242,17 @@ def get_movie_dataloader(
             chunk_size,
             movie_length=movies[scan_sequence_idx].shape[1],
             scene_length=scene_length,
+            allow_over_boundaries=allow_over_boundaries,
         )
     else:
         dataset = MovieDataSet(movies, responses, roi_ids, roi_coords, group_assignment, split, chunk_size)
         sampler = MovieSampler(
-            start_indices, split, chunk_size, movie_length=movies.shape[1], scene_length=scene_length
+            start_indices,
+            split,
+            chunk_size,
+            movie_length=movies.shape[1],
+            scene_length=scene_length,
+            allow_over_boundaries=allow_over_boundaries,
         )
 
     return DataLoader(
