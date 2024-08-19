@@ -9,10 +9,10 @@ def calculate_pairwise_correlations(traces: torch.Tensor, unbiased: bool = True)
     # pairwise_correlations.shape = (..., neurons, neurons)
     norm_traces_t = norm_traces.transpose(-2, -1)
     pairwise_correlations = norm_traces_t @ norm_traces
-    # remove diagonal values that are 1.0 
-    one_correlation_mask = pairwise_correlations < 0.999
-    pairwise_correlations_no_diag = pairwise_correlations[one_correlation_mask]
-    return pairwise_correlations_no_diag
+    # Remove diagonal and duplicate values (pairwise correlations is a symmetrical matrix)
+    upper_tri_indices = torch.triu_indices(pairwise_correlations.size(-2), pairwise_correlations.size(-1), offset=1)
+    unique_correlations = pairwise_correlations[..., upper_tri_indices[0], upper_tri_indices[1]]
+    return unique_correlations
 
 
 def simple_mean_variance_loss(traces: torch.Tensor, unbiased: bool = True) -> torch.Tensor | float:

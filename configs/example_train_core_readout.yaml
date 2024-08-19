@@ -17,6 +17,7 @@ core_readout:
   positive: True
   gamma_readout: 0.4
   learning_rate: 0.01
+  correlation_loss_weight: 0.0
 
 dataloader:
   batch_size: null

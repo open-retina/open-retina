@@ -303,6 +303,7 @@ class CoreReadout(lightning.LightningModule):
             gamma_masks: float = 0.0,
             readout_reg_avg: bool = False,
             learning_rate: float = 0.01,
+            correlation_loss_weight: float = 0.0,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -322,6 +323,7 @@ class CoreReadout(lightning.LightningModule):
         self.learning_rate = learning_rate
         self.loss = PoissonLoss3d()
         self.correlation_loss = CorrelationLoss3d(avg=True)
+        self.correlation_loss_weight = correlation_loss_weight
 
     def forward(self, x: torch.Tensor, session_id: str) -> torch.Tensor:
         output_core = self.core(x)
@@ -334,13 +336,13 @@ class CoreReadout(lightning.LightningModule):
         loss = self.loss.forward(model_output, data_point.targets)
         regularization_loss_core = self.core.regularizer()
         regularization_loss_readout = self.readout_layers.regularizer(session_id)
-        #trace_correlation_loss = simple_mean_variance_loss(model_output)
         self.log("loss", loss)
         self.log("regularization_loss_core", regularization_loss_core)
         self.log("regularization_loss_readout", regularization_loss_readout)
-        #self.log("trace_correlation_loss", trace_correlation_loss)
-        #print(f"{trace_correlation_loss.item()=}")
-        total_loss = loss + regularization_loss_core + regularization_loss_readout # + trace_correlation_loss
+        trace_correlation_loss = simple_mean_variance_loss(model_output)
+        self.log("trace_correlation_loss", trace_correlation_loss)
+        total_loss = (loss + regularization_loss_core + regularization_loss_readout +
+                      self.correlation_loss_weight * trace_correlation_loss)
 
         return total_loss
 
