@@ -941,11 +941,16 @@ class ConditionedGRUCore(GRUEnabledCore, nn.Module):
 
         self.cond_dim = cond_dim
 
+        j = 0
         for i, layer in enumerate(self.features):
-            if hasattr(layer, "conv"):
-                setattr(self, f"film_{i}", FiLM(self.hidden_channels[i], self.cond_dim))
+            if hasattr(layer, "conv") and hasattr(layer, "norm"):
+                setattr(self, f"film_{i}", FiLM(self.hidden_channels[j], self.cond_dim))
+                # Manual instead of enumerate because of projection layers.
+                j += 1
 
-    def forward(self, x, conditioning, data_key=None):
+    def forward(self, x, conditioning=None, data_key=None):
+        if conditioning is None:
+            conditioning = torch.zeros(x.size(0), self.cond_dim, device=x.device)
         for layer_num, feat in enumerate(self.features):
             x = feat(
                 (
@@ -953,7 +958,7 @@ class ConditionedGRUCore(GRUEnabledCore, nn.Module):
                     data_key,
                 )
             )
-            if hasattr(feat, "conv"):
+            if hasattr(feat, "conv") and hasattr(feat, "norm"):
                 x = getattr(self, f"film_{layer_num}")(x, conditioning)
 
         return x
