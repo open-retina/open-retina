@@ -1,9 +1,13 @@
 from collections import OrderedDict
-
 from typing import Iterable
+import os
+
+import numpy as np
 import torch
 from torch import nn
 import lightning
+import matplotlib.pyplot as plt
+from matplotlib.colors import Normalize
 
 from openretina.measures import PoissonLoss3d, CorrelationLoss3d
 from openretina.dataloaders import DataPoint
@@ -49,7 +53,7 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         self.grid = torch.nn.Parameter(data=self.make_mask_grid(outdims, w, h), requires_grad=False)
 
         self.features = nn.Parameter(torch.Tensor(1, c, 1, outdims))
-        self.features.data.normal_(1.0/c, 0.01)
+        self.features.data.normal_(1.0 / c, 0.01)
         self.scale_param = nn.Parameter(torch.ones(outdims), requires_grad=scale)
         if scale:
             self.scale_param.data.normal_(1.0, 0.01)
@@ -115,6 +119,31 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         res_array.append(children_string)
         return "\n".join(res_array)
 
+    def save_weight_visualizations(self, folder_path: str) -> None:
+        masks = self.get_mask().detach().cpu().numpy()
+        mask_abs_max = np.abs(masks).max()
+        features = self.features.detach().cpu().numpy()
+        features_min = float(features.min())
+        features_max = float(features.max())
+        for neuron_id in range(masks.shape[0]):
+            mask_neuron = masks[neuron_id, :, :]
+            fig_axes_tuple = plt.subplots(ncols=2, figsize=(2*6, 6))
+            axes: list[plt.Axes] = fig_axes_tuple[1]  # type: ignore
+
+            axes[0].set_title("Readout Mask")
+            axes[0].imshow(mask_neuron, interpolation="none", cmap="RdBu_r",
+                           norm=Normalize(-mask_abs_max, mask_abs_max))
+
+            features_neuron = features[0, :, 0, neuron_id]
+            axes[1].set_title("Readout feature weights")
+            axes[1].bar(range(features_neuron.shape[0]), features_neuron)
+            axes[1].set_ylim((features_min, features_max))
+
+            plot_path = f"{folder_path}/neuron_{neuron_id}.pdf"
+            fig_axes_tuple[0].savefig(plot_path, bbox_inches="tight", facecolor="w", dpi=300)
+            fig_axes_tuple[0].clf()
+            plt.close()
+
 
 class ReadoutWrapper(torch.nn.ModuleDict):
     def __init__(
@@ -172,6 +201,12 @@ class ReadoutWrapper(torch.nn.ModuleDict):
     def readout_keys(self) -> list[str]:
         return sorted(self._modules.keys())
 
+    def save_weight_visualizations(self, folder_path: str) -> None:
+        for key in self.readout_keys():
+            readout_folder = os.path.join(folder_path, key)
+            os.makedirs(readout_folder, exist_ok=True)
+            self._modules[key].save_weight_visualizations(readout_folder)
+
 
 class CoreWrapper(torch.nn.Module):
     def __init__(self,
@@ -208,7 +243,7 @@ class CoreWrapper(torch.nn.Module):
                 temporal_kernel_size=temporal_kernel_sizes[layer_id],
                 spatial_kernel_size=spatial_kernel_sizes[layer_id],
                 bias=False,
-                padding="same",
+                padding=0,  # (0, spatial_kernel_sizes[layer_id] // 2, spatial_kernel_sizes[layer_id] // 2),
             )
             layer["norm"] = nn.BatchNorm3d(num_out_channels, momentum=0.1, affine=True)
             layer["bias"] = Bias3DLayer(num_out_channels)
@@ -241,6 +276,13 @@ class CoreWrapper(torch.nn.Module):
         res += self.group_sparsity_0() * self.gamma_in_sparse
         return res
 
+    def save_weight_visualizations(self, folder_path: str) -> None:
+        for i, layer in enumerate(self.features):
+            output_dir = os.path.join(folder_path, f"weights_layer_{i}")
+            os.makedirs(output_dir, exist_ok=True)
+            layer.conv.save_weight_visualizations(output_dir)
+            print(f"Saved weight visualization at path {output_dir}")
+
 
 class CoreReadout(lightning.LightningModule):
     def __init__(
@@ -263,6 +305,7 @@ class CoreReadout(lightning.LightningModule):
             learning_rate: float = 0.01,
     ):
         super().__init__()
+        self.save_hyperparameters()
         self.core = CoreWrapper(
             channels=(in_channels, ) + tuple(features_core),
             temporal_kernel_sizes=tuple(temporal_kernel_sizes),
@@ -355,3 +398,6 @@ class CoreReadout(lightning.LightningModule):
             },
         }
 
+    def save_weight_visualizations(self, folder_path: str) -> None:
+        self.core.save_weight_visualizations(os.path.join(folder_path, "core"))
+        self.readout_layers.save_weight_visualizations(os.path.join(folder_path, "readout"))
