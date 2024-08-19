@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from einops import rearrange
+from einops import rearrange, repeat
 from jaxtyping import Float
 from neuralpredictors.layers.readouts import MultiReadoutBase, Readout
 from scipy.fftpack import fft
@@ -306,7 +306,7 @@ class ReadoutWeightShifter(nn.Module):
         self,
         categorical_inputs: List[Float[torch.Tensor, "batch n_neurons"]],
         numerical_input: Float[torch.Tensor, "batch n_neurons n_features"],
-    ) -> Float[torch.Tensor, "n_neurons n_features"]:
+    ) -> tuple[Float[torch.Tensor, "n_neurons n_features"], list]:
         # Batch dimensions is redundant, as all neuron come from the same session (with current loaders), so we remove it
         # TODO: consider if this is the best way to handle this: can also reshape neurons and batch together
         categorical_inputs = [categorical_input[0] for categorical_input in categorical_inputs]
@@ -316,12 +316,12 @@ class ReadoutWeightShifter(nn.Module):
         embedded_cats = [embedding(cat_input) for embedding, cat_input in zip(self.embeddings, categorical_inputs)]
 
         # Concatenate the embedded categorical features along the feature dimension
-        embedded_cats = (
+        all_embedded_cats = (
             torch.cat(embedded_cats, dim=-1) if embedded_cats else torch.tensor([], device=numerical_input.device)
         )
 
         # Concatenate numerical and embedded categorical features
-        x = torch.cat([numerical_input, embedded_cats], dim=-1)
+        x = torch.cat([numerical_input, all_embedded_cats], dim=-1)
 
         x = self.fc1(x)
 
@@ -331,7 +331,9 @@ class ReadoutWeightShifter(nn.Module):
         for layer in self.hidden_layers:
             x = layer(x)
 
-        return self.final_nonlinearity(self.output_layer(x))
+        x = self.final_nonlinearity(self.output_layer(x))
+
+        return x, embedded_cats
 
 
 class FrozenFactorisedReadout3d(Readout):
@@ -581,7 +583,7 @@ class ShifterVideoEncoder(nn.Module):
         return_features=False,
         **kwargs,
     ):
-        feature_weights = self.readout_shifter(categorical_metadata, numerical_metadata)
+        feature_weights, embedded_cats = self.readout_shifter(categorical_metadata, numerical_metadata)
 
         # Extract the scale and bias if they are learned
         if self.readout_shifter.learn_scale:
@@ -600,13 +602,16 @@ class ShifterVideoEncoder(nn.Module):
 
         # We should not pass data specific information to the core, as it is session-independent,
         # unless conditioning is requested (i.e. the model version with session information)
-        if self.core_conditioning:
-            x = self.core(
+        x = (
+            self.core(
                 x,
-                ...,  # TODO
+                repeat(
+                    embedded_cats[1][0], "embed_d -> batch embed_d", batch=x.size(0)
+                ),  # Session information assumed to be the second categorical feature. Extracting one as they repeat.
             )
-        else:
-            x = self.core(x)
+            if self.core_conditioning
+            else self.core(x)
+        )
         if self.detach_core:
             x = x.detach()
 
@@ -621,7 +626,7 @@ class ShifterVideoEncoder(nn.Module):
         feature_weights = feature_weights.T
 
         # Repeat the feature weights for each time point
-        feature_weights = feature_weights.unsqueeze(0).unsqueeze(0).repeat(batch_size, time_points, 1, 1)
+        feature_weights = repeat(feature_weights, "d neurons -> b t d neurons", b=batch_size, t=time_points)
 
         # Even though the readout can be session-independent, it is going to be used
         # in a multiple-readout context during training, so we need to pass the data_key
@@ -787,6 +792,160 @@ def conv_core_frozen_readout(
     return model
 
 
+def conditioned_conv_core_frozen_readout(
+    dataloaders,
+    seed,
+    readout_mask_from: nn.Module,
+    hidden_channels: Tuple[int, ...] = (8,),
+    temporal_kernel_size: Tuple[int, ...] = (21,),
+    spatial_kernel_size: Tuple[int, ...] = (11,),
+    layers: int = 1,
+    gamma_hidden: float = 0,
+    gamma_input: float = 0.1,
+    gamma_temporal: float = 0.1,
+    gamma_in_sparse=0.0,
+    final_nonlinearity: bool = True,
+    core_bias: bool = False,
+    momentum: float = 0.1,
+    input_padding: bool = False,
+    hidden_padding: bool = True,
+    batch_norm: bool = True,
+    batch_norm_scale: bool = False,
+    laplace_padding: Optional[int] = None,
+    readout_scale: bool = False,
+    readout_bias: bool = False,
+    readout_neurons_attention: bool = False,
+    readout_time_attention: bool = False,
+    shifter_num_numerical_features: int = 5,
+    shifter_categorical_vocab_sizes: Tuple[int, ...] = (47,),
+    shifter_categorical_embedding_dims: Tuple[int, ...] = (10, 10),
+    shifter_num_layer: int = 2,
+    shifter_hidden_units: Tuple[int, ...] = (64, 32),
+    shifter_batch_norm: bool = True,
+    shifter_tanh_output: bool = True,
+    shifter_gamma: float = 0.0,
+    shifter_gamma_variance: float = 0.0,
+    stack=None,
+    use_avg_reg: bool = False,
+    data_info: Optional[dict] = None,
+    nonlinearity: str = "ELU",
+    conv_type: Literal["full", "separable", "custom_separable", "time_independent"] = "custom_separable",
+    use_gru: bool = False,
+    use_projections: bool = False,
+    gru_kwargs: Optional[dict] = None,
+    readout_neurons_attention_kwargs: Optional[dict] = None,
+    readout_time_attention_kwargs: Optional[dict] = None,
+    **kwargs,
+):
+    """
+    TODO docstring
+    """
+
+    assert len(shifter_categorical_vocab_sizes) == len(
+        shifter_categorical_embedding_dims
+    ), "vocab_sizes and embedding_dims must have the same length, and at least 2 elements each for this model class."
+
+    if gru_kwargs is None:
+        gru_kwargs = {}
+    if readout_neurons_attention_kwargs is None:
+        readout_neurons_attention_kwargs = {}
+    if readout_time_attention_kwargs is None:
+        readout_time_attention_kwargs = {}
+
+    # make sure trainloader is being used
+    if data_info is not None:
+        in_shapes_dict = {k: v["input_dimensions"] for k, v in data_info.items()}
+        input_channels = [v["input_channels"] for k, v in data_info.items()]
+        n_neurons_dict = {k: v["output_dimension"] for k, v in data_info.items()}
+    else:
+        dataloaders = dataloaders.get("train", dataloaders)
+
+        # Obtain the named tuple fields from the first entry of the first dataloader in the dictionary
+        in_name, *_, out_name = next(iter(list(dataloaders.values())[0]))._fields
+
+        session_shape_dict = get_dims_for_loader_dict(dataloaders)
+
+        n_neurons_dict = {
+            k: v[out_name][-1] for k, v in session_shape_dict.items()
+        }  # dictionary containing # neurons per session
+        in_shapes_dict = {
+            k: v[in_name] for k, v in session_shape_dict.items()
+        }  # dictionary containing input shapes per session
+        input_channels = [v[in_name][1] for v in session_shape_dict.values()]  # gets the # of input channels
+    assert np.unique(input_channels).size == 1, "all input channels must be of equal size"
+
+    set_seed(seed)
+
+    core = ConditionedGRUCore(
+        cond_dim=shifter_categorical_embedding_dims[1],
+        n_neurons_dict=n_neurons_dict,
+        input_channels=input_channels[0],
+        num_scans=len(n_neurons_dict.keys()),
+        hidden_channels=hidden_channels,
+        temporal_kernel_size=temporal_kernel_size,
+        spatial_kernel_size=spatial_kernel_size,
+        layers=layers,
+        gamma_hidden=gamma_hidden,
+        gamma_input=gamma_input,
+        gamma_in_sparse=gamma_in_sparse,
+        gamma_temporal=gamma_temporal,
+        final_nonlinearity=final_nonlinearity,
+        bias=core_bias,
+        batch_norm_momentum=momentum,
+        input_padding=input_padding,
+        hidden_padding=hidden_padding,
+        batch_norm=batch_norm,
+        batch_norm_scale=batch_norm_scale,
+        laplace_padding=laplace_padding,
+        stack=stack,
+        batch_adaptation=False,
+        use_avg_reg=use_avg_reg,
+        nonlinearity=nonlinearity,
+        conv_type=conv_type,
+        use_gru=use_gru,
+        use_projections=use_projections,
+        gru_kwargs=gru_kwargs,
+    )
+
+    subselect = itemgetter(0, 2, 3)
+    in_shapes_readout = {k: subselect(tuple(get_module_output(core, in_shapes_dict[k])[1:])) for k in n_neurons_dict}
+    readout = MultipleFrozenFactorisedReadout2d(
+        in_shape_dict=in_shapes_readout,
+        n_neurons_dict=n_neurons_dict,
+        nonlinearity=True,
+        neurons_attention=readout_neurons_attention,
+        time_attention=readout_time_attention,
+        return_channels=False,
+        neurons_attention_kwargs=readout_neurons_attention_kwargs,
+        time_attention_kwargs=readout_time_attention_kwargs,
+    )
+
+    readout_shifter = ReadoutWeightShifter(
+        shifter_num_numerical_features,
+        shifter_categorical_vocab_sizes,
+        shifter_categorical_embedding_dims,
+        output_dim=core.hidden_channels[-1],
+        num_layers=shifter_num_layer,
+        hidden_units=shifter_hidden_units,
+        use_bn=shifter_batch_norm,
+        tanh_output=shifter_tanh_output,
+        learn_scale=readout_scale,
+        learn_bias=readout_bias,
+        gamma_activations=shifter_gamma,
+        gamma_variance=shifter_gamma_variance,
+    )
+
+    model = ShifterVideoEncoder(core, readout, readout_shifter, core_conditioning=True)
+
+    masks = transfer_readout_mask(
+        readout_mask_from, model, ignore_source_key_suffix="_mb", freeze_mask=True, return_masks=True
+    )
+
+    model.set_readout_mask_dict(masks)
+
+    return model
+
+
 class NeuronDataWithBarcodes(NeuronData):
     def __init__(
         self,
@@ -835,8 +994,9 @@ def get_movie_meta_dataloader(
     chunk_size: int = 50,
     batch_size: int = 32,
     scene_length: Optional[int] = None,
-    drop_last=True,
-    use_base_sequence=False,
+    drop_last: bool = True,
+    use_base_sequence: bool = False,
+    allow_over_boundaries: bool = False,
     **kwargs,
 ):
     """
@@ -857,11 +1017,17 @@ def get_movie_meta_dataloader(
             chunk_size,
             movie_length=movies[scan_sequence_idx].shape[1],
             scene_length=scene_length,
+            allow_over_boundaries=allow_over_boundaries,
         )
     else:
         dataset = MovieAndMetadataDataSet(movies, responses, metadata, split, chunk_size)
         sampler = MovieSampler(
-            start_indices, split, chunk_size, movie_length=movies.shape[1], scene_length=scene_length
+            start_indices,
+            split,
+            chunk_size,
+            movie_length=movies.shape[1],
+            scene_length=scene_length,
+            allow_over_boundaries=allow_over_boundaries,
         )
 
     return DataLoader(
@@ -885,6 +1051,7 @@ def natmov_and_meta_dataloaders(
     use_base_sequence: bool = False,
     use_raw_traces: bool = False,
     include_field_info: bool = False,
+    allow_over_boundaries: bool = True,
 ):
     """
     Train, test and validation dataloaders for natural movies responses datasets and metadata.
@@ -965,6 +1132,7 @@ def natmov_and_meta_dataloaders(
                 batch_size=batch_size,
                 scene_length=clip_length,
                 use_base_sequence=use_base_sequence,
+                allow_over_boundaries=allow_over_boundaries,
             )
 
     return dataloaders
