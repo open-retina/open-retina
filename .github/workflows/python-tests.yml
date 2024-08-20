@@ -36,12 +36,12 @@ jobs:
         run: |
           ./scripts/tests/codestyle.sh
 
-      - name: Type Checks
+      - name: Type checks
         if: matrix.task == 'type-checks'
         run: |
           ./scripts/tests/check-types.sh
 
-      - name: Unit Tests
+      - name: Unit tests
         if: matrix.task == 'unit-tests'
         run: |
           ./scripts/tests/unit-tests.sh
