@@ -41,7 +41,7 @@ jobs:
         run: |
           ./scripts/tests/check-types.sh
 
-      - name: Unit tests
+      - name: Units tests
         if: matrix.task == 'unit-tests'
         run: |
           ./scripts/tests/unit-tests.sh
