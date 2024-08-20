@@ -14,6 +14,7 @@ from tqdm.auto import tqdm
 
 from . import measures, metrics
 from .cyclers import LongCycler
+from .dataloaders import extract_data_info_from_dataloaders
 from .early_stopping import early_stopping
 from .tracking import MultipleObjectiveTracker
 from .utils.misc import set_seed, tensors_to_device
@@ -237,13 +238,16 @@ def save_checkpoint(model, optimizer, epoch, loss, save_folder: str, model_name:
     )
 
 
-def save_model(model: torch.nn.Module, save_folder: str, model_name: str) -> None:
+def save_model(model: torch.nn.Module, dataloaders: dict[str, dict], save_folder: str, model_name: str) -> None:
     if not os.path.exists(save_folder):
         # only create the lower level directory if it does not exist
         os.mkdir(save_folder)
     date = datetime.datetime.now().strftime("%Y-%m-%d")
-    torch.save(model.state_dict(), os.path.join(save_folder, f"{model_name}_{date}_model_weights.pt"))
-    torch.save(model, os.path.join(save_folder, f"{model_name}_{date}_model_object.pt"))
+    torch.save(model.state_dict(), os.path.join(save_folder, f"{date}_{model_name}_model_weights.pt"))
+    torch.save(model, os.path.join(save_folder, f"{date}_{model_name}_model_object.pt"))
+    torch.save(
+        extract_data_info_from_dataloaders(dataloaders), os.path.join(save_folder, f"{date}_{model_name}_data_info.pt")
+    )
 
 
 def clean_session_key(session_key: str) -> str:

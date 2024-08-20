@@ -1,9 +1,11 @@
 import torch
 from torch import nn
 
+EPS = torch.finfo(torch.float32).eps
+
 
 class PoissonLoss3d(nn.Module):
-    def __init__(self, bias=1e-16, per_neuron=False, avg=False):
+    def __init__(self, bias=EPS, per_neuron=False, avg=False):
         super().__init__()
         self.bias = bias
         self.per_neuron = per_neuron
