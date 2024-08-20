@@ -2,11 +2,8 @@ import os
 import pickle
 
 import hydra
-import torch
 from omegaconf import DictConfig, OmegaConf
-from torch.optim import adamw
 
-from openretina.cell_type_training import metadata_model_full_objective
 from openretina.hoefling_2024.configs import model_config, trainer_config
 from openretina.hoefling_2024.data_io import get_mb_dataloaders
 from openretina.hoefling_2024.models import SFB3d_core_SxF3d_readout
@@ -37,10 +34,10 @@ def train(cfg: DictConfig) -> None:
         "test": mb_dataloaders["train"],
     }
 
-    mb_model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=mb_dataloaders, seed=42)
+    mb_model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=mb_dataloaders, seed=42)  # type: ignore
     trainer_config["max_iter"] = 50
 
-    test_score, val_score, output, model_state = trainer(
+    test_score, val_score, output, model_state = trainer(  # type: ignore
         model=mb_model,
         dataloaders=mb_dataloaders,
         seed=1000,
