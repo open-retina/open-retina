@@ -9,11 +9,16 @@ data:
   save_path: /Projects/open-retina/models
 
 trainer:
+  _target_: openretina.training.standard_early_stop_trainer
   max_iter: 60
   scale_loss: true
   lr_decay_steps: 4
-  optimizer: ???
-  scheduler: ???
+  optimizer: 
+    _target_: torch.optim.AdamW
+    _partial_: true
+  scheduler: 
+    _target_: torch.optim.lr_scheduler.OneCycleLR
+    _partial_: true
   reduce_lr_on_plateau: false
   tolerance: 0.0005
   patience: 15
@@ -25,7 +30,9 @@ trainer:
   loss_accum_batch_n: 1
   parallel: true
   clip_gradient_norm: true
-  objective_function: ???
+  objective_function: 
+    _target_: openretina.cell_type_training.metadata_model_full_objective
+    _partial_: true
   scheduler_kwargs: ???
 
 hydra:
