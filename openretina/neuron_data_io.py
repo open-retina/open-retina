@@ -253,6 +253,7 @@ class NeuronData:
         self.num_clips = num_clips
         self.random_sequences = random_sequences if random_sequences is not None else np.array([])
         self.use_base_sequence = use_base_sequence
+        self.val_clip_idx = val_clip_idx
 
     # this has to become a regular method in the future!
     @property
