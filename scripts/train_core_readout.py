@@ -43,11 +43,11 @@ def main(conf: DictConfig) -> None:
         **conf.core_readout,
     )
 
-    os.makedirs(conf.save_folder, exist_ok=True)
+    log_folder = os.path.join(conf.save_folder, conf.exp_name)
+    os.makedirs(log_folder, exist_ok=True)
     logger_array = []
     for logger_name, logger_params in conf.loggers.items():
-        save_dir = os.path.join(conf.save_folder, logger_name)
-        logger = hydra.utils.instantiate(logger_params, save_dir=save_dir, name=conf.exp_name)
+        logger = hydra.utils.instantiate(logger_params, save_dir=log_folder, name=logger_name)
         logger_array.append(logger)
     callbacks = []
     for callback_params in conf.get("training_callbacks", {}).values():
@@ -58,6 +58,7 @@ def main(conf: DictConfig) -> None:
     trainer.fit(model=model, train_dataloaders=train_loader,
                 val_dataloaders=valid_loader)
     trainer.test(model, dataloaders=[train_loader, valid_loader, test_loader])
+    trainer.save_checkpoint(os.path.join(log_folder, "model.ckpt"))
 
 
 if __name__ == "__main__":

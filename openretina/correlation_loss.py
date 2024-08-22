@@ -15,15 +15,18 @@ def calculate_pairwise_correlations(traces: torch.Tensor, unbiased: bool = True)
     return unique_correlations
 
 
-def simple_mean_variance_loss(traces: torch.Tensor, unbiased: bool = True) -> torch.Tensor | float:
+def simple_mean_variance_loss(
+    traces: torch.Tensor,
+    unbiased: bool = True,
+    expected_mean: float = 0.0,
+    expected_var: float | None = None,
+) -> torch.Tensor | float:
     pairwise_correlations = calculate_pairwise_correlations(traces, unbiased)
     # remove 1.0 correlations (those are present on the diagonal)
     mean = pairwise_correlations.mean()
-    var = pairwise_correlations.var()
 
-    expected_mean = 0.2
-    expected_var = 0.2
-    mean_loss = torch.abs(mean - expected_mean)
-    var_loss = torch.abs(var - expected_var)
-    loss = mean_loss + var_loss
+    loss = torch.abs(mean - expected_mean)
+    if expected_var is not None:
+        var = pairwise_correlations.var()
+        loss += torch.abs(var - expected_var)
     return loss
