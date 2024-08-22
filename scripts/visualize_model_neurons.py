@@ -49,8 +49,8 @@ def load_model(
         core_readout_lightning: bool = True,
 ):
     if core_readout_lightning:
-        model = CoreReadout.load_from_checkpoint(path)
-        print(f"Initialized lightning model from {path}")
+        model = CoreReadout.load_from_checkpoint(path).to(device)
+        print(f"Initialized lightning model from {path} to {device=}")
     elif model_id < 0:
         model = torch.load(path, map_location=torch.device(device))
         print(f"Initialized model from {path}")
@@ -100,8 +100,8 @@ def main(
 
     try:
         model_readout_keys = model.readout_keys()
-    except:
-        model_readout_keys = model.readout_layers.readout_keys()
+    except AttributeError:
+        model_readout_keys = model.readout.readout_keys()
     data_key = model_readout_keys[0]
     inner_neuron_objective = InnerNeuronVisualizationObjective(model, data_key, response_reducer)
     layer_names_array = [x for x in inner_neuron_objective.features_dict.keys()
