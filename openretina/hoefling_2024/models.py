@@ -1056,9 +1056,9 @@ class LocalEncoder(Encoder):
             for name, param in self.core.features.named_parameters():
                 if name.find("speed") < 0:
                     param.requires_grad = False
-        x = self.core(x, data_key=data_key)
-        x = self.readout(x, data_key=data_key)
-        return x
+        x_core = self.core(x, data_key=data_key)
+        x_readout = self.readout(x_core, data_key=data_key)
+        return x_readout
 
 
 # Batch adaption model

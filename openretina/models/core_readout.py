@@ -12,6 +12,7 @@ from matplotlib.colors import Normalize
 from openretina.measures import PoissonLoss3d, CorrelationLoss3d
 from openretina.dataloaders import DataPoint
 from openretina.hoefling_2024.models import STSeparableBatchConv3d, Bias3DLayer, temporal_smoothing
+from openretina.correlation_loss import simple_mean_variance_loss, calculate_pairwise_correlations
 
 
 class SimpleSpatialXFeature3d(torch.nn.Module):
@@ -301,6 +302,7 @@ class CoreReadout(lightning.LightningModule):
             gamma_masks: float = 0.0,
             readout_reg_avg: bool = False,
             learning_rate: float = 0.01,
+            correlation_loss_weight: float = 0.0,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -312,7 +314,6 @@ class CoreReadout(lightning.LightningModule):
         # Run one forward path to determine output shape of core
         core_test_output = self.core.forward(torch.zeros((1, ) + tuple(in_shape)))
         in_shape_readout: tuple[int, int, int, int] = core_test_output.shape[1:]  # type: ignore
-        print(f"{in_shape_readout=}")
 
         self.readout = ReadoutWrapper(
             in_shape_readout, n_neurons_dict, scale, bias, gaussian_masks, gaussian_mean_scale, gaussian_var_scale,
@@ -321,6 +322,7 @@ class CoreReadout(lightning.LightningModule):
         self.learning_rate = learning_rate
         self.loss = PoissonLoss3d()
         self.correlation_loss = CorrelationLoss3d(avg=True)
+        self.correlation_loss_weight = correlation_loss_weight
 
     def forward(self, x: torch.Tensor, data_key: str) -> torch.Tensor:
         output_core = self.core(x)
@@ -336,7 +338,10 @@ class CoreReadout(lightning.LightningModule):
         self.log("loss", loss)
         self.log("regularization_loss_core", regularization_loss_core)
         self.log("regularization_loss_readout", regularization_loss_readout)
-        total_loss = loss + regularization_loss_core + regularization_loss_readout
+        trace_correlation_loss = simple_mean_variance_loss(model_output)
+        self.log("trace_correlation_loss", trace_correlation_loss)
+        total_loss = (loss + regularization_loss_core + regularization_loss_readout +
+                      self.correlation_loss_weight * trace_correlation_loss)
 
         return total_loss
 
@@ -345,8 +350,12 @@ class CoreReadout(lightning.LightningModule):
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
         correlation = -self.correlation_loss.forward(model_output, data_point.targets)
+        traces_correlations = calculate_pairwise_correlations(model_output)
+
         self.log("val_loss", loss, logger=True, prog_bar=True)
         self.log("val_correlation", correlation, logger=True, prog_bar=True)
+        self.log("mean", traces_correlations.mean(), logger=True, prog_bar=True)
+        self.log("var", traces_correlations.var(), logger=True, prog_bar=True)
 
         return loss
 
@@ -355,9 +364,12 @@ class CoreReadout(lightning.LightningModule):
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
         correlation = -self.correlation_loss.forward(model_output, data_point.targets)
+        traces_correlations = calculate_pairwise_correlations(model_output)
         self.log_dict({
             "test_loss": loss,
             "test_correlation": correlation,
+            "mean": traces_correlations.mean(),
+            "var": traces_correlations.var()
         })
 
         return loss
