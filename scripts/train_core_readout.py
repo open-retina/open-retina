@@ -24,7 +24,7 @@ def main(conf: DictConfig) -> None:
     with open(movies_path, "rb") as f:
         movies_dict = pickle.load(f)
 
-    data_path_responses = os.path.join(data_folder, "2024-03-28_neuron_data_responses_484c12d_djimaging.h5")
+    data_path_responses = os.path.join(data_folder, "2024-08-14_neuron_data_responses_484c12d_djimaging.h5")
     responses = load_h5_into_dict(data_path_responses)
 
     data_dict = make_final_responses(responses, response_type="natural")  # type: ignore
