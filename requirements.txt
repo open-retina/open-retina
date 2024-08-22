@@ -9,6 +9,7 @@ tensorboard
 torch
 torchaudio
 torchvision
+einops
 lightning
 wandb
 hydra-core
