@@ -12,6 +12,7 @@ torchvision
 einops
 lightning
 wandb
+hydra-core
 h5py
 # Type Checks
 ruff
