@@ -142,12 +142,69 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
             fig_axes_tuple[0].clf()
             plt.close()
 
+class VarianceAwareSessionReadout(torch.nn.Module):
+
+    def __init__(
+        self,
+        in_shape: tuple[int, int, int, int],
+        neuron_variances: np.array,
+        max_firing_rate: float = 20.0,
+        firing_rate_step_size: float = 0.1,
+    ):
+        super().__init__()
+        self.in_shape = in_shape
+        c, t, w, h = in_shape
+        self._neuron_variances = neuron_variances
+        self._firing_rate_step_size = firing_rate_step_size
+        self._max_firing_rate = max_firing_rate
+        in_features_linear = c * w * h
+        out_features_linear = int(max_firing_rate//firing_rate_step_size) + 1
+        self._linear = torch.nn.Linear(
+            in_features=in_features_linear,
+            out_features=out_features_linear * self.num_neurons(),
+            bias=True,
+        )
+        torch.distributions.normal.Normal(0.0, 1.0)
+        normal_dists = torch.distributions.normal.Normal(torch.zeros(neuron_variances.shape),
+                                                               torch.tensor(neuron_variances))
+        steps = torch.tensor(np.arange(-max_firing_rate-firing_rate_step_size, max_firing_rate, firing_rate_step_size))
+        cdf = normal_dists.cdf(steps.unsqueeze(1))
+        self._normal_pdf = cdf[1:] - cdf[:-1]
+
+    def num_neurons(self) -> int:
+        return self._neuron_variances.shape[0]
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x.shape = batch, channels, time, width, height
+        x_reshaped = torch.transpose(x, 1, 2)
+        # x_flat = batch, time, channels*width*height (maybe maxpool or mask is better?)
+        x_flat = x_reshaped.flatten(start_dim=2)
+        y = self._linear(x_flat)
+        logits = y.reshape(y.shape[:2] + (self.num_neurons(), -1))
+        return logits
+
+    def loss(self, logits: torch.Tensor, traces: torch.Tensor) -> torch.Tensor:
+        delay = traces.shape[1] - logits.shape[1]
+        traces_cut = traces[:, delay:]
+        use_variances = False
+        assert traces.max() < self._max_firing_rate
+        targets = (traces_cut / self._firing_rate_step_size).long()
+        # logits_permuted.shape = (batch, classes, time, neurons)
+        logits_permuted = logits.permute(0, -1, 1, 2)
+        return torch.nn.functional.cross_entropy(logits_permuted, targets)
+
+    def logits_to_traces(self, logits: torch.Tensor) -> torch.Tensor:
+        return logits.argmax(-1) * self._firing_rate_step_size
+
+    def save_weight_visualizations(self) -> None:
+        return None
+
 
 class ReadoutWrapper(torch.nn.ModuleDict):
     def __init__(
             self,
             in_shape: tuple[int, int, int, int],
-            n_neurons_dict: dict[str, int],
+            n_neurons_dict: dict[str, np.ndarray],
             scale: bool,
             bias: bool,
             gaussian_masks: bool,
@@ -159,21 +216,26 @@ class ReadoutWrapper(torch.nn.ModuleDict):
             readout_reg_avg: bool = False,
     ):
         super().__init__()
+        assert len(in_shape) == 4
         for k in n_neurons_dict:  # iterate over sessions
-            n_neurons = n_neurons_dict[k]
-            assert len(in_shape) == 4
-            self.add_module(
-                k,
-                SimpleSpatialXFeature3d(  # add a readout for each session
-                    in_shape,
-                    n_neurons,
-                    gaussian_mean_scale=gaussian_mean_scale,
-                    gaussian_var_scale=gaussian_var_scale,
-                    positive=positive,
-                    scale=scale,
-                    bias=bias,
-                ),
+            n_neurons = n_neurons_dict[k].shape[0]
+            mod = VarianceAwareSessionReadout(
+                in_shape,
+                neuron_variances=n_neurons_dict[k],
             )
+            self.add_module(k, mod)
+            #self.add_module(
+            #    k,
+            #    SimpleSpatialXFeature3d(  # add a readout for each session
+            #        in_shape,
+            #        n_neurons,
+            #        gaussian_mean_scale=gaussian_mean_scale,
+            #        gaussian_var_scale=gaussian_var_scale,
+            #        positive=positive,
+            #        scale=scale,
+            #        bias=bias,
+            #    ),
+            #)
 
         self.gamma_readout = gamma_readout
         self.gamma_masks = gamma_masks
@@ -191,7 +253,11 @@ class ReadoutWrapper(torch.nn.ModuleDict):
             response = self[data_key](*args, **kwargs)
         return response
 
+    def loss(self, logits: torch.Tensor, traces: torch.Tensor, data_key: str) -> torch.Tensor:
+        return self[data_key].loss(logits, traces)
+
     def regularizer(self, data_key: str) -> torch.Tensor:
+        return 0.0
         feature_loss = self[data_key].feature_l1(average=self.readout_reg_avg) * self.gamma_readout
         mask_loss = self[data_key].mask_l1(average=self.readout_reg_avg) * self.gamma_masks
         return feature_loss + mask_loss
@@ -290,7 +356,7 @@ class CoreReadout(lightning.LightningModule):
             temporal_kernel_sizes: Iterable[int],
             spatial_kernel_sizes: Iterable[int],
             in_shape: Iterable[int],
-            n_neurons_dict: dict[str, int],
+            neuron_variances_dict: dict[str, np.ndarray],
             scale: bool,
             bias: bool,
             gaussian_masks: bool,
@@ -312,10 +378,9 @@ class CoreReadout(lightning.LightningModule):
         # Run one forward path to determine output shape of core
         core_test_output = self.core.forward(torch.zeros((1, ) + tuple(in_shape)))
         in_shape_readout: tuple[int, int, int, int] = core_test_output.shape[1:]  # type: ignore
-        print(f"{in_shape_readout=}")
 
         self.readout = ReadoutWrapper(
-            in_shape_readout, n_neurons_dict, scale, bias, gaussian_masks, gaussian_mean_scale, gaussian_var_scale,
+            in_shape_readout, neuron_variances_dict, scale, bias, gaussian_masks, gaussian_mean_scale, gaussian_var_scale,
             positive, gamma_readout, gamma_masks, readout_reg_avg
         )
         self.learning_rate = learning_rate
@@ -330,7 +395,8 @@ class CoreReadout(lightning.LightningModule):
     def training_step(self, batch: tuple[str, DataPoint], batch_idx: int) -> torch.Tensor:
         session_id, data_point = batch
         model_output = self.forward(data_point.inputs, session_id)
-        loss = self.loss.forward(model_output, data_point.targets)
+        loss = self.readout.loss(model_output, data_point.targets, session_id)
+        # loss = self.loss.forward(model_output, data_point.targets)
         regularization_loss_core = self.core.regularizer()
         regularization_loss_readout = self.readout.regularizer(session_id)
         self.log("loss", loss)
@@ -343,8 +409,10 @@ class CoreReadout(lightning.LightningModule):
     def validation_step(self, batch: tuple[str, DataPoint], batch_idx: int) -> torch.Tensor:
         session_id, data_point = batch
         model_output = self.forward(data_point.inputs, session_id)
-        loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
-        correlation = -self.correlation_loss.forward(model_output, data_point.targets)
+        loss = self.readout.loss(model_output, data_point.targets, session_id)
+        # loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
+        model_traces = self.readout[session_id].logits_to_traces(model_output)
+        correlation = -self.correlation_loss.forward(model_traces, data_point.targets)
         self.log("val_loss", loss, logger=True, prog_bar=True)
         self.log("val_correlation", correlation, logger=True, prog_bar=True)
 
