@@ -165,11 +165,8 @@ class VarianceAwareSessionReadout(torch.nn.Module):
             bias=True,
         )
         torch.distributions.normal.Normal(0.0, 1.0)
-        normal_dists = torch.distributions.normal.Normal(torch.zeros(neuron_variances.shape),
-                                                               torch.tensor(neuron_variances))
-        steps = torch.tensor(np.arange(-max_firing_rate-firing_rate_step_size, max_firing_rate, firing_rate_step_size))
-        cdf = normal_dists.cdf(steps.unsqueeze(1))
-        self._normal_pdf = cdf[1:] - cdf[:-1]
+        self._steps = torch.tensor(np.arange(0, max_firing_rate + firing_rate_step_size, firing_rate_step_size))
+        self._steps_unsqueezed = self._steps.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
 
     def num_neurons(self) -> int:
         return self._neuron_variances.shape[0]
@@ -186,12 +183,20 @@ class VarianceAwareSessionReadout(torch.nn.Module):
     def loss(self, logits: torch.Tensor, traces: torch.Tensor) -> torch.Tensor:
         delay = traces.shape[1] - logits.shape[1]
         traces_cut = traces[:, delay:]
-        use_variances = False
-        assert traces.max() < self._max_firing_rate
-        targets = (traces_cut / self._firing_rate_step_size).long()
         # logits_permuted.shape = (batch, classes, time, neurons)
         logits_permuted = logits.permute(0, -1, 1, 2)
-        return torch.nn.functional.cross_entropy(logits_permuted, targets)
+        use_variances = True
+        assert traces.max() < self._max_firing_rate
+        if use_variances:
+            normal_dist = torch.distributions.normal.Normal(traces_cut, torch.ones_like(traces_cut))
+            cdf = normal_dist.cdf(self._steps_unsqueezed)
+            pdf = cdf[1:] - cdf[:-1]
+            pdf_permuted = pdf.transpose(0, 1)
+            loss = torch.nn.functional.cross_entropy(logits_permuted, pdf_permuted)
+        else:
+            targets = (traces_cut / self._firing_rate_step_size).long()
+            loss = torch.nn.functional.cross_entropy(logits_permuted, targets)
+        return loss
 
     def logits_to_traces(self, logits: torch.Tensor) -> torch.Tensor:
         return logits.argmax(-1) * self._firing_rate_step_size
@@ -369,7 +374,7 @@ class CoreReadout(lightning.LightningModule):
             learning_rate: float = 0.01,
     ):
         super().__init__()
-        self.save_hyperparameters()
+        self.save_hyperparameters(ignore="neuron_variances_dict")
         self.core = CoreWrapper(
             channels=(in_channels, ) + tuple(features_core),
             temporal_kernel_sizes=tuple(temporal_kernel_sizes),
@@ -421,8 +426,10 @@ class CoreReadout(lightning.LightningModule):
     def test_step(self, batch: tuple[str, DataPoint], batch_idx: int, dataloader_idx) -> torch.Tensor:
         session_id, data_point = batch
         model_output = self.forward(data_point.inputs, session_id)
-        loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
-        correlation = -self.correlation_loss.forward(model_output, data_point.targets)
+        loss = self.readout.loss(model_output, data_point.targets, session_id)
+        # loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
+        model_traces = self.readout[session_id].logits_to_traces(model_output)
+        correlation = -self.correlation_loss.forward(model_traces, data_point.targets)
         self.log_dict({
             "test_loss": loss,
             "test_correlation": correlation,
