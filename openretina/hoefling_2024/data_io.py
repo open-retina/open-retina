@@ -199,6 +199,7 @@ def natmov_dataloaders_v2(
         clip_length=clip_length,
     )
     start_indices = gen_start_indices(random_sequences, val_clip_idx, clip_length, train_chunk_size, num_clips)
+    neuron_variances = {}
     for session_key, session_data in tqdm(neuron_data_dictionary.items(), desc="Creating movie dataloaders"):
         neuron_data = NeuronData(
             **session_data,
@@ -230,8 +231,20 @@ def natmov_dataloaders_v2(
                 batch_size=batch_size,
                 scene_length=clip_length,
             )
+        std_dev = _std_dev(neuron_data.test_responses_by_trial)
+        neuron_variances[session_key] = std_dev
 
-    return dataloaders
+
+    return dataloaders, neuron_variances
+
+
+def _std_dev(neuron_traces: np.ndarray) -> np.array:
+    # neuron_traces.shape = (neurons, repeats, time)
+    normalized = neuron_traces - neuron_traces.mean(1, keepdims=True)
+    variance = (normalized * normalized).mean((1, 2))
+    std_dev = np.sqrt(variance)
+    return std_dev
+
 
 
 def get_chirp_dataloaders(
