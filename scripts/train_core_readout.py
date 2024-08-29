@@ -39,8 +39,9 @@ def main(conf: DictConfig) -> None:
     n_neurons_dict = {
        name: data_point.targets.shape[-1] for name, data_point in iter(train_loader)
     }
+    neuron_variances_list = {k: v.tolist() for k, v in neuron_variances.items()}
     model = CoreReadout(
-        neuron_variances_dict=neuron_variances,
+        neuron_variances_dict=neuron_variances_list,
         **conf.core_readout,
     )
 

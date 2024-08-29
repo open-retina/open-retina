@@ -164,9 +164,9 @@ class VarianceAwareSessionReadout(torch.nn.Module):
             out_features=out_features_linear * self.num_neurons(),
             bias=True,
         )
-        torch.distributions.normal.Normal(0.0, 1.0)
-        self._steps = torch.tensor(np.arange(0, max_firing_rate + firing_rate_step_size, firing_rate_step_size))
-        self._steps_unsqueezed = self._steps.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
+        steps_np = np.arange(0, max_firing_rate + firing_rate_step_size, firing_rate_step_size)
+        steps_torch = torch.Tensor(steps_np).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
+        self._steps = torch.nn.Parameter(steps_torch, requires_grad=False)
 
     def num_neurons(self) -> int:
         return self._neuron_variances.shape[0]
@@ -189,7 +189,7 @@ class VarianceAwareSessionReadout(torch.nn.Module):
         assert traces.max() < self._max_firing_rate
         if use_variances:
             normal_dist = torch.distributions.normal.Normal(traces_cut, torch.ones_like(traces_cut))
-            cdf = normal_dist.cdf(self._steps_unsqueezed)
+            cdf = normal_dist.cdf(self._steps)
             pdf = cdf[1:] - cdf[:-1]
             pdf_permuted = pdf.transpose(0, 1)
             loss = torch.nn.functional.cross_entropy(logits_permuted, pdf_permuted)
@@ -361,7 +361,7 @@ class CoreReadout(lightning.LightningModule):
             temporal_kernel_sizes: Iterable[int],
             spatial_kernel_sizes: Iterable[int],
             in_shape: Iterable[int],
-            neuron_variances_dict: dict[str, np.ndarray],
+            neuron_variances_dict: dict[str, list[float]],
             scale: bool,
             bias: bool,
             gaussian_masks: bool,
@@ -374,7 +374,7 @@ class CoreReadout(lightning.LightningModule):
             learning_rate: float = 0.01,
     ):
         super().__init__()
-        self.save_hyperparameters(ignore="neuron_variances_dict")
+        self.save_hyperparameters()
         self.core = CoreWrapper(
             channels=(in_channels, ) + tuple(features_core),
             temporal_kernel_sizes=tuple(temporal_kernel_sizes),
@@ -384,8 +384,9 @@ class CoreReadout(lightning.LightningModule):
         core_test_output = self.core.forward(torch.zeros((1, ) + tuple(in_shape)))
         in_shape_readout: tuple[int, int, int, int] = core_test_output.shape[1:]  # type: ignore
 
+        neuron_variances_dict_np = {k: np.array(v) for k, v in neuron_variances_dict.items()}
         self.readout = ReadoutWrapper(
-            in_shape_readout, neuron_variances_dict, scale, bias, gaussian_masks, gaussian_mean_scale, gaussian_var_scale,
+            in_shape_readout, neuron_variances_dict_np, scale, bias, gaussian_masks, gaussian_mean_scale, gaussian_var_scale,
             positive, gamma_readout, gamma_masks, readout_reg_avg
         )
         self.learning_rate = learning_rate
