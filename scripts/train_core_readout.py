@@ -51,7 +51,6 @@ def main(conf: DictConfig) -> None:
     for logger_name, logger_params in conf.loggers.items():
         logger = hydra.utils.instantiate(logger_params, save_dir=log_folder, name=logger_name)
         logger_array.append(logger)
-    # logger_array = []  # TOOD: figure out what's going on here
     callbacks = []
     for callback_params in conf.get("training_callbacks", {}).values():
         callbacks.append(hydra.utils.instantiate(callback_params))
