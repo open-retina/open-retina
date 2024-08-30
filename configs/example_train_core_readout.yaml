@@ -16,7 +16,7 @@ core_readout:
   gaussian_var_scale: 4.0
   positive: True
   gamma_readout: 0.4
-  learning_rate: 0.01
+  learning_rate: 0.003
 
 dataloader:
   batch_size: null
@@ -32,7 +32,7 @@ training_callbacks:
   early_stopping:
     _target_: lightning.pytorch.callbacks.early_stopping.EarlyStopping
     monitor: "val_correlation"
-    min_delta: 0.001
+    min_delta: 0.01
     patience: 15
     verbose: True
     mode: "max"

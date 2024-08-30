@@ -148,7 +148,7 @@ class VarianceAwareSessionReadout(torch.nn.Module):
         self,
         in_shape: tuple[int, int, int, int],
         neuron_variances: np.array,
-        max_firing_rate: float = 20.0,
+        max_firing_rate: float = 15.0,
         firing_rate_step_size: float = 0.1,
     ):
         super().__init__()
@@ -200,6 +200,12 @@ class VarianceAwareSessionReadout(torch.nn.Module):
 
     def logits_to_traces(self, logits: torch.Tensor) -> torch.Tensor:
         return logits.argmax(-1) * self._firing_rate_step_size
+
+    def logits_to_traces_soft(self, logits: torch.Tensor, temperature: float = 6.0) -> torch.Tensor:
+        probs = torch.nn.functional.softmax(logits, dim=-1)
+        trace = (probs * self._steps[:-1].transpose(0, -1)).sum(-1)
+        return trace
+
 
     def save_weight_visualizations(self) -> None:
         return None
@@ -419,8 +425,11 @@ class CoreReadout(lightning.LightningModule):
         # loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
         model_traces = self.readout[session_id].logits_to_traces(model_output)
         correlation = -self.correlation_loss.forward(model_traces, data_point.targets)
+        model_traces_soft = self.readout[session_id].logits_to_traces_soft(model_output)
+        correlation_soft = -self.correlation_loss.forward(model_traces_soft, data_point.targets)
         self.log("val_loss", loss, logger=True, prog_bar=True)
         self.log("val_correlation", correlation, logger=True, prog_bar=True)
+        self.log("val_correlation_soft", correlation_soft, logger=True, prog_bar=True)
 
         return loss
 
@@ -431,9 +440,12 @@ class CoreReadout(lightning.LightningModule):
         # loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
         model_traces = self.readout[session_id].logits_to_traces(model_output)
         correlation = -self.correlation_loss.forward(model_traces, data_point.targets)
+        model_traces_soft = self.readout[session_id].logits_to_traces_soft(model_output)
+        correlation_soft = -self.correlation_loss.forward(model_traces_soft, data_point.targets)
         self.log_dict({
-            "test_loss": loss,
-            "test_correlation": correlation,
+            "loss": loss,
+            "correlation": correlation,
+            "correlation_soft": correlation_soft,
         })
 
         return loss
