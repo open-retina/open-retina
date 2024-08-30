@@ -28,7 +28,8 @@ def main(conf: DictConfig) -> None:
     responses = load_h5_into_dict(data_path_responses)
 
     data_dict = make_final_responses(responses, response_type="natural")  # type: ignore
-    dataloaders = natmov_dataloaders_v2(data_dict, movies_dictionary=movies_dict, train_chunk_size=100, seed=1000)
+    dataloaders, neuron_variances = natmov_dataloaders_v2(
+        data_dict, movies_dictionary=movies_dict, train_chunk_size=100, seed=1000)
 
     # when num_workers > 0 the docker container needs more shared memory
     train_loader = torch.utils.data.DataLoader(LongCycler(dataloaders["train"], shuffle=True), **conf.dataloader)
@@ -38,8 +39,9 @@ def main(conf: DictConfig) -> None:
     n_neurons_dict = {
        name: data_point.targets.shape[-1] for name, data_point in iter(train_loader)
     }
+    neuron_variances_list = {k: v.tolist() for k, v in neuron_variances.items()}
     model = CoreReadout(
-        n_neurons_dict=n_neurons_dict,
+        neuron_variances_dict=neuron_variances_list,
         **conf.core_readout,
     )
 
