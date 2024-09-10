@@ -174,3 +174,4 @@ figures/
 /models
 reports/
 /experiments
+.DS_Store
