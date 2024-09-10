@@ -31,8 +31,9 @@ def parse_args():
 
     parser.add_argument("--data_folder", type=str, help="Path to the base data folder", default="/Data/fd_export")
     parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
-    parser.add_argument("--device", type=str, choices=["cuda", "cpu"],
-                        default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument(
+        "--device", type=str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu"
+    )
     parser.add_argument(
         "--datasets",
         type=str,
@@ -58,7 +59,7 @@ def main(
     with open(movies_path, "rb") as f:
         movies_dict = pickle.load(f)
 
-    data_path_responses = os.path.join(data_folder, "2024-05-17_neuron_data_responses_484c12d_djimaging.h5")
+    data_path_responses = os.path.join(data_folder, "2024-08-14_neuron_data_responses_484c12d_djimaging.h5")
     responses = load_h5_into_dict(data_path_responses)
 
     dataloader_list = []
