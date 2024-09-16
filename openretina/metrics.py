@@ -2,6 +2,8 @@ import warnings
 
 import numpy as np
 import torch
+from einops import rearrange
+from jaxtyping import Float
 
 from openretina.models.model_utils import eval_state
 from openretina.utils.constants import EPSILON
@@ -10,7 +12,7 @@ from .utils.misc import tensors_to_device
 
 
 def correlation_numpy(
-    y1: np.ndarray, y2: np.ndarray, axis: None | int | tuple[int] = -1, eps: float = 1e-8, **kwargs
+    y1: np.ndarray, y2: np.ndarray, axis: None | int | tuple[int, ...] = -1, eps: float = 1e-8, **kwargs
 ) -> np.ndarray:
     """Compute the correlation between two NumPy arrays along the specified dimension(s)."""
     y1 = (y1 - y1.mean(axis=axis, keepdims=True)) / (y1.std(axis=axis, keepdims=True, ddof=0) + eps)
@@ -19,13 +21,13 @@ def correlation_numpy(
     return corr
 
 
-def MSE_numpy(y1: np.ndarray, y2: np.ndarray, axis: None | int | tuple[int] = -1, **kwargs) -> np.ndarray:
+def MSE_numpy(y1: np.ndarray, y2: np.ndarray, axis: None | int | tuple[int, ...] = -1, **kwargs) -> np.ndarray:
     """Compute the mean squared error between two NumPy arrays along the specified dimension(s)."""
     return ((y1 - y2) ** 2).mean(axis=axis, **kwargs)
 
 
 def poisson_loss_numpy(
-    y_true: np.ndarray, y_pred: np.ndarray, eps: float = 1e-8, mean_axis: None | int | tuple[int] = -1
+    y_true: np.ndarray, y_pred: np.ndarray, eps: float = 1e-8, mean_axis: None | int | tuple[int, ...] = -1
 ) -> np.ndarray:
     """Compute the Poisson loss between two NumPy arrays."""
     return (y_pred - y_true * np.log(y_pred + eps)).mean(axis=mean_axis)
@@ -172,82 +174,100 @@ def MSE_stop3d(model: torch.nn.Module, loader, avg: bool = True, device: str = "
     return mse_losses.sum() / (n_neurons * n_batch) if avg else mse_losses.sum()
 
 
-def evaluate_fev(model, loader, device: str = "cpu", ddof: int = 0):
+def oracle_corr_jackknife(
+    repeated_outputs: Float[np.ndarray, "frames repeats neurons"], return_oracle: bool = False
+) -> Float[np.ndarray, " neurons"] | tuple[Float[np.ndarray, " neurons"], Float[np.ndarray, " frames repeats neurons"]]:
     """
-    Evaluates the Fraction explainable variance explained by a model
-    as described in Cadena et al. 2019
-    :param model: a nnfabrik model
-    :param loader: a test dataloader
-    :param device:
-    :param ddof: 0 or 1; whether to calculate noise variance without (0) or with (1) bias correction
-    :return:
+    Adapted from neuralpredictors.
+    Compute the oracle correlations per neuron by averaging over repeated outputs in a leave one out fashion.
+    Note that an unequal number of repeats will introduce bias as it distorts assumptions made about the dataset.
+    Note that oracle_corr_jackknife underestimates the true oracle correlation.
+
+    Args:
+        repeated_outputs (array-like): numpy array with shape (images/time, repeats, neuron responses).
+
+    Returns:
+        array: Oracle correlations per neuron. If return_oracle is True, also returns the oracle.
     """
-    noise_variance_dict = dict.fromkeys(loader.keys())
-    total_variance_dict = dict.fromkeys(loader.keys())
-    mse_dict = dict.fromkeys(loader.keys())
-    fev_dict = dict.fromkeys(loader.keys())
-    repeated_predictions_dict = dict.fromkeys(loader.keys())
-    for i, data_key in enumerate(loader.keys()):
-        with eval_state(model):
-            _, predictions = model_predictions(loader, model, data_key, device)
-        predictions = np.squeeze(predictions)  # should now be time x neurons
-        test_responses_by_trial = loader[
-            data_key
-        ].dataset.test_responses_by_trial.numpy()  # shape is neurons x repetitions x time
-        cropped_responses = crop_responses(test_responses_by_trial, predictions)
 
-        noise_variance = np.mean(  # mean across time
-            np.var(cropped_responses, axis=1, ddof=ddof),
-            axis=-1,  # variance across repetitions
-        )
-        total_variance = np.var(cropped_responses, axis=(-1, -2))
+    oracles = []
+    oracle_corr = []
+    for outputs in repeated_outputs:
+        num_repeats = outputs.shape[0]
+        oracle = (outputs.sum(axis=0, keepdims=True) - outputs) / (num_repeats - 1)
+        if np.any(np.isnan(oracle)):
+            oracle[np.isnan(oracle)] = 0
+        oracles.append(oracle)
+        oracle_corr.append(correlation_numpy(outputs, oracle, axis=0))
 
-        flattened_responses = cropped_responses.reshape(
-            cropped_responses.shape[0], cropped_responses.shape[1] * cropped_responses.shape[2]
-        )
-        repeated_predictions = np.tile(predictions, [3, 1])
-        repeated_predictions = repeated_predictions.transpose()
-        mean_squared_error = np.mean((flattened_responses - repeated_predictions) ** 2, axis=1)
-        fev = 1 - (mean_squared_error - noise_variance) / (total_variance - noise_variance)
-        noise_variance_dict[data_key] = noise_variance
-        total_variance_dict[data_key] = total_variance
-        mse_dict[data_key] = mean_squared_error
-        fev_dict[data_key] = fev
-        repeated_predictions_dict[data_key] = repeated_predictions
-    return noise_variance_dict, total_variance_dict, mse_dict, fev_dict, repeated_predictions_dict
+    oracle_score = correlation_numpy(
+        rearrange(repeated_outputs, "t r n -> (t r) n"),
+        rearrange(np.stack(oracles), "t r n -> (t r) n", t=repeated_outputs.shape[0]),
+        axis=0,
+    )
+
+    return (oracle_score, np.stack(oracles)) if return_oracle else oracle_score
 
 
-def compute_oracle(responses, predictions=None) -> tuple[np.ndarray, np.ndarray]:
+def explainable_vs_total_var(
+    repeated_outputs: Float[np.ndarray, "frames repeats neurons"], eps: float = 1e-9, return_explainable: bool = False
+) -> Float[np.ndarray, " neurons"] | tuple[Float[np.ndarray, " neurons"], Float[np.ndarray, " neurons"]]:
     """
-    computes oracle score for test responses
-    :param responses: array of shape #cells x time x repetitions
-    :param predictions: array of shape time x #cells
-    :return: array of shape #cells containing oracle scores
+    Adapted from neuralpredictors.
+    Compute the ratio of explainable to total variance per neuron.
+    See Cadena et al., 2019: https://doi.org/10.1371/journal.pcbi.1006897
+
+    Args:
+        repeated_outputs (array): numpy array with shape (images/time, repeats, neurons) containing the responses.
+
+    Returns:
+        array: Ratio of explainable to total variance per neuron. If return_explainable is True, also returns the
+        explainable variance for each neuron.
     """
-    n_cells, _, n_reps = responses.shape
-    if predictions is None:
-        oracle = np.zeros_like(responses)
-        oracle_score = np.zeros(n_cells)
-        for cell in range(n_cells):
-            bool_mask = np.ones(n_reps, dtype=bool)
-            for rep in range(n_reps):
-                bool_mask[rep] = 0
-                leave_one_out = responses[cell, :, bool_mask]
-                oracle[cell, :, rep] = leave_one_out.mean(axis=0)
-                bool_mask[rep] = 1
-            # print(oracle[cell].shape)
-            # print(responses[cell].shape)
-            x = oracle[cell].reshape(-1, order="C")
-            y = responses[cell].reshape(-1, order="C")
-            oracle_score[cell] = correlation_numpy(x, y)
-        return oracle, oracle_score
-    else:
-        oracle_score = np.zeros(n_cells)
-        for cell in range(n_cells):
-            x = np.tile(predictions[:, cell], n_reps)
-            y = responses[cell].reshape(-1, order="F")
-            oracle_score[cell] = correlation_numpy(x, y)
-        return x, oracle_score
+    total_var = np.var(repeated_outputs, axis=(0, 1), ddof=1)
+    repeats_var = np.var(repeated_outputs, axis=1, ddof=1)
+    noise_var = np.mean(repeats_var, axis=0)
+    # Clip. In some bad cases, noise_var can be larger than total_var.
+    explainable_var = np.clip(total_var - noise_var, eps, None)
+    var_ratio = explainable_var / (total_var + eps)
+    return (var_ratio, explainable_var) if return_explainable else var_ratio
+
+
+def fev(
+    targets: Float[np.ndarray, "frames repeats neurons"],
+    predictions: Float[np.ndarray, "frames repeats neurons"] | Float[np.ndarray, "frames neurons"],
+) -> Float[np.ndarray, "neurons"]:
+    """
+    Adapted from neuralpredictors.
+    Compute the fraction of explainable variance explained per neuron
+
+    Args:
+        targets (array-like): Neuron responses (ground truth) over time / different images across repetitions.
+        Dimensions: np.array(images/time, num_repeats, num_neurons)
+        predictions (array-like): Model predictions to the repeated images, either including or excluding
+        repetitions. Dimensions: np.array(images/time, num_repeats, num_neurons) or np.array(images/time, num_neurons)
+    Returns:
+        FEVe (np.array): the fraction of explainable variance explained per neuron
+
+    """
+    if predictions.shape[1] != targets.shape[1] and predictions.ndim == 2:
+        predictions = np.repeat(predictions[:, np.newaxis, :], targets.shape[1], axis=1)
+
+    assert (
+        targets.shape == predictions.shape
+    ), f"Targets and predictions must have the same shape, got {targets.shape} and {predictions.shape}"
+
+    sum_square_res = [(target - prediction) ** 2 for target, prediction in zip(targets, predictions)]
+    sum_square_res = np.vstack(sum_square_res)
+
+    var_ratio, explainable_var = explainable_vs_total_var(targets, return_explainable=True)
+    # Invert the formula to get the noise variance
+    total_var = explainable_var / var_ratio
+    noise_var = total_var - explainable_var
+
+    mse = np.mean(sum_square_res, axis=0)
+    fev_e = 1 - np.clip(mse - noise_var, 0, None) / (explainable_var)
+    return np.clip(fev_e, 0, None)
 
 
 def crop_responses(responses: np.ndarray, predictions: np.ndarray) -> np.ndarray:
