@@ -16,3 +16,4 @@ def test_sparsity_loss(x_hat: np.ndarray, desired_loss: float):
     loss = SparsityMSELoss.sparsity_loss(x_hat_tensor)
     loss_float = float(loss.float())
     assert loss_float == desired_loss
+    assert False, "delete, just for testing"
