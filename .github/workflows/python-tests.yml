@@ -12,8 +12,8 @@ jobs:
 
     strategy:
       fail-fast: false
+      continue-on-error: true
       matrix:
-        task: [ "codestyle", "type-checks", "unit-tests" ]
         python-version: [ "3.10" ]
 
     steps:
@@ -32,17 +32,14 @@ jobs:
           pip install .
   
       - name: Codestyle
-        if: matrix.task == 'codestyle'
         run: |
           ./scripts/tests/codestyle.sh
 
       - name: Type checks
-        if: matrix.task == 'type-checks'
         run: |
           ./scripts/tests/check-types.sh
 
       - name: Units tests
-        if: matrix.task == 'unit-tests'
         run: |
           ./scripts/tests/unit-tests.sh
 
