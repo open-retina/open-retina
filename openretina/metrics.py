@@ -236,7 +236,7 @@ def explainable_vs_total_var(
 def fev(
     targets: Float[np.ndarray, "frames repeats neurons"],
     predictions: Float[np.ndarray, "frames repeats neurons"] | Float[np.ndarray, "frames neurons"],
-) -> Float[np.ndarray, "neurons"]:
+) -> Float[np.ndarray, " neurons"]:
     """
     Adapted from neuralpredictors.
     Compute the fraction of explainable variance explained per neuron
@@ -258,14 +258,14 @@ def fev(
     ), f"Targets and predictions must have the same shape, got {targets.shape} and {predictions.shape}"
 
     sum_square_res = [(target - prediction) ** 2 for target, prediction in zip(targets, predictions)]
-    sum_square_res = np.vstack(sum_square_res)
+    sum_square_res = np.concatenate(sum_square_res, axis=0)
 
     var_ratio, explainable_var = explainable_vs_total_var(targets, return_explainable=True)
     # Invert the formula to get the noise variance
     total_var = explainable_var / var_ratio
     noise_var = total_var - explainable_var
 
-    mse = np.mean(sum_square_res, axis=0)
+    mse = np.mean(sum_square_res, axis=0)  # mean over time and reps
     fev_e = 1 - np.clip(mse - noise_var, 0, None) / (explainable_var)
     return np.clip(fev_e, 0, None)
 
