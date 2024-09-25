@@ -193,7 +193,8 @@ def main(
     if core_readout_lightning:
         model.save_weight_visualizations(save_folder)
     else:
-        model = load_model(model_path, device=device, model_id=model_id, do_center_readout=False)
+        model = load_model(model_path, device=device, model_id=model_id, do_center_readout=False,
+                           core_readout_lightning=core_readout_lightning)
         model.to(device).eval()
         for session_key in model_readout_keys:
             folder_path = f"{save_folder}/weights_readout/{session_key}"

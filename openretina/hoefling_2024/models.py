@@ -526,7 +526,7 @@ class SpatialXFeature3d(nn.Module):
             axes[1].bar(range(features_neuron.shape[0]), features_neuron)
             axes[1].set_ylim((features_min, features_max))
 
-            plot_path = f"{folder_path}/neuron_{neuron_id}.pdf"
+            plot_path = f"{folder_path}/neuron_{neuron_id}.jpg"
             fig_axes_tuple[0].savefig(plot_path, bbox_inches="tight", facecolor="w", dpi=300)
             fig_axes_tuple[0].clf()
             plt.close()
