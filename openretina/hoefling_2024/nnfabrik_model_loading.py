@@ -8,7 +8,6 @@ from copy import deepcopy
 from functools import partial
 from importlib import import_module
 from typing import Tuple, Optional
-from pathlib import Path
 
 import torch
 import torch.nn as nn
