@@ -7,7 +7,7 @@ import numpy as np
 _CURRENT_FOLDER_PATH = os.path.dirname(os.path.abspath(__file__))
 _STIMULUS_FOLDER_PATH = os.path.join(_CURRENT_FOLDER_PATH, "data/stimuli")
 _CHIRP_PATH = _STIMULUS_FOLDER_PATH + "/RGC_Chirp_30Hz_18_16.pickle"
-_CHIRP_72_64_PATH = _STIMULUS_FOLDER_PATH + "/RGC_Chirp_60Hz_18_16.pickle"
+_CHIRP_72_64_PATH = _STIMULUS_FOLDER_PATH + "/RGC_Chirp_60Hz_72_64.pickle"
 _MOVING_BAR_PATH = _STIMULUS_FOLDER_PATH + "/RGC_MovingBar_30Hz_18_16.pickle"
 _MOVING_BAR_72_64_PATH = _STIMULUS_FOLDER_PATH + "/RGC_MovingBar_60Hz_72_64.pickle"
 _DEFAULT_FRAME_RATE = 30  # Hz
@@ -132,7 +132,7 @@ def load_moving_bar(
     return moving_bar_content
 
 
-def load_moving_bar_30hz_72_64_px(
+def load_moving_bar_30hz_72_64px(
     normalize: bool = True,
     trigger_times: Optional[np.ndarray] = None,
 ) -> np.ndarray:
@@ -140,7 +140,7 @@ def load_moving_bar_30hz_72_64_px(
     Its directions are [0,180, 45,225, 90,270, 135,315] (in degrees)
     """
     moving_bar = load_stimulus(
-        file_path=_MOVING_BAR_PATH,
+        file_path=_MOVING_BAR_72_64_PATH,
         normalize=normalize,
         trigger_times=trigger_times,
         num_triggers_per_repetition=8,
