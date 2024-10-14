@@ -5,7 +5,7 @@ max_epochs: 100
 
 core_readout:
   in_channels: 2
-  features_core: [16, 16]
+  features_core: [16, 16, 16]
   temporal_kernel_sizes: [21, 11]
   spatial_kernel_sizes: [11, 5]
   # in_shape: [2, 750, 18, 16]
