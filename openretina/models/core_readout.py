@@ -99,6 +99,8 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         masks = self.get_mask().permute(1, 2, 0)
+        # Drastic downscaling!
+        # x = torch.nn.functional.max_pool3d(x, [1, 12, 25])
         y = torch.einsum("nctwh,whd->nctd", x, masks)
         y = (y * self.features).sum(1)
 
@@ -246,6 +248,8 @@ class CoreWrapper(torch.nn.Module):
             layer["norm"] = nn.BatchNorm3d(num_out_channels, momentum=0.1, affine=True)
             layer["bias"] = Bias3DLayer(num_out_channels)
             layer["nonlin"] = torch.nn.ELU()
+            # layer["dropout"] = torch.nn.Dropout(p=0.5)
+            # layer["dropout"] = torch.nn.Dropout3d(p=0.5)
             self.features.add_module(f"layer{layer_id}", nn.Sequential(layer))  # type: ignore
 
     def forward(self, input_: torch.Tensor) -> torch.Tensor:
@@ -323,6 +327,8 @@ class CoreReadout(lightning.LightningModule):
         self.correlation_loss = CorrelationLoss3d(avg=True)
 
     def forward(self, x: torch.Tensor, data_key: str) -> torch.Tensor:
+        # first experiment, downpool to 18x16
+        # x = torch.nn.functional.avg_pool3d(x, kernel_size=[1, 4, 4])
         output_core = self.core(x)
         output_readout = self.readout(output_core, data_key=data_key)
         return output_readout

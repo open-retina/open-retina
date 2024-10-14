@@ -4,9 +4,10 @@ import os
 import pickle
 
 import torch
-import lightning
 import hydra
 from omegaconf import DictConfig
+import lightning
+from lightning.pytorch.callbacks import ModelCheckpoint
 
 from openretina.cyclers import LongCycler
 from openretina.hoefling_2024.data_io import (
@@ -19,8 +20,9 @@ from openretina.models.core_readout import CoreReadout
 
 @hydra.main(version_base=None, config_path="../example_configs", config_name="train_core_readout")
 def main(conf: DictConfig) -> None:
+    torch.set_float32_matmul_precision('medium')
     data_folder = os.path.expanduser(conf.data_folder)
-    movies_path = os.path.join(data_folder, "2024-01-11_movies_dict_8c18928.pkl")
+    movies_path = os.path.join(data_folder, "2024-10-11_movies_dict_72x64_joint_normalised.pkl")
     with open(movies_path, "rb") as f:
         movies_dict = pickle.load(f)
 
@@ -49,15 +51,16 @@ def main(conf: DictConfig) -> None:
     for logger_name, logger_params in conf.loggers.items():
         logger = hydra.utils.instantiate(logger_params, save_dir=log_folder, name=logger_name)
         logger_array.append(logger)
-    callbacks = []
+    model_checkpoint = ModelCheckpoint(monitor="val_correlation", save_top_k=3, mode="max", verbose=True)
+    callbacks = [model_checkpoint]
     for callback_params in conf.get("training_callbacks", {}).values():
         callbacks.append(hydra.utils.instantiate(callback_params))
 
     trainer = lightning.Trainer(max_epochs=conf.max_epochs, default_root_dir=conf.save_folder,
-                                logger=logger_array, callbacks=callbacks)
+                                logger=logger_array, callbacks=callbacks, accumulate_grad_batches=8)
     trainer.fit(model=model, train_dataloaders=train_loader,
                 val_dataloaders=valid_loader)
-    trainer.test(model, dataloaders=[train_loader, valid_loader, test_loader])
+    trainer.test(model, dataloaders=[train_loader, valid_loader, test_loader], ckpt_path="best")
     trainer.save_checkpoint(os.path.join(log_folder, "model.ckpt"))
 
 

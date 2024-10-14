@@ -8,7 +8,8 @@ core_readout:
   features_core: [16, 16]
   temporal_kernel_sizes: [21, 11]
   spatial_kernel_sizes: [11, 5]
-  in_shape: [2, 750, 18, 16]
+  # in_shape: [2, 750, 18, 16]
+  in_shape: [2, 750, 72, 64]
   scale: True
   bias: True
   gaussian_masks: True
