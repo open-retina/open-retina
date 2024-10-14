@@ -250,6 +250,7 @@ class CoreWrapper(torch.nn.Module):
             layer["nonlin"] = torch.nn.ELU()
             # layer["dropout"] = torch.nn.Dropout(p=0.5)
             # layer["dropout"] = torch.nn.Dropout3d(p=0.5)
+            layer["pool"] = torch.nn.MaxPool3d((1, 2, 2))
             self.features.add_module(f"layer{layer_id}", nn.Sequential(layer))  # type: ignore
 
     def forward(self, input_: torch.Tensor) -> torch.Tensor:
