@@ -175,3 +175,4 @@ figures/
 reports/
 /experiments
 .DS_Store
+outputs/
