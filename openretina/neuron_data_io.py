@@ -414,6 +414,7 @@ def upsample_traces(
     tracestimes,
     stim_id: int,
     target_fr: int = 30,
+    norm_by_std: bool = True,
 ) -> np.ndarray:
     """
     Upsamples the traces based on the stimulus type.
@@ -455,9 +456,10 @@ def upsample_traces(
     for i in range(traces.shape[0]):
         upsampled_responses[i] = np.interp(upsampled_triggertimes, tracestimes[i].ravel(), traces[i].ravel())
 
-    upsampled_responses = upsampled_responses / np.std(
-        upsampled_responses, axis=1, keepdims=True
-    )  # normalize response std
+    if norm_by_std:
+        upsampled_responses = upsampled_responses / np.std(
+            upsampled_responses, axis=1, keepdims=True
+        )  # normalize response std
 
     return upsampled_responses
 
@@ -587,6 +589,7 @@ def make_final_responses(
     chirp_qi: Optional[float] = None,
     qi_logic: Literal["and", "or"] = "or",
     scale_traces: float = 1.0,
+    norm_by_std: bool = True,
 ):
     """
     Converts inferred spikes into final responses by upsampling the traces.
@@ -646,6 +649,7 @@ def make_final_responses(
                 traces=traces,
                 tracestimes=tracestimes,
                 stim_id=stim_id,
+                norm_by_std=norm_by_std,
             )
             * scale_traces
         )
