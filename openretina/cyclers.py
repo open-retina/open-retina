@@ -4,8 +4,8 @@ Adapted from sinzlab/neuralpredictors/training/cyclers.py
 
 import random
 from typing import Dict
-
 from torch.utils.data import DataLoader
+import torch.utils.data
 
 
 def cycle(iterable):
@@ -21,7 +21,7 @@ def cycle(iterable):
             iterator = iter(iterable)
 
 
-class LongCycler:
+class LongCycler(torch.utils.data.IterableDataset):
     """
     Cycles through a dictionary of trainloaders until the loader with the largest size is exhausted.
     In pracice, takes one batch from each loader in each iteration.

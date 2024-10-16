@@ -535,7 +535,7 @@ class SpatialXFeature3d(nn.Module):
             axes[1].bar(range(features_neuron.shape[0]), features_neuron)
             axes[1].set_ylim((features_min, features_max))
 
-            plot_path = f"{folder_path}/neuron_{neuron_id}.pdf"
+            plot_path = f"{folder_path}/neuron_{neuron_id}.jpg"
             fig_axes_tuple[0].savefig(plot_path, bbox_inches="tight", facecolor="w", dpi=300)
             fig_axes_tuple[0].clf()
             plt.close()
@@ -762,7 +762,7 @@ class STSeparableBatchConv3d(nn.Module):
         spatial_kernel_size: int,
         spatial_kernel_size2: int | None = None,
         stride: int = 1,
-        padding: int = 0,
+        padding: int | str | tuple[int, ...] = 0,
         num_scans: int = 1,
         bias: bool = True,
     ):
@@ -807,7 +807,7 @@ class STSeparableBatchConv3d(nn.Module):
         for key, val in log_speed_dict.items():
             setattr(self, key, val)
 
-    def forward(self, input_: tuple[torch.Tensor, str]) -> torch.Tensor:
+    def forward(self, input_: tuple[torch.Tensor, str] | torch.Tensor) -> torch.Tensor:
         """
         Forward pass of the STSeparableBatchConv3d layer.
 
@@ -817,7 +817,11 @@ class STSeparableBatchConv3d(nn.Module):
         Returns:
             torch.Tensor: The output of the convolution.
         """
-        x, data_key = input_
+        if type(input_) is torch.Tensor:
+            x = input_
+            data_key: str | None = None
+        else:
+            x, data_key = input_
 
         # Compute temporal kernel based on the provided data key
         if data_key is None:

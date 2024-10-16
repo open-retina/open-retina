@@ -14,6 +14,7 @@ import torch.nn as nn
 import yaml
 
 from openretina.utils.misc import SafeLoaderWithTuple, tuple_constructor
+from openretina.utils.file_utils import optionally_download
 
 
 def split_module_name(abs_class_name: str) -> Tuple[str, str]:
@@ -327,3 +328,23 @@ class EnsembleModel(nn.Module):
 
     def __repr__(self):
         return f"{self.__class__.__qualname__}({', '.join(m.__repr__() for m in self.members)})"
+
+
+def load_ensemble_model_from_remote(
+        remote_url: str = "https://gin.g-node.org/eulerlab/rgc-natstim/raw/master",
+        model_path: str = "models/nonlinear/9d574ab9fcb85e8251639080c8d402b7",
+        device: str = "cpu",
+        center_readout: Optional[Center] = None,
+) -> Tuple:
+    local_folders = []
+    for id_ in ["00000", "01000", "02000", "03000", "04000"]:
+        for prefix, postfix in [("config_", ".yaml"), ("data_info_", ".pkl"), ("state_dict_", ".pth.tar")]:
+            file_name = prefix + id_ + postfix
+            file_path = f"{model_path}/{file_name}"
+            local_path = optionally_download(remote_url, file_path)
+            assert local_path.endswith(file_path)
+            local_folders.append(local_path[:-len(file_name)])
+    assert len(set(local_folders)) == 1
+    local_folder = local_folders[0]
+    data_info, ensemble_model = load_ensemble_retina_model_from_directory(local_folder, device, center_readout)
+    return data_info, ensemble_model

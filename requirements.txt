@@ -20,3 +20,4 @@ pytest
 types-psutil
 types-tqdm
 types-PyYAML
+types-requests

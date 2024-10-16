@@ -176,3 +176,4 @@ reports/
 /experiments
 .DS_Store
 outputs/
+model-cache/

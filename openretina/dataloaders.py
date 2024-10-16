@@ -7,7 +7,9 @@ import torch
 from jaxtyping import Float
 from torch.utils.data import DataLoader, Dataset, Sampler, default_collate
 
-from .hoefling_2024.constants import SCENE_LENGTH
+from openretina.hoefling_2024.constants import SCENE_LENGTH
+
+DataPoint = namedtuple("DataPoint", ("inputs", "targets"))
 
 DataPoint = namedtuple("DataPoint", ("inputs", "targets"))
 DataPointWithMeta = namedtuple("DataPoint", ("inputs", "categorical_metadata", "numerical_metadata", "targets"))
@@ -22,6 +24,7 @@ class MovieDataSet(Dataset):
             self.roi_ids = roi_ids
         else:
             self.samples = movies, responses
+            
         self.chunk_size = chunk_size
         # Calculate the mean response per neuron (used for bias init in the model)
         self.mean_response = torch.mean(torch.Tensor(self.samples[1]), dim=0)
