@@ -49,7 +49,7 @@ class ChangeNormJointlyClipRangeSeparately(StimulusPostprocessor):
     def __init__(
             self,
             min_max_values: Iterable[Tuple[Optional[float], Optional[float]]],
-            norm: float,
+            norm: Optional[float],
     ):
         self._norm = norm
         self._min_max_values = list(min_max_values)
@@ -58,9 +58,12 @@ class ChangeNormJointlyClipRangeSeparately(StimulusPostprocessor):
         assert x.shape[1] == len(self._min_max_values), \
             f"Expected {len(self._min_max_values)} channels in dim 1, got {x.shape=}"
 
-        # Re-normalize
-        x_norm = torch.norm(x.view(len(x), -1), dim=-1)
-        renorm = x * (self._norm / x_norm).view(len(x), *[1] * (x.dim() - 1))
+        if self._norm is not None:
+            # Re-normalize
+            x_norm = torch.linalg.vector_norm(x.view(len(x), -1), dim=-1)
+            renorm = x * (self._norm / x_norm).view(len(x), *[1] * (x.dim() - 1))
+        else:
+            renorm = x
 
         # Clip
         clipped_array = []
@@ -70,3 +73,6 @@ class ChangeNormJointlyClipRangeSeparately(StimulusPostprocessor):
         result = torch.stack(clipped_array, dim=1)
 
         return result
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self._norm=}, {self._min_max_values=})"

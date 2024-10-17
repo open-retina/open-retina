@@ -12,6 +12,7 @@ from jaxtyping import Float
 from matplotlib import animation
 from matplotlib.colors import Normalize
 from matplotlib.patches import Rectangle
+import cv2
 
 from .hoefling_2024.configs import pre_normalisation_values
 from .hoefling_2024.constants import FRAME_RATE_MODEL
@@ -32,6 +33,30 @@ def undo_video_normalization(
     video[1] = video[1] * values_dict["channel_1_std"] + values_dict["channel_1_mean"]
 
     return video.type(torch.int)
+
+
+def save_stimulus_to_mp4_video(stimulus: np.ndarray, filepath: str, fps: int = 30) -> None:
+    assert len(stimulus.shape) == 4
+    assert stimulus.shape[0] == 2  # color channels
+
+    assert filepath.endswith(".mp4")
+    # Create a VideoWriter object
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    video = cv2.VideoWriter(filepath, fourcc, fps, (stimulus.shape[3], stimulus.shape[2]))
+
+    # Normalize to uint8
+    stimulus_norm = (stimulus - stimulus.min())
+    stimulus_norm = 255 * (stimulus_norm / stimulus_norm.max())
+    stimulus_uint8 = stimulus_norm.astype(np.uint8)
+
+    for i in range(stimulus_uint8.shape[1]):
+        # Create an empty 3D array and assign the data from the 4D array
+        frame = np.zeros((stimulus_uint8.shape[2], stimulus_uint8.shape[3], 3), dtype=np.uint8)
+        frame[:, :, 1] = stimulus_uint8[0, i, :, :]  # Green channel
+        frame[:, :, 2] = stimulus_uint8[1, i, :, :]  # Red channel
+        video.write(frame)
+
+    video.release()
 
 
 def update_video(video, ax, frame):
@@ -133,15 +158,15 @@ def plot_stimulus_composition(
 
     # Spatial structure
     spatial_ax.set_title(f"Spatial Component {color_channel_names_array}")
-    padding = np.zeros((spat_green.shape[0], 8))
+    padding = np.ones((spat_green.shape[0], 8))
     spat = np.concatenate([spat_green, padding, spat_uv], axis=1)
 
     abs_max = np.max([abs(spat.max()), abs(spat.min())])
     norm = Normalize(vmin=-abs_max, vmax=abs_max)
     spatial_ax.imshow(spat, cmap="RdBu_r", norm=norm)
-    scale_bar = Rectangle(xy=(6, 15), width=3, height=1, color="k", transform=spatial_ax.transData)
+    scale_bar = Rectangle(xy=(6, 15), width=4, height=1, color="k", transform=spatial_ax.transData)
     spatial_ax.annotate(
-        text="150 µm",
+        text="50 µm",
         xy=(6, 14),
     )
     spatial_ax.add_patch(scale_bar)
