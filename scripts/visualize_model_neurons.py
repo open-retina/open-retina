@@ -17,7 +17,7 @@ from openretina.optimization.regularizer import (
     ChangeNormJointlyClipRangeSeparately,
     RangeRegularizationLoss,
 )
-from openretina.plotting import plot_stimulus_composition
+from openretina.plotting import plot_stimulus_composition, save_stimulus_to_mp4_video
 from openretina.hoefling_2024.nnfabrik_model_loading import load_ensemble_retina_model_from_directory, Center
 from openretina.models.core_readout import CoreReadout
 
