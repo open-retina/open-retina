@@ -78,7 +78,7 @@ def main(
     model.eval()
 
     # from controversial stimuli: (2, 50, 18, 16): (channels, time, height, width)
-    stimulus_shape = (1, 2, 50, 18, 16)
+    stimulus_shape = (1, 2, 50, 72, 64)
 
     response_reducer = SliceMeanReducer(axis=0, start=10, length=10)
     stimulus_postprocessor = ChangeNormJointlyClipRangeSeparately(
