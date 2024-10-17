@@ -51,7 +51,7 @@ def main(conf: DictConfig) -> None:
         logger = hydra.utils.instantiate(logger_params, save_dir=log_folder, name=logger_name)
         logger_array.append(logger)
     model_checkpoint = ModelCheckpoint(monitor="val_correlation", save_top_k=3, mode="max", verbose=True)
-    callbacks = [model_checkpoint]
+    callbacks: list = [model_checkpoint]
     for callback_params in conf.get("training_callbacks", {}).values():
         callbacks.append(hydra.utils.instantiate(callback_params))
 

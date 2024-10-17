@@ -238,7 +238,8 @@ class CoreWrapper(torch.nn.Module):
         for layer_id, (num_in_channels, num_out_channels) in enumerate(
                 zip(channels[:-1], channels[1:], strict=True)):
             layer: dict[str, torch.nn.Module] = OrderedDict()
-            padding = "same"  # ((temporal_kernel_sizes[layer_id] - 1) // 2, (spatial_kernel_sizes[layer_id] - 1) // 2, (spatial_kernel_sizes[layer_id] - 1) // 2)
+            padding = "same"  # ((temporal_kernel_sizes[layer_id] - 1) // 2,
+            # (spatial_kernel_sizes[layer_id] - 1) // 2, (spatial_kernel_sizes[layer_id] - 1) // 2)
             layer["conv"] = STSeparableBatchConv3d(
                 num_in_channels,
                 num_out_channels,

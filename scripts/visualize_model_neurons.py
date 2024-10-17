@@ -49,7 +49,7 @@ def load_model(
         core_readout_lightning: bool = True,
 ):
     if core_readout_lightning:
-        model = CoreReadout.load_from_checkpoint(path).to(device)
+        model = CoreReadout.load_from_checkpoint(path).to(device)  # type: ignore
         print(f"Initialized lightning model from {path} to {device=}")
     elif model_id < 0:
         model = torch.load(path, map_location=torch.device(device))

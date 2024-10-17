@@ -41,7 +41,7 @@ def save_stimulus_to_mp4_video(stimulus: np.ndarray, filepath: str, fps: int = 3
 
     assert filepath.endswith(".mp4")
     # Create a VideoWriter object
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # type: ignore
     video = cv2.VideoWriter(filepath, fourcc, fps, (stimulus.shape[3], stimulus.shape[2]))
 
     # Normalize to uint8
