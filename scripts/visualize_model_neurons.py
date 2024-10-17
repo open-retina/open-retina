@@ -152,6 +152,7 @@ def main(
             print(f"Saved figure at {fig_path=}")
             fig_axes_tuple[0].clf()
             plt.close()
+            save_stimulus_to_mp4_video(stimulus_np, f"{output_folder}/{channel_id}.mp4")
             del stimulus_np
 
     for session_key in model_readout_keys:
@@ -186,6 +187,7 @@ def main(
             fig_path = f"{output_folder}/{neuron_id}.jpg"
             fig_axes_tuple[0].savefig(fig_path, bbox_inches="tight", facecolor="w", dpi=300)
             fig_axes_tuple[0].clf()
+            save_stimulus_to_mp4_video(stimulus_np, f"{output_folder}/{neuron_id}.mp4")
             plt.close()
             del stimulus_np
 
