@@ -216,6 +216,7 @@ class CoreWrapper(torch.nn.Module):
                  gamma_input: float = 0.3,
                  gamma_temporal: float = 40.0,
                  gamma_in_sparse: float = 1.0,
+                 cut_first_n_temporal_frames: int = 30,
                  ):
         # Input validation
         if len(channels) < 2:
@@ -231,11 +232,13 @@ class CoreWrapper(torch.nn.Module):
         self.gamma_input = gamma_input
         self.gamma_temporal = gamma_temporal
         self.gamma_in_sparse = gamma_in_sparse
+        self._cut_first_n_temporal_frames = cut_first_n_temporal_frames
 
         self.features = torch.nn.Sequential()
         for layer_id, (num_in_channels, num_out_channels) in enumerate(
                 zip(channels[:-1], channels[1:], strict=True)):
             layer: dict[str, torch.nn.Module] = OrderedDict()
+            padding = "same"  # ((temporal_kernel_sizes[layer_id] - 1) // 2, (spatial_kernel_sizes[layer_id] - 1) // 2, (spatial_kernel_sizes[layer_id] - 1) // 2)
             layer["conv"] = STSeparableBatchConv3d(
                 num_in_channels,
                 num_out_channels,
@@ -243,20 +246,22 @@ class CoreWrapper(torch.nn.Module):
                 temporal_kernel_size=temporal_kernel_sizes[layer_id],
                 spatial_kernel_size=spatial_kernel_sizes[layer_id],
                 bias=False,
-                padding=0,  # (0, spatial_kernel_sizes[layer_id] // 2, spatial_kernel_sizes[layer_id] // 2),
+                padding=padding,
             )
             layer["norm"] = nn.BatchNorm3d(num_out_channels, momentum=0.1, affine=True)
             layer["bias"] = Bias3DLayer(num_out_channels)
             layer["nonlin"] = torch.nn.ELU()
             # layer["dropout"] = torch.nn.Dropout(p=0.5)
             # layer["dropout"] = torch.nn.Dropout3d(p=0.5)
-            if layer_id % 2 == 1:
+            if layer_id % 2 == 0:
                 layer["pool"] = torch.nn.MaxPool3d((1, 2, 2))
             self.features.add_module(f"layer{layer_id}", nn.Sequential(layer))  # type: ignore
 
     def forward(self, input_: torch.Tensor) -> torch.Tensor:
         res = self.features(input_)
-        return res
+        # To keep compatibility with hoefling model scores
+        res_cut = res[:, :, self._cut_first_n_temporal_frames:, :, :]
+        return res_cut
 
     def spatial_laplace(self) -> torch.Tensor:
         return 0.0  # type: ignore
@@ -307,6 +312,7 @@ class CoreReadout(lightning.LightningModule):
             gamma_masks: float = 0.0,
             readout_reg_avg: bool = False,
             learning_rate: float = 0.01,
+            device: str = "cuda",
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -316,9 +322,10 @@ class CoreReadout(lightning.LightningModule):
             spatial_kernel_sizes=tuple(spatial_kernel_sizes),
         )
         # Run one forward path to determine output shape of core
-        core_test_output = self.core.forward(torch.zeros((1, ) + tuple(in_shape)))
+        example_input = torch.zeros((1, ) + tuple(in_shape))
+        core_test_output = self.core.to(device).forward(example_input.to(device))
         in_shape_readout: tuple[int, int, int, int] = core_test_output.shape[1:]  # type: ignore
-        print(f"{in_shape_readout=}")
+        print(f"{example_input.shape[1:]=} {in_shape_readout=}")
 
         self.readout = ReadoutWrapper(
             in_shape_readout, n_neurons_dict, scale, bias, gaussian_masks, gaussian_mean_scale, gaussian_var_scale,
