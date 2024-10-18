@@ -99,8 +99,6 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         masks = self.get_mask().permute(1, 2, 0)
-        # Drastic downscaling!
-        # x = torch.nn.functional.max_pool3d(x, [1, 12, 25])
         y = torch.einsum("nctwh,whd->nctd", x, masks)
 
         if self.positive:
