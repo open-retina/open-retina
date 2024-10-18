@@ -49,7 +49,7 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         self.grid = torch.nn.Parameter(data=self.make_mask_grid(outdims, w, h), requires_grad=False)
 
         self.feature_logits = nn.Parameter(torch.Tensor(1, c, 1, outdims))
-        self.features_logits.data.normal_(0, 0.01)
+        self.feature_logits.data.normal_(0, 0.01)
         self.scale_param = nn.Parameter(torch.ones(outdims), requires_grad=scale)
         if scale:
             self.scale_param.data.normal_(1.0, 0.01)
@@ -64,7 +64,7 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         return nn.functional.softmax(self.feature_logits, dim=1)
 
     def mask_regularization(self) -> torch.Tensor:
-        # variance of gaussian according to https://en.wikipedia.org/wiki/Normal_distribution
+        # entropy of gaussian according to https://en.wikipedia.org/wiki/Normal_distribution
         var = self.mask_variance()
         entropy = 0.5 * torch.log(2.0 * torch.pi * torch.e * var)
         return torch.sum(entropy)
@@ -96,7 +96,7 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         masks = self.get_mask().permute(1, 2, 0)
         y = torch.einsum("nctwh,whd->nctd", x, masks)
 
-        y = (y * self.features).sum(1)
+        y = (y * self.feature_weights()).sum(1)
 
         y = self.nonlinearity_function(y * self.scale_param + self.bias_param)
         return y
@@ -116,7 +116,7 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
     def save_weight_visualizations(self, folder_path: str) -> None:
         masks = self.get_mask().detach().cpu().numpy()
         mask_abs_max = np.abs(masks).max()
-        features = self.features.detach().cpu().numpy()
+        features = self.feature_weights().detach().cpu().numpy()
         features_min = float(features.min())
         features_max = float(features.max())
         for neuron_id in range(masks.shape[0]):
@@ -189,6 +189,7 @@ class ReadoutWrapper(torch.nn.ModuleDict):
         session_readout: SimpleSpatialXFeature3d = self[data_key]
         feature_loss = session_readout.feature_regularization() * self.gamma_readout
         mask_loss = session_readout.mask_regularization() * self.gamma_masks
+        # print(f"Reg loss features: {feature_loss.item():.1f}, mask: {mask_loss.item():.1f}")
         return feature_loss + mask_loss
 
     def readout_keys(self) -> list[str]:
