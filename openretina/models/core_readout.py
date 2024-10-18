@@ -102,6 +102,9 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         # Drastic downscaling!
         # x = torch.nn.functional.max_pool3d(x, [1, 12, 25])
         y = torch.einsum("nctwh,whd->nctd", x, masks)
+
+        if self.positive:
+            self.features.data.clamp_(0)
         y = (y * self.features).sum(1)
 
         y = self.nonlinearity_function(y * self.scale_param + self.bias_param)
