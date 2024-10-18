@@ -21,7 +21,6 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
             outdims: int,
             gaussian_mean_scale: float = 1e0,
             gaussian_var_scale: float = 1e0,
-            positive: bool = False,
             scale: bool = False,
             bias: bool = True,
             nonlinearity_function=torch.nn.functional.softplus,
@@ -32,7 +31,6 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
             outdims: The number of output dimensions (usually the number of neurons in the session).
             gaussian_mean_scale: The scale factor for the Gaussian mean. Defaults to 1e0.
             gaussian_var_scale: The scale factor for the Gaussian variance. Defaults to 1e0.
-            positive: Whether the output should be positive. Defaults to False.
             scale: Whether to include a scale parameter. Defaults to False.
             bias: Whether to include a bias parameter. Defaults to True.
             nonlinearity_function: torch nonlinearity function , e.g. nn.functional.softplus
@@ -43,7 +41,6 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         self.outdims = outdims
         self.gaussian_mean_scale = gaussian_mean_scale
         self.gaussian_var_scale = gaussian_var_scale
-        self.positive = positive
         self.nonlinearity_function = nonlinearity_function
 
         """we train on the log var and transform to var in a separate step"""
@@ -98,8 +95,6 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         masks = self.get_mask().permute(1, 2, 0)
         y = torch.einsum("nctwh,whd->nctd", x, masks)
 
-        if self.positive:
-            self.features.data.clamp_(0)
         y = (y * self.features).sum(1)
 
         y = self.nonlinearity_function(y * self.scale_param + self.bias_param)
@@ -153,7 +148,6 @@ class ReadoutWrapper(torch.nn.ModuleDict):
             gaussian_masks: bool,
             gaussian_mean_scale: float,
             gaussian_var_scale: float,
-            positive: bool,
             gamma_readout: float,
             gamma_masks: float = 0.0,
             readout_reg_avg: bool = False,
@@ -169,7 +163,6 @@ class ReadoutWrapper(torch.nn.ModuleDict):
                     n_neurons,
                     gaussian_mean_scale=gaussian_mean_scale,
                     gaussian_var_scale=gaussian_var_scale,
-                    positive=positive,
                     scale=scale,
                     bias=bias,
                 ),
@@ -309,7 +302,6 @@ class CoreReadout(lightning.LightningModule):
             gaussian_masks: bool,
             gaussian_mean_scale: float,
             gaussian_var_scale: float,
-            positive: bool,
             gamma_readout: float,
             gamma_masks: float = 0.0,
             readout_reg_avg: bool = False,
@@ -337,7 +329,7 @@ class CoreReadout(lightning.LightningModule):
 
         self.readout = ReadoutWrapper(
             in_shape_readout, n_neurons_dict, scale, bias, gaussian_masks, gaussian_mean_scale, gaussian_var_scale,
-            positive, gamma_readout, gamma_masks, readout_reg_avg
+            gamma_readout, gamma_masks, readout_reg_avg
         )
         self.learning_rate = learning_rate
         self.loss = PoissonLoss3d()
