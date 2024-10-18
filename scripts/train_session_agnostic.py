@@ -4,6 +4,7 @@ import pickle
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
+from openretina.cyclers import LongCycler
 from openretina.hoefling_2024.configs import model_config, trainer_config
 from openretina.hoefling_2024.data_io import get_mb_dataloaders
 from openretina.hoefling_2024.models import SFB3d_core_SxF3d_readout
@@ -13,7 +14,7 @@ from openretina.training import standard_early_stop_trainer as trainer
 from openretina.utils.h5_handling import load_h5_into_dict
 
 
-@hydra.main(config_path="../configs", config_name="example_session_agnostic")
+@hydra.main(config_path="../configs", config_name="minimal_session_agnostic")
 def train(cfg: DictConfig) -> None:
     print(OmegaConf.to_yaml(cfg))
 
@@ -35,7 +36,7 @@ def train(cfg: DictConfig) -> None:
     }
 
     mb_model = SFB3d_core_SxF3d_readout(**model_config, dataloaders=mb_dataloaders, seed=42)  # type: ignore
-    trainer_config["max_iter"] = 50
+    trainer_config["max_iter"] = 15
 
     test_score, val_score, output, model_state = trainer(  # type: ignore
         model=mb_model,
@@ -48,7 +49,7 @@ def train(cfg: DictConfig) -> None:
 
     save_model(mb_model, mb_dataloaders, save_folder=cfg.data.save_path, model_name="mb_model")
 
-    # Now can train session agnostic model
+    # Now can train the session agnostic model
 
     movie_data_dict = make_final_responses(
         filtered_responses,
@@ -63,9 +64,9 @@ def train(cfg: DictConfig) -> None:
 
     # Specify scheduler kwargs for the trainer
     cfg.trainer.scheduler_kwargs = {
-        "max_lr": 8e-3,
-        "epochs": 60,
-        "steps_per_epoch": len(dataloaders["train"]) * max(len(loader) for loader in dataloaders["train"].values()),
+        "max_lr": cfg.trainer.lr_init * 10,
+        "epochs": cfg.trainer.max_iter,
+        "steps_per_epoch": len(LongCycler(dataloaders["train"])),
     }
 
     test_score, val_score, output, model_state = hydra.utils.instantiate(
@@ -77,7 +78,7 @@ def train(cfg: DictConfig) -> None:
 
     print(f"Session agnostic model trained with test correlation: {test_score:.2f}")
 
-    save_model(ct_model, dataloaders, save_folder=cfg.data.save_path, model_name="session_agnostic_model")
+    save_model(ct_model, dataloaders=None, save_folder=cfg.data.save_path, model_name="session_agnostic_model")
 
 
 if __name__ == "__main__":

@@ -93,25 +93,18 @@ def transfer_readout_mask(
     """
     if return_masks:
         masks = {}
-    for name, param in source_model.named_parameters():
-        if "readout" in name and "mask" in name and "mask_" not in name:
-            if ignore_source_key_suffix is not None:
-                split_name = name.split(".")
-                session_key = split_name[1]
-                session_key = "".join(session_key.split(ignore_source_key_suffix)[0])
-                split_name[1] = session_key
-                new_name = ".".join(split_name)
+    for session_key, readout in source_model.readout.named_children():
+        param = readout.masks.detach()
+        if ignore_source_key_suffix is not None:
+            session_key = "".join(session_key.split(ignore_source_key_suffix)[0])
+        try:
+            if return_masks:
+                masks[session_key] = param
             else:
-                new_name = name
-            # copy the mask to the target model
-            try:
-                if return_masks:
-                    masks[session_key] = param
-                else:
-                    target_model.state_dict()[new_name].copy_(param)
-            except KeyError:
-                print(f"Could not find {new_name} in the target model.")
-                continue
+                target_model.readout[session_key].masks.copy_(param)
+        except KeyError:
+            print(f"Could not find {session_key} in the target model.")
+            continue
 
     # Freeze the mask parameters if requested
     if freeze_mask:
@@ -148,49 +141,122 @@ def calculate_chirp_features(chirp_trace: Float[np.ndarray, "n_neurons n_timepoi
 
 
 def generate_cell_barcodes(
-    responses_dict, normalize=True, include_field_id=False
-) -> Dict[str, Dict[str, Float[np.ndarray, "n_neurons n_features"]]]:
+    responses_dict, normalize=True, include_field_id=False, included_features=None
+) -> Dict[str, Dict[str, np.ndarray]]:
+    """
+    Generates cell barcodes for each field based on the provided responses dictionary.
+
+    Args:
+        responses_dict (dict): A dictionary containing responses and metadata for each field.
+        normalize (bool, optional): Whether to normalize the barcodes using predefined means and standard deviations.
+                                    Default is True.
+        include_field_id (bool, optional): Whether to include field IDs in the barcodes. Default is False.
+        included_features (list, optional): List of features to include in the barcodes.
+                                            If None, defaults to the full set.
+
+    Returns:
+        dict: A dictionary where each key is a field ID and each value is another dictionary containing
+                the barcodes for that field.
+
+    Allowed included_features:
+        - "cell_types": The cell types for each neuron.
+        - "chirp_features": Features extracted from chirp responses.
+        - "roi_size_um2": The size of the region of interest in square micrometers.
+        - "chirp_qi": Quality index for chirp responses.
+        - "d_qi": Quality index for direction selectivity.
+        - "ds_index": Direction selectivity index.
+        - "os_index": Orientation selectivity index.
+        - "pref_dir": Preferred direction of the neuron.
+        - "temporal_nasal_pos_um": Position along the temporal-nasal axis in micrometers.
+        - "ventral_dorsal_pos_um": Position along the ventral-dorsal axis in micrometers.
+        - "field_id": Encoded field ID (only if include_field_id is True).
+    """
     cell_barcodes = {}
 
-    if include_field_id:
-        field_encoder = OrdinalEncoder()
-        field_encoder.fit(np.array(list(responses_dict.keys())).reshape(-1, 1))
+    if included_features is None:
+        included_features = get_default_barcodes()
 
-    for field_id in responses_dict:
-        field_barcode = {
-            "cell_types": responses_dict[field_id]["group_assignment"].astype(str),
-            "chirp_features": calculate_chirp_features(responses_dict[field_id]["chirp_preprocessed_traces"]).T,
-            "roi_size_um2": responses_dict[field_id]["roi_size_um2"][:, None],
-            "chirp_qi": responses_dict[field_id]["chirp_qi"][:, None],
-            "d_qi": responses_dict[field_id]["d_qi"][:, None],
-            "ds_index": responses_dict[field_id]["ds_index"][:, None],
-            "os_index": responses_dict[field_id]["os_index"][:, None],
-            "pref_dir": responses_dict[field_id]["pref_dir"][:, None],
-            "temporal_nasal_pos_um": np.repeat(
-                responses_dict[field_id]["temporal_nasal_pos_um"], len(responses_dict[field_id]["group_assignment"])
-            )[:, None],
-            "ventral_dorsal_pos_um": np.repeat(
-                responses_dict[field_id]["ventral_dorsal_pos_um"], len(responses_dict[field_id]["group_assignment"])
-            )[:, None],
-        }
+    field_encoder = setup_field_encoder(responses_dict) if include_field_id else None
 
-        if include_field_id:
-            field_barcode["field_id"] = (
-                field_encoder.transform(np.repeat(field_id, len(responses_dict[field_id]["group_assignment"]))[:, None])
-                .squeeze()
-                .astype(int)
-                .astype(str)
-            )
+    for field_id, field_data in responses_dict.items():
+        field_barcode = create_field_barcode(field_data, included_features, field_id, field_encoder)
 
-        # Normalize the features before concatenating
         if normalize:
-            for key in field_barcode:
-                if key in BARCODE_MEANS:
-                    field_barcode[key] = (field_barcode[key] - BARCODE_MEANS[key]) / BARCODES_STDEVS[key]
+            normalize_barcodes(field_barcode)
 
         cell_barcodes[field_id] = field_barcode
 
     return cell_barcodes
+
+
+def get_default_barcodes() -> List[str]:
+    """Returns the default list of barcodes to include."""
+    return [
+        "cell_types",
+        "chirp_features",
+        "roi_size_um2",
+        "chirp_qi",
+        "d_qi",
+        "ds_index",
+        "os_index",
+        "pref_dir",
+        "temporal_nasal_pos_um",
+        "ventral_dorsal_pos_um",
+    ]
+
+
+def setup_field_encoder(responses_dict) -> OrdinalEncoder:
+    """Sets up the field encoder if field IDs are included."""
+    field_encoder = OrdinalEncoder()
+    field_encoder.fit(np.array(list(responses_dict.keys())).reshape(-1, 1))
+    return field_encoder
+
+
+def create_field_barcode(field_data, included_features, field_id, field_encoder) -> Dict[str, np.ndarray]:
+    """Creates the barcode for a given field based on the barcodes to include."""
+    field_barcode = {}
+
+    if "cell_types" in included_features:
+        field_barcode["cell_types"] = field_data["group_assignment"].astype(str)
+    if "chirp_features" in included_features:
+        field_barcode["chirp_features"] = calculate_chirp_features(field_data["chirp_preprocessed_traces"]).T
+    if "roi_size_um2" in included_features:
+        field_barcode["roi_size_um2"] = field_data["roi_size_um2"][:, None]
+    if "chirp_qi" in included_features:
+        field_barcode["chirp_qi"] = field_data["chirp_qi"][:, None]
+    if "d_qi" in included_features:
+        field_barcode["d_qi"] = field_data["d_qi"][:, None]
+    if "ds_index" in included_features:
+        field_barcode["ds_index"] = field_data["ds_index"][:, None]
+    if "os_index" in included_features:
+        field_barcode["os_index"] = field_data["os_index"][:, None]
+    if "pref_dir" in included_features:
+        field_barcode["pref_dir"] = field_data["pref_dir"][:, None]
+    if "temporal_nasal_pos_um" in included_features:
+        field_barcode["temporal_nasal_pos_um"] = np.repeat(
+            field_data["temporal_nasal_pos_um"], len(field_data["group_assignment"])
+        )[:, None]
+    if "ventral_dorsal_pos_um" in included_features:
+        field_barcode["ventral_dorsal_pos_um"] = np.repeat(
+            field_data["ventral_dorsal_pos_um"], len(field_data["group_assignment"])
+        )[:, None]
+
+    if field_encoder is not None:
+        field_barcode["field_id"] = (
+            field_encoder.transform(np.repeat(field_id, len(field_data["group_assignment"]))[:, None])
+            .squeeze()
+            .astype(int)
+            .astype(str)
+        )
+
+    return field_barcode
+
+
+def normalize_barcodes(field_barcode: Dict[str, np.ndarray]):
+    """Normalizes the barcodes using predefined means and standard deviations."""
+    for key in field_barcode:
+        if key in BARCODE_MEANS:
+            field_barcode[key] = (field_barcode[key] - BARCODE_MEANS[key]) / BARCODES_STDEVS[key]
 
 
 def extract_chirp_mb(response_dict) -> Dict[str, Dict[str, Float[np.ndarray, "n_neurons n_features "]]]:
@@ -334,6 +400,157 @@ class ReadoutWeightShifter(nn.Module):
         x = self.final_nonlinearity(self.output_layer(x))
 
         return x, embedded_cats
+
+
+class IndependentReadout3d(nn.Module):
+    def __init__(
+        self,
+        core_channels=64,
+        positive=False,
+        nonlinearity=True,
+        neurons_attention=True,
+        time_attention=False,
+        return_channels=False,
+        neurons_attention_kwargs: Optional[dict] = None,
+        time_attention_kwargs: Optional[dict] = None,
+        **kwargs,
+    ):
+        """
+        A readout layer with frozen factorised masks and (optional) self attention, that expects feature weights,
+        cell classes and spatials masks as input in the forward pass.
+        To be used in conjunction with a core that outputs feature weights through a shifter network.
+
+        NB: This readout has no masks, which are expected to be passed in the forward pass.
+
+        Args:
+            in_shape (tuple): The shape of the input tensor (c, t, w, h).
+            outdims (int): The number of output dimensions (usually the number of neurons in the session).
+            from_gaussian (bool, optional): Whether the masks are coming from a readout with Gaussian masks.
+                                            Defaults to False.
+            positive (bool, optional): Whether the output should be positive. Defaults to False.
+            nonlinearity (bool, optional): Whether to include a final softplus nonlinearity. Defaults to True.
+            neurons_attention (bool, optional): Whether to include self-attention over neurons. Defaults to True.
+            time_attention (bool, optional): Whether to include self-attention over time. Defaults to False.
+            return_channels (bool, optional): Whether to return the output over channels, before ELU. Defaults to False.
+        """
+        super().__init__()
+        self.core_channels = core_channels
+        self.positive = positive
+        self.nonlinearity = nonlinearity
+        self.neurons_attention = neurons_attention
+        self.time_attention = time_attention
+        self.return_channels = return_channels
+
+        if self.neurons_attention:
+            # self.embed_cell_classes = nn.Embedding(len(BADEN_GROUPS), c)
+            if neurons_attention_kwargs is None:
+                neurons_attention_kwargs = {"nhead": 2, "dim_feedforward": 32, "dropout": 0.1}
+            self.encoder_layer = nn.TransformerEncoderLayer(d_model=self.core_channels, **neurons_attention_kwargs)
+
+        if self.time_attention:
+            # For time dependent attention, we need to add positional encoding
+            max_len = 2000
+            d_model = self.core_channels
+            # Create the positional encoding matrix
+            position = torch.arange(max_len).unsqueeze(1)
+            div_term = torch.exp(torch.arange(0, d_model, 2) * (-torch.log(torch.tensor(10000.0)) / d_model))
+            pe = torch.zeros(max_len, 1, d_model)
+            pe[:, 0, 0::2] = torch.sin(position * div_term)
+            pe[:, 0, 1::2] = torch.cos(position * div_term)
+            self.register_buffer("pe", pe)
+            if time_attention_kwargs is None:
+                time_attention_kwargs = {"nhead": 2, "dim_feedforward": 32, "dropout": 0.1}
+
+            self.time_encoder_layer = nn.TransformerEncoderLayer(d_model=self.core_channels, **time_attention_kwargs)
+
+    def initialize(self, *args, **kwargs):
+        """
+        Added for compatibility with neuralpredictors
+        """
+        pass
+
+    def regularizer(self, data_key):
+        """
+        Added for compatibility with neuralpredictors
+        """
+        return 0
+
+    def forward(
+        self,
+        x: Float[torch.Tensor, "batch time channels width height"],
+        features: Float[torch.Tensor, "batch time channels neurons"],
+        spatial_masks: Float[torch.Tensor, "width height neurons"],
+        scale: Optional[Float[torch.Tensor, " neurons"]] = None,
+        bias: Optional[Float[torch.Tensor, " neurons"]] = None,
+        subs_idx=None,
+        data_key=None,
+    ) -> Float[torch.Tensor, "batch time neurons"] | Float[torch.Tensor, "batch time channels neurons"]:
+        b, t, c, w, h = x.size()
+
+        n_neurons = features.shape[-1]
+
+        features = features.reshape(b * t, c, n_neurons)
+        x = x.reshape(b * t, c, w, h)
+
+        if self.positive:
+            torch.clamp(features, min=0.0)
+
+        if subs_idx is not None:
+            feat = features[..., subs_idx]
+            masks = spatial_masks[..., subs_idx]
+
+        else:
+            feat = features
+            masks = spatial_masks
+
+        y = torch.einsum("ncwh,whd->ncd", x, masks)
+        # NB: not summing over features yet.
+        y = y * feat
+
+        if scale is not None:
+            y = y * scale
+        if bias is not None:
+            y = y + bias if subs_idx is None else y + bias[subs_idx]
+
+        if self.neurons_attention:
+            # y is now (batch * time, channels, neurons), need to reshape to do attention on neurons.
+            y = rearrange(y, "bt c n -> n bt c")
+
+            # Compute self attention
+            y = self.encoder_layer(y)
+
+            # Reshape back to (batch*time, channels, neurons)
+            y = rearrange(y, "n bt c -> bt c n")
+
+        if self.time_attention:
+            # Extract time and put neurons in batch
+            y = rearrange(y, "(b t) c n -> t (b n) c", b=b)
+
+            # Add positional encoding for time
+            y = y + self.pe[:t, ...]
+
+            y = self.time_encoder_layer(y)
+
+            # Reshape back to (batch*time, channels, neurons) to preapare for output
+            y = rearrange(y, "t (b n) c -> (b t) c n", b=b)
+
+        if self.return_channels:
+            y = y.view(b, t, c, n_neurons)
+            return y
+
+        # Sum over channels
+        y = y.sum(1)
+
+        if self.nonlinearity:
+            y = F.softplus(y)
+
+        y = y.view(b, t, n_neurons)
+
+        return y
+
+    def __repr__(self):
+        c, h, w = self.in_shape
+        return f"{self.__class__.__name__} (" + f"{c} x {w} x {h}" + " -> " + "n_neurons" + ")"
 
 
 class FrozenFactorisedReadout3d(Readout):
@@ -535,6 +752,19 @@ class ShifterVideoEncoder(nn.Module):
             # Also add it to readout_mask_dict for easy access
             self.readout_mask_dict[name] = tensor
 
+    def add_readout_mask_dict(self, readout_mask_dict: Dict[str, torch.Tensor]):
+        assert hasattr(self, "readout_mask_dict"), "No readout mask dict found. Use set_readout_mask_dict first."
+        for name, tensor in readout_mask_dict.items():
+            assert name not in self.readout_mask_dict, f"Readout mask for {name} already exists."
+            assert tensor.shape == next(iter(self.readout_mask_dict.values())).shape, (
+                f"Shape mismatch with existing readout masks. "
+                f"{tensor.shape} != {next(iter(self.readout_mask_dict.values())).shape}"
+            )
+
+            self.register_buffer(f"{name}_readout_mask", tensor)
+
+            self.readout_mask_dict[name] = tensor
+
     @staticmethod
     def extract_baden_group(value):
         if value <= 9:
@@ -581,6 +811,7 @@ class ShifterVideoEncoder(nn.Module):
         data_key=None,
         detach_core=False,
         return_features=False,
+        readout_masks=None,
         **kwargs,
     ):
         feature_weights, embedded_cats = self.readout_shifter(categorical_metadata, numerical_metadata)
@@ -633,7 +864,7 @@ class ShifterVideoEncoder(nn.Module):
         x = self.readout(
             x,
             feature_weights,
-            spatial_masks=self.readout_mask_dict[data_key],  # type: ignore
+            spatial_masks=self.readout_mask_dict[data_key] if readout_masks is None else readout_masks,  # type: ignore
             scale=readout_scale,
             bias=readout_bias,
             data_key=data_key,
@@ -646,7 +877,7 @@ class ShifterVideoEncoder(nn.Module):
 def conv_core_frozen_readout(
     dataloaders,
     seed,
-    readout_mask_from: nn.Module,
+    readout_mask_from: Optional[nn.Module],
     hidden_channels: Tuple[int, ...] = (8,),
     temporal_kernel_size: Tuple[int, ...] = (21,),
     spatial_kernel_size: Tuple[int, ...] = (11,),
@@ -766,6 +997,16 @@ def conv_core_frozen_readout(
         time_attention_kwargs=readout_time_attention_kwargs,
     )
 
+    readout = IndependentReadout3d(
+        core_channels=hidden_channels[-1],
+        nonlinearity=True,
+        neurons_attention=readout_neurons_attention,
+        time_attention=readout_time_attention,
+        return_channels=False,
+        neurons_attention_kwargs=readout_neurons_attention_kwargs,
+        time_attention_kwargs=readout_time_attention_kwargs,
+    )
+
     readout_shifter = ReadoutWeightShifter(
         shifter_num_numerical_features,
         shifter_categorical_vocab_sizes,
@@ -783,11 +1024,11 @@ def conv_core_frozen_readout(
 
     model = ShifterVideoEncoder(core, readout, readout_shifter)
 
-    masks = transfer_readout_mask(
-        readout_mask_from, model, ignore_source_key_suffix="_mb", freeze_mask=True, return_masks=True
-    )
-
-    model.set_readout_mask_dict(masks)
+    if readout_mask_from is not None:
+        masks = transfer_readout_mask(
+            readout_mask_from, model, ignore_source_key_suffix="_mb", freeze_mask=True, return_masks=True
+        )
+        model.set_readout_mask_dict(masks)  # type: ignore
 
     return model
 
@@ -1052,6 +1293,7 @@ def natmov_and_meta_dataloaders(
     use_raw_traces: bool = False,
     include_field_info: bool = False,
     allow_over_boundaries: bool = True,
+    included_features: Optional[List[str]] = None,
 ):
     """
     Train, test and validation dataloaders for natural movies responses datasets and metadata.
@@ -1106,7 +1348,9 @@ def natmov_and_meta_dataloaders(
     if use_raw_traces:
         barcodes = extract_chirp_mb(neuron_data_dictionary)
     else:
-        barcodes = generate_cell_barcodes(neuron_data_dictionary, include_field_id=include_field_info)
+        barcodes = generate_cell_barcodes(
+            neuron_data_dictionary, include_field_id=include_field_info, included_features=included_features
+        )
 
     for session_key, session_data in tqdm(neuron_data_dictionary.items(), desc="Creating movie dataloaders"):
         neuron_data = NeuronData(
