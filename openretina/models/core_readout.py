@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Iterable
+from typing import Optional, Iterable
 import os
 
 import numpy as np
@@ -220,7 +220,8 @@ class CoreWrapper(torch.nn.Module):
                  gamma_temporal: float = 40.0,
                  gamma_in_sparse: float = 1.0,
                  dropout_rate: float = 0.0,
-                 cut_first_n_temporal_frames: int = 30,
+                 cut_first_n_frames: int = 30,
+                 maxpool_every_n_layers: Optional[int] = None,
                  ):
         # Input validation
         if len(channels) < 2:
@@ -236,7 +237,7 @@ class CoreWrapper(torch.nn.Module):
         self.gamma_input = gamma_input
         self.gamma_temporal = gamma_temporal
         self.gamma_in_sparse = gamma_in_sparse
-        self._cut_first_n_temporal_frames = cut_first_n_temporal_frames
+        self._cut_first_n_frames = cut_first_n_frames
 
         self.features = torch.nn.Sequential()
         for layer_id, (num_in_channels, num_out_channels) in enumerate(
@@ -258,14 +259,14 @@ class CoreWrapper(torch.nn.Module):
             layer["nonlin"] = torch.nn.ELU()
             if dropout_rate > 0.0:
                 layer["dropout"] = torch.nn.Dropout3d(p=dropout_rate)
-            if layer_id % 2 == 0:
+            if maxpool_every_n_layers is not None and (layer_id % maxpool_every_n_layers) == 0:
                 layer["pool"] = torch.nn.MaxPool3d((1, 2, 2))
             self.features.add_module(f"layer{layer_id}", nn.Sequential(layer))  # type: ignore
 
     def forward(self, input_: torch.Tensor) -> torch.Tensor:
         res = self.features(input_)
         # To keep compatibility with hoefling model scores
-        res_cut = res[:, :, self._cut_first_n_temporal_frames:, :, :]
+        res_cut = res[:, :, self._cut_first_n_frames:, :, :]
         return res_cut
 
     def spatial_laplace(self) -> torch.Tensor:
@@ -317,6 +318,9 @@ class CoreReadout(lightning.LightningModule):
             gamma_masks: float = 0.0,
             readout_reg_avg: bool = False,
             learning_rate: float = 0.01,
+            cut_first_n_frames_in_core: int = 30,
+            dropout_rate: float = 0.0,
+            maxpool_every_n_layers: Optional[int] = None,
             device: str = "cuda",
     ):
         super().__init__()
@@ -325,6 +329,9 @@ class CoreReadout(lightning.LightningModule):
             channels=(in_channels, ) + tuple(features_core),
             temporal_kernel_sizes=tuple(temporal_kernel_sizes),
             spatial_kernel_sizes=tuple(spatial_kernel_sizes),
+            cut_first_n_frames=cut_first_n_frames_in_core,
+            dropout_rate=dropout_rate,
+            maxpool_every_n_layers=maxpool_every_n_layers,
         )
         # Run one forward path to determine output shape of core
         example_input = torch.zeros((1, ) + tuple(in_shape))

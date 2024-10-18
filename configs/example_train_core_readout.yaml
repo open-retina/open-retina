@@ -8,7 +8,6 @@ core_readout:
   features_core: [16, 16, 16, 16]
   temporal_kernel_sizes: [16, 16, 8, 8]
   spatial_kernel_sizes: [16, 16, 8, 8]
-  # in_shape: [2, 750, 18, 16]
   in_shape: [2, 150, 72, 64]
   scale: True
   bias: True
@@ -18,6 +17,10 @@ core_readout:
   positive: True
   gamma_readout: 0.4
   learning_rate: 0.01
+  maxpool_every_n_layers: 2
+  cut_first_n_frames_in_core: 30
+  dropout_rate: 0.0
+  device: "cuda"
 
 dataloader:
   batch_size: null
