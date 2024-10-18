@@ -51,45 +51,42 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         self.mask_log_var = torch.nn.Parameter(data=torch.zeros(self.outdims), requires_grad=True)
         self.grid = torch.nn.Parameter(data=self.make_mask_grid(outdims, w, h), requires_grad=False)
 
-        self.features = nn.Parameter(torch.Tensor(1, c, 1, outdims))
-        self.features.data.normal_(1.0 / c, 0.01)
+        self.feature_logits = nn.Parameter(torch.Tensor(1, c, 1, outdims))
+        self.features_logits.data.normal_(0, 0.01)
         self.scale_param = nn.Parameter(torch.ones(outdims), requires_grad=scale)
         if scale:
             self.scale_param.data.normal_(1.0, 0.01)
         self.bias_param = nn.Parameter(torch.zeros(outdims), requires_grad=bias)
 
-    def feature_l1(self, average: bool = False) -> torch.Tensor:
-        features_abs = self.features.abs()
-        if average:
-            return features_abs.mean()
-        else:
-            return features_abs.sum()
+    def feature_regularization(self) -> torch.Tensor:
+        probs = self.feature_weights()
+        entropy = -torch.sum(probs * torch.log(probs))
+        return entropy
 
-    def mask_l1(self, average: bool = False) -> torch.Tensor:
-        if average:
-            return (
-                    torch.exp(self.mask_log_var * self.gaussian_var_scale).mean()
-                    + (self.mask_mean * self.gaussian_mean_scale).pow(2).mean()
-            )
-        else:
-            return (
-                    torch.exp(self.mask_log_var * self.gaussian_var_scale).sum()
-                    + (self.mask_mean * self.gaussian_mean_scale).pow(2).sum()
-            )
+    def feature_weights(self) -> torch.Tensor:
+        return nn.functional.softmax(self.feature_logits, dim=1)
+
+    def mask_regularization(self) -> torch.Tensor:
+        # variance of gaussian according to https://en.wikipedia.org/wiki/Normal_distribution
+        var = self.mask_variance()
+        return 0.5 * torch.log(2.0 * torch.pi * torch.e * var)
 
     @staticmethod
-    def make_mask_grid(outdims: int, w: int, h: int) -> torch.Tensor:
-        """Actually mixed up: w (width) is height, and vice versa"""
-        grid_w = torch.linspace(-1 * w / max(w, h), 1 * w / max(w, h), w)
-        grid_h = torch.linspace(-1 * h / max(w, h), 1 * h / max(w, h), h)
-        xx, yy = torch.meshgrid([grid_w, grid_h], indexing="ij")
+    def make_mask_grid(outdims: int, h: int, w: int) -> torch.Tensor:
+        grid_h = torch.linspace(-1 * h / max(h, w), 1 * h / max(h, w), h)
+        grid_w = torch.linspace(-1 * w / max(h, w), 1 * w / max(h, w), w)
+        xx, yy = torch.meshgrid([grid_h, grid_w], indexing="ij")
         grid = torch.stack([xx, yy], 2)[None, ...]
         return grid.repeat([outdims, 1, 1, 1])
 
+    def mask_variance(self) -> torch.Tensor:
+        scaled_log_var = self.mask_log_var * self.gaussian_var_scale
+        mask_var = torch.exp(torch.clamp(scaled_log_var, min=-20, max=20)).view(-1, 1, 1)
+        return mask_var + 1e-8
+
     def get_mask(self) -> torch.Tensor:
         """Gets the actual mask values in terms of a PDF from the mean and SD"""
-        scaled_log_var = self.mask_log_var * self.gaussian_var_scale
-        mask_var_ = torch.exp(torch.clamp(scaled_log_var, min=-20, max=20)).view(-1, 1, 1)
+        mask_var_ = self.mask_variance()
         pdf = self.grid - self.mask_mean.view(self.outdims, 1, 1, -1) * self.gaussian_mean_scale
         pdf = torch.sum(pdf**2, dim=-1) / (mask_var_ + 1e-8)
         pdf = torch.exp(-0.5 * torch.clamp(pdf, max=20))
@@ -197,8 +194,9 @@ class ReadoutWrapper(torch.nn.ModuleDict):
         return response
 
     def regularizer(self, data_key: str) -> torch.Tensor:
-        feature_loss = self[data_key].feature_l1(average=self.readout_reg_avg) * self.gamma_readout
-        mask_loss = self[data_key].mask_l1(average=self.readout_reg_avg) * self.gamma_masks
+        session_readout: SimpleSpatialXFeature3d = self[data_key]
+        feature_loss = session_readout.feature_regularization() * self.gamma_readout
+        mask_loss = session_readout.mask_regularization() * self.gamma_masks
         return feature_loss + mask_loss
 
     def readout_keys(self) -> list[str]:
