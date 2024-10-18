@@ -66,7 +66,8 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
     def mask_regularization(self) -> torch.Tensor:
         # variance of gaussian according to https://en.wikipedia.org/wiki/Normal_distribution
         var = self.mask_variance()
-        return 0.5 * torch.log(2.0 * torch.pi * torch.e * var)
+        entropy = 0.5 * torch.log(2.0 * torch.pi * torch.e * var)
+        return torch.sum(entropy)
 
     @staticmethod
     def make_mask_grid(outdims: int, h: int, w: int) -> torch.Tensor:
