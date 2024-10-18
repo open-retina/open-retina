@@ -1,0 +1,6 @@
+_target_: openretina.cell_type_training.natmov_and_meta_dataloaders
+_convert_: all
+batch_size: 64
+use_raw_traces: false
+include_field_info: false
+allow_over_boundaries: true

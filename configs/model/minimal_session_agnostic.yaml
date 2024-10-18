@@ -1,0 +1,42 @@
+_target_: openretina.cell_type_training.conv_core_frozen_readout
+_convert_: all
+# core args
+layers: 2
+hidden_channels: [32, 64]
+temporal_kernel_size: [21, 11]
+spatial_kernel_size: [11, 5]
+input_padding: false
+hidden_padding: true
+conv_type: "custom_separable"
+use_projections: true
+stack: -1
+batch_adaptation: false
+gamma_input: 0.3
+gamma_in_sparse: 1.0
+gamma_hidden: 0.0
+gamma_temporal: 40.0
+core_bias: true
+use_gru: false
+# readout args
+readout_positive: false
+readout_scale: false
+readout_bias: true
+post_readout_attention: false
+nonlinearity: "ELU"
+readout_neurons_attention: true
+readout_neurons_attention_kwargs:
+  nhead: 4
+  dim_feedforward: 64
+  dropout: 0.3
+readout_time_attention: false
+
+# shifter args
+shifter_batch_norm: true
+shifter_tanh_output: true
+shifter_gamma: 4.0
+shifter_hidden_units: [128, 64]
+shifter_num_layers: 2
+shifter_gamma_variance: 7.0
+shifter_num_numerical_features: 6
+shifter_categorical_vocab_sizes: [33,]
+shifter_categorical_embedding_dims: [10,]

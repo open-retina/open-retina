@@ -1,0 +1,40 @@
+defaults:
+  - _self_
+  - dataloader: session_agnostic
+  - quality_checks: hoefling_2024
+  - model: base_session_agnostic
+
+data:
+  base_path: /Data/fd_export
+  save_path: /Projects/open-retina/models
+
+trainer:
+  _target_: openretina.training.standard_early_stop_trainer
+  max_iter: 60
+  scale_loss: true
+  lr_decay_steps: 4
+  optimizer: 
+    _target_: torch.optim.AdamW
+    _partial_: true
+  scheduler: 
+    _target_: torch.optim.lr_scheduler.OneCycleLR
+    _partial_: true
+  reduce_lr_on_plateau: false
+  tolerance: 0.0005
+  patience: 15
+  verbose: false
+  lr_init: 0.0008
+  avg_loss: false
+  loss_function: PoissonLoss3d
+  stop_function: corr_stop3d
+  loss_accum_batch_n: 1
+  parallel: true
+  clip_gradient_norm: true
+  objective_function: 
+    _target_: openretina.cell_type_training.metadata_model_full_objective
+    _partial_: true
+  scheduler_kwargs: ???
+
+hydra:
+  run:
+    dir: /Projects/open-retina/experiments/${hydra.job.name}/${now:%Y-%m-%d_%H-%M-%S}

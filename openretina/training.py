@@ -14,6 +14,7 @@ from tqdm.auto import tqdm
 
 from . import measures, metrics
 from .cyclers import LongCycler
+from .dataloaders import extract_data_info_from_dataloaders
 from .early_stopping import early_stopping
 from .tracking import MultipleObjectiveTracker
 from .utils.misc import set_seed, tensors_to_device
@@ -204,7 +205,11 @@ def standard_early_stop_trainer(
                     "val_MSE_loss": tracker_info["val_MSE_loss"][-1],
                 }
             )
-        if not reduce_lr_on_plateau and scheduler is not None:
+        if (
+            not reduce_lr_on_plateau
+            and scheduler is not None
+            and not isinstance(lr_scheduler, torch.optim.lr_scheduler.OneCycleLR)
+        ):
             lr_scheduler.step()  # type: ignore
 
     # Model evaluation
@@ -237,13 +242,23 @@ def save_checkpoint(model, optimizer, epoch, loss, save_folder: str, model_name:
     )
 
 
-def save_model(model: torch.nn.Module, save_folder: str, model_name: str) -> None:
+def save_model(
+    model: torch.nn.Module,
+    dataloaders: Optional[dict[str, dict]],
+    save_folder: str,
+    model_name: str,
+) -> None:
     if not os.path.exists(save_folder):
         # only create the lower level directory if it does not exist
         os.mkdir(save_folder)
     date = datetime.datetime.now().strftime("%Y-%m-%d")
-    torch.save(model.state_dict(), os.path.join(save_folder, f"{model_name}_{date}_model_weights.pt"))
-    torch.save(model, os.path.join(save_folder, f"{model_name}_{date}_model_object.pt"))
+    torch.save(model.state_dict(), os.path.join(save_folder, f"{date}_{model_name}_model_weights.pt"))
+    torch.save(model, os.path.join(save_folder, f"{date}_{model_name}_model_object.pt"))
+    if dataloaders is not None:
+        torch.save(
+            extract_data_info_from_dataloaders(dataloaders),
+            os.path.join(save_folder, f"{date}_{model_name}_data_info.pt"),
+        )
 
 
 def clean_session_key(session_key: str) -> str:

@@ -1,23 +1,28 @@
 from collections import OrderedDict
-from collections.abc import Iterable
 from typing import Literal, Optional, Tuple
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 
-from openretina.models.model_utils import get_module_output_shape
 from openretina.dataloaders import get_dims_for_loader_dict
+from openretina.models.model_utils import get_module_output_shape
 from openretina.utils.misc import set_seed
 
 # Laplace filters
 LAPLACE_1D = np.array([-1, 4, -1]).astype(np.float32)[None, None, ...]
 LAPLACE_3x3 = np.array([[0, -1, 0], [-1, 4, -1], [0, -1, 0]]).astype(np.float32)[None, None, ...]
 LAPLACE_5x5 = np.array(
-    [[0, 0, 1, 0, 0], [0, 1, 2, 1, 0], [1, 2, -16, 2, 1], [0, 1, 2, 1, 0], [0, 0, 1, 0, 0],]
+    [
+        [0, 0, 1, 0, 0],
+        [0, 1, 2, 1, 0],
+        [1, 2, -16, 2, 1],
+        [0, 1, 2, 1, 0],
+        [0, 0, 1, 0, 0],
+    ]
 ).astype(np.float32)[None, None, ...]
 LAPLACE_7x7 = np.array(
     [
@@ -66,11 +71,10 @@ class Core(nn.Module):
     def initialize(self) -> None:
         raise NotImplementedError("Not initializing")
 
-    def __repr__(self) -> str:
-        s = f"{repr(super())} [{self.__class__.__name__} regularizers: "
-        ret = []
-        for attr in filter(lambda x: "gamma" in x or "skip" in x, dir(self)):
-            ret.append(f"{attr} = {getattr(self, attr)}")
+    def __repr__(self):
+        s = super().__repr__()
+        s += f" [{self.__class__.__name__} regularizers: "
+        ret = [f"{attr} = {getattr(self, attr)}" for attr in filter(lambda x: "gamma" in x or "skip" in x, dir(self))]
         return s + "|".join(ret) + "]\n"
 
 
@@ -153,8 +157,7 @@ class ParametricFactorizedBatchConv3dCore(Core3d):
             log_speed_dict[var_name] = log_speed_val
 
         if input_padding:
-            input_pad: tuple[int, int, int] | int = (0, spatial_kernel_size[0] // 2,
-                                                     spatial_kernel_size[0] // 2)
+            input_pad: tuple[int, int, int] | int = (0, spatial_kernel_size[0] // 2, spatial_kernel_size[0] // 2)
         else:
             input_pad = 0
         if hidden_padding & (len(spatial_kernel_size) > 1):
@@ -165,11 +168,11 @@ class ParametricFactorizedBatchConv3dCore(Core3d):
         else:
             hidden_pad = [0 for _ in range(1, len(spatial_kernel_size))]
 
-        if not isinstance(hidden_channels, Iterable):
+        if not isinstance(hidden_channels, (list, tuple)):
             hidden_channels = [hidden_channels] * self.layers
-        if not isinstance(temporal_kernel_size, Iterable):
+        if not isinstance(temporal_kernel_size, (list, tuple)):
             temporal_kernel_size = [temporal_kernel_size] * self.layers
-        if not isinstance(spatial_kernel_size, Iterable):
+        if not isinstance(spatial_kernel_size, (list, tuple)):
             spatial_kernel_size = [spatial_kernel_size] * self.layers
 
         # --- first layer
@@ -212,8 +215,9 @@ class ParametricFactorizedBatchConv3dCore(Core3d):
                 num_scans=self.num_scans,
             )
             if batch_norm:
-                layer["norm"] = nn.BatchNorm3d(hidden_channels[layer_num], momentum=momentum,
-                                               affine=bias and batch_norm_scale)
+                layer["norm"] = nn.BatchNorm3d(
+                    hidden_channels[layer_num], momentum=momentum, affine=bias and batch_norm_scale
+                )
                 if bias:
                     if not batch_norm_scale:
                         layer["bias"] = Bias3DLayer(hidden_channels[layer_num])
@@ -229,8 +233,7 @@ class ParametricFactorizedBatchConv3dCore(Core3d):
         ret = []
         do_skip = False
         for layer_num, feat in enumerate(self.features):
-            input_ = feat((torch.cat(ret[-min(self.skip, layer_num):], dim=1)
-                           if do_skip else input_, data_key))
+            input_ = feat((torch.cat(ret[-min(self.skip, layer_num) :], dim=1) if do_skip else input_, data_key))
             ret.append(input_)
 
         return torch.cat([ret[ind] for ind in self.stack], dim=1)
@@ -265,8 +268,9 @@ class ParametricFactorizedBatchConv3dCore(Core3d):
     def temporal_smoothness(self):
         ret = 0
         for layer_norm in range(self.layers):
-            ret += temporal_smoothing(self.features[layer_norm].conv.sin_weights,
-                                      self.features[layer_norm].conv.cos_weights)
+            ret += temporal_smoothing(
+                self.features[layer_norm].conv.sin_weights, self.features[layer_norm].conv.cos_weights
+            )
         return ret
 
     def regularizer(self):
@@ -359,7 +363,11 @@ class SpatialXFeature3d(nn.Module):
         nonlinearity: bool = True,
     ):
         """
-        TODO write docstring
+        This readout is essentialy unifying the implementation of the FullFactorized2d readout and the
+        DeterministicGaussian2d readout as found in the neuralpredictors codebase. If gaussian_masks is set to True,
+        the readout will learn only mean and variance of an isotropic Gaussian mask per neuron. If gaussian_masks is
+        set to False, the readout acts as a full factorised readout, with the spatial mask being learned as a full 2D
+        tensor for each neuron.
 
         Args:
             in_shape (tuple): The shape of the input tensor (c, t, w, h).
@@ -475,7 +483,7 @@ class SpatialXFeature3d(nn.Module):
         if self.gaussian_masks:
             return self.normal_pdf().permute(1, 2, 0)
         else:
-            return self.masks.data.abs_()
+            return self.masks.abs_()
 
     def forward(self, x: torch.Tensor, shift=None, subs_idx=None) -> torch.Tensor:
         self.masks = self.get_masks()
@@ -514,12 +522,13 @@ class SpatialXFeature3d(nn.Module):
         features_max = float(features.max())
         for neuron_id in range(masks.shape[-1]):
             mask_neuron = masks[:, :, neuron_id]
-            fig_axes_tuple = plt.subplots(ncols=2, figsize=(2*6, 6))
+            fig_axes_tuple = plt.subplots(ncols=2, figsize=(2 * 6, 6))
             axes: list[plt.Axes] = fig_axes_tuple[1]  # type: ignore
 
             axes[0].set_title("Readout Mask")
-            axes[0].imshow(mask_neuron, interpolation="none", cmap="RdBu_r",
-                           norm=Normalize(-mask_abs_max, mask_abs_max))
+            axes[0].imshow(
+                mask_neuron, interpolation="none", cmap="RdBu_r", norm=Normalize(-mask_abs_max, mask_abs_max)
+            )
 
             features_neuron = features[0, :, 0, neuron_id]
             axes[1].set_title("Readout feature weights")
@@ -617,7 +626,6 @@ class TorchFullConv3D(nn.Module):
         if spatial_kernel_size2 is None:
             spatial_kernel_size2 = spatial_kernel_size
 
-        self._log_speed_default = torch.nn.Parameter(data=torch.zeros(1), requires_grad=False)
         self.conv = nn.Conv3d(
             in_channels,
             out_channels,
@@ -626,6 +634,7 @@ class TorchFullConv3D(nn.Module):
             padding=padding,
             bias=bias,
         )
+        self.register_buffer("_log_speed_default", torch.zeros(1))
 
     def forward(self, input_: torch.Tensor) -> torch.Tensor:
         x, data_key = input_
@@ -698,7 +707,6 @@ class TorchSTSeparableConv3D(nn.Module):
         if spatial_kernel_size2 is None:
             spatial_kernel_size2 = spatial_kernel_size
 
-        self._log_speed_default = torch.nn.Parameter(data=torch.zeros(1), requires_grad=False)
         self.space_conv = nn.Conv3d(
             in_channels,
             out_channels,
@@ -710,6 +718,7 @@ class TorchSTSeparableConv3D(nn.Module):
         self.time_conv = nn.Conv3d(
             out_channels, out_channels, (temporal_kernel_size, 1, 1), stride=stride, padding=padding, bias=bias
         )
+        self.register_buffer("_log_speed_default", torch.zeros(1))
 
     def forward(self, input_: torch.Tensor) -> torch.Tensor:
         x, data_key = input_
@@ -792,7 +801,7 @@ class STSeparableBatchConv3d(nn.Module):
 
         # Initialize bias if required
         self.bias = nn.Parameter(torch.zeros(out_channels)) if bias else None
-        self._log_speed_default = torch.nn.Parameter(data=torch.zeros(1), requires_grad=False)
+        self.register_buffer("_log_speed_default", torch.zeros(1))
 
         # Store log speeds for each data key
         for key, val in log_speed_dict.items():
@@ -838,8 +847,9 @@ class STSeparableBatchConv3d(nn.Module):
         return spatial_2d_np
 
     def get_temporal_weight(self, in_channel: int, out_channel: int) -> tuple[np.ndarray, float]:
-        weight_temporal = compute_temporal_kernel(self._log_speed_default, self.sin_weights,
-                                                  self.cos_weights, self.temporal_kernel_size)
+        weight_temporal = compute_temporal_kernel(
+            self._log_speed_default, self.sin_weights, self.cos_weights, self.temporal_kernel_size
+        )
         global_abs_max = float(weight_temporal.detach().abs().max().item())
         temporal_trace_tensor = weight_temporal[out_channel, in_channel, :, 0, 0]
         temporal_trace_np = temporal_trace_tensor.detach().cpu().numpy()
@@ -852,16 +862,17 @@ class STSeparableBatchConv3d(nn.Module):
 
     def plot_weights(self, in_channel: int, out_channel: int, plot_log_speed: bool = False) -> plt.Figure:
         ncols = 4 if plot_log_speed else 3
-        fig_axes_tuple = plt.subplots(ncols=ncols, figsize=(ncols*6, 6))
+        fig_axes_tuple = plt.subplots(ncols=ncols, figsize=(ncols * 6, 6))
         fig: plt.Figure = fig_axes_tuple[0]
         axes: list[plt.Axes] = fig_axes_tuple[1]  # type: ignore
         fig.suptitle(f"Weights for {in_channel=} {out_channel=}")
         axes[0].set_title("Spatial Weight")
         spatial_weight = self.get_spatial_weight(in_channel, out_channel)
         abs_max = float(self.weight_spatial.detach().abs().max().item())
-        im = axes[0].imshow(spatial_weight, interpolation='none', cmap="RdBu_r",
-                            norm=Normalize(vmin=-abs_max, vmax=abs_max))
-        fig.colorbar(im, orientation='vertical')
+        im = axes[0].imshow(
+            spatial_weight, interpolation="none", cmap="RdBu_r", norm=Normalize(vmin=-abs_max, vmax=abs_max)
+        )
+        fig.colorbar(im, orientation="vertical")
         axes[0].set_axis_off()
 
         axes[1].set_title("Temporal Weight")
@@ -869,8 +880,7 @@ class STSeparableBatchConv3d(nn.Module):
         axes[1].set_ylim(-temporal_abs_max, temporal_abs_max)
         axes[1].plot(temporal_weight)
         sin_trace, cos_trace = self.get_sin_cos_weights(in_channel, out_channel)
-        trace_max = max(self.sin_weights.detach().abs().max().item(),
-                        self.cos_weights.detach().abs().max().item())
+        trace_max = max(self.sin_weights.detach().abs().max().item(), self.cos_weights.detach().abs().max().item())
         trace_max *= 1.1
 
         axes[2].set_ylim(-trace_max, trace_max)
@@ -880,8 +890,11 @@ class STSeparableBatchConv3d(nn.Module):
         axes[2].legend()
 
         if plot_log_speed:
-            log_speeds = {n[len("log_speed_"):]: float(getattr(self, n).detach().item())
-                          for n in dir(self) if n.startswith("log_speed_")}
+            log_speeds = {
+                n[len("log_speed_") :]: float(getattr(self, n).detach().item())
+                for n in dir(self)
+                if n.startswith("log_speed_")
+            }
             log_speeds_names = sorted(log_speeds.keys())
             axes[3].bar(log_speeds_names, [log_speeds[n] for n in log_speeds_names])
             axes[3].set_xticklabels(log_speeds_names, rotation=90)
@@ -898,8 +911,9 @@ class STSeparableBatchConv3d(nn.Module):
                 plt.close()
 
     @staticmethod
-    def temporal_weights(length: int, num_channels: int, num_feat: int, scale: float = 0.01
-                         ) -> tuple[torch.Tensor, torch.Tensor]:
+    def temporal_weights(
+        length: int, num_channels: int, num_feat: int, scale: float = 0.01
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Generates initial weights for the temporal components of the convolution.
 
@@ -956,7 +970,7 @@ class STSeparableBatchConv3d(nn.Module):
             torch.Tensor: The mask tensor.
         """
         mask = 1 / (1 + torch.exp(-time - int(T * 0.95) / stretch))
-        return mask.T
+        return mask.T if mask.ndim > 1 else mask
 
 
 class Laplace(nn.Module):
@@ -965,11 +979,11 @@ class Laplace(nn.Module):
     """
 
     def __init__(
-            self,
-            padding: int | None = None,
-            filter_size: int = 3,
+        self,
+        padding: int | None = None,
+        filter_size: int = 3,
     ):
-        """ Laplace filter for a stack of data """
+        """Laplace filter for a stack of data"""
 
         super().__init__()
         if filter_size == 3:
@@ -1043,13 +1057,8 @@ def temporal_smoothing(sin: torch.Tensor, cos: torch.Tensor) -> torch.Tensor:
 
 
 class LocalEncoder(Encoder):
-
     def forward(
-            self,
-            x: torch.Tensor,
-            data_key: str | None = None,
-            detach_core: bool = False,
-            **kwargs
+        self, x: torch.Tensor, data_key: str | None = None, detach_core: bool = False, **kwargs
     ) -> torch.Tensor:
         self.detach_core = detach_core
         if self.detach_core:
@@ -1097,7 +1106,8 @@ def SFB3d_core_SxF3d_readout(
     data_info: Optional[dict] = None,
     nonlinearity: str = "ELU",
     conv_type: Literal["full", "separable", "custom_separable", "time_independent"] = "custom_separable",
-) -> torch.nn.Module:
+    **kwargs,
+):
     """
     Model class of a stacked2dCore (from mlutils) and a pointpooled (spatial transformer) readout
     Args:
@@ -1115,7 +1125,7 @@ def SFB3d_core_SxF3d_readout(
     # make sure trainloader is being used
     if data_info is not None:
         in_shapes_dict = {k: v["input_dimensions"] for k, v in data_info.items()}
-        input_channels = [v["input_channels"] for k, v in data_info.items()]
+        input_channels = [v["input_channels"] for v in data_info.values()]
         n_neurons_dict = {k: v["output_dimension"] for k, v in data_info.items()}
         roi_masks = {k: torch.tensor(v["roi_coords"]) for k, v in data_info.items()}
     else:
@@ -1125,7 +1135,7 @@ def SFB3d_core_SxF3d_readout(
         in_name, out_name, *_ = next(iter(list(dataloaders.values())[0]))._fields
 
         session_shape_dict = get_dims_for_loader_dict(dataloaders)
-        print(session_shape_dict)
+        # print(session_shape_dict)
         n_neurons_dict = {
             k: v[out_name][-1] for k, v in session_shape_dict.items()
         }  # dictionary containing # neurons per session
