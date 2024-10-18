@@ -404,5 +404,5 @@ class CoreReadout(lightning.LightningModule):
         }
 
     def save_weight_visualizations(self, folder_path: str) -> None:
-        self.core.save_weight_visualizations(os.path.join(folder_path, "core"))
-        self.readout.save_weight_visualizations(os.path.join(folder_path, "readout"))
+        self.core.save_weight_visualizations(os.path.join(folder_path, "weights_core"))
+        self.readout.save_weight_visualizations(os.path.join(folder_path, "weights_readout"))
