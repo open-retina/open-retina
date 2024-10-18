@@ -14,6 +14,7 @@ lightning
 wandb
 hydra-core
 h5py
+opencv-python
 # Type Checks
 ruff
 mypy>=1.0

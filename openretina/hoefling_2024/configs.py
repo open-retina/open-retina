@@ -61,7 +61,7 @@ dataset_config = {
 }
 
 postprocessing_config = {
-    "norm": 30,
+    "norm": None,  # previously 30 for 18x16 stimuli
     "x_min_green": -0.654,
     "x_max_green": 6.269,
     "x_min_uv": -0.913,
@@ -75,3 +75,14 @@ pre_normalisation_values = {
     "channel_1_mean": 36.13151406772875,
     "channel_1_std": 39.84109959857139,
 }
+
+
+MEAN_STD_DICT_74x64 = {
+    'channel_0_mean': 37.19756061097937,
+    'channel_0_std': 30.26892576088715,
+    'channel_1_mean': 36.76101593081903,
+    'channel_1_std': 42.65469417011324,
+    'joint_mean': 36.979288270899204,
+    'joint_std': 36.98463253226166,
+}
+
