@@ -61,7 +61,7 @@ dataset_config = {
 }
 
 postprocessing_config = {
-    "norm": 30,
+    "norm": None,  # previously 30 for 18x16 stimuli
     "x_min_green": -0.654,
     "x_max_green": 6.269,
     "x_min_uv": -0.913,

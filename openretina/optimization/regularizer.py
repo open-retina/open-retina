@@ -13,7 +13,7 @@ class RangeRegularizationLoss(StimulusRegularizationLoss):
     def __init__(
             self,
             min_max_values: Iterable[tuple[float, float]],
-            max_norm: float,
+            max_norm: Optional[float],
             factor: float = 1.0,
     ):
         self._min_max_values = list(min_max_values)
@@ -29,9 +29,10 @@ class RangeRegularizationLoss(StimulusRegularizationLoss):
             max_penalty = torch.sum(torch.relu(stimulus_i - max_val))
             loss += min_penalty + max_penalty
 
-        # Add a loss such that the norm of the stimulus is lower than max_norm
-        norm_penalty = torch.relu(torch.norm(stimulus) - self._max_norm)
-        loss += norm_penalty
+        if self._max_norm is not None:
+            # Add a loss such that the norm of the stimulus is lower than max_norm
+            norm_penalty = torch.relu(torch.norm(stimulus) - self._max_norm)
+            loss += norm_penalty
 
         loss *= self._factor
         return loss
