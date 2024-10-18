@@ -398,7 +398,7 @@ class SpatialXFeature3d(nn.Module):
             self.mask_mean = torch.nn.Parameter(data=torch.zeros(self.outdims, 2), requires_grad=True)
             self.mask_log_var = torch.nn.Parameter(data=torch.zeros(self.outdims), requires_grad=True)
             self.grid = torch.nn.Parameter(data=self.make_mask_grid(w, h), requires_grad=False)
-            self.masks = torch.nn.Parameter(self.normal_pdf().permute(1, 2, 0), requires_grad=False)
+            self.masks = self.normal_pdf().permute(1, 2, 0)
         else:
             if initialize_from_roi_masks:
                 self.mask_mean = torch.nn.Parameter(data=roi_mask, requires_grad=False)
@@ -481,7 +481,7 @@ class SpatialXFeature3d(nn.Module):
 
     def get_masks(self) -> torch.Tensor:
         if self.gaussian_masks:
-            return torch.nn.Parameter(self.normal_pdf().permute(1, 2, 0), requires_grad=False)
+            return self.normal_pdf().permute(1, 2, 0)
         else:
             return self.masks.abs_()
 
@@ -1125,7 +1125,7 @@ def SFB3d_core_SxF3d_readout(
     # make sure trainloader is being used
     if data_info is not None:
         in_shapes_dict = {k: v["input_dimensions"] for k, v in data_info.items()}
-        input_channels = [v["input_channels"] for k, v in data_info.items()]
+        input_channels = [v["input_channels"] for v in data_info.values()]
         n_neurons_dict = {k: v["output_dimension"] for k, v in data_info.items()}
         roi_masks = {k: torch.tensor(v["roi_coords"]) for k, v in data_info.items()}
     else:
