@@ -216,6 +216,7 @@ class CoreWrapper(torch.nn.Module):
                  gamma_input: float = 0.3,
                  gamma_temporal: float = 40.0,
                  gamma_in_sparse: float = 1.0,
+                 dropout_rate: float = 0.0,
                  cut_first_n_temporal_frames: int = 30,
                  ):
         # Input validation
@@ -252,8 +253,8 @@ class CoreWrapper(torch.nn.Module):
             layer["norm"] = nn.BatchNorm3d(num_out_channels, momentum=0.1, affine=True)
             layer["bias"] = Bias3DLayer(num_out_channels)
             layer["nonlin"] = torch.nn.ELU()
-            # layer["dropout"] = torch.nn.Dropout(p=0.5)
-            # layer["dropout"] = torch.nn.Dropout3d(p=0.5)
+            if dropout_rate > 0.0:
+                layer["dropout"] = torch.nn.Dropout3d(p=dropout_rate)
             if layer_id % 2 == 0:
                 layer["pool"] = torch.nn.MaxPool3d((1, 2, 2))
             self.features.add_module(f"layer{layer_id}", nn.Sequential(layer))  # type: ignore
@@ -337,8 +338,6 @@ class CoreReadout(lightning.LightningModule):
         self.correlation_loss = CorrelationLoss3d(avg=True)
 
     def forward(self, x: torch.Tensor, data_key: str) -> torch.Tensor:
-        # first experiment, downpool to 18x16
-        # x = torch.nn.functional.avg_pool3d(x, kernel_size=[1, 4, 4])
         output_core = self.core(x)
         output_readout = self.readout(output_core, data_key=data_key)
         return output_readout

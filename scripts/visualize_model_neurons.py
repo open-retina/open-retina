@@ -179,7 +179,7 @@ def main(
                     stimulus_postprocessor=stimulus_postprocessor,
                 )
             except Exception as e:
-                print("Skipping neuron {neuron_id} in session {session_key} because of exception {e}")
+                print(f"Skipping neuron {neuron_id} in session {session_key} because of exception {e}")
                 continue
             stimulus_np = stimulus[0].cpu().numpy()
             fig_axes_tuple = plt.subplots(2, 2, figsize=(7 * 3, 12))
