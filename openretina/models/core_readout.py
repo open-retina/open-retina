@@ -1,30 +1,31 @@
-from collections import OrderedDict
-from typing import Iterable
 import os
+from collections import OrderedDict
+from typing import Iterable, Optional
 
-import numpy as np
-import torch
-from torch import nn
 import lightning
 import matplotlib.pyplot as plt
+import numpy as np
+import torch
 from matplotlib.colors import Normalize
+from torch import nn
 
-from openretina.measures import PoissonLoss3d, CorrelationLoss3d
 from openretina.dataloaders import DataPoint
-from openretina.hoefling_2024.models import STSeparableBatchConv3d, Bias3DLayer, temporal_smoothing
+from openretina.hoefling_2024.models import Bias3DLayer, STSeparableBatchConv3d, temporal_smoothing
+from openretina.measures import CorrelationLoss3d, PoissonLoss3d
+from openretina.models.gru_core import ConvGRUCore
 
 
 class SimpleSpatialXFeature3d(torch.nn.Module):
     def __init__(
-            self,
-            in_shape: tuple[int, int, int, int],
-            outdims: int,
-            gaussian_mean_scale: float = 1e0,
-            gaussian_var_scale: float = 1e0,
-            positive: bool = False,
-            scale: bool = False,
-            bias: bool = True,
-            nonlinearity_function=torch.nn.functional.softplus,
+        self,
+        in_shape: tuple[int, int, int, int],
+        outdims: int,
+        gaussian_mean_scale: float = 1e0,
+        gaussian_var_scale: float = 1e0,
+        positive: bool = False,
+        scale: bool = False,
+        bias: bool = True,
+        nonlinearity_function=torch.nn.functional.softplus,
     ):
         """
         Args:
@@ -68,13 +69,13 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
     def mask_l1(self, average: bool = False) -> torch.Tensor:
         if average:
             return (
-                    torch.exp(self.mask_log_var * self.gaussian_var_scale).mean()
-                    + (self.mask_mean * self.gaussian_mean_scale).pow(2).mean()
+                torch.exp(self.mask_log_var * self.gaussian_var_scale).mean()
+                + (self.mask_mean * self.gaussian_mean_scale).pow(2).mean()
             )
         else:
             return (
-                    torch.exp(self.mask_log_var * self.gaussian_var_scale).sum()
-                    + (self.mask_mean * self.gaussian_mean_scale).pow(2).sum()
+                torch.exp(self.mask_log_var * self.gaussian_var_scale).sum()
+                + (self.mask_mean * self.gaussian_mean_scale).pow(2).sum()
             )
 
     @staticmethod
@@ -97,8 +98,12 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         pdf = torch.nan_to_num(pdf / normalisation)
         return pdf
 
+    @property
+    def masks(self) -> torch.Tensor:
+        return self.get_mask().permute(1, 2, 0)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        masks = self.get_mask().permute(1, 2, 0)
+        masks = self.masks
         y = torch.einsum("nctwh,whd->nctd", x, masks)
         y = (y * self.features).sum(1)
 
@@ -125,12 +130,13 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         features_max = float(features.max())
         for neuron_id in range(masks.shape[0]):
             mask_neuron = masks[neuron_id, :, :]
-            fig_axes_tuple = plt.subplots(ncols=2, figsize=(2*6, 6))
+            fig_axes_tuple = plt.subplots(ncols=2, figsize=(2 * 6, 6))
             axes: list[plt.Axes] = fig_axes_tuple[1]  # type: ignore
 
             axes[0].set_title("Readout Mask")
-            axes[0].imshow(mask_neuron, interpolation="none", cmap="RdBu_r",
-                           norm=Normalize(-mask_abs_max, mask_abs_max))
+            axes[0].imshow(
+                mask_neuron, interpolation="none", cmap="RdBu_r", norm=Normalize(-mask_abs_max, mask_abs_max)
+            )
 
             features_neuron = features[0, :, 0, neuron_id]
             axes[1].set_title("Readout feature weights")
@@ -145,18 +151,18 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
 
 class ReadoutWrapper(torch.nn.ModuleDict):
     def __init__(
-            self,
-            in_shape: tuple[int, int, int, int],
-            n_neurons_dict: dict[str, int],
-            scale: bool,
-            bias: bool,
-            gaussian_masks: bool,
-            gaussian_mean_scale: float,
-            gaussian_var_scale: float,
-            positive: bool,
-            gamma_readout: float,
-            gamma_masks: float = 0.0,
-            readout_reg_avg: bool = False,
+        self,
+        in_shape: tuple[int, int, int, int],
+        n_neurons_dict: dict[str, int],
+        scale: bool,
+        bias: bool,
+        gaussian_masks: bool,
+        gaussian_mean_scale: float,
+        gaussian_var_scale: float,
+        positive: bool,
+        gamma_readout: float,
+        gamma_masks: float = 0.0,
+        readout_reg_avg: bool = False,
     ):
         super().__init__()
         for k in n_neurons_dict:  # iterate over sessions
@@ -207,23 +213,28 @@ class ReadoutWrapper(torch.nn.ModuleDict):
 
 
 class CoreWrapper(torch.nn.Module):
-    def __init__(self,
-                 channels: tuple[int, ...],
-                 temporal_kernel_sizes: tuple[int, ...],
-                 spatial_kernel_sizes: tuple[int, ...],
-                 gamma_input: float = 0.3,
-                 gamma_temporal: float = 40.0,
-                 gamma_in_sparse: float = 1.0,
-                 ):
+    def __init__(
+        self,
+        channels: tuple[int, ...],
+        temporal_kernel_sizes: tuple[int, ...],
+        spatial_kernel_sizes: tuple[int, ...],
+        gamma_input: float = 0.3,
+        gamma_temporal: float = 40.0,
+        gamma_in_sparse: float = 1.0,
+    ):
         # Input validation
         if len(channels) < 2:
             raise ValueError(f"At least two channels required (input and output channel), {channels=}")
         if len(temporal_kernel_sizes) != len(channels) - 1:
-            raise ValueError(f"{len(channels) - 1} layers, but only {len(temporal_kernel_sizes)} "
-                             f"temporal kernel sizes. {channels=} {temporal_kernel_sizes=}")
+            raise ValueError(
+                f"{len(channels) - 1} layers, but only {len(temporal_kernel_sizes)} "
+                f"temporal kernel sizes. {channels=} {temporal_kernel_sizes=}"
+            )
         if len(temporal_kernel_sizes) != len(spatial_kernel_sizes):
-            raise ValueError(f"Temporal and spatial kernel sizes must have the same length."
-                             f"{temporal_kernel_sizes=} {spatial_kernel_sizes=}")
+            raise ValueError(
+                f"Temporal and spatial kernel sizes must have the same length."
+                f"{temporal_kernel_sizes=} {spatial_kernel_sizes=}"
+            )
 
         super().__init__()
         self.gamma_input = gamma_input
@@ -231,8 +242,7 @@ class CoreWrapper(torch.nn.Module):
         self.gamma_in_sparse = gamma_in_sparse
 
         self.features = torch.nn.Sequential()
-        for layer_id, (num_in_channels, num_out_channels) in enumerate(
-                zip(channels[:-1], channels[1:], strict=True)):
+        for layer_id, (num_in_channels, num_out_channels) in enumerate(zip(channels[:-1], channels[1:], strict=True)):
             layer: dict[str, torch.nn.Module] = OrderedDict()
             layer["conv"] = STSeparableBatchConv3d(
                 num_in_channels,
@@ -262,8 +272,9 @@ class CoreWrapper(torch.nn.Module):
     def group_sparsity_0(self) -> torch.Tensor:
         result_array = []
         for layer in self.features:
-            result = (layer.conv.weight_spatial.pow(2).sum([2, 3, 4]).sqrt().sum(1) /
-                      torch.sqrt(1e-8 + layer.conv.weight_spatial.pow(2).sum([1, 2, 3, 4])))
+            result = layer.conv.weight_spatial.pow(2).sum([2, 3, 4]).sqrt().sum(1) / torch.sqrt(
+                1e-8 + layer.conv.weight_spatial.pow(2).sum([1, 2, 3, 4])
+            )
             result_array.append(result.sum())
 
         return torch.sum(torch.stack(result_array))
@@ -284,39 +295,48 @@ class CoreWrapper(torch.nn.Module):
 
 class CoreReadout(lightning.LightningModule):
     def __init__(
-            self,
-            in_channels: int,
-            features_core: Iterable[int],
-            temporal_kernel_sizes: Iterable[int],
-            spatial_kernel_sizes: Iterable[int],
-            in_shape: Iterable[int],
-            n_neurons_dict: dict[str, int],
-            scale: bool,
-            bias: bool,
-            gaussian_masks: bool,
-            gaussian_mean_scale: float,
-            gaussian_var_scale: float,
-            positive: bool,
-            gamma_readout: float,
-            gamma_masks: float = 0.0,
-            readout_reg_avg: bool = False,
-            learning_rate: float = 0.01,
+        self,
+        in_channels: int,
+        features_core: Iterable[int],
+        temporal_kernel_sizes: Iterable[int],
+        spatial_kernel_sizes: Iterable[int],
+        in_shape: Iterable[int],
+        n_neurons_dict: dict[str, int],
+        scale: bool,
+        bias: bool,
+        gaussian_masks: bool,
+        gaussian_mean_scale: float,
+        gaussian_var_scale: float,
+        positive: bool,
+        gamma_readout: float,
+        gamma_masks: float = 0.0,
+        readout_reg_avg: bool = False,
+        learning_rate: float = 0.01,
     ):
         super().__init__()
         self.save_hyperparameters()
         self.core = CoreWrapper(
-            channels=(in_channels, ) + tuple(features_core),
+            channels=(in_channels,) + tuple(features_core),
             temporal_kernel_sizes=tuple(temporal_kernel_sizes),
             spatial_kernel_sizes=tuple(spatial_kernel_sizes),
         )
         # Run one forward path to determine output shape of core
-        core_test_output = self.core.forward(torch.zeros((1, ) + tuple(in_shape)))
+        core_test_output = self.core.forward(torch.zeros((1,) + tuple(in_shape)))
         in_shape_readout: tuple[int, int, int, int] = core_test_output.shape[1:]  # type: ignore
         print(f"{in_shape_readout=}")
 
         self.readout = ReadoutWrapper(
-            in_shape_readout, n_neurons_dict, scale, bias, gaussian_masks, gaussian_mean_scale, gaussian_var_scale,
-            positive, gamma_readout, gamma_masks, readout_reg_avg
+            in_shape_readout,
+            n_neurons_dict,
+            scale,
+            bias,
+            gaussian_masks,
+            gaussian_mean_scale,
+            gaussian_var_scale,
+            positive,
+            gamma_readout,
+            gamma_masks,
+            readout_reg_avg,
         )
         self.learning_rate = learning_rate
         self.loss = PoissonLoss3d()
@@ -355,10 +375,12 @@ class CoreReadout(lightning.LightningModule):
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
         correlation = -self.correlation_loss.forward(model_output, data_point.targets)
-        self.log_dict({
-            "test_loss": loss,
-            "test_correlation": correlation,
-        })
+        self.log_dict(
+            {
+                "test_loss": loss,
+                "test_correlation": correlation,
+            }
+        )
 
         return loss
 
@@ -367,7 +389,7 @@ class CoreReadout(lightning.LightningModule):
         lr_decay_factor = 0.3
         patience = 5
         tolerance = 0.0005
-        min_lr = self.learning_rate * (lr_decay_factor ** 3)
+        min_lr = self.learning_rate * (lr_decay_factor**3)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             mode="max",
@@ -390,3 +412,85 @@ class CoreReadout(lightning.LightningModule):
     def save_weight_visualizations(self, folder_path: str) -> None:
         self.core.save_weight_visualizations(os.path.join(folder_path, "core"))
         self.readout.save_weight_visualizations(os.path.join(folder_path, "readout"))
+
+
+class GRUCoreReadout(CoreReadout):
+    def __init__(
+        self,
+        in_channels: int,
+        hidden_channels: Iterable[int],
+        temporal_kernel_sizes: Iterable[int],
+        spatial_kernel_sizes: Iterable[int],
+        in_shape: Iterable[int],
+        n_neurons_dict: dict[str, int],
+        core_gamma_hidden: float,
+        core_gamma_input: float,
+        core_gamma_in_sparse: float,
+        core_gamma_temporal: float,
+        core_bias: bool,
+        core_input_padding: bool,
+        core_hidden_padding: bool,
+        core_use_gru: bool,
+        core_use_projections: bool,
+        readout_scale: bool,
+        readout_bias: bool,
+        readout_gaussian_masks: bool,
+        readout_gaussian_mean_scale: float,
+        readout_gaussian_var_scale: float,
+        readout_positive: bool,
+        readout_gamma: float,
+        readout_gamma_masks: float = 0.0,
+        readout_reg_avg: bool = False,
+        learning_rate: float = 0.01,
+        core_gru_kwargs: Optional[dict] = None,
+    ):
+        # Want methods from CoreReadout, but with different init (same as base lightning module)
+        lightning.LightningModule.__init__(self)
+
+        self.save_hyperparameters()
+        self.core = ConvGRUCore(
+            input_channels=in_channels,
+            hidden_channels=hidden_channels,
+            temporal_kernel_size=temporal_kernel_sizes,
+            spatial_kernel_size=spatial_kernel_sizes,
+            layers=len(tuple(hidden_channels)),
+            gamma_hidden=core_gamma_hidden,
+            gamma_input=core_gamma_input,
+            gamma_in_sparse=core_gamma_in_sparse,
+            gamma_temporal=core_gamma_temporal,
+            final_nonlinearity=True,
+            bias=core_bias,
+            input_padding=core_input_padding,
+            hidden_padding=core_hidden_padding,
+            batch_norm=True,
+            batch_norm_scale=True,
+            batch_norm_momentum=0.1,
+            batch_adaptation=False,
+            use_avg_reg=False,
+            nonlinearity="ELU",
+            conv_type="custom_separable",
+            use_gru=core_use_gru,
+            use_projections=core_use_projections,
+            gru_kwargs=core_gru_kwargs,
+        )
+        # Run one forward path to determine output shape of core
+        core_test_output = self.core.forward(torch.zeros((1,) + tuple(in_shape)))
+        in_shape_readout: tuple[int, int, int, int] = core_test_output.shape[1:]  # type: ignore
+        print(f"{in_shape_readout=}")
+
+        self.readout = ReadoutWrapper(
+            in_shape_readout,
+            n_neurons_dict,
+            readout_scale,
+            readout_bias,
+            readout_gaussian_masks,
+            readout_gaussian_mean_scale,
+            readout_gaussian_var_scale,
+            readout_positive,
+            readout_gamma,
+            readout_gamma_masks,
+            readout_reg_avg,
+        )
+        self.learning_rate = learning_rate
+        self.loss = PoissonLoss3d()
+        self.correlation_loss = CorrelationLoss3d(avg=True)
