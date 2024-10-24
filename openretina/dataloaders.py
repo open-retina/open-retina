@@ -275,3 +275,37 @@ def filter_different_size(batch):
 
     # If the filtered batch is empty, return None
     return default_collate(filtered_batch) if filtered_batch else None
+
+
+def extract_data_info_from_dataloaders(
+    dataloaders: Dict[str, Dict[str, Any]] | Dict[str, Any],
+) -> Dict[str, Dict[str, Any]]:
+    """
+    Extracts the data_info dictionary from the provided dataloaders.
+    Args:
+        dataloaders: A dictionary of dataloaders for different sessions.
+    Returns:
+        data_info: A dictionary containing input_dimensions, input_channels, and output_dimension for each session,
+                   nested with these attributes as the first level keys and sessions as the second level.
+    """
+    # Ensure train loader is used if available and not provided directly
+    dataloaders = dataloaders.get("train", dataloaders)
+
+    # Obtain the named tuple fields from the first entry of the first dataloader in the dictionary
+    in_name, out_name, *_ = next(iter(list(dataloaders.values())[0]))._fields  # type: ignore
+
+    # Get the input and output dimensions for each session
+    session_shape_dict = get_dims_for_loader_dict(dataloaders)
+
+    # Initialize the new structure
+    data_info = {k: {} for k in session_shape_dict.keys()}
+
+    # Populate the new structure
+    for session_key, shapes in session_shape_dict.items():
+        data_info[session_key]["input_dimensions"] = shapes[in_name]
+        data_info[session_key]["input_channels"] = shapes[in_name][1]
+        data_info[session_key]["output_dimension"] = shapes[out_name][-1]
+        data_info[session_key]["mean_response"] = np.array(dataloaders[session_key].dataset.mean_response)  # type: ignore
+        data_info[session_key]["roi_coords"] = np.array(dataloaders[session_key].dataset.roi_coords)  # type: ignore
+
+    return data_info
