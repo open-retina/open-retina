@@ -99,7 +99,7 @@ class GRUEnabledCore(Core3d, nn.Module):
         if stack is None:
             self.stack = range(self.layers)
         else:
-            self.stack = [range(self.layers)[stack]] if isinstance(stack, int) else stack
+            self.stack = [range(self.layers)[stack]] if isinstance(stack, int) else stack  # type: ignore
 
         log_speed_dict = dict()
         for k in n_neurons_dict:
