@@ -151,7 +151,7 @@ def get_movie_dataloader(
     scene_length: Optional[int] = None,
     drop_last=True,
     use_base_sequence=False,
-    allow_over_boundaries=False,
+    allow_over_boundaries=True,
     **kwargs,
 ):
     """
