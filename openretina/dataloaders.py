@@ -298,7 +298,7 @@ def extract_data_info_from_dataloaders(
     session_shape_dict = get_dims_for_loader_dict(dataloaders)
 
     # Initialize the new structure
-    data_info = {k: {} for k in session_shape_dict.keys()}
+    data_info: Dict[str, Dict[str, Any]] = {k: {} for k in session_shape_dict.keys()}
 
     # Populate the new structure
     for session_key, shapes in session_shape_dict.items():
