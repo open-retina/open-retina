@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 
-from typing import Callable
 import argparse
 import functools
 import operator
 import os
 import pickle
+from typing import Callable
 
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import torch
+
 from openretina.hoefling_2024.configs import model_config, trainer_config
 from openretina.hoefling_2024.data_io import (
     get_chirp_dataloaders,
@@ -30,8 +31,9 @@ def parse_args():
 
     parser.add_argument("--data_folder", type=str, help="Path to the base data folder", default="/Data/fd_export")
     parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
-    parser.add_argument("--device", type=str, choices=["cuda", "cpu"],
-                        default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument(
+        "--device", type=str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu"
+    )
     parser.add_argument(
         "--datasets",
         type=str,
@@ -104,6 +106,7 @@ def main(
 
     save_model(
         model=model,
+        dataloaders=joint_dataloaders,
         save_folder=os.path.join(save_folder, "models"),
         model_name="SFB3d_core_SxF3d_readout_hoefling_2022",
     )

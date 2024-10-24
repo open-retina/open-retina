@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import torch
+
 from openretina.hoefling_2024.configs import model_config, trainer_config
 from openretina.hoefling_2024.data_io import natmov_dataloaders_v2
 from openretina.hoefling_2024.models import SFB3d_core_SxF3d_readout
@@ -47,7 +48,10 @@ def main(data_folder) -> None:
     print(f"Training finished with test_score: {test_score} and val_score: {val_score}")
 
     save_model(
-        model=model, save_folder=os.path.join(data_folder, "models"), model_name="SFB3d_core_SxF3d_readout_salamander"
+        model=model,
+        dataloaders=dataloaders,
+        save_folder=os.path.join(data_folder, "models"),
+        model_name="SFB3d_core_SxF3d_readout_salamander",
     )
 
     # Plotting an example field

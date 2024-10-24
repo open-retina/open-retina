@@ -190,19 +190,19 @@ class NeuronGroupMembersStore:
 class NeuronData:
     def __init__(
         self,
-        responses_final: Float[np.ndarray, "n_neurons n_timepoints"] | dict,  # noqa
+        responses_final: Float[np.ndarray, " n_neurons n_timepoints"] | dict,
         stim_id: Literal[5, 2, 1, "salamander_natural"],
         val_clip_idx: Optional[List[int]],
         num_clips: Optional[int],
         clip_length: Optional[int],
-        roi_mask: Optional[Float[np.ndarray, "64 64"]] = None,  # noqa
-        roi_ids: Optional[Float[np.ndarray, "n_neurons"]] = None,  # noqa
-        traces: Optional[Float[np.ndarray, "n_neurons n_timepoints"]] = None,  # noqa
-        tracestimes: Optional[Float[np.ndarray, "n_timepoints"]] = None,  # noqa
+        roi_mask: Optional[Float[np.ndarray, "64 64"]] = None,
+        roi_ids: Optional[Float[np.ndarray, " n_neurons"]] = None,
+        traces: Optional[Float[np.ndarray, " n_neurons n_timepoints"]] = None,
+        tracestimes: Optional[Float[np.ndarray, " n_timepoints"]] = None,
         scan_sequence_idx: Optional[int] = None,
-        random_sequences: Optional[Float[np.ndarray, "n_clips n_sequences"]] = None,  # noqa
+        random_sequences: Optional[Float[np.ndarray, "n_clips n_sequences"]] = None,
         eye: Optional[Literal["left", "right"]] = None,
-        group_assignment: Optional[Float[np.ndarray, "n_neurons"]] = None,  # noqa
+        group_assignment: Optional[Float[np.ndarray, " n_neurons"]] = None,
         key: Optional[dict] = None,
         use_base_sequence: Optional[bool] = False,
         **kwargs,
@@ -414,6 +414,7 @@ def upsample_traces(
     tracestimes,
     stim_id: int,
     target_fr: int = 30,
+    norm_by_std: bool = True,
 ) -> np.ndarray:
     """
     Upsamples the traces based on the stimulus type.
@@ -455,9 +456,10 @@ def upsample_traces(
     for i in range(traces.shape[0]):
         upsampled_responses[i] = np.interp(upsampled_triggertimes, tracestimes[i].ravel(), traces[i].ravel())
 
-    upsampled_responses = upsampled_responses / np.std(
-        upsampled_responses, axis=1, keepdims=True
-    )  # normalize response std
+    if norm_by_std:
+        upsampled_responses = upsampled_responses / np.std(
+            upsampled_responses, axis=1, keepdims=True
+        )  # normalize response std
 
     return upsampled_responses
 
@@ -587,6 +589,7 @@ def make_final_responses(
     chirp_qi: Optional[float] = None,
     qi_logic: Literal["and", "or"] = "or",
     scale_traces: float = 1.0,
+    norm_by_std: bool = True,
 ):
     """
     Converts inferred spikes into final responses by upsampling the traces.
@@ -646,6 +649,7 @@ def make_final_responses(
                 traces=traces,
                 tracestimes=tracestimes,
                 stim_id=stim_id,
+                norm_by_std=norm_by_std,
             )
             * scale_traces
         )
@@ -663,7 +667,9 @@ def make_final_responses(
 
     d_qi = d_qi if d_qi is not None else 0.0
     chirp_qi = chirp_qi if chirp_qi is not None else 0.0
-    new_data_dict = _apply_qi_mask(new_data_dict, ["d", "chirp"], [d_qi, chirp_qi], qi_logic)
+    # Apply quality indices mask only if requested
+    if d_qi > 0.0 or chirp_qi > 0.0:
+        new_data_dict = _apply_qi_mask(new_data_dict, ["d", "chirp"], [d_qi, chirp_qi], qi_logic)
 
     return new_data_dict
 
