@@ -61,31 +61,6 @@ class MovieDataSet(Dataset):
         return str(self)
 
 
-                ]
-            )
-
-    @property
-    def movies(self):
-        return self.samples[0]
-
-    @property
-    def responses(self):
-        return self.samples[1]
-
-    def __len__(self):
-        # Returns the number of chunks of clips and responses used for training
-        return self.samples[1].shape[0] // self.chunk_size
-
-    def __str__(self):
-        return (
-            f"MovieDataSet with {self.samples[1].shape[1]} neuron responses "
-            f"to a movie of shape {list(self.samples[0].shape)}."
-        )
-
-    def __repr__(self):
-        return str(self)
-
-
 class MovieSampler(Sampler):
     def __init__(self, start_indices, split, chunk_size, movie_length, scene_length=None, allow_over_boundaries=False):
         self.indices = start_indices
@@ -298,10 +273,4 @@ def filter_different_size(batch):
     filtered_batch = [element for element in batch if element[1].shape == most_common_shape]
 
     # If the filtered batch is empty, return None
-    if len(filtered_batch) == 0:
-        return None
-
-    # Collate the filtered batch using the default collate function
-    collated_batch = default_collate(filtered_batch)
-
-    return collated_batch
+    return default_collate(filtered_batch) if filtered_batch else None
