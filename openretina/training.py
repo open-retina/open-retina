@@ -14,7 +14,6 @@ from tqdm.auto import tqdm
 
 from . import measures, metrics
 from .cyclers import LongCycler
-from .dataloaders import extract_data_info_from_dataloaders
 from .early_stopping import early_stopping
 from .tracking import MultipleObjectiveTracker
 from .utils.misc import set_seed, tensors_to_device

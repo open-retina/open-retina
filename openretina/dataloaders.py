@@ -180,6 +180,7 @@ def get_movie_dataloader(
             allow_over_boundaries=allow_over_boundaries,
         )
     else:
+        assert not isinstance(movies, dict), "Movies should not be a dictionary for this case."
         dataset = MovieDataSet(movies, responses, roi_ids, roi_coords, group_assignment, split, chunk_size)
         sampler = MovieSampler(
             start_indices,
