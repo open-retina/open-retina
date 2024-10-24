@@ -1,0 +1,60 @@
+defaults:
+  - _self_
+  - dataloader: minimal_session_agnostic
+  - quality_checks: strict_session_agnostic
+  - model/minimal_session_agnostic_lightning@model # config for session agnostic model assigned to "model"
+  - model/base_gru_model_lightning@mb_model # config for moving bar model assigned to "mb_model"
+
+# scale loss needs to go somewhere
+
+exp_name: test_session_agnostic_lightning
+
+data:
+  base_path: /Data/fd_export
+  save_path: /Projects/open-retina/models
+
+trainer:
+  _target_: lightning.Trainer
+  max_epochs: 30
+  accumulate_grad_batches: 1
+  gradient_clip_val: 1
+  default_root_dir: ${data.save_path}
+
+optimizer:
+  _target_: torch.optim.AdamW
+  _partial_: true
+
+scheduler:
+  _target_: torch.optim.lr_scheduler.OneCycleLR
+  _partial_: true
+  max_lr: 0.008
+  epochs: ${trainer.max_epochs}
+  steps_per_epoch: ???
+
+loggers:
+  csv:
+    _target_: lightning.pytorch.loggers.CSVLogger
+  tensorboard:
+    _target_: lightning.pytorch.loggers.TensorBoardLogger
+  wandb:
+    _target_: lightning.pytorch.loggers.WandbLogger
+    project: session_agnostic_lightning
+    name: ${exp_name}
+
+training_callbacks:
+  early_stopping:
+    _target_: lightning.pytorch.callbacks.early_stopping.EarlyStopping
+    monitor: "val_correlation"
+    min_delta: 0.001
+    patience: 15
+    verbose: True
+    mode: "max"
+  lr_monitor:
+    _target_: lightning.pytorch.callbacks.LearningRateMonitor
+    logging_interval: "epoch"
+    log_momentum: true
+    log_weight_decay: true
+
+hydra:
+  run:
+    dir: /Projects/open-retina/experiments/${hydra.job.name}/${now:%Y-%m-%d_%H-%M-%S}

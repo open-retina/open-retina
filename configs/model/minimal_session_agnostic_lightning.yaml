@@ -1,0 +1,44 @@
+_target_: openretina.models.session_agnostic.SessionAgnosticModel
+_convert_: all
+# core args
+in_shape: [2, 150, 18, 16]
+hidden_channels: [32, 64]
+temporal_kernel_sizes: [21, 11]
+spatial_kernel_sizes: [11, 5]
+core_input_padding: false
+core_hidden_padding: true
+# core_conv_type: "custom_separable"
+core_use_projections: true
+core_conditioning: false
+core_gamma_input: 0.3
+core_gamma_in_sparse: 1.0
+core_gamma_temporal: 40.0
+core_gamma_hidden: 0.0
+core_bias: true
+core_use_gru: false
+
+# readout args
+readout_positive: false
+readout_scale: false
+readout_bias: true
+post_readout_attention: false
+readout_nonlinearity: true # TODO: change so it can be selected
+readout_neurons_attention: true
+readout_neurons_attention_kwargs:
+  nhead: 4
+  dim_feedforward: 64
+  dropout: 0.3
+readout_time_attention: false
+
+# shifter args
+shifter_batch_norm: true
+shifter_tanh_output: true
+shifter_gamma: 4.0
+shifter_hidden_units: [128, 64]
+shifter_num_layers: 2
+shifter_gamma_variance: 7.0
+shifter_num_numerical_features: 6
+shifter_categorical_vocab_sizes: [33,]
+shifter_categorical_embedding_dims: [10,]
+
+scheduler_interval: "step"

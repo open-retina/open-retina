@@ -1,0 +1,6 @@
+_target_: openretina.hoefling_2024.data_io.natmov_dataloaders_v2
+batch_size: 64
+train_chunk_size: 50
+seed: 42
+use_base_sequence: false
+allow_over_boundaries: true

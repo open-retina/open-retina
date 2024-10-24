@@ -1,0 +1,14 @@
+_target_: openretina.cell_type_training.natmov_and_meta_dataloaders
+_convert_: all
+batch_size: 64
+use_raw_traces: false
+allow_over_boundaries: true
+include_field_info: false
+included_features:
+  - cell_types
+  - ds_index
+  - os_index
+  - pref_dir
+  - roi_size_um2
+  - temporal_nasal_pos_um
+  - ventral_dorsal_pos_um

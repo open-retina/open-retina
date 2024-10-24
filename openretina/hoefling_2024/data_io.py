@@ -1,4 +1,4 @@
-from typing import List, Optional, TypedDict, Any
+from typing import Any, List, Optional, TypedDict
 
 import numpy as np
 import torch
@@ -56,8 +56,8 @@ def get_all_movie_combinations(
     # Prepare validation movie data
     movie_val = torch.zeros((channels, len(val_clip_idx) * clip_length, px_y, px_x), dtype=torch.float)
     for i, ind in enumerate(val_clip_idx):
-        movie_val[:, i * clip_length: (i + 1) * clip_length, ...] = movie_train[
-            :, ind * clip_length: (ind + 1) * clip_length, ...
+        movie_val[:, i * clip_length : (i + 1) * clip_length, ...] = movie_train[
+            :, ind * clip_length : (ind + 1) * clip_length, ...
         ]
 
     # Create a boolean mask to indicate which clips are not part of the validation set
@@ -67,12 +67,12 @@ def get_all_movie_combinations(
     train_clip_idx = np.arange(num_clips)[mask]
 
     movie_train_subset = torch.cat(
-        [movie_train[:, i * clip_length: (i + 1) * clip_length] for i in train_clip_idx],
+        [movie_train[:, i * clip_length : (i + 1) * clip_length] for i in train_clip_idx],
         dim=1,
     )
 
     # Initialize movie dictionaries
-    multiple_train_movies = True if random_sequences.shape[1] > 1 else False
+    multiple_train_movies = random_sequences.shape[1] > 1
     if multiple_train_movies:
         movies: dict = {
             "left": {
@@ -106,8 +106,8 @@ def get_all_movie_combinations(
             for clip_idx in random_sequences[:, sequence_index]:
                 if clip_idx in val_clip_idx:
                     continue
-                reordered_movie[:, k * clip_length: (k + 1) * clip_length, ...] = movie_train[
-                    :, clip_idx * clip_length: (clip_idx + 1) * clip_length, ...
+                reordered_movie[:, k * clip_length : (k + 1) * clip_length, ...] = movie_train[
+                    :, clip_idx * clip_length : (clip_idx + 1) * clip_length, ...
                 ]
                 k += 1
             movies["right"]["train"][sequence_index] = reordered_movie
@@ -116,7 +116,7 @@ def get_all_movie_combinations(
     return movies
 
 
-def gen_start_indices(random_sequences, val_clip_idx, clip_length, chunk_size, num_clips):
+def gen_start_indices(random_sequences, val_clip_idx, clip_length, chunk_size, num_clips, unique_train=False):
     """
     Optimized function to generate a list of indices for training chunks while
     excluding validation clips.
@@ -128,16 +128,23 @@ def gen_start_indices(random_sequences, val_clip_idx, clip_length, chunk_size, n
     :param clip_length:      clip length in frames (5s*30frames/s = 150 frames)
     :param chunk_size:       temporal chunk size per sample in frames (50)
     :param num_clips:        total number of training clips (108)
+    :param unique_train:     boolean; if True, the training indices are unique instead of a dict.
     :return: dict; with keys train, validation, and test, and index list as
              values
     """
     # Validation clip indices are consecutive, because the validation clip and
     # stimuli are already isolated in other functions.
     val_start_idx = list(np.linspace(0, clip_length * (len(val_clip_idx) - 1), len(val_clip_idx), dtype=int))
+    num_train_clips = num_clips - len(val_clip_idx)
+
+    if unique_train:
+        return {
+            "train": list(np.arange(0, clip_length * (num_train_clips - 1), chunk_size, dtype=int)),
+            "validation": val_start_idx,
+            "test": [0],
+        }
 
     start_idx_dict = {"train": {}, "validation": val_start_idx, "test": [0]}
-
-    num_train_clips = num_clips - len(val_clip_idx)
 
     for sequence_index in range(random_sequences.shape[1]):
         start_idx_dict["train"][sequence_index] = list(
@@ -156,17 +163,22 @@ def natmov_dataloaders_v2(
     num_clips: int = NUM_CLIPS,
     clip_length: int = CLIP_LENGTH,
     num_val_clips: int = NUM_VAL_CLIPS,
+    use_base_sequence: bool = False,
+    allow_over_boundaries: bool = True,
 ):
+    """
+    TODO docstring
+    """
     assert isinstance(
         neuron_data_dictionary, dict
     ), "neuron_data_dictionary should be a dictionary of sessions and their corresponding neuron data."
     assert (
         isinstance(movies_dictionary, dict) and "train" in movies_dictionary and "test" in movies_dictionary
     ), "movies_dictionary should be a dictionary with keys 'train' and 'test'."
-    assert all(
-        field in next(iter(neuron_data_dictionary.values())) for field in ["responses_final", "stim_id"]
-    ), ("Check the neuron data dictionary sub-dictionaries for the minimal"
-        " required fields: 'responses_final' and 'stim_id'.")
+    assert all(field in next(iter(neuron_data_dictionary.values())) for field in ["responses_final", "stim_id"]), (
+        "Check the neuron data dictionary sub-dictionaries for the minimal"
+        " required fields: 'responses_final' and 'stim_id'."
+    )
 
     assert next(iter(neuron_data_dictionary.values()))["stim_id"] in [
         5,
@@ -190,6 +202,9 @@ def natmov_dataloaders_v2(
         random_sequences = np.arange(0, movie_length // clip_length)[:, np.newaxis]
     else:
         random_sequences = movies_dictionary["random_sequences"]
+        if use_base_sequence:
+            base_sequence = np.arange(num_clips)[:, None]
+            random_sequences = np.concatenate([random_sequences, base_sequence], axis=1)
 
     movies = get_all_movie_combinations(
         movies_dictionary["train"],
@@ -207,12 +222,13 @@ def natmov_dataloaders_v2(
             val_clip_idx=val_clip_idx,
             num_clips=num_clips,
             clip_length=clip_length,
+            use_base_sequence=use_base_sequence,
         )
         _eye = neuron_data.eye
 
-        if session_key == 'session_2_ventral2_20200626':
+        if session_key == "session_2_ventral2_20200626":
             # session incorrectly labeled as left
-            _eye = 'right'
+            _eye = "right"
         # if neuron_data.responses_train.shape[-1] == 0:
         #     print("skipped: {}".format(session_key))
         #     break
@@ -229,6 +245,8 @@ def natmov_dataloaders_v2(
                 start_indices=start_indices[fold],
                 batch_size=batch_size,
                 scene_length=clip_length,
+                use_base_sequence=use_base_sequence,
+                allow_over_boundaries=allow_over_boundaries,
             )
 
     return dataloaders
@@ -245,8 +263,10 @@ def get_chirp_dataloaders(
     assert all(
         field in next(iter(neuron_data_dictionary.values()))
         for field in ["responses_final", "stim_id", "chirp_trigger_times"]
-    ), ("Check the neuron data dictionary sub-dictionaries for the minimal required fields: "
-        "'responses_final', 'stim_id' and 'chirp_trigger_times'.")
+    ), (
+        "Check the neuron data dictionary sub-dictionaries for the minimal required fields: "
+        "'responses_final', 'stim_id' and 'chirp_trigger_times'."
+    )
 
     assert next(iter(neuron_data_dictionary.values()))["stim_id"] == 1, "This function only supports chirp stimuli."
 
@@ -313,8 +333,10 @@ def get_mb_dataloaders(
     assert all(
         field in next(iter(neuron_data_dictionary.values()))
         for field in ["responses_final", "stim_id", "mb_trigger_times"]
-    ), ("Check the neuron data dictionary sub-dictionaries for the minimal required fields: "
-        "'responses_final', 'stim_id' and 'mb_trigger_times'.")
+    ), (
+        "Check the neuron data dictionary sub-dictionaries for the minimal required fields: "
+        "'responses_final', 'stim_id' and 'mb_trigger_times'."
+    )
 
     assert (
         next(iter(neuron_data_dictionary.values()))["stim_id"] == 2

@@ -173,4 +173,7 @@ random.ipynb
 figures/
 /models
 reports/
+/experiments
+.DS_Store
+outputs/
 model-cache/
