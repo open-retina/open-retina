@@ -94,7 +94,7 @@ def transfer_readout_mask(
     if return_masks:
         masks = {}
     for session_key, readout in source_model.readout.named_children():
-        param = readout.masks.detach()
+        param = readout.masks.detach().clone()
         if ignore_source_key_suffix is not None:
             session_key = "".join(session_key.split(ignore_source_key_suffix)[0])
         try:
@@ -116,6 +116,79 @@ def transfer_readout_mask(
                 if "readout" in name and "mask" in name:
                     param.requires_grad = False
     return masks if return_masks else target_model
+
+
+def extract_readout_masks(
+    source_model: nn.Module,
+    ignore_source_key_suffix: Optional[str] = None,
+    target_dimensions: Optional[torch.Size] = None,
+) -> Dict[str, torch.Tensor]:
+    """
+    Extract readout masks from a source model, with an optional check for target dimensions.
+
+    Args:
+        source_model (nn.Module): The trained source model from which to extract the readout masks.
+        ignore_source_key_suffix (str, optional): Suffix of the source model key to ignore when extracting the masks.
+                                                  Default is None.
+        target_dimensions (Dict[str, torch.Size], optional): A dictionary where the keys are session keys and the values
+                                                             are the expected dimensions of the masks. Default is None.
+
+    Returns:
+        Dict[str, torch.Tensor]: A dictionary of readout masks, keyed by session keys.
+    """
+    masks = {}
+    for session_key, readout in source_model.readout.named_children():
+        param = readout.masks.detach().clone()
+        if ignore_source_key_suffix is not None:
+            session_key = "".join(session_key.split(ignore_source_key_suffix)[0])
+
+        # Check target dimensions if provided
+        if target_dimensions is not None and param.size()[:-1] != target_dimensions:
+            raise ValueError(
+                f"Mask size mismatch for {session_key}. " f"Expected {target_dimensions}, got {param.size()}."
+            )
+
+        masks[session_key] = param
+    return masks
+
+
+def transfer_readout_masks(
+    source_model: nn.Module,
+    target_model: nn.Module,
+    ignore_source_key_suffix: Optional[str] = None,
+    freeze_mask: bool = False,
+) -> nn.Module:
+    """
+    Transfer the readout masks from the source model to the target model.
+
+    Args:
+        source_model (nn.Module): The trained source model from which to transfer the readout masks.
+        target_model (nn.Module): The target model to which the readout masks will be transferred.
+        ignore_source_key_suffix (str, optional): Suffix of the source model key to ignore when transferring the masks.
+                                                  Default is None.
+        freeze_mask (bool, optional): Whether to freeze the transferred masks in the target model. Default is False.
+
+    Returns:
+        nn.Module: The target model with the transferred masks.
+    """
+    # Extract masks from the source model
+    masks = extract_readout_masks(source_model, ignore_source_key_suffix=ignore_source_key_suffix)
+
+    # Transfer masks to the target model
+    for session_key, mask in masks.items():
+        try:
+            target_model.readout[session_key].masks.copy_(mask)
+        except KeyError:
+            print(f"Could not find {session_key} in the target model.")
+            continue
+
+    # Freeze the mask parameters if requested
+    if freeze_mask:
+        for name, param in target_model.named_parameters():
+            if "readout" in name and "mask" in name:
+                param.requires_grad = False
+
+    return target_model
 
 
 def calculate_chirp_features(chirp_trace: Float[np.ndarray, "n_neurons n_timepoints"]):
@@ -373,7 +446,7 @@ class ReadoutWeightShifter(nn.Module):
         categorical_inputs: List[Float[torch.Tensor, "batch n_neurons"]],
         numerical_input: Float[torch.Tensor, "batch n_neurons n_features"],
     ) -> tuple[Float[torch.Tensor, "n_neurons n_features"], list]:
-        # Batch dimensions is redundant, as all neuron come from the same session (with current loaders), so we remove it
+        # Batch dimensions is redundant, as all neuron come from the same session (with current loaders), so we remove
         # TODO: consider if this is the best way to handle this: can also reshape neurons and batch together
         categorical_inputs = [categorical_input[0] for categorical_input in categorical_inputs]
         numerical_input = numerical_input[0]
@@ -423,10 +496,7 @@ class IndependentReadout3d(nn.Module):
         NB: This readout has no masks, which are expected to be passed in the forward pass.
 
         Args:
-            in_shape (tuple): The shape of the input tensor (c, t, w, h).
-            outdims (int): The number of output dimensions (usually the number of neurons in the session).
-            from_gaussian (bool, optional): Whether the masks are coming from a readout with Gaussian masks.
-                                            Defaults to False.
+            core_channels (int): The number of channels in the core output. Defaults to 64.
             positive (bool, optional): Whether the output should be positive. Defaults to False.
             nonlinearity (bool, optional): Whether to include a final softplus nonlinearity. Defaults to True.
             neurons_attention (bool, optional): Whether to include self-attention over neurons. Defaults to True.
@@ -549,8 +619,7 @@ class IndependentReadout3d(nn.Module):
         return y
 
     def __repr__(self):
-        c, h, w = self.in_shape
-        return f"{self.__class__.__name__} (" + f"{c} x {w} x {h}" + " -> " + "n_neurons" + ")"
+        return f"{self.__class__.__name__} (" + f"{self.core_channels} x w x h" + " -> " + "n_neurons" + ")"
 
 
 class FrozenFactorisedReadout3d(Readout):
@@ -747,10 +816,12 @@ class ShifterVideoEncoder(nn.Module):
     def set_readout_mask_dict(self, readout_mask_dict: Dict[str, torch.Tensor]):
         self.readout_mask_dict = nn.ParameterDict()
         for name, tensor in readout_mask_dict.items():
+            tensor.requires_grad = False
             # Register each tensor as a buffer
             self.register_buffer(f"{name}_readout_mask", tensor)
             # Also add it to readout_mask_dict for easy access
             self.readout_mask_dict[name] = tensor
+        self.readout_mask_dict.requires_grad_(False)
 
     def add_readout_mask_dict(self, readout_mask_dict: Dict[str, torch.Tensor]):
         assert hasattr(self, "readout_mask_dict"), "No readout mask dict found. Use set_readout_mask_dict first."
@@ -760,6 +831,7 @@ class ShifterVideoEncoder(nn.Module):
                 f"Shape mismatch with existing readout masks. "
                 f"{tensor.shape} != {next(iter(self.readout_mask_dict.values())).shape}"
             )
+            tensor.requires_grad = False
 
             self.register_buffer(f"{name}_readout_mask", tensor)
 
@@ -984,19 +1056,6 @@ def conv_core_frozen_readout(
         gru_kwargs=gru_kwargs,
     )
 
-    subselect = itemgetter(0, 2, 3)
-    in_shapes_readout = {k: subselect(tuple(get_module_output(core, in_shapes_dict[k])[1:])) for k in n_neurons_dict}
-    readout = MultipleFrozenFactorisedReadout2d(
-        in_shape_dict=in_shapes_readout,
-        n_neurons_dict=n_neurons_dict,
-        nonlinearity=True,
-        neurons_attention=readout_neurons_attention,
-        time_attention=readout_time_attention,
-        return_channels=False,
-        neurons_attention_kwargs=readout_neurons_attention_kwargs,
-        time_attention_kwargs=readout_time_attention_kwargs,
-    )
-
     readout = IndependentReadout3d(
         core_channels=hidden_channels[-1],
         nonlinearity=True,
@@ -1185,44 +1244,6 @@ def conditioned_conv_core_frozen_readout(
     model.set_readout_mask_dict(masks)
 
     return model
-
-
-class NeuronDataWithBarcodes(NeuronData):
-    def __init__(
-        self,
-        responses_final: Float[np.ndarray, "n_neurons n_timepoints"] | dict,
-        stim_id: Literal[5, 2, 1, "salamander_natural"],
-        val_clip_idx: Optional[List[int]],
-        num_clips: Optional[int],
-        clip_length: Optional[int],
-        roi_ids: Optional[Float[np.ndarray, " n_neurons"]] = None,
-        traces: Optional[Float[np.ndarray, "n_neurons n_timepoints"]] = None,
-        tracestimes: Optional[Float[np.ndarray, " n_timepoints"]] = None,
-        scan_sequence_idx: Optional[int] = None,
-        random_sequences: Optional[Float[np.ndarray, "n_clips n_sequences"]] = None,
-        eye: Optional[Literal["left", "right"]] = None,
-        group_assignment: Optional[Float[np.ndarray, " n_neurons"]] = None,
-        key: Optional[dict] = None,
-        use_base_sequence: Optional[bool] = False,
-        **kwargs,
-    ):
-        super().__init__(
-            responses_final=responses_final,
-            stim_id=stim_id,
-            val_clip_idx=val_clip_idx,
-            num_clips=num_clips,
-            clip_length=clip_length,
-            roi_ids=roi_ids,
-            traces=traces,
-            tracestimes=tracestimes,
-            scan_sequence_idx=scan_sequence_idx,
-            random_sequences=random_sequences,
-            eye=eye,
-            group_assignment=group_assignment,
-            key=key,
-            use_base_sequence=use_base_sequence,
-            **kwargs,
-        )
 
 
 def get_movie_meta_dataloader(
