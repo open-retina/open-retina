@@ -448,7 +448,7 @@ class GRUCoreReadout(CoreReadout):
         lightning.LightningModule.__init__(self)
 
         self.save_hyperparameters()
-        self.core = ConvGRUCore(
+        self.core = ConvGRUCore(  # type: ignore
             input_channels=in_channels,
             hidden_channels=hidden_channels,
             temporal_kernel_size=temporal_kernel_sizes,
