@@ -190,19 +190,19 @@ class NeuronGroupMembersStore:
 class NeuronData:
     def __init__(
         self,
-        responses_final: Float[np.ndarray, "n_neurons n_timepoints"] | dict,  # noqa
+        responses_final: Float[np.ndarray, " n_neurons n_timepoints"] | dict,
         stim_id: Literal[5, 2, 1, "salamander_natural"],
         val_clip_idx: Optional[List[int]],
         num_clips: Optional[int],
         clip_length: Optional[int],
-        roi_mask: Optional[Float[np.ndarray, "64 64"]] = None,  # noqa
-        roi_ids: Optional[Float[np.ndarray, "n_neurons"]] = None,  # noqa
-        traces: Optional[Float[np.ndarray, "n_neurons n_timepoints"]] = None,  # noqa
-        tracestimes: Optional[Float[np.ndarray, "n_timepoints"]] = None,  # noqa
+        roi_mask: Optional[Float[np.ndarray, "64 64"]] = None,
+        roi_ids: Optional[Float[np.ndarray, " n_neurons"]] = None,
+        traces: Optional[Float[np.ndarray, " n_neurons n_timepoints"]] = None,
+        tracestimes: Optional[Float[np.ndarray, " n_timepoints"]] = None,
         scan_sequence_idx: Optional[int] = None,
-        random_sequences: Optional[Float[np.ndarray, "n_clips n_sequences"]] = None,  # noqa
+        random_sequences: Optional[Float[np.ndarray, "n_clips n_sequences"]] = None,
         eye: Optional[Literal["left", "right"]] = None,
-        group_assignment: Optional[Float[np.ndarray, "n_neurons"]] = None,  # noqa
+        group_assignment: Optional[Float[np.ndarray, " n_neurons"]] = None,
         key: Optional[dict] = None,
         use_base_sequence: Optional[bool] = False,
         **kwargs,
