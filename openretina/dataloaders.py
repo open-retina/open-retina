@@ -84,7 +84,6 @@ class MovieSampler(Sampler):
             # Shuffle the indices
             indices_shuffling = np.random.permutation(len(self.indices))
         else:
-            # shift = 0
             shifted_indices = self.indices
             indices_shuffling = np.arange(len(self.indices))
 
