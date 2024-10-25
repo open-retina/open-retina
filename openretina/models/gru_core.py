@@ -20,8 +20,6 @@ from openretina.hoefling_2024.models import (
     temporal_smoothing,
 )
 
-DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
-
 
 class RNNCore:
     """
@@ -135,15 +133,15 @@ class ConvGRUCell(RNNCore, nn.Module):
         if prev_state is None:
             prev_state = self.init_state(input_)
 
-        update = self.update_gate_input(input_) + self.update_gate_hidden(prev_state)
-        update = F.sigmoid(update)
+        update_gate = self.update_gate_input(input_) + self.update_gate_hidden(prev_state)
+        update_gate = F.sigmoid(update_gate)
 
-        reset = self.reset_gate_input(input_) + self.reset_gate_hidden(prev_state)
-        reset = F.sigmoid(reset)
+        reset_gate = self.reset_gate_input(input_) + self.reset_gate_hidden(prev_state)
+        reset_gate = F.sigmoid(reset_gate)
 
-        out = self.out_gate_input(input_) + self.out_gate_hidden(prev_state * reset)
+        out = self.out_gate_input(input_) + self.out_gate_hidden(prev_state * reset_gate)
         h_t = F.tanh(out)
-        new_state = prev_state * (1 - update) + h_t * update
+        new_state = prev_state * (1 - update_gate) + h_t * update_gate
 
         return new_state
 
@@ -564,4 +562,4 @@ class ConditionedGRUCore(ConvGRUCore, nn.Module):
             if hasattr(feat, "conv") and hasattr(feat, "norm"):
                 x = getattr(self, f"film_{layer_num}")(x, conditioning)
 
-        return
+        return x
