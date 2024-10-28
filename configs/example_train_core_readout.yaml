@@ -14,13 +14,14 @@ core_readout:
   gaussian_masks: True
   gaussian_mean_scale: 6.0
   gaussian_var_scale: 4.0
-  positive: True
   gamma_readout: 0.4
   learning_rate: 0.01
   maxpool_every_n_layers: 2
   cut_first_n_frames_in_core: 30
   dropout_rate: 0.0
-  device: "cuda"
+  # positive: True  # to force positive readout features
+  # device: "cuda"
+  # downsample_input_kernel_size: [1, 4, 4]  # to reproduce Hoefling input size of 18x16px
 
 dataloader:
   batch_size: null

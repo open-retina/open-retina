@@ -220,6 +220,7 @@ class CoreWrapper(torch.nn.Module):
                  dropout_rate: float = 0.0,
                  cut_first_n_frames: int = 30,
                  maxpool_every_n_layers: Optional[int] = None,
+                 downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
                  ):
         # Input validation
         if len(channels) < 2:
@@ -236,6 +237,7 @@ class CoreWrapper(torch.nn.Module):
         self.gamma_temporal = gamma_temporal
         self.gamma_in_sparse = gamma_in_sparse
         self._cut_first_n_frames = cut_first_n_frames
+        self._downsample_input_kernel_size = downsample_input_kernel_size
 
         self.features = torch.nn.Sequential()
         for layer_id, (num_in_channels, num_out_channels) in enumerate(
@@ -262,6 +264,9 @@ class CoreWrapper(torch.nn.Module):
             self.features.add_module(f"layer{layer_id}", nn.Sequential(layer))  # type: ignore
 
     def forward(self, input_: torch.Tensor) -> torch.Tensor:
+        if self._downsample_kernel_kernel_size is not None:
+            input_ = torch.nn.functional.avg_pool3d(
+                input_, kernel_size=self._downsample_input_kernel_size)  # type: ignore
         res = self.features(input_)
         # To keep compatibility with hoefling model scores
         res_cut = res[:, :, self._cut_first_n_frames:, :, :]
@@ -319,7 +324,8 @@ class CoreReadout(lightning.LightningModule):
             cut_first_n_frames_in_core: int = 30,
             dropout_rate: float = 0.0,
             maxpool_every_n_layers: Optional[int] = None,
-            device: str = "cuda",
+            downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
+            device: str = "cuda" if torch.cuda.is_available() else "cpu",
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -330,6 +336,7 @@ class CoreReadout(lightning.LightningModule):
             cut_first_n_frames=cut_first_n_frames_in_core,
             dropout_rate=dropout_rate,
             maxpool_every_n_layers=maxpool_every_n_layers,
+            downsample_input_kernel_size=downsample_input_kernel_size,
         )
         # Run one forward path to determine output shape of core
         example_input = torch.zeros((1, ) + tuple(in_shape))
@@ -346,6 +353,7 @@ class CoreReadout(lightning.LightningModule):
         self.correlation_loss = CorrelationLoss3d(avg=True)
 
     def forward(self, x: torch.Tensor, data_key: str) -> torch.Tensor:
+        # todo: potential downsample (or in core)
         output_core = self.core(x)
         output_readout = self.readout(output_core, data_key=data_key)
         return output_readout
