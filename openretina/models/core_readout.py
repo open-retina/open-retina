@@ -264,7 +264,7 @@ class CoreWrapper(torch.nn.Module):
             self.features.add_module(f"layer{layer_id}", nn.Sequential(layer))  # type: ignore
 
     def forward(self, input_: torch.Tensor) -> torch.Tensor:
-        if self._downsample_kernel_kernel_size is not None:
+        if self._downsample_input_kernel_size is not None:
             input_ = torch.nn.functional.avg_pool3d(
                 input_, kernel_size=self._downsample_input_kernel_size)  # type: ignore
         res = self.features(input_)
