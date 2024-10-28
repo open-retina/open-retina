@@ -176,7 +176,9 @@ def plot_stimulus_composition(
     abs_max = np.max([abs(spat.max()), abs(spat.min())])
     norm = Normalize(vmin=-abs_max, vmax=abs_max)
     spatial_ax.imshow(spat, cmap="RdBu_r", norm=norm)
-    scale_bar = Rectangle(xy=(6, 15), width=4, height=1, color="k", transform=spatial_ax.transData)
+    # In the low res model the stimulus shape was 18x16 (50 um pixels), for the high-res it is 72x64 (12.5um pixels)
+    scale_bar_with = 4 if stimulus.shape[-1] > 20 else 1
+    scale_bar = Rectangle(xy=(6, 15), width=scale_bar_with, height=1, color="k", transform=spatial_ax.transData)
     spatial_ax.annotate(
         text="50 µm",
         xy=(6, 14),
