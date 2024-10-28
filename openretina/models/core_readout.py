@@ -237,7 +237,8 @@ class CoreWrapper(torch.nn.Module):
         self.gamma_temporal = gamma_temporal
         self.gamma_in_sparse = gamma_in_sparse
         self._cut_first_n_frames = cut_first_n_frames
-        self._downsample_input_kernel_size = downsample_input_kernel_size
+        self._downsample_input_kernel_size = list(
+            downsample_input_kernel_size) if downsample_input_kernel_size is not None else None
 
         self.features = torch.nn.Sequential()
         for layer_id, (num_in_channels, num_out_channels) in enumerate(
