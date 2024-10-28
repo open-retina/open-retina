@@ -141,7 +141,7 @@ class ParametricFactorizedBatchConv3dCore(Core3d):
 
         self.features = nn.Sequential()
         if stack is None:
-            self.stack = range(self.layers)
+            self.stack = list(range(self.layers))
         else:
             self.stack = [range(self.layers)[stack]] if isinstance(stack, int) else stack
 
