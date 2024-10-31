@@ -23,7 +23,7 @@ from openretina.cyclers import LongCycler
 from openretina.hoefling_2024.nnfabrik_model_loading import Center, load_ensemble_retina_model_from_directory
 
 ENSEMBLE_MODEL_PATH = (
-    "/gpfs01/euler/data/SharedFiles/projects/Hoefling2024/" "models/nonlinear/9d574ab9fcb85e8251639080c8d402b7"
+    "/gpfs01/euler/data/SharedFiles/projects/Hoefling2024/models/nonlinear/9d574ab9fcb85e8251639080c8d402b7"
 )
 
 
