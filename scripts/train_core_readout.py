@@ -22,11 +22,11 @@ from openretina.models.core_readout import CoreReadout
 def main(conf: DictConfig) -> None:
     torch.set_float32_matmul_precision('medium')
     data_folder = os.path.expanduser(conf.data_folder)
-    movies_path = os.path.join(data_folder, "2024-10-11_movies_dict_72x64_joint_normalised.pkl")
+    movies_path = os.path.join(data_folder, conf.movies_filename)
     with open(movies_path, "rb") as f:
         movies_dict = pickle.load(f)
 
-    data_path_responses = os.path.join(data_folder, "2024-08-14_neuron_data_responses_484c12d_djimaging.h5")
+    data_path_responses = os.path.join(data_folder, conf.responses_filename)
     responses = load_h5_into_dict(data_path_responses)
 
     data_dict = make_final_responses(responses, response_type="natural")  # type: ignore
