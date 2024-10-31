@@ -12,17 +12,18 @@ from jaxtyping import Float
 from matplotlib import animation
 from matplotlib.colors import Normalize
 from matplotlib.patches import Rectangle
+import cv2
 
-from .hoefling_2024.configs import pre_normalisation_values
-from .hoefling_2024.constants import FRAME_RATE_MODEL
-from .video_analysis import calculate_fft, decompose_kernel, weighted_main_frequency
+from openretina.hoefling_2024.configs import pre_normalisation_values_18x16, MEAN_STD_DICT_74x64
+from openretina.hoefling_2024.constants import FRAME_RATE_MODEL
+from openretina.video_analysis import calculate_fft, decompose_kernel, weighted_main_frequency
 
 # Longer animations
 matplotlib.rcParams["animation.embed_limit"] = 2**128
 
 
 def undo_video_normalization(
-    video: Float[torch.Tensor, "channels time height width"], values_dict: dict = pre_normalisation_values
+    video: Float[torch.Tensor, "channels time height width"], values_dict: dict = pre_normalisation_values_18x16
 ) -> Float[torch.Tensor, "channels time height width"]:
     """
     Undo the normalization of the video.
@@ -32,6 +33,42 @@ def undo_video_normalization(
     video[1] = video[1] * values_dict["channel_1_std"] + values_dict["channel_1_mean"]
 
     return video.type(torch.int)
+
+
+def save_stimulus_to_mp4_video(
+        stimulus: np.ndarray,
+        filepath: str,
+        fps: int = 5,
+        start_at_frame: int = 0,
+        apply_undo_video_normalization: bool = False,
+) -> None:
+    assert len(stimulus.shape) == 4
+    assert stimulus.shape[0] == 2  # color channels
+
+    assert filepath.endswith(".mp4")
+    # Create a VideoWriter object
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # type: ignore
+    video = cv2.VideoWriter(filepath, fourcc, fps, (stimulus.shape[3], stimulus.shape[2]))
+
+    # Normalize to uint8
+    if apply_undo_video_normalization:
+        stimulus[0] = stimulus[0] * MEAN_STD_DICT_74x64["channel_0_mean"] + MEAN_STD_DICT_74x64["channel_0_std"]
+        stimulus[1] = stimulus[1] * MEAN_STD_DICT_74x64["channel_1_mean"] + MEAN_STD_DICT_74x64["channel_1_std"]
+        # Clip to the range of uint8, otherwise there'll be an overflow (-1 will get converted to 255)
+        stimulus_uint8 = stimulus.clip(0.0, 255.0).astype(np.uint8)
+    else:
+        stimulus_norm = (stimulus - stimulus.min())
+        stimulus_norm = 255 * (stimulus_norm / stimulus_norm.max())
+        stimulus_uint8 = stimulus_norm.astype(np.uint8)
+
+    for i in range(start_at_frame, stimulus_uint8.shape[1]):
+        # Create an empty 3D array and assign the data from the 4D array
+        frame = np.zeros((stimulus_uint8.shape[2], stimulus_uint8.shape[3], 3), dtype=np.uint8)
+        frame[:, :, 1] = stimulus_uint8[0, i, :, :]  # Green channel
+        frame[:, :, 2] = stimulus_uint8[1, i, :, :]  # Red channel
+        video.write(frame)
+
+    video.release()
 
 
 def update_video(video, ax, frame):
@@ -133,15 +170,17 @@ def plot_stimulus_composition(
 
     # Spatial structure
     spatial_ax.set_title(f"Spatial Component {color_channel_names_array}")
-    padding = np.zeros((spat_green.shape[0], 8))
+    padding = np.ones((spat_green.shape[0], 8))
     spat = np.concatenate([spat_green, padding, spat_uv], axis=1)
 
     abs_max = np.max([abs(spat.max()), abs(spat.min())])
     norm = Normalize(vmin=-abs_max, vmax=abs_max)
     spatial_ax.imshow(spat, cmap="RdBu_r", norm=norm)
-    scale_bar = Rectangle(xy=(6, 15), width=3, height=1, color="k", transform=spatial_ax.transData)
+    # In the low res model the stimulus shape was 18x16 (50 um pixels), for the high-res it is 72x64 (12.5um pixels)
+    scale_bar_with = 4 if stimulus.shape[-1] > 20 else 1
+    scale_bar = Rectangle(xy=(6, 15), width=scale_bar_with, height=1, color="k", transform=spatial_ax.transData)
     spatial_ax.annotate(
-        text="150 µm",
+        text="50 µm",
         xy=(6, 14),
     )
     spatial_ax.add_patch(scale_bar)

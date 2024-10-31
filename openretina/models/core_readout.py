@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Iterable
+from typing import Optional, Iterable
 import os
 
 import numpy as np
@@ -100,6 +100,9 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         masks = self.get_mask().permute(1, 2, 0)
         y = torch.einsum("nctwh,whd->nctd", x, masks)
+
+        if self.positive:
+            self.features.data.clamp_(0)
         y = (y * self.features).sum(1)
 
         y = self.nonlinearity_function(y * self.scale_param + self.bias_param)
@@ -214,6 +217,10 @@ class CoreWrapper(torch.nn.Module):
                  gamma_input: float = 0.3,
                  gamma_temporal: float = 40.0,
                  gamma_in_sparse: float = 1.0,
+                 dropout_rate: float = 0.0,
+                 cut_first_n_frames: int = 30,
+                 maxpool_every_n_layers: Optional[int] = None,
+                 downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
                  ):
         # Input validation
         if len(channels) < 2:
@@ -229,11 +236,16 @@ class CoreWrapper(torch.nn.Module):
         self.gamma_input = gamma_input
         self.gamma_temporal = gamma_temporal
         self.gamma_in_sparse = gamma_in_sparse
+        self._cut_first_n_frames = cut_first_n_frames
+        self._downsample_input_kernel_size = list(
+            downsample_input_kernel_size) if downsample_input_kernel_size is not None else None
 
         self.features = torch.nn.Sequential()
         for layer_id, (num_in_channels, num_out_channels) in enumerate(
                 zip(channels[:-1], channels[1:], strict=True)):
             layer: dict[str, torch.nn.Module] = OrderedDict()
+            padding = "same"  # ((temporal_kernel_sizes[layer_id] - 1) // 2,
+            # (spatial_kernel_sizes[layer_id] - 1) // 2, (spatial_kernel_sizes[layer_id] - 1) // 2)
             layer["conv"] = STSeparableBatchConv3d(
                 num_in_channels,
                 num_out_channels,
@@ -241,16 +253,25 @@ class CoreWrapper(torch.nn.Module):
                 temporal_kernel_size=temporal_kernel_sizes[layer_id],
                 spatial_kernel_size=spatial_kernel_sizes[layer_id],
                 bias=False,
-                padding=0,  # (0, spatial_kernel_sizes[layer_id] // 2, spatial_kernel_sizes[layer_id] // 2),
+                padding=padding,
             )
             layer["norm"] = nn.BatchNorm3d(num_out_channels, momentum=0.1, affine=True)
             layer["bias"] = Bias3DLayer(num_out_channels)
             layer["nonlin"] = torch.nn.ELU()
+            if dropout_rate > 0.0:
+                layer["dropout"] = torch.nn.Dropout3d(p=dropout_rate)
+            if maxpool_every_n_layers is not None and (layer_id % maxpool_every_n_layers) == 0:
+                layer["pool"] = torch.nn.MaxPool3d((1, 2, 2))
             self.features.add_module(f"layer{layer_id}", nn.Sequential(layer))  # type: ignore
 
     def forward(self, input_: torch.Tensor) -> torch.Tensor:
+        if self._downsample_input_kernel_size is not None:
+            input_ = torch.nn.functional.avg_pool3d(
+                input_, kernel_size=self._downsample_input_kernel_size)  # type: ignore
         res = self.features(input_)
-        return res
+        # To keep compatibility with hoefling model scores
+        res_cut = res[:, :, self._cut_first_n_frames:, :, :]
+        return res_cut
 
     def spatial_laplace(self) -> torch.Tensor:
         return 0.0  # type: ignore
@@ -301,6 +322,11 @@ class CoreReadout(lightning.LightningModule):
             gamma_masks: float = 0.0,
             readout_reg_avg: bool = False,
             learning_rate: float = 0.01,
+            cut_first_n_frames_in_core: int = 30,
+            dropout_rate: float = 0.0,
+            maxpool_every_n_layers: Optional[int] = None,
+            downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
+            device: str = "cuda" if torch.cuda.is_available() else "cpu",
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -308,11 +334,16 @@ class CoreReadout(lightning.LightningModule):
             channels=(in_channels, ) + tuple(features_core),
             temporal_kernel_sizes=tuple(temporal_kernel_sizes),
             spatial_kernel_sizes=tuple(spatial_kernel_sizes),
+            cut_first_n_frames=cut_first_n_frames_in_core,
+            dropout_rate=dropout_rate,
+            maxpool_every_n_layers=maxpool_every_n_layers,
+            downsample_input_kernel_size=downsample_input_kernel_size,
         )
         # Run one forward path to determine output shape of core
-        core_test_output = self.core.forward(torch.zeros((1, ) + tuple(in_shape)))
+        example_input = torch.zeros((1, ) + tuple(in_shape))
+        core_test_output = self.core.to(device).forward(example_input.to(device))
         in_shape_readout: tuple[int, int, int, int] = core_test_output.shape[1:]  # type: ignore
-        print(f"{in_shape_readout=}")
+        print(f"{example_input.shape[1:]=} {in_shape_readout=}")
 
         self.readout = ReadoutWrapper(
             in_shape_readout, n_neurons_dict, scale, bias, gaussian_masks, gaussian_mean_scale, gaussian_var_scale,
@@ -388,5 +419,5 @@ class CoreReadout(lightning.LightningModule):
         }
 
     def save_weight_visualizations(self, folder_path: str) -> None:
-        self.core.save_weight_visualizations(os.path.join(folder_path, "core"))
-        self.readout.save_weight_visualizations(os.path.join(folder_path, "readout"))
+        self.core.save_weight_visualizations(os.path.join(folder_path, "weights_core"))
+        self.readout.save_weight_visualizations(os.path.join(folder_path, "weights_readout"))

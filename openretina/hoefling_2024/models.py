@@ -141,7 +141,7 @@ class ParametricFactorizedBatchConv3dCore(Core3d):
 
         self.features = nn.Sequential()
         if stack is None:
-            self.stack = range(self.layers)
+            self.stack = list(range(self.layers))
         else:
             self.stack = [range(self.layers)[stack]] if isinstance(stack, int) else stack
 
@@ -685,8 +685,8 @@ class TorchSTSeparableConv3D(nn.Module):
         temporal_kernel_size: int,
         spatial_kernel_size: int,
         spatial_kernel_size2: Optional[int] = None,
-        stride: int = 1,
-        padding: int = 0,
+        stride: int | tuple[int, int, int] = 1,
+        padding: int | tuple[int, int, int] | str = 0,
         bias: bool = True,
         num_scans=1,
     ):
@@ -752,7 +752,7 @@ class STSeparableBatchConv3d(nn.Module):
         temporal_kernel_size: int,
         spatial_kernel_size: int,
         spatial_kernel_size2: int | None = None,
-        stride: int = 1,
+        stride: int | tuple[int, int, int] = 1,
         padding: int | str | tuple[int, ...] = 0,
         num_scans: int = 1,
         bias: bool = True,
