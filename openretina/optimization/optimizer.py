@@ -4,16 +4,16 @@ import torch
 from torch import Tensor
 
 from openretina.optimization.optimization_stopper import OptimizationStopper
-from openretina.optimization.regularizer import StimulusRegularizationLoss, StimulusPostprocessor
+from openretina.optimization.regularizer import StimulusPostprocessor, StimulusRegularizationLoss
 
 
 def optimize_stimulus(
-        stimulus: Tensor,
-        optimizer_init_fn: Callable[[List[torch.Tensor]], torch.optim.Optimizer],
-        objective_object,
-        optimization_stopper: OptimizationStopper,
-        stimulus_regularization_loss: Optional[StimulusRegularizationLoss] = None,
-        stimulus_postprocessor: Optional[StimulusPostprocessor] = None,
+    stimulus: Tensor,
+    optimizer_init_fn: Callable[[List[torch.Tensor]], torch.optim.Optimizer],
+    objective_object,
+    optimization_stopper: OptimizationStopper,
+    stimulus_regularization_loss: Optional[StimulusRegularizationLoss] = None,
+    stimulus_postprocessor: Optional[StimulusPostprocessor] = None,
 ) -> None:
     """
     Optimize a stimulus to maximize a given objective while minimizing a regularizing function.

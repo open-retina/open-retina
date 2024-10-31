@@ -166,16 +166,16 @@ def load_moving_bar_stack(normalize: bool = True, number_of_moving_bars: int = 8
 
 
 def colored_stimulus(
-        channel_idx: int,
-        pad_front: int,
-        stimulus_length: int,
-        pad_end: int,
-        size_x: int,
-        size_y: int,
+    channel_idx: int,
+    pad_front: int,
+    stimulus_length: int,
+    pad_end: int,
+    size_x: int,
+    size_y: int,
 ) -> np.ndarray:
     total_length_time = pad_front + stimulus_length + pad_end
     stimulus = np.zeros((2, total_length_time, size_x, size_y), dtype=np.float32)
-    stimulus[channel_idx, pad_front: pad_front + stimulus_length] = 1.0
+    stimulus[channel_idx, pad_front : pad_front + stimulus_length] = 1.0
     stimulus_5d = np.expand_dims(stimulus, 0)
 
     return stimulus_5d

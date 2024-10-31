@@ -8,19 +8,18 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+
 from openretina.hoefling_2024.configs import STIMULUS_RANGE_CONSTRAINTS
-from openretina.optimization.objective import (InnerNeuronVisualizationObjective, SliceMeanReducer,
-                                               SingleNeuronObjective)
-from openretina.optimization.optimizer import optimize_stimulus
+from openretina.hoefling_2024.nnfabrik_model_loading import Center, load_ensemble_retina_model_from_directory
+from openretina.models.core_readout import CoreReadout
+from openretina.optimization.objective import InnerNeuronVisualizationObjective, SingleNeuronObjective, SliceMeanReducer
 from openretina.optimization.optimization_stopper import OptimizationStopper
+from openretina.optimization.optimizer import optimize_stimulus
 from openretina.optimization.regularizer import (
     ChangeNormJointlyClipRangeSeparately,
     RangeRegularizationLoss,
 )
 from openretina.plotting import plot_stimulus_composition, save_stimulus_to_mp4_video
-from openretina.hoefling_2024.nnfabrik_model_loading import load_ensemble_retina_model_from_directory, Center
-from openretina.models.core_readout import CoreReadout
-
 
 DEFAULT_BASE_PATH = "/gpfs01/euler/data/SharedFiles/projects/Hoefling2024/"
 DEFAULT_ENSEMBLE_MODEL_PATH = os.path.join(DEFAULT_BASE_PATH, "models/nonlinear/9d574ab9fcb85e8251639080c8d402b7")
@@ -30,25 +29,34 @@ def parse_args():
     parser = argparse.ArgumentParser(description="")
 
     parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
-    parser.add_argument("--device", type=str, choices=["cuda", "cpu"],
-                        default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument(
+        "--device", type=str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu"
+    )
     parser.add_argument("--model_path", default=DEFAULT_ENSEMBLE_MODEL_PATH)
-    parser.add_argument("--model_id", type=int, default=-1,
-                        help="If >= 0 load the ensemble model with that model_id, "
-                             "else use torch.load to load the model")
+    parser.add_argument(
+        "--model_id",
+        type=int,
+        default=-1,
+        help="If >= 0 load the ensemble model with that model_id, " "else use torch.load to load the model",
+    )
     parser.add_argument("--core_readout_lightning", action="store_true")
-    parser.add_argument('--stimulus_shape', nargs='+', type=int, default=[2, 50, 72, 64],
-                        help="Stimulus shape: [color_channels, time_dim, height, width")
+    parser.add_argument(
+        "--stimulus_shape",
+        nargs="+",
+        type=int,
+        default=[2, 50, 72, 64],
+        help="Stimulus shape: [color_channels, time_dim, height, width",
+    )
 
     return parser.parse_args()
 
 
 def load_model(
-        path: str,
-        device: str = "cuda",
-        model_id: int = 0,
-        do_center_readout: bool = False,
-        core_readout_lightning: bool = True,
+    path: str,
+    device: str = "cuda",
+    model_id: int = 0,
+    do_center_readout: bool = False,
+    core_readout_lightning: bool = True,
 ):
     if core_readout_lightning:
         model = CoreReadout.load_from_checkpoint(path).to(device)  # type: ignore
@@ -57,8 +65,7 @@ def load_model(
         model = torch.load(path, map_location=torch.device(device))
         print(f"Initialized model from {path}")
     else:
-        _, ensemble_model = load_ensemble_retina_model_from_directory(
-            path, device)
+        _, ensemble_model = load_ensemble_retina_model_from_directory(path, device)
         print(f"Initialized ensemble model from {path}")
         model = ensemble_model.members[model_id]
 
@@ -69,19 +76,24 @@ def load_model(
 
 
 def main(
-        model_path: str,
-        save_folder: str,
-        device: str,
-        model_id: int,
-        core_readout_lightning: bool,
-        stimulus_shape: tuple[int, ...],
+    model_path: str,
+    save_folder: str,
+    device: str,
+    model_id: int,
+    core_readout_lightning: bool,
+    stimulus_shape: tuple[int, ...],
 ) -> None:
     if len(stimulus_shape) != 4:
         raise ValueError(f"Invalid stimulus shape, needs to contain 4 integers, but was {stimulus_shape=}")
-    stimulus_shape = (1, ) + tuple(stimulus_shape)
+    stimulus_shape = (1,) + tuple(stimulus_shape)
 
-    model = load_model(model_path, device=device, model_id=model_id, do_center_readout=True,
-                       core_readout_lightning=core_readout_lightning)
+    model = load_model(
+        model_path,
+        device=device,
+        model_id=model_id,
+        do_center_readout=True,
+        core_readout_lightning=core_readout_lightning,
+    )
     model.eval()
 
     response_reducer = SliceMeanReducer(axis=0, start=10, length=10)
@@ -109,8 +121,7 @@ def main(
     data_key = model_readout_keys[0]
     inner_neuron_objective = InnerNeuronVisualizationObjective(model, data_key, response_reducer)
     # only select output of each layer (ignore submodules like ..._layer0_norm or ..._layer0_pool)
-    layer_names_array = [x for x in inner_neuron_objective.features_dict.keys()
-                         if "layer" in x and x[-1].isdigit()]
+    layer_names_array = [x for x in inner_neuron_objective.features_dict.keys() if "layer" in x and x[-1].isdigit()]
     print(f"Generating MEIs for the following layers: {layer_names_array}")
     for layer_name in layer_names_array:
         output_shape = inner_neuron_objective.get_output_shape_for_layer(layer_name, stimulus_shape)
@@ -168,8 +179,9 @@ def main(
         print(f"Optimizing output neurons for {session_key} in folder {output_folder}")
 
         for neuron_id in range(model.readout[session_key].outdims):
-            objective = SingleNeuronObjective(model, neuron_idx=neuron_id,
-                                              data_key=session_key, response_reducer=response_reducer)
+            objective = SingleNeuronObjective(
+                model, neuron_idx=neuron_id, data_key=session_key, response_reducer=response_reducer
+            )
             stimulus = torch.randn(stimulus_shape, requires_grad=True, device=device)
             stimulus.data = stimulus_postprocessor.process(stimulus.data)
 
@@ -207,8 +219,13 @@ def main(
     if core_readout_lightning:
         model.save_weight_visualizations(save_folder)
     else:
-        model = load_model(model_path, device=device, model_id=model_id, do_center_readout=False,
-                           core_readout_lightning=core_readout_lightning)
+        model = load_model(
+            model_path,
+            device=device,
+            model_id=model_id,
+            do_center_readout=False,
+            core_readout_lightning=core_readout_lightning,
+        )
         model.to(device).eval()
         for session_key in model_readout_keys:
             folder_path = f"{save_folder}/weights_readout/{session_key}"

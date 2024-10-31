@@ -6,13 +6,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import torch
+import wandb
+
 from openretina.hoefling_2024.configs import model_config, trainer_config
 from openretina.hoefling_2024.data_io import natmov_dataloaders_v2
 from openretina.hoefling_2024.models import SFB3d_core_SxF3d_readout
 from openretina.maheswaranathan_2023_data_io import CLIP_LENGTH, load_all_sessions
 from openretina.training import standard_early_stop_trainer as trainer
-
-import wandb
 
 wandb.login()
 

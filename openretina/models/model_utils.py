@@ -1,11 +1,10 @@
-import torch
 from contextlib import contextmanager
+
+import torch
 
 
 def get_module_output_shape(
-        model: torch.nn.Module,
-        input_shape: tuple[int, ...],
-        use_cuda: bool = True
+    model: torch.nn.Module, input_shape: tuple[int, ...], use_cuda: bool = True
 ) -> tuple[int, ...]:
     """
     Return the output shape of the model when fed in an array of `input_shape`.

@@ -7,14 +7,14 @@ import pickle
 from copy import deepcopy
 from functools import partial
 from importlib import import_module
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
 import yaml
 
-from openretina.utils.misc import SafeLoaderWithTuple, tuple_constructor
 from openretina.utils.file_utils import optionally_download
+from openretina.utils.misc import SafeLoaderWithTuple, tuple_constructor
 
 
 def split_module_name(abs_class_name: str) -> Tuple[str, str]:
@@ -232,9 +232,9 @@ class Center:
 
 
 def load_ensemble_retina_model_from_directory(
-        directory_path: str,
-        device: str = "cuda",
-        center_readout: Optional[Center] = None,
+    directory_path: str,
+    device: str = "cuda",
+    center_readout: Optional[Center] = None,
 ) -> Tuple:
     """
     Returns an ensemble data_info object and an ensemble model that it loads from the directory path.
@@ -245,7 +245,7 @@ def load_ensemble_retina_model_from_directory(
     - data_info_{seed:05d}.pkl
     where seed is an integer that represents the random seed the model was trained with
     """
-    yaml.add_constructor('tag:yaml.org,2002:python/tuple', tuple_constructor, Loader=SafeLoaderWithTuple)
+    yaml.add_constructor("tag:yaml.org,2002:python/tuple", tuple_constructor, Loader=SafeLoaderWithTuple)
     file_names = [f for f in os.listdir(directory_path) if f.endswith("yaml")]
     seed_array = [int(file_name[: -len(".yaml")].split("_")[1]) for file_name in file_names]
     seed_array.sort()
@@ -265,10 +265,10 @@ def load_ensemble_retina_model_from_directory(
         data_info_list.append(data_info)
 
         model_fn = config["model_fn"]
-        repo, _, _, model_type = model_fn.split('.')
+        repo, _, _, model_type = model_fn.split(".")
         if repo == "nnfabrik_euler":  # convert model_fn from nnfabrik to openretina
-            #ToDo check robustness across model types
-            model_fn = '.'.join(['openretina', 'hoefling_2024', 'models', model_type])
+            # ToDo check robustness across model types
+            model_fn = ".".join(["openretina", "hoefling_2024", "models", model_type])
         elif repo == "openretina":
             pass  # nothing to change
         else:
@@ -331,10 +331,10 @@ class EnsembleModel(nn.Module):
 
 
 def load_ensemble_model_from_remote(
-        remote_url: str = "https://gin.g-node.org/eulerlab/rgc-natstim/raw/master",
-        model_path: str = "models/nonlinear/9d574ab9fcb85e8251639080c8d402b7",
-        device: str = "cpu",
-        center_readout: Optional[Center] = None,
+    remote_url: str = "https://gin.g-node.org/eulerlab/rgc-natstim/raw/master",
+    model_path: str = "models/nonlinear/9d574ab9fcb85e8251639080c8d402b7",
+    device: str = "cpu",
+    center_readout: Optional[Center] = None,
 ) -> Tuple:
     local_folders = []
     for id_ in ["00000", "01000", "02000", "03000", "04000"]:
@@ -343,7 +343,7 @@ def load_ensemble_model_from_remote(
             file_path = f"{model_path}/{file_name}"
             local_path = optionally_download(remote_url, file_path)
             assert local_path.endswith(file_path)
-            local_folders.append(local_path[:-len(file_name)])
+            local_folders.append(local_path[: -len(file_name)])
     assert len(set(local_folders)) == 1
     local_folder = local_folders[0]
     data_info, ensemble_model = load_ensemble_retina_model_from_directory(local_folder, device, center_readout)
