@@ -37,6 +37,8 @@ def parse_args():
                         help="If >= 0 load the ensemble model with that model_id, "
                              "else use torch.load to load the model")
     parser.add_argument("--core_readout_lightning", action="store_true")
+    parser.add_argument('--stimulus_shape', nargs='+', type=int, default=[2, 50, 72, 64],
+                        help="Stimulus shape: [color_channels, time_dim, height, width")
 
     return parser.parse_args()
 
@@ -72,13 +74,15 @@ def main(
         device: str,
         model_id: int,
         core_readout_lightning: bool,
+        stimulus_shape: tuple[int, ...],
 ) -> None:
+    if len(stimulus_shape) != 4:
+        raise ValueError(f"Invalid stimulus shape, needs to contain 4 integers, but was {stimulus_shape=}")
+    stimulus_shape = (1, ) + tuple(stimulus_shape)
+
     model = load_model(model_path, device=device, model_id=model_id, do_center_readout=True,
                        core_readout_lightning=core_readout_lightning)
     model.eval()
-
-    # from controversial stimuli: (2, 50, 18, 16): (channels, time, height, width)
-    stimulus_shape = (1, 2, 50, 72, 64)
 
     response_reducer = SliceMeanReducer(axis=0, start=10, length=10)
     stimulus_postprocessor = ChangeNormJointlyClipRangeSeparately(

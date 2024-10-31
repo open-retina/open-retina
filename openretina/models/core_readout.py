@@ -354,7 +354,6 @@ class CoreReadout(lightning.LightningModule):
         self.correlation_loss = CorrelationLoss3d(avg=True)
 
     def forward(self, x: torch.Tensor, data_key: str) -> torch.Tensor:
-        # todo: potential downsample (or in core)
         output_core = self.core(x)
         output_readout = self.readout(output_core, data_key=data_key)
         return output_readout
