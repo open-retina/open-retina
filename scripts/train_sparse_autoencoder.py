@@ -22,18 +22,19 @@ from openretina.hoefling_2024.data_io import (
 from openretina.cyclers import LongCycler
 from openretina.hoefling_2024.nnfabrik_model_loading import Center, load_ensemble_retina_model_from_directory
 
-ENSEMBLE_MODEL_PATH = ("/gpfs01/euler/data/SharedFiles/projects/Hoefling2024/"
-                       "models/nonlinear/9d574ab9fcb85e8251639080c8d402b7")
+ENSEMBLE_MODEL_PATH = (
+    "/gpfs01/euler/data/SharedFiles/projects/Hoefling2024/" "models/nonlinear/9d574ab9fcb85e8251639080c8d402b7"
+)
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Model training")
 
-    parser.add_argument("--data_folder", type=str, help="Path to the base data folder",
-                        default="/Data/fd_export")
+    parser.add_argument("--data_folder", type=str, help="Path to the base data folder", default="/Data/fd_export")
     parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
-    parser.add_argument("--device", type=str, choices=["cuda", "cpu"],
-                        default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument(
+        "--device", type=str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu"
+    )
     parser.add_argument("--sparsity_factor", type=float, default=0.1)
     parser.add_argument("--hidden_dim", type=int, default=1000, help="Hidden dim for autoencoder")
     parser.add_argument(
@@ -48,17 +49,16 @@ def parse_args():
 
 def load_model(path: str = ENSEMBLE_MODEL_PATH, device: str = "cuda"):
     center_readout = Center(target_mean=(0.0, 0.0))
-    data_info, ensemble_model = load_ensemble_retina_model_from_directory(
-        path, device, center_readout=center_readout)
+    data_info, ensemble_model = load_ensemble_retina_model_from_directory(path, device, center_readout=center_readout)
     print(f"Initialized ensemble model from {path}")
     return ensemble_model
 
 
 def generate_neuron_activations(
-        data_folder: str,
-        dataset_names_list: list[str],
-        device: str,
-        remove_nonlinearity: bool,
+    data_folder: str,
+    dataset_names_list: list[str],
+    device: str,
+    remove_nonlinearity: bool,
 ) -> torch.Tensor:
     movies_path = os.path.join(data_folder, "2024-01-11_movies_dict_8c18928.pkl")
     with open(movies_path, "rb") as f:
@@ -121,7 +121,7 @@ def generate_neuron_activations(
         all_activations = torch.cat(all_activations_list, dim=-1)
         # Put each example of the batch individually into the list by using extend instead of append
         outputs_model.extend(all_activations.cpu())
-        if (batch_no+1) % 20 == 0:
+        if (batch_no + 1) % 20 == 0:
             print(f"Generated {batch_no+1} batches")
     print(f"Generated {len(outputs_model)} examples in {time.time()-time_generation_start:.1f}s")
     outputs_model_single_tensor = torch.stack(outputs_model)
@@ -136,7 +136,7 @@ def main(
     datasets: str,
     sparsity_factor: float,
     hidden_dim: int,
-    remove_nonlinearity: bool = True
+    remove_nonlinearity: bool = True,
 ) -> None:
     dataset_names_list = datasets.split("_")
     for name in dataset_names_list:
@@ -173,8 +173,9 @@ def main(
     lightning_folder = f"{save_folder}_{model_name}"
     csv_logger = CSVLogger(lightning_folder)
     tensorboard_logger = TensorBoardLogger("models/tensorboard", name=model_name)
-    trainer = lightning.Trainer(max_epochs=40, default_root_dir=lightning_folder,
-                                logger=[csv_logger, tensorboard_logger])
+    trainer = lightning.Trainer(
+        max_epochs=40, default_root_dir=lightning_folder, logger=[csv_logger, tensorboard_logger]
+    )
     trainer.fit(model=sparse_autoencoder, train_dataloaders=train_loader)
 
 

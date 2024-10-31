@@ -11,17 +11,17 @@ class StimulusRegularizationLoss:
 
 class RangeRegularizationLoss(StimulusRegularizationLoss):
     def __init__(
-            self,
-            min_max_values: Iterable[tuple[float, float]],
-            max_norm: Optional[float],
-            factor: float = 1.0,
+        self,
+        min_max_values: Iterable[tuple[float, float]],
+        max_norm: Optional[float],
+        factor: float = 1.0,
     ):
         self._min_max_values = list(min_max_values)
         self._max_norm = max_norm
         self._factor = factor
 
     def forward(self, stimulus: torch.Tensor) -> torch.Tensor:
-        """ Penalizes the stimulus if it is outside the range defined by min_max_values. """
+        """Penalizes the stimulus if it is outside the range defined by min_max_values."""
         loss: torch.Tensor = 0.0  # type: ignore
         for i, (min_val, max_val) in enumerate(self._min_max_values):
             stimulus_i = stimulus[:, i]
@@ -39,25 +39,28 @@ class RangeRegularizationLoss(StimulusRegularizationLoss):
 
 
 class StimulusPostprocessor:
-    """ Base class for stimulus clippers. """
+    """Base class for stimulus clippers."""
+
     def process(self, x: torch.Tensor) -> torch.Tensor:
-        """ x.shape: batch x channels x time x n_rows x n_cols """
+        """x.shape: batch x channels x time x n_rows x n_cols"""
         return x
 
 
 class ChangeNormJointlyClipRangeSeparately(StimulusPostprocessor):
-    """ First change the norm and afterward clip the value of x to some specified range """
+    """First change the norm and afterward clip the value of x to some specified range"""
+
     def __init__(
-            self,
-            min_max_values: Iterable[Tuple[Optional[float], Optional[float]]],
-            norm: Optional[float],
+        self,
+        min_max_values: Iterable[Tuple[Optional[float], Optional[float]]],
+        norm: Optional[float],
     ):
         self._norm = norm
         self._min_max_values = list(min_max_values)
 
     def process(self, x):
-        assert x.shape[1] == len(self._min_max_values), \
-            f"Expected {len(self._min_max_values)} channels in dim 1, got {x.shape=}"
+        assert x.shape[1] == len(
+            self._min_max_values
+        ), f"Expected {len(self._min_max_values)} channels in dim 1, got {x.shape=}"
 
         if self._norm is not None:
             # Re-normalize

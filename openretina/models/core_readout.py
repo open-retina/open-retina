@@ -17,15 +17,15 @@ from openretina.models.gru_core import ConvGRUCore
 
 class SimpleSpatialXFeature3d(torch.nn.Module):
     def __init__(
-            self,
-            in_shape: tuple[int, int, int, int],
-            outdims: int,
-            gaussian_mean_scale: float = 1e0,
-            gaussian_var_scale: float = 1e0,
-            positive: bool = False,
-            scale: bool = False,
-            bias: bool = True,
-            nonlinearity_function=torch.nn.functional.softplus,
+        self,
+        in_shape: tuple[int, int, int, int],
+        outdims: int,
+        gaussian_mean_scale: float = 1e0,
+        gaussian_var_scale: float = 1e0,
+        positive: bool = False,
+        scale: bool = False,
+        bias: bool = True,
+        nonlinearity_function=torch.nn.functional.softplus,
     ):
         """
         Args:
@@ -69,13 +69,13 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
     def mask_l1(self, average: bool = False) -> torch.Tensor:
         if average:
             return (
-                    torch.exp(self.mask_log_var * self.gaussian_var_scale).mean()
-                    + (self.mask_mean * self.gaussian_mean_scale).pow(2).mean()
+                torch.exp(self.mask_log_var * self.gaussian_var_scale).mean()
+                + (self.mask_mean * self.gaussian_mean_scale).pow(2).mean()
             )
         else:
             return (
-                    torch.exp(self.mask_log_var * self.gaussian_var_scale).sum()
-                    + (self.mask_mean * self.gaussian_mean_scale).pow(2).sum()
+                torch.exp(self.mask_log_var * self.gaussian_var_scale).sum()
+                + (self.mask_mean * self.gaussian_mean_scale).pow(2).sum()
             )
 
     @staticmethod
@@ -133,12 +133,13 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         features_max = float(features.max())
         for neuron_id in range(masks.shape[0]):
             mask_neuron = masks[neuron_id, :, :]
-            fig_axes_tuple = plt.subplots(ncols=2, figsize=(2*6, 6))
+            fig_axes_tuple = plt.subplots(ncols=2, figsize=(2 * 6, 6))
             axes: list[plt.Axes] = fig_axes_tuple[1]  # type: ignore
 
             axes[0].set_title("Readout Mask")
-            axes[0].imshow(mask_neuron, interpolation="none", cmap="RdBu_r",
-                           norm=Normalize(-mask_abs_max, mask_abs_max))
+            axes[0].imshow(
+                mask_neuron, interpolation="none", cmap="RdBu_r", norm=Normalize(-mask_abs_max, mask_abs_max)
+            )
 
             features_neuron = features[0, :, 0, neuron_id]
             axes[1].set_title("Readout feature weights")
@@ -153,18 +154,18 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
 
 class ReadoutWrapper(torch.nn.ModuleDict):
     def __init__(
-            self,
-            in_shape: tuple[int, int, int, int],
-            n_neurons_dict: dict[str, int],
-            scale: bool,
-            bias: bool,
-            gaussian_masks: bool,
-            gaussian_mean_scale: float,
-            gaussian_var_scale: float,
-            positive: bool,
-            gamma_readout: float,
-            gamma_masks: float = 0.0,
-            readout_reg_avg: bool = False,
+        self,
+        in_shape: tuple[int, int, int, int],
+        n_neurons_dict: dict[str, int],
+        scale: bool,
+        bias: bool,
+        gaussian_masks: bool,
+        gaussian_mean_scale: float,
+        gaussian_var_scale: float,
+        positive: bool,
+        gamma_readout: float,
+        gamma_masks: float = 0.0,
+        readout_reg_avg: bool = False,
     ):
         super().__init__()
         for k in n_neurons_dict:  # iterate over sessions
@@ -215,39 +216,44 @@ class ReadoutWrapper(torch.nn.ModuleDict):
 
 
 class CoreWrapper(torch.nn.Module):
-    def __init__(self,
-                 channels: tuple[int, ...],
-                 temporal_kernel_sizes: tuple[int, ...],
-                 spatial_kernel_sizes: tuple[int, ...],
-                 gamma_input: float = 0.3,
-                 gamma_temporal: float = 40.0,
-                 gamma_in_sparse: float = 1.0,
-                 dropout_rate: float = 0.0,
-                 cut_first_n_frames: int = 30,
-                 maxpool_every_n_layers: Optional[int] = None,
-                 downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
-                 ):
+    def __init__(
+        self,
+        channels: tuple[int, ...],
+        temporal_kernel_sizes: tuple[int, ...],
+        spatial_kernel_sizes: tuple[int, ...],
+        gamma_input: float = 0.3,
+        gamma_temporal: float = 40.0,
+        gamma_in_sparse: float = 1.0,
+        dropout_rate: float = 0.0,
+        cut_first_n_frames: int = 30,
+        maxpool_every_n_layers: Optional[int] = None,
+        downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
+    ):
         # Input validation
         if len(channels) < 2:
             raise ValueError(f"At least two channels required (input and output channel), {channels=}")
         if len(temporal_kernel_sizes) != len(channels) - 1:
-            raise ValueError(f"{len(channels) - 1} layers, but only {len(temporal_kernel_sizes)} "
-                             f"temporal kernel sizes. {channels=} {temporal_kernel_sizes=}")
+            raise ValueError(
+                f"{len(channels) - 1} layers, but only {len(temporal_kernel_sizes)} "
+                f"temporal kernel sizes. {channels=} {temporal_kernel_sizes=}"
+            )
         if len(temporal_kernel_sizes) != len(spatial_kernel_sizes):
-            raise ValueError(f"Temporal and spatial kernel sizes must have the same length."
-                             f"{temporal_kernel_sizes=} {spatial_kernel_sizes=}")
+            raise ValueError(
+                f"Temporal and spatial kernel sizes must have the same length."
+                f"{temporal_kernel_sizes=} {spatial_kernel_sizes=}"
+            )
 
         super().__init__()
         self.gamma_input = gamma_input
         self.gamma_temporal = gamma_temporal
         self.gamma_in_sparse = gamma_in_sparse
         self._cut_first_n_frames = cut_first_n_frames
-        self._downsample_input_kernel_size = list(
-            downsample_input_kernel_size) if downsample_input_kernel_size is not None else None
+        self._downsample_input_kernel_size = (
+            list(downsample_input_kernel_size) if downsample_input_kernel_size is not None else None
+        )
 
         self.features = torch.nn.Sequential()
-        for layer_id, (num_in_channels, num_out_channels) in enumerate(
-                zip(channels[:-1], channels[1:], strict=True)):
+        for layer_id, (num_in_channels, num_out_channels) in enumerate(zip(channels[:-1], channels[1:], strict=True)):
             layer: dict[str, torch.nn.Module] = OrderedDict()
             padding = "same"  # ((temporal_kernel_sizes[layer_id] - 1) // 2,
             # (spatial_kernel_sizes[layer_id] - 1) // 2, (spatial_kernel_sizes[layer_id] - 1) // 2)
@@ -271,11 +277,10 @@ class CoreWrapper(torch.nn.Module):
 
     def forward(self, input_: torch.Tensor) -> torch.Tensor:
         if self._downsample_input_kernel_size is not None:
-            input_ = torch.nn.functional.avg_pool3d(
-                input_, kernel_size=self._downsample_input_kernel_size)  # type: ignore
+            input_ = torch.nn.functional.avg_pool3d(input_, kernel_size=self._downsample_input_kernel_size)  # type: ignore
         res = self.features(input_)
         # To keep compatibility with hoefling model scores
-        res_cut = res[:, :, self._cut_first_n_frames:, :, :]
+        res_cut = res[:, :, self._cut_first_n_frames :, :, :]
         return res_cut
 
     def spatial_laplace(self) -> torch.Tensor:
@@ -288,8 +293,9 @@ class CoreWrapper(torch.nn.Module):
     def group_sparsity_0(self) -> torch.Tensor:
         result_array = []
         for layer in self.features:
-            result = (layer.conv.weight_spatial.pow(2).sum([2, 3, 4]).sqrt().sum(1) /
-                      torch.sqrt(1e-8 + layer.conv.weight_spatial.pow(2).sum([1, 2, 3, 4])))
+            result = layer.conv.weight_spatial.pow(2).sum([2, 3, 4]).sqrt().sum(1) / torch.sqrt(
+                1e-8 + layer.conv.weight_spatial.pow(2).sum([1, 2, 3, 4])
+            )
             result_array.append(result.sum())
 
         return torch.sum(torch.stack(result_array))
@@ -310,33 +316,33 @@ class CoreWrapper(torch.nn.Module):
 
 class CoreReadout(lightning.LightningModule):
     def __init__(
-            self,
-            in_channels: int,
-            features_core: Iterable[int],
-            temporal_kernel_sizes: Iterable[int],
-            spatial_kernel_sizes: Iterable[int],
-            in_shape: Iterable[int],
-            n_neurons_dict: dict[str, int],
-            scale: bool,
-            bias: bool,
-            gaussian_masks: bool,
-            gaussian_mean_scale: float,
-            gaussian_var_scale: float,
-            positive: bool,
-            gamma_readout: float,
-            gamma_masks: float = 0.0,
-            readout_reg_avg: bool = False,
-            learning_rate: float = 0.01,
-            cut_first_n_frames_in_core: int = 30,
-            dropout_rate: float = 0.0,
-            maxpool_every_n_layers: Optional[int] = None,
-            downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
-            device: str = "cuda" if torch.cuda.is_available() else "cpu",
+        self,
+        in_channels: int,
+        features_core: Iterable[int],
+        temporal_kernel_sizes: Iterable[int],
+        spatial_kernel_sizes: Iterable[int],
+        in_shape: Iterable[int],
+        n_neurons_dict: dict[str, int],
+        scale: bool,
+        bias: bool,
+        gaussian_masks: bool,
+        gaussian_mean_scale: float,
+        gaussian_var_scale: float,
+        positive: bool,
+        gamma_readout: float,
+        gamma_masks: float = 0.0,
+        readout_reg_avg: bool = False,
+        learning_rate: float = 0.01,
+        cut_first_n_frames_in_core: int = 30,
+        dropout_rate: float = 0.0,
+        maxpool_every_n_layers: Optional[int] = None,
+        downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
+        device: str = "cuda" if torch.cuda.is_available() else "cpu",
     ):
         super().__init__()
         self.save_hyperparameters()
         self.core = CoreWrapper(
-            channels=(in_channels, ) + tuple(features_core),
+            channels=(in_channels,) + tuple(features_core),
             temporal_kernel_sizes=tuple(temporal_kernel_sizes),
             spatial_kernel_sizes=tuple(spatial_kernel_sizes),
             cut_first_n_frames=cut_first_n_frames_in_core,
@@ -345,14 +351,23 @@ class CoreReadout(lightning.LightningModule):
             downsample_input_kernel_size=downsample_input_kernel_size,
         )
         # Run one forward path to determine output shape of core
-        example_input = torch.zeros((1, ) + tuple(in_shape))
+        example_input = torch.zeros((1,) + tuple(in_shape))
         core_test_output = self.core.to(device).forward(example_input.to(device))
         in_shape_readout: tuple[int, int, int, int] = core_test_output.shape[1:]  # type: ignore
         print(f"{example_input.shape[1:]=} {in_shape_readout=}")
 
         self.readout = ReadoutWrapper(
-            in_shape_readout, n_neurons_dict, scale, bias, gaussian_masks, gaussian_mean_scale, gaussian_var_scale,
-            positive, gamma_readout, gamma_masks, readout_reg_avg
+            in_shape_readout,
+            n_neurons_dict,
+            scale,
+            bias,
+            gaussian_masks,
+            gaussian_mean_scale,
+            gaussian_var_scale,
+            positive,
+            gamma_readout,
+            gamma_masks,
+            readout_reg_avg,
         )
         self.learning_rate = learning_rate
         self.loss = PoissonLoss3d()
@@ -391,10 +406,12 @@ class CoreReadout(lightning.LightningModule):
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
         correlation = -self.correlation_loss.forward(model_output, data_point.targets)
-        self.log_dict({
-            "test_loss": loss,
-            "test_correlation": correlation,
-        })
+        self.log_dict(
+            {
+                "test_loss": loss,
+                "test_correlation": correlation,
+            }
+        )
 
         return loss
 
@@ -403,7 +420,7 @@ class CoreReadout(lightning.LightningModule):
         lr_decay_factor = 0.3
         patience = 5
         tolerance = 0.0005
-        min_lr = self.learning_rate * (lr_decay_factor ** 3)
+        min_lr = self.learning_rate * (lr_decay_factor**3)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             mode="max",

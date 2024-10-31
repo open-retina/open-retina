@@ -20,7 +20,7 @@ from openretina.models.core_readout import CoreReadout
 
 @hydra.main(version_base=None, config_path="../example_configs", config_name="train_core_readout")
 def main(conf: DictConfig) -> None:
-    torch.set_float32_matmul_precision('medium')
+    torch.set_float32_matmul_precision("medium")
     data_folder = os.path.expanduser(conf.data_folder)
     movies_path = os.path.join(data_folder, conf.movies_filename)
     with open(movies_path, "rb") as f:
@@ -36,9 +36,7 @@ def main(conf: DictConfig) -> None:
     train_loader = torch.utils.data.DataLoader(LongCycler(dataloaders["train"], shuffle=True), **conf.dataloader)
     valid_loader = torch.utils.data.DataLoader(LongCycler(dataloaders["validation"], shuffle=False), **conf.dataloader)
 
-    n_neurons_dict = {
-       name: data_point.targets.shape[-1] for name, data_point in iter(train_loader)
-    }
+    n_neurons_dict = {name: data_point.targets.shape[-1] for name, data_point in iter(train_loader)}
     model = CoreReadout(
         n_neurons_dict=n_neurons_dict,
         **conf.core_readout,
@@ -55,10 +53,15 @@ def main(conf: DictConfig) -> None:
     for callback_params in conf.get("training_callbacks", {}).values():
         callbacks.append(hydra.utils.instantiate(callback_params))
 
-    trainer = lightning.Trainer(max_epochs=conf.max_epochs, default_root_dir=conf.save_folder, precision=16,
-                                logger=logger_array, callbacks=callbacks, accumulate_grad_batches=1)
-    trainer.fit(model=model, train_dataloaders=train_loader,
-                val_dataloaders=valid_loader)
+    trainer = lightning.Trainer(
+        max_epochs=conf.max_epochs,
+        default_root_dir=conf.save_folder,
+        precision=16,
+        logger=logger_array,
+        callbacks=callbacks,
+        accumulate_grad_batches=1,
+    )
+    trainer.fit(model=model, train_dataloaders=train_loader, val_dataloaders=valid_loader)
     # test
     test_loader = torch.utils.data.DataLoader(LongCycler(dataloaders["test"], shuffle=False), **conf.dataloader)
     trainer.test(model, dataloaders=[train_loader, valid_loader, test_loader], ckpt_path="best")

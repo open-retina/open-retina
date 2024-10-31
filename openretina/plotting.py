@@ -36,18 +36,18 @@ def undo_video_normalization(
 
 
 def save_stimulus_to_mp4_video(
-        stimulus: np.ndarray,
-        filepath: str,
-        fps: int = 5,
-        start_at_frame: int = 0,
-        apply_undo_video_normalization: bool = False,
+    stimulus: np.ndarray,
+    filepath: str,
+    fps: int = 5,
+    start_at_frame: int = 0,
+    apply_undo_video_normalization: bool = False,
 ) -> None:
     assert len(stimulus.shape) == 4
     assert stimulus.shape[0] == 2  # color channels
 
     assert filepath.endswith(".mp4")
     # Create a VideoWriter object
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # type: ignore
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore
     video = cv2.VideoWriter(filepath, fourcc, fps, (stimulus.shape[3], stimulus.shape[2]))
 
     # Normalize to uint8
@@ -57,7 +57,7 @@ def save_stimulus_to_mp4_video(
         # Clip to the range of uint8, otherwise there'll be an overflow (-1 will get converted to 255)
         stimulus_uint8 = stimulus.clip(0.0, 255.0).astype(np.uint8)
     else:
-        stimulus_norm = (stimulus - stimulus.min())
+        stimulus_norm = stimulus - stimulus.min()
         stimulus_norm = 255 * (stimulus_norm / stimulus_norm.max())
         stimulus_uint8 = stimulus_norm.astype(np.uint8)
 
@@ -218,12 +218,13 @@ def plot_stimulus_composition(
 
 
 def polar_plot_of_direction_of_motion_responses(
-        direction_in_degree: list[int],
-        peak_response_per_directions: list[float],
+    direction_in_degree: list[int],
+    peak_response_per_directions: list[float],
 ) -> None:
     # Convert directions to radians
     directions_with_peak_response = sorted(
-        [(d, v) for d, v in zip(direction_in_degree, peak_response_per_directions, strict=True)])
+        [(d, v) for d, v in zip(direction_in_degree, peak_response_per_directions, strict=True)]
+    )
 
     # Add the first direction and data point to the end to close the plot
     directions_with_peak_response.append(directions_with_peak_response[0])
@@ -232,7 +233,7 @@ def polar_plot_of_direction_of_motion_responses(
     plt.figure(figsize=(6, 6))
     sorted_directions = [x[0] for x in directions_with_peak_response]
     sorted_data = [x[1] for x in directions_with_peak_response]
-    plt.polar(np.deg2rad(sorted_directions), sorted_data, marker='o')
+    plt.polar(np.deg2rad(sorted_directions), sorted_data, marker="o")
 
     # Set the direction of the zero point to the top
     plt.gca().set_theta_zero_location("N")  # type: ignore

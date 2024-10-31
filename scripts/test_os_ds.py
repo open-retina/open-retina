@@ -15,12 +15,9 @@ from openretina.stimuli import load_moving_bar_stack
 def parse_args():
     parser = argparse.ArgumentParser(description="Model training")
 
-    parser.add_argument("--model_path", type=str,
-                        required=True, help="Path to the saved model")
-    parser.add_argument("--device", choices=["cpu", "cuda"],
-                        default="cuda" if torch.cuda.is_available() else "cpu")
-    parser.add_argument("--data_folder", type=str, default=None,
-                        help="Path to the base data folder")
+    parser.add_argument("--model_path", type=str, required=True, help="Path to the saved model")
+    parser.add_argument("--device", choices=["cpu", "cuda"], default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument("--data_folder", type=str, default=None, help="Path to the base data folder")
 
     return parser.parse_args()
 

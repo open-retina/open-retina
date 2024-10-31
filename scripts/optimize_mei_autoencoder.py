@@ -9,8 +9,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from openretina.hoefling_2024.configs import STIMULUS_RANGE_CONSTRAINTS
-from openretina.optimization.objective import (AbstractObjective, SingleNeuronObjective,
-                                               ContrastiveNeuronObjective, SliceMeanReducer)
+from openretina.optimization.objective import (
+    AbstractObjective,
+    SingleNeuronObjective,
+    ContrastiveNeuronObjective,
+    SliceMeanReducer,
+)
 from openretina.optimization.optimizer import optimize_stimulus
 from openretina.optimization.optimization_stopper import OptimizationStopper
 from openretina.optimization.regularizer import (
@@ -24,13 +28,17 @@ from openretina.models.autoencoder import Autoencoder, AutoencoderWithModel
 
 def parse_args():
     parser = argparse.ArgumentParser(description="")
-    parser.add_argument("--model_path", required=True, type=str,
-                        help="Path to a model, if this is a directory loads an ensemble model, "
-                             "otherwise calls torch.load")
+    parser.add_argument(
+        "--model_path",
+        required=True,
+        type=str,
+        help="Path to a model, if this is a directory loads an ensemble model, " "otherwise calls torch.load",
+    )
     parser.add_argument("--autoencoder_path", required=True, type=str)
     parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
-    parser.add_argument("--device", type=str, choices=["cuda", "cpu"],
-                        default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument(
+        "--device", type=str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu"
+    )
     parser.add_argument("--use_contrastive_objective", action="store_true")
 
     return parser.parse_args()
@@ -38,8 +46,7 @@ def parse_args():
 
 def load_model(path: str, device: str):
     if os.path.isdir(path):
-        _, model = load_ensemble_retina_model_from_directory(
-            path, device)
+        _, model = load_ensemble_retina_model_from_directory(path, device)
         print(f"Initialized ensemble model from {path}")
     else:
         model = torch.load(path, map_location=torch.device(device))
@@ -50,11 +57,7 @@ def load_model(path: str, device: str):
 
 
 def main(
-        model_path: str,
-        autoencoder_path: str,
-        save_folder: str,
-        device: str,
-        use_contrastive_objective: bool
+    model_path: str, autoencoder_path: str, save_folder: str, device: str, use_contrastive_objective: bool
 ) -> None:
     model = load_model(model_path, device)
     autoencoder = Autoencoder.load_from_checkpoint(autoencoder_path)  # type: ignore
@@ -86,8 +89,12 @@ def main(
 
     for neuron_id in range(autoencoder.hidden_dim()):
         print(f"Generating MEI for {neuron_id=}")
-        objective = objective_class(autoencoder_with_model, neuron_idx=neuron_id,  # type: ignore
-                                    data_key=None, response_reducer=response_reducer)
+        objective = objective_class(
+            autoencoder_with_model,
+            neuron_idx=neuron_id,  # type: ignore
+            data_key=None,
+            response_reducer=response_reducer,
+        )
 
         stimulus = torch.randn(stimulus_shape, requires_grad=True, device=device)
 

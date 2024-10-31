@@ -54,11 +54,10 @@ pre_normalisation_values_18x16 = {
 
 
 MEAN_STD_DICT_74x64 = {
-    'channel_0_mean': 37.19756061097937,
-    'channel_0_std': 30.26892576088715,
-    'channel_1_mean': 36.76101593081903,
-    'channel_1_std': 42.65469417011324,
-    'joint_mean': 36.979288270899204,
-    'joint_std': 36.98463253226166,
+    "channel_0_mean": 37.19756061097937,
+    "channel_0_std": 30.26892576088715,
+    "channel_1_mean": 36.76101593081903,
+    "channel_1_std": 42.65469417011324,
+    "joint_mean": 36.979288270899204,
+    "joint_std": 36.98463253226166,
 }
-

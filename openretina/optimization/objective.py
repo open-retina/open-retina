@@ -55,7 +55,6 @@ class AbstractObjective(ABC):
 
 
 class SingleNeuronObjective(AbstractObjective):
-
     def __init__(self, model, neuron_idx: int, data_key: str | None, response_reducer: ResponseReducer):
         super().__init__(model, data_key)
         self._neuron_idx = neuron_idx
@@ -71,12 +70,13 @@ class SingleNeuronObjective(AbstractObjective):
 
 
 class _ModuleHook:
-    """ This structure is used to store the output of this module.
-        This is achieved by the hook_fn as a forward hook which is called on every forward
-        path of this module.
-        We then store the output tensor which can then be used downstream, e.g. to optimize an MEI.
-        Pass name to the initializer to get verbose output.
+    """This structure is used to store the output of this module.
+    This is achieved by the hook_fn as a forward hook which is called on every forward
+    path of this module.
+    We then store the output tensor which can then be used downstream, e.g. to optimize an MEI.
+    Pass name to the initializer to get verbose output.
     """
+
     def __init__(self, module: torch.nn.Module, name: str | None = None):
         self.hook = module.register_forward_hook(self.hook_fn)
         self.module = module
@@ -87,20 +87,14 @@ class _ModuleHook:
         assert self.module is module
         self.module_output_tensor = output
         if self.name is not None:
-            print(f"Module hook {self.name} hooked up {type(self.module)=} "
-                  f"{self.module_output_tensor.shape=}")
+            print(f"Module hook {self.name} hooked up {type(self.module)=} " f"{self.module_output_tensor.shape=}")
 
     def close(self) -> None:
         self.hook.remove()
 
 
 class InnerNeuronVisualizationObjective(AbstractObjective):
-    def __init__(
-            self,
-            model,
-            data_key: str | None,
-            response_reducer: ResponseReducer
-    ):
+    def __init__(self, model, data_key: str | None, response_reducer: ResponseReducer):
         super().__init__(model, data_key)
         self.features_dict = self.hook_model(model)
         self._response_reducer = response_reducer
@@ -139,7 +133,7 @@ class InnerNeuronVisualizationObjective(AbstractObjective):
             raise ValueError(f"Module hook output tensor is None for layer {self.layer_name}: {module_hook=}")
         output = module_hook.module_output_tensor[:, self.channel_id]
         y, x = output.shape[-2:]
-        middle_neuron_trace_batch = output[..., y//2, x//2]
+        middle_neuron_trace_batch = output[..., y // 2, x // 2]
         middle_neuron_trace = middle_neuron_trace_batch.mean(axis=0)
         loss = self._response_reducer.forward(middle_neuron_trace)
         return loss
@@ -157,21 +151,23 @@ class InnerNeuronVisualizationObjective(AbstractObjective):
                         features_key = "_".join(new_prefix_tuple)
                         features[features_key] = _ModuleHook(layer)
                         hook_layers(layer, prefix=new_prefix_tuple)
+
         hook_layers(model)
 
         return features
 
 
 class ContrastiveNeuronObjective(AbstractObjective):
-    """ Objective described in [Most discriminative stimuli for functional cell type clustering]
+    """Objective described in [Most discriminative stimuli for functional cell type clustering]
     (https://openreview.net/forum?id=9W6KaAcYlr)"""
+
     def __init__(
-            self,
-            model,
-            neuron_idx: int,
-            data_key: str | None,
-            response_reducer: ResponseReducer,
-            temperature: float = 1.6,
+        self,
+        model,
+        neuron_idx: int,
+        data_key: str | None,
+        response_reducer: ResponseReducer,
+        temperature: float = 1.6,
     ):
         super().__init__(model, data_key)
         self._neuron_idx = neuron_idx
@@ -179,11 +175,7 @@ class ContrastiveNeuronObjective(AbstractObjective):
         self._temperature = temperature
 
     @staticmethod
-    def contrastive_objective(
-            on_score: torch.Tensor,
-            all_scores: torch.Tensor,
-            temperature: float
-    ) -> torch.Tensor:
+    def contrastive_objective(on_score: torch.Tensor, all_scores: torch.Tensor, temperature: float) -> torch.Tensor:
         t = temperature
         obj = (
             (1 / t) * on_score

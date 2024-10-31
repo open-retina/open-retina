@@ -145,11 +145,11 @@ class ScaledCorrelationLoss3d(nn.Module):
         corrs = torch.zeros((output.size(0), 1, output.size(2)), device=output.device)
         count = 0
         for i in range(output.size(1) // self.scale):
-            delta_out = output[:, i * self.scale: (i + 1) * self.scale, :] - output[
-                :, i * self.scale: (i + 1) * self.scale, :
+            delta_out = output[:, i * self.scale : (i + 1) * self.scale, :] - output[
+                :, i * self.scale : (i + 1) * self.scale, :
             ].mean(1, keepdim=True)
-            delta_target = target[:, lag + i * self.scale: lag + (i + 1) * self.scale, :] - target[
-                :, lag + i * self.scale: lag + (i + 1) * self.scale, :
+            delta_target = target[:, lag + i * self.scale : lag + (i + 1) * self.scale, :] - target[
+                :, lag + i * self.scale : lag + (i + 1) * self.scale, :
             ].mean(1, keepdim=True)
             var_out = delta_out.pow(2).mean(1, keepdim=True)
             var_target = delta_target.pow(2).mean(1, keepdim=True)

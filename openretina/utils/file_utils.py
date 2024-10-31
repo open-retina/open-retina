@@ -16,8 +16,9 @@ def optionally_download(
         full_url = f"{base_url}/{path}"
         response = requests.get(full_url)
         if response.status_code != 200:
-            raise FileNotFoundError(f"Received status code {response.status_code} "
-                                    f"when trying to download from {full_url=}")
+            raise FileNotFoundError(
+                f"Received status code {response.status_code} " f"when trying to download from {full_url=}"
+            )
         with open(model_cache_path, "wb") as f:
             f.write(response.content)
     return model_cache_path

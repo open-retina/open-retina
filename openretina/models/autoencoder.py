@@ -12,7 +12,7 @@ class SparsityMSELoss:
 
     @staticmethod
     def mse_loss(x: torch.Tensor, x_hat: torch.Tensor) -> torch.Tensor:
-        """ Mean over all examples, sum over hidden neurons """
+        """Mean over all examples, sum over hidden neurons"""
         mse_full = nn.functional.mse_loss(x, x_hat, reduction="none")
         mse = mse_full.sum(dim=-1).mean()
         return mse
@@ -24,10 +24,7 @@ class SparsityMSELoss:
         return z.abs().sum()
 
     def forward(
-            self,
-            x: torch.Tensor,
-            z: torch.Tensor,
-            x_hat: torch.Tensor
+        self, x: torch.Tensor, z: torch.Tensor, x_hat: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         mse_loss = self.mse_loss(x, x_hat)
         sparsity_loss = self.sparsity_loss(z)
@@ -50,12 +47,12 @@ class ActivationsDataset(Dataset):
 
 class Autoencoder(lightning.LightningModule):
     def __init__(
-            self,
-            input_dim: int,
-            hidden_dim: int,
-            loss: SparsityMSELoss,
-            learning_rate: float = 0.0005,
-            unit_norm_loss_factor: float = 1.0
+        self,
+        input_dim: int,
+        hidden_dim: int,
+        loss: SparsityMSELoss,
+        learning_rate: float = 0.0005,
+        unit_norm_loss_factor: float = 1.0,
     ):
         super().__init__()
         self.bias = nn.Parameter(torch.zeros(input_dim))
@@ -117,8 +114,9 @@ class Autoencoder(lightning.LightningModule):
         decoder_norm_diff_tensor = self.decoder_norm_diff_from_unit_norm()
         self.log("mse_loss", mse_loss, prog_bar=True, on_epoch=True, on_step=False, logger=True)
         self.log("sparsity_loss", sparsity_loss, prog_bar=True, on_epoch=True, on_step=False, logger=True)
-        self.log("decoder_norm_diff", decoder_norm_diff_tensor, prog_bar=False,
-                 on_epoch=True, on_step=False, logger=True)
+        self.log(
+            "decoder_norm_diff", decoder_norm_diff_tensor, prog_bar=False, on_epoch=True, on_step=False, logger=True
+        )
         self.log("train_loss", total_loss, prog_bar=True, on_epoch=True, logger=True, on_step=False)
         self.log("active_neurons", l0_norm, prog_bar=True, on_epoch=True, logger=True, on_step=False)
 
@@ -141,9 +139,11 @@ class Autoencoder(lightning.LightningModule):
         self.log("mean_hidden_activations", mean_activation, on_epoch=True, logger=True)
         self.log("fraction_inactive_neurons", fraction_inactive_neurons, on_epoch=True, logger=True)
         self.log("fraction_barely_active_neurons", fraction_barely_active_neurons, on_epoch=True, logger=True)
-        print(f"{fraction_inactive_neurons=:.1%} "
-              f"{fraction_barely_active_neurons=:.1%} (under 0.1), "
-              f"{mean_activation=:.3f} {max_hidden_activation=:.3f}")
+        print(
+            f"{fraction_inactive_neurons=:.1%} "
+            f"{fraction_barely_active_neurons=:.1%} (under 0.1), "
+            f"{mean_activation=:.3f} {max_hidden_activation=:.3f}"
+        )
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
