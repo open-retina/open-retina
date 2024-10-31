@@ -32,6 +32,9 @@ class SliceMeanReducer(ResponseReducer):
         narrowed_responses = torch.narrow(responses, self._axis, self.start, self.length)
         return torch.mean(narrowed_responses, dim=self._axis)
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self._axis=} {self.start=}, {self.length=})"
+
 
 class AbstractObjective(ABC):
     def __init__(self, model, data_key: str | None):
