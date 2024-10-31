@@ -34,5 +34,4 @@ jobs:
 
       - name: Run Codestyle Check with Ruff
         run: |
-          ruff check --config scripts/tests/ruff.toml \
-            openretina/ scripts/ tests/
+          test-codestyle

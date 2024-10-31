@@ -34,5 +34,4 @@ jobs:
 
       - name: Run Type Checks with Mypy
         run: |
-          export MPYPATH="."
-          mypy --config scripts/tests/mypy.ini openretina/ scripts/ tests/
+          make test-types

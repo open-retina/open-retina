@@ -22,6 +22,14 @@ cd open-retina
 pip install -e .
 ```
 
+Before raising a PR please run:
+```
+# Fix formatting of python files
+make fix-formatting
+# Run type checks and unit tests
+make test-all
+```
+
 ## Related papers
 
 The model in `openretina/hoefling_2024` was developed in the paper [A chromatic feature detector in the retina signals visual context changes](https://www.biorxiv.org/content/10.1101/2022.11.30.518492.abstract) and can be cited as:
