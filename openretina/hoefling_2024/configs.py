@@ -37,39 +37,15 @@ trainer_config = {
     "parallel": True,
 }
 
-model_fn = "nnfabrik_euler.models.models.SFB3d_core_SxF3d_readout"
-
-dataset_config = {
-    "experimenters": ("Szatko", "Szatko", "Szatko", "Szatko"),
-    "dates": ("2021-09-29", "2021-09-29", "2021-09-30", "2021-09-30"),
-    "exp_nums": (1, 2, 1, 2),
-    "keys": ("ventral1", "ventral2", "ventral1", "ventral2"),
-    "dataset_idxss": ([1, 2], [1, 2, 3, 4, 5], [1], [1, 2, 3]),
-    "stim_id": 5,
-    "stim_hash": "8c18928c21901a1a4af8b7458655a736",  # identifier to retrieve from DJ movie stim
-    "detrend_param_set_id": 2,
-    "quality_threshold_movie": 0,
-    "quality_threshold_chirp": 0.35,
-    "quality_threshold_ds": 0.6,
-    "spikes": True,
-    "chunk_size": 50,
-    "batch_size": 32,
-    "seed": 1000,
-    "cell_types": (),
-    "cell_type_crit": "exclude",
-    "qi_link": "or",
-}
-
-postprocessing_config = {
-    "norm": None,  # previously 30 for 18x16 stimuli
+STIMULUS_RANGE_CONSTRAINTS = {
+    "norm": 30.0,
     "x_min_green": -0.654,
     "x_max_green": 6.269,
     "x_min_uv": -0.913,
     "x_max_uv": 6.269,
 }
 
-
-pre_normalisation_values = {
+pre_normalisation_values_18x16 = {
     "channel_0_mean": 37.417128327480455,
     "channel_0_std": 28.904812895781816,
     "channel_1_mean": 36.13151406772875,

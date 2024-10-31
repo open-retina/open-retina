@@ -14,7 +14,7 @@ from matplotlib.colors import Normalize
 from matplotlib.patches import Rectangle
 import cv2
 
-from openretina.hoefling_2024.configs import pre_normalisation_values, MEAN_STD_DICT_74x64
+from openretina.hoefling_2024.configs import pre_normalisation_values_18x16, MEAN_STD_DICT_74x64
 from openretina.hoefling_2024.constants import FRAME_RATE_MODEL
 from openretina.video_analysis import calculate_fft, decompose_kernel, weighted_main_frequency
 
@@ -23,7 +23,7 @@ matplotlib.rcParams["animation.embed_limit"] = 2**128
 
 
 def undo_video_normalization(
-    video: Float[torch.Tensor, "channels time height width"], values_dict: dict = pre_normalisation_values
+    video: Float[torch.Tensor, "channels time height width"], values_dict: dict = pre_normalisation_values_18x16
 ) -> Float[torch.Tensor, "channels time height width"]:
     """
     Undo the normalization of the video.

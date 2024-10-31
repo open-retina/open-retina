@@ -8,7 +8,7 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from openretina.hoefling_2024.constants import STIMULUS_RANGE_CONSTRAINTS
+from openretina.hoefling_2024.configs import STIMULUS_RANGE_CONSTRAINTS
 from openretina.optimization.objective import (InnerNeuronVisualizationObjective, SliceMeanReducer,
                                                SingleNeuronObjective)
 from openretina.optimization.optimizer import optimize_stimulus
