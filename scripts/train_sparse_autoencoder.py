@@ -23,7 +23,7 @@ from openretina.neuron_data_io import make_final_responses
 from openretina.utils.h5_handling import load_h5_into_dict
 
 ENSEMBLE_MODEL_PATH = (
-    "/gpfs01/euler/data/SharedFiles/projects/Hoefling2024/" "models/nonlinear/9d574ab9fcb85e8251639080c8d402b7"
+    "/gpfs01/euler/data/SharedFiles/projects/Hoefling2024/models/nonlinear/9d574ab9fcb85e8251639080c8d402b7"
 )
 
 
