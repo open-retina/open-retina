@@ -1,29 +1,27 @@
-exp_name: example_core_readout
+exp_name: example_core_readout_low_res
 data_folder: "/gpfs01/euler/data/SharedFiles/projects/TP12/"
-movies_filename: "2024-10-11_movies_dict_72x64_joint_normalised.pkl"
+movies_filename: "2024-01-11_movies_dict_8c18928.pkl"
 responses_filename: "2024-08-14_neuron_data_responses_484c12d_djimaging.h5"
 save_folder: exp/
 max_epochs: 100
 
 core_readout:
   in_channels: 2
-  features_core: [16, 16, 16, 16]
-  temporal_kernel_sizes: [16, 16, 8, 8]
-  spatial_kernel_sizes: [16, 16, 8, 8]
-  in_shape: [2, 150, 72, 64]
+  features_core: [16, 16]
+  temporal_kernel_sizes: [21, 11]
+  spatial_kernel_sizes: [11, 5]
+  in_shape: [2, 150, 18, 16]
   scale: True
   bias: True
   gaussian_masks: True
   gaussian_mean_scale: 6.0
   gaussian_var_scale: 4.0
-  positive: False  # Set to True for positive readout features
+  positive: True
   gamma_readout: 0.4
   learning_rate: 0.01
-  maxpool_every_n_layers: 2
   cut_first_n_frames_in_core: 30
   dropout_rate: 0.0
   # device: "cuda"
-  # downsample_input_kernel_size: [1, 4, 4]  # to reproduce Hoefling input size of 18x16px
 
 dataloader:
   batch_size: null

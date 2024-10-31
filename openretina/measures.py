@@ -19,7 +19,7 @@ class PoissonLoss3d(nn.Module):
 
     def __str__(self):
         bias, per_neuron, avg = self.bias, self.per_neuron, self.avg
-        return f"PoissonLoss3d({bias=} {per_neuron=} {avg=}"
+        return f"PoissonLoss3d({bias=} {per_neuron=} {avg=})"
 
 
 class CelltypePoissonLoss3d(nn.Module):
