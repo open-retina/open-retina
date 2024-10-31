@@ -153,9 +153,6 @@ def get_movie_dataloader(
     allow_over_boundaries=True,
     **kwargs,
 ):
-    """
-    TODO docstring
-    """
     if isinstance(responses, torch.Tensor) and bool(torch.isnan(responses).any()):
         print("Nans in responses, skipping this dataloader")
         return None
