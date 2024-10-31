@@ -148,9 +148,9 @@ def get_movie_dataloader(
     chunk_size: int = 50,
     batch_size: int = 32,
     scene_length: Optional[int] = None,
-    drop_last=True,
-    use_base_sequence=False,
-    allow_over_boundaries=True,
+    drop_last: bool = True,
+    use_base_sequence: bool = False,
+    allow_over_boundaries: bool = True,
     **kwargs,
 ):
     if isinstance(responses, torch.Tensor) and bool(torch.isnan(responses).any()):
