@@ -4,7 +4,7 @@ import torch
 from torch import Tensor
 
 from openretina.optimization.optimization_stopper import OptimizationStopper
-from openretina.optimization.regularizer import StimulusRegularizationLoss, StimulusPostprocessor
+from openretina.optimization.regularizer import StimulusPostprocessor, StimulusRegularizationLoss
 
 
 def optimize_stimulus(

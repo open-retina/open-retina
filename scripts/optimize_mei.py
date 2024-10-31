@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 
+import argparse
 import os
 from functools import partial
-import argparse
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+
 from openretina.hoefling_2024.configs import STIMULUS_RANGE_CONSTRAINTS
-from openretina.optimization.objective import SingleNeuronObjective, MeanReducer
-from openretina.optimization.optimizer import optimize_stimulus
+from openretina.optimization.objective import MeanReducer, SingleNeuronObjective
 from openretina.optimization.optimization_stopper import OptimizationStopper
+from openretina.optimization.optimizer import optimize_stimulus
 from openretina.optimization.regularizer import (
     ChangeNormJointlyClipRangeSeparately,
     RangeRegularizationLoss,

@@ -1,5 +1,5 @@
-from typing import Tuple, Optional
 from collections.abc import Iterable
+from typing import Optional, Tuple
 
 import torch
 

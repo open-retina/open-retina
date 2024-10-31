@@ -1,5 +1,6 @@
-import torch
 from contextlib import contextmanager
+
+import torch
 
 
 def get_module_output_shape(

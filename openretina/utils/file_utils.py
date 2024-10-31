@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
-import requests
 
+import requests
 
 MODEL_CACHE_DIRECTORY = "./model-cache"
 

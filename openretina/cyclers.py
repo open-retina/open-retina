@@ -4,8 +4,9 @@ Adapted from sinzlab/neuralpredictors/training/cyclers.py
 
 import random
 from typing import Dict
-from torch.utils.data import DataLoader
+
 import torch.utils.data
+from torch.utils.data import DataLoader
 
 
 def cycle(iterable):

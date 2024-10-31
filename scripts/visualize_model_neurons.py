@@ -8,18 +8,18 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+
 from openretina.hoefling_2024.configs import STIMULUS_RANGE_CONSTRAINTS
-from openretina.optimization.objective import InnerNeuronVisualizationObjective, SliceMeanReducer, SingleNeuronObjective
-from openretina.optimization.optimizer import optimize_stimulus
+from openretina.hoefling_2024.nnfabrik_model_loading import Center, load_ensemble_retina_model_from_directory
+from openretina.models.core_readout import CoreReadout
+from openretina.optimization.objective import InnerNeuronVisualizationObjective, SingleNeuronObjective, SliceMeanReducer
 from openretina.optimization.optimization_stopper import OptimizationStopper
+from openretina.optimization.optimizer import optimize_stimulus
 from openretina.optimization.regularizer import (
     ChangeNormJointlyClipRangeSeparately,
     RangeRegularizationLoss,
 )
 from openretina.plotting import plot_stimulus_composition, save_stimulus_to_mp4_video
-from openretina.hoefling_2024.nnfabrik_model_loading import load_ensemble_retina_model_from_directory, Center
-from openretina.models.core_readout import CoreReadout
-
 
 DEFAULT_BASE_PATH = "/gpfs01/euler/data/SharedFiles/projects/Hoefling2024/"
 DEFAULT_ENSEMBLE_MODEL_PATH = os.path.join(DEFAULT_BASE_PATH, "models/nonlinear/9d574ab9fcb85e8251639080c8d402b7")

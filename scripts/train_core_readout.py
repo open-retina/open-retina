@@ -3,19 +3,19 @@
 import os
 import pickle
 
-import torch
 import hydra
-from omegaconf import DictConfig
 import lightning
+import torch
 from lightning.pytorch.callbacks import ModelCheckpoint
+from omegaconf import DictConfig
 
 from openretina.cyclers import LongCycler
 from openretina.hoefling_2024.data_io import (
     natmov_dataloaders_v2,
 )
+from openretina.models.core_readout import CoreReadout
 from openretina.neuron_data_io import make_final_responses
 from openretina.utils.h5_handling import load_h5_into_dict
-from openretina.models.core_readout import CoreReadout
 
 
 @hydra.main(version_base=None, config_path="../example_configs", config_name="train_core_readout")

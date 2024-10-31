@@ -1,8 +1,8 @@
 # Implementation according to https://transformer-circuits.pub/2023/monosemantic-features#appendix-autoencoder
 
+import lightning
 import torch
 from torch import nn
-import lightning
 from torch.utils.data import Dataset
 
 

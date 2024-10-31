@@ -1,5 +1,5 @@
-from typing import Optional
 import sys
+from typing import Optional
 
 
 class OptimizationStopper:

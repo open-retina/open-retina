@@ -3,6 +3,7 @@ import os
 from functools import partial
 from typing import Any, List, Optional, Tuple
 
+import cv2
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,9 +13,8 @@ from jaxtyping import Float
 from matplotlib import animation
 from matplotlib.colors import Normalize
 from matplotlib.patches import Rectangle
-import cv2
 
-from openretina.hoefling_2024.configs import pre_normalisation_values_18x16, MEAN_STD_DICT_74x64
+from openretina.hoefling_2024.configs import MEAN_STD_DICT_74x64, pre_normalisation_values_18x16
 from openretina.hoefling_2024.constants import FRAME_RATE_MODEL
 from openretina.video_analysis import calculate_fft, decompose_kernel, weighted_main_frequency
 

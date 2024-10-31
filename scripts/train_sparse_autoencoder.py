@@ -1,26 +1,26 @@
 #!/usr/bin/env python3
-from typing import Callable
 import argparse
 import functools
 import operator
-import time
 import os
 import pickle
+import time
+from typing import Callable
 
-import torch
 import lightning
+import torch
 from lightning.pytorch.loggers import CSVLogger, TensorBoardLogger
 
-from openretina.neuron_data_io import make_final_responses
-from openretina.models.autoencoder import SparsityMSELoss, Autoencoder, ActivationsDataset
-from openretina.utils.h5_handling import load_h5_into_dict
+from openretina.cyclers import LongCycler
 from openretina.hoefling_2024.data_io import (
     get_chirp_dataloaders,
     get_mb_dataloaders,
     natmov_dataloaders_v2,
 )
-from openretina.cyclers import LongCycler
 from openretina.hoefling_2024.nnfabrik_model_loading import Center, load_ensemble_retina_model_from_directory
+from openretina.models.autoencoder import ActivationsDataset, Autoencoder, SparsityMSELoss
+from openretina.neuron_data_io import make_final_responses
+from openretina.utils.h5_handling import load_h5_into_dict
 
 ENSEMBLE_MODEL_PATH = (
     "/gpfs01/euler/data/SharedFiles/projects/Hoefling2024/" "models/nonlinear/9d574ab9fcb85e8251639080c8d402b7"

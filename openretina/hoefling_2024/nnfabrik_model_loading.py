@@ -7,14 +7,14 @@ import pickle
 from copy import deepcopy
 from functools import partial
 from importlib import import_module
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
 import yaml
 
-from openretina.utils.misc import SafeLoaderWithTuple, tuple_constructor
 from openretina.utils.file_utils import optionally_download
+from openretina.utils.misc import SafeLoaderWithTuple, tuple_constructor
 
 
 def split_module_name(abs_class_name: str) -> Tuple[str, str]:

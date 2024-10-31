@@ -1,6 +1,6 @@
 import os
-
 from typing import Any
+
 import numpy as np
 
 from .utils.h5_handling import load_dataset_from_h5
