@@ -30,3 +30,5 @@ dependencies = {file = ["requirements.txt"]}
 
 [tool.ruff]
 ignore = ["F722"]
+line-length = 120
+indent-width = 4
