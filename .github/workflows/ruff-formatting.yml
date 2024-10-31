@@ -34,5 +34,5 @@ jobs:
 
       - name: Run Formatting Check with Ruff
         run: |
-          ruff format --check --diff check --config scripts/tests/ruff.toml \
+          ruff format --check --diff --config scripts/tests/ruff.toml \
             openretina/ scripts/ tests/
