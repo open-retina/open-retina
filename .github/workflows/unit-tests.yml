@@ -33,4 +33,4 @@ jobs:
           pip install .
 
       - name: Run Unit Tests
-        run: test-unittests
+        run: make test-unittests
