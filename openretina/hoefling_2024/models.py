@@ -9,6 +9,7 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 
+from openretina.models.readout_rnn import ReadoutRnn
 from openretina.models.model_utils import get_module_output_shape
 from openretina.dataloaders import get_dims_for_loader_dict
 from openretina.utils.misc import set_seed
@@ -302,6 +303,7 @@ class SpatialXFeature3dReadout(nn.ModuleDict):
         gamma_readout,
         gamma_masks=0.0,
         readout_reg_avg=False,
+        use_readout_rnn: bool = False,
     ):
         super().__init__()
         for k in n_neurons_dict:  # iterate over sessions
@@ -321,6 +323,7 @@ class SpatialXFeature3dReadout(nn.ModuleDict):
                     positive=positive,
                     scale=scale,
                     bias=bias,
+                    use_readout_rnn=use_readout_rnn,
                 ),
             )
 
@@ -357,6 +360,7 @@ class SpatialXFeature3d(nn.Module):
         scale: bool = False,
         bias: bool = True,
         nonlinearity: bool = True,
+        use_readout_rnn: bool = False,
     ):
         """
         TODO write docstring
@@ -376,7 +380,7 @@ class SpatialXFeature3d(nn.Module):
         """
         super().__init__()
         self.in_shape = in_shape
-        c, t, w, h = in_shape
+        num_channels, t, w, h = in_shape
         self.outdims = outdims
         self.gaussian_masks = gaussian_masks
         self.gaussian_mean_scale = gaussian_mean_scale
@@ -400,7 +404,7 @@ class SpatialXFeature3d(nn.Module):
             else:
                 self.masks = nn.Parameter(torch.Tensor(w, h, outdims))
 
-        self.features = nn.Parameter(torch.Tensor(1, c, 1, outdims))
+        self.features = nn.Parameter(torch.Tensor(1, num_channels, 1, outdims))
 
         if scale:
             scale_param = nn.Parameter(torch.Tensor(outdims))
@@ -413,6 +417,16 @@ class SpatialXFeature3d(nn.Module):
             self.register_parameter("bias", bias_param)
         else:
             self.register_parameter("bias", None)
+
+        if use_readout_rnn:
+            self._readout_rnn: ReadoutRnn | None = ReadoutRnn(
+                input_dim=num_channels * 8 * 6,
+                n_layers=2,
+                hidden_dim=256,
+                output_dim=outdims,
+            )
+        else:
+            self._readout_rnn = None
 
         self.initialize()
 
@@ -492,8 +506,16 @@ class SpatialXFeature3d(nn.Module):
             feat = self.features
             masks = self.masks
 
-        y = torch.einsum("nctwh,whd->nctd", x, masks)
-        y = (y * feat).sum(1)
+        if self._readout_rnn is not None:
+            # Use a single readout rnn for the whole session
+            # As a first experiment ignore the mask and just feed in the whole tensor x
+            # Flattening the channel, height and width dimensions into a single dimension
+            batch_dim, _, time_dim, _, _ = x.size()
+            x_flat = x.permute([0, 2, 1, 3, 4]).reshape(batch_dim, time_dim, -1)
+            y = self._readout_rnn(x_flat)
+        else:
+            y_einsum = torch.einsum("nctwh,whd->nctd", x, masks)
+            y = (y_einsum * feat).sum(1)
 
         if self.scale is not None:
             y = y * self.scale
@@ -1097,6 +1119,7 @@ def SFB3d_core_SxF3d_readout(
     data_info: Optional[dict] = None,
     nonlinearity: str = "ELU",
     conv_type: Literal["full", "separable", "custom_separable", "time_independent"] = "custom_separable",
+    use_readout_rnn: bool = False,
 ) -> torch.nn.Module:
     """
     Model class of a stacked2dCore (from mlutils) and a pointpooled (spatial transformer) readout
@@ -1181,6 +1204,7 @@ def SFB3d_core_SxF3d_readout(
         gamma_readout=gamma_readout,
         gamma_masks=gamma_masks,
         readout_reg_avg=readout_reg_avg,
+        use_readout_rnn=use_readout_rnn,
     )
 
     # initializing readout bias to mean response
