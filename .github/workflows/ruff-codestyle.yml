@@ -34,4 +34,4 @@ jobs:
 
       - name: Run Codestyle Check with Ruff
         run: |
-          make test-codestyle
+          test-codestyle
