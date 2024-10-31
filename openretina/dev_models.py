@@ -2,13 +2,12 @@
 from collections import OrderedDict
 from collections.abc import Iterable
 from operator import itemgetter
-from typing import Dict, Literal, Optional, Tuple, Any
+from typing import Any, Dict, Literal, Optional, Tuple
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from neuralpredictors import regularizers  # type: ignore
 from neuralpredictors.layers.readouts import (  # type: ignore
     FullGaussian2d,
@@ -21,11 +20,11 @@ from neuralpredictors.utils import get_module_output  # type: ignore
 from openretina.dataloaders import get_dims_for_loader_dict
 from openretina.hoefling_2024.models import (
     Bias3DLayer,
-    Scale2DLayer,
-    Scale3DLayer,
     Core3d,
     Encoder,
     FlatLaplaceL23dnorm,
+    Scale2DLayer,
+    Scale3DLayer,
     STSeparableBatchConv3d,
     TimeIndependentConv3D,
     TimeLaplaceL23dnorm,
@@ -34,6 +33,7 @@ from openretina.hoefling_2024.models import (
     compute_temporal_kernel,
     temporal_smoothing,
 )
+
 from .utils.misc import set_seed
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -79,7 +79,7 @@ class GRUEnabledCore(Core3d, nn.Module):
         elif conv_type == "custom_separable":
             self.conv_class = STSeparableBatchConv3d  # type: ignore
         elif conv_type == "full":
-            self.conv_class = TorchFullConv3D   # type: ignore
+            self.conv_class = TorchFullConv3D  # type: ignore
         elif conv_type == "time_independent":
             self.conv_class = TimeIndependentConv3D  # type: ignore
         else:
@@ -99,7 +99,7 @@ class GRUEnabledCore(Core3d, nn.Module):
         if stack is None:
             self.stack = list(range(self.layers))
         else:
-            self.stack = [range(self.layers)[stack]] if isinstance(stack, int) else stack
+            self.stack = [range(self.layers)[stack]] if isinstance(stack, int) else stack  # type: ignore
 
         log_speed_dict = dict()
         for k in n_neurons_dict:
@@ -142,7 +142,8 @@ class GRUEnabledCore(Core3d, nn.Module):
         if batch_norm:
             layer["norm"] = nn.BatchNorm3d(
                 hidden_channels[0],  # type: ignore
-                momentum=momentum, affine=bias and batch_norm_scale
+                momentum=momentum,
+                affine=bias and batch_norm_scale,
             )  # ok or should we ensure same batch norm?
             if bias:
                 if not batch_norm_scale:
@@ -194,7 +195,7 @@ class GRUEnabledCore(Core3d, nn.Module):
             do_skip = False
             input_ = feat(
                 (
-                    input_ if not do_skip else torch.cat(ret[-min(self.skip, layer_num):], dim=1),
+                    input_ if not do_skip else torch.cat(ret[-min(self.skip, layer_num) :], dim=1),
                     data_key,
                 )
             )
@@ -229,8 +230,9 @@ class GRUEnabledCore(Core3d, nn.Module):
     def temporal_smoothness(self):
         ret = 0
         for layer_num in range(self.layers):
-            ret += temporal_smoothing(self.features[layer_num].conv.sin_weights,
-                                      self.features[layer_num].conv.cos_weights)
+            ret += temporal_smoothing(
+                self.features[layer_num].conv.sin_weights, self.features[layer_num].conv.cos_weights
+            )
         return ret
 
     def regularizer(self):

@@ -1,17 +1,18 @@
-from collections import OrderedDict
-from typing import Optional, Iterable
 import os
+from collections import OrderedDict
+from typing import Iterable, Optional
 
-import numpy as np
-import torch
-from torch import nn
 import lightning
 import matplotlib.pyplot as plt
+import numpy as np
+import torch
 from matplotlib.colors import Normalize
+from torch import nn
 
-from openretina.measures import PoissonLoss3d, CorrelationLoss3d
 from openretina.dataloaders import DataPoint
-from openretina.hoefling_2024.models import STSeparableBatchConv3d, Bias3DLayer, temporal_smoothing
+from openretina.hoefling_2024.models import Bias3DLayer, STSeparableBatchConv3d, temporal_smoothing
+from openretina.measures import CorrelationLoss3d, PoissonLoss3d
+from openretina.models.gru_core import ConvGRUCore
 
 
 class SimpleSpatialXFeature3d(torch.nn.Module):
@@ -97,8 +98,12 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         pdf = torch.nan_to_num(pdf / normalisation)
         return pdf
 
+    @property
+    def masks(self) -> torch.Tensor:
+        return self.get_mask().permute(1, 2, 0)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        masks = self.get_mask().permute(1, 2, 0)
+        masks = self.masks
         y = torch.einsum("nctwh,whd->nctd", x, masks)
 
         if self.positive:
@@ -421,3 +426,85 @@ class CoreReadout(lightning.LightningModule):
     def save_weight_visualizations(self, folder_path: str) -> None:
         self.core.save_weight_visualizations(os.path.join(folder_path, "weights_core"))
         self.readout.save_weight_visualizations(os.path.join(folder_path, "weights_readout"))
+
+
+class GRUCoreReadout(CoreReadout):
+    def __init__(
+        self,
+        in_channels: int,
+        hidden_channels: Iterable[int],
+        temporal_kernel_sizes: Iterable[int],
+        spatial_kernel_sizes: Iterable[int],
+        in_shape: Iterable[int],
+        n_neurons_dict: dict[str, int],
+        core_gamma_hidden: float,
+        core_gamma_input: float,
+        core_gamma_in_sparse: float,
+        core_gamma_temporal: float,
+        core_bias: bool,
+        core_input_padding: bool,
+        core_hidden_padding: bool,
+        core_use_gru: bool,
+        core_use_projections: bool,
+        readout_scale: bool,
+        readout_bias: bool,
+        readout_gaussian_masks: bool,
+        readout_gaussian_mean_scale: float,
+        readout_gaussian_var_scale: float,
+        readout_positive: bool,
+        readout_gamma: float,
+        readout_gamma_masks: float = 0.0,
+        readout_reg_avg: bool = False,
+        learning_rate: float = 0.01,
+        core_gru_kwargs: Optional[dict] = None,
+    ):
+        # Want methods from CoreReadout, but with different init (same as base lightning module)
+        lightning.LightningModule.__init__(self)
+
+        self.save_hyperparameters()
+        self.core = ConvGRUCore(  # type: ignore
+            input_channels=in_channels,
+            hidden_channels=hidden_channels,
+            temporal_kernel_size=temporal_kernel_sizes,
+            spatial_kernel_size=spatial_kernel_sizes,
+            layers=len(tuple(hidden_channels)),
+            gamma_hidden=core_gamma_hidden,
+            gamma_input=core_gamma_input,
+            gamma_in_sparse=core_gamma_in_sparse,
+            gamma_temporal=core_gamma_temporal,
+            final_nonlinearity=True,
+            bias=core_bias,
+            input_padding=core_input_padding,
+            hidden_padding=core_hidden_padding,
+            batch_norm=True,
+            batch_norm_scale=True,
+            batch_norm_momentum=0.1,
+            batch_adaptation=False,
+            use_avg_reg=False,
+            nonlinearity="ELU",
+            conv_type="custom_separable",
+            use_gru=core_use_gru,
+            use_projections=core_use_projections,
+            gru_kwargs=core_gru_kwargs,
+        )
+        # Run one forward path to determine output shape of core
+        core_test_output = self.core.forward(torch.zeros((1,) + tuple(in_shape)))
+        in_shape_readout: tuple[int, int, int, int] = core_test_output.shape[1:]  # type: ignore
+        print(f"{in_shape_readout=}")
+
+        self.readout = ReadoutWrapper(
+            in_shape_readout,
+            n_neurons_dict,
+            readout_scale,
+            readout_bias,
+            readout_gaussian_masks,
+            readout_gaussian_mean_scale,
+            readout_gaussian_var_scale,
+            readout_positive,
+            readout_gamma,
+            readout_gamma_masks,
+            readout_reg_avg,
+        )
+        self.learning_rate = learning_rate
+        self.loss = PoissonLoss3d()
+        self.correlation_loss = CorrelationLoss3d(avg=True)
