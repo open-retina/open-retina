@@ -1,8 +1,9 @@
 from typing import Optional
+
 import pytest
 import torch
 
-from openretina.hoefling_2024.nnfabrik_model_loading import load_ensemble_model_from_remote, Center
+from openretina.hoefling_2024.nnfabrik_model_loading import Center, load_ensemble_model_from_remote
 
 
 @pytest.mark.parametrize(
