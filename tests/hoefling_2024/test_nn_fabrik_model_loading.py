@@ -19,7 +19,7 @@ def test_loading_model_from_remote(session_id: str, center_readout: Optional[Cen
 
     # run a forward path with a zero tensor of batch size 1
     input_dim = data_info[session_id]["input_dimensions"]
-    input_dim_batch_size_one = (1, ) + input_dim[1:]
+    input_dim_batch_size_one = (1,) + input_dim[1:]
     inp_ = torch.zeros(input_dim_batch_size_one)
     out = ensemble_model(inp_, session_id)
 
