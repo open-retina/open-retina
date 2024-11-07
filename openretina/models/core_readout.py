@@ -373,6 +373,12 @@ class CoreReadout(lightning.LightningModule):
         self.loss = PoissonLoss3d()
         self.correlation_loss = CorrelationLoss3d(avg=True)
 
+    def get_last_lr(self) -> float:
+        try:
+            return self.lr_schedulers().get_last_lr()[0]
+        except:
+            return -1.0
+
     def forward(self, x: torch.Tensor, data_key: str) -> torch.Tensor:
         output_core = self.core(x)
         output_readout = self.readout(output_core, data_key=data_key)
@@ -384,10 +390,12 @@ class CoreReadout(lightning.LightningModule):
         loss = self.loss.forward(model_output, data_point.targets)
         regularization_loss_core = self.core.regularizer()
         regularization_loss_readout = self.readout.regularizer(session_id)
+        total_loss = loss + regularization_loss_core + regularization_loss_readout
+
         self.log("loss", loss)
         self.log("regularization_loss_core", regularization_loss_core)
         self.log("regularization_loss_readout", regularization_loss_readout)
-        total_loss = loss + regularization_loss_core + regularization_loss_readout
+        self.log("total_loss", total_loss)
 
         return total_loss
 
@@ -395,8 +403,16 @@ class CoreReadout(lightning.LightningModule):
         session_id, data_point = batch
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
+        regularization_loss_core = self.core.regularizer()
+        regularization_loss_readout = self.readout.regularizer(session_id)
+        total_loss = loss + regularization_loss_core + regularization_loss_readout
         correlation = -self.correlation_loss.forward(model_output, data_point.targets)
+
+        self.log("learning_rate", self.get_last_lr(), logger=True)
         self.log("val_loss", loss, logger=True, prog_bar=True)
+        self.log("val_regularization_loss_core", regularization_loss_core, logger=True)
+        self.log("val_regularization_loss_readout", regularization_loss_readout, logger=True)
+        self.log("val_total_loss", total_loss, logger=True, prog_bar=True)
         self.log("val_correlation", correlation, logger=True, prog_bar=True)
 
         return loss
@@ -427,7 +443,6 @@ class CoreReadout(lightning.LightningModule):
             factor=lr_decay_factor,
             patience=patience,
             threshold=tolerance,
-            verbose=True,
             threshold_mode="abs",
             min_lr=min_lr,
         )

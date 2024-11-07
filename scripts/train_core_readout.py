@@ -6,7 +6,7 @@ import pickle
 import hydra
 import lightning
 import torch
-from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.callbacks import Callback, ModelCheckpoint
 from omegaconf import DictConfig
 
 from openretina.cyclers import LongCycler
@@ -16,6 +16,42 @@ from openretina.hoefling_2024.data_io import (
 from openretina.models.core_readout import CoreReadout
 from openretina.neuron_data_io import make_final_responses
 from openretina.utils.h5_handling import load_h5_into_dict
+
+
+class OptimizerResetCallback(Callback):
+    def __init__(self):
+        super().__init__()
+        self.prev_lr = None  # This will store the previous learning rate
+
+    def on_validation_end(self, trainer, pl_module):
+        # Get the current learning rate from the optimizer
+        optims = pl_module.optimizers()
+        try:
+            optim = optims[0]
+        except:
+            optim = optims
+        current_lr = optim.param_groups[0]['lr']
+
+        # Compare with the previous learning rate
+        if self.prev_lr is not None and current_lr < self.prev_lr:
+            print(f"Learning rate decreased from {self.prev_lr} to {current_lr}. Resetting optimizer.")
+ 
+            # Reset the optimizer if the learning rate has decreased
+            params_dict = optim.param_groups[0]
+            # below could be written shorter
+            new_optimizer = torch.optim.AdamW(
+                pl_module.parameters(), lr=current_lr,
+                betas=params_dict["betas"], eps=params_dict["eps"],
+                weight_decay=params_dict["weight_decay"], amsgrad=params_dict["amsgrad"],
+                maximize=params_dict["maximize"], foreach=params_dict["foreach"],
+                capturable=params_dict["capturable"], differentiable=params_dict["differentiable"],
+                fused=params_dict["fused"],
+            )
+            trainer.optimizers = [new_optimizer]  # Replace the optimizer in the trainer
+            self.prev_lr = current_lr  # Update the previous learning rate
+
+        else:
+            self.prev_lr = current_lr  # Update the previous learning rate for future comparisons
 
 
 @hydra.main(version_base=None, config_path="../example_configs", config_name="train_core_readout")
@@ -49,14 +85,14 @@ def main(conf: DictConfig) -> None:
         logger = hydra.utils.instantiate(logger_params, save_dir=log_folder, name=logger_name)
         logger_array.append(logger)
     model_checkpoint = ModelCheckpoint(monitor="val_correlation", save_top_k=3, mode="max", verbose=True)
-    callbacks: list = [model_checkpoint]
+    callbacks: list = [model_checkpoint, OptimizerResetCallback()]
     for callback_params in conf.get("training_callbacks", {}).values():
         callbacks.append(hydra.utils.instantiate(callback_params))
 
     trainer = lightning.Trainer(
         max_epochs=conf.max_epochs,
         default_root_dir=conf.save_folder,
-        precision=16,
+        precision="16-mixed",
         logger=logger_array,
         callbacks=callbacks,
         accumulate_grad_batches=1,
