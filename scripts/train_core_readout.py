@@ -35,7 +35,6 @@ class OptimizerResetCallback(Callback):
         # Compare with the previous learning rate
         if self.prev_lr is not None and current_lr < self.prev_lr:
             print(f"Learning rate decreased from {self.prev_lr} to {current_lr}. Resetting optimizer.")
- 
             # Reset the optimizer if the learning rate has decreased
             params_dict = optim.param_groups[0]
             # below could be written shorter
@@ -48,10 +47,8 @@ class OptimizerResetCallback(Callback):
                 fused=params_dict["fused"],
             )
             trainer.optimizers = [new_optimizer]  # Replace the optimizer in the trainer
-            self.prev_lr = current_lr  # Update the previous learning rate
 
-        else:
-            self.prev_lr = current_lr  # Update the previous learning rate for future comparisons
+        self.prev_lr = current_lr
 
 
 @hydra.main(version_base=None, config_path="../example_configs", config_name="train_core_readout")
