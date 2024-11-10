@@ -74,12 +74,16 @@ class MovieSampler(Sampler):
         if self.split == "train" and (self.scene_length != self.chunk_size):
             # Always start the clip from a random point in the scene, within the chosen chunk size
             # All while making sure it does not go over the scene length bound.
-            shifted_indices = gen_shifts(
-                np.arange(0, self.movie_length + 1, self.scene_length),
-                self.indices,
-                self.chunk_size,
-                self.allow_over_boundaries,
-            )
+            if self.allow_over_boundaries:
+                shifts = np.random.randint(0, self.scene_length, len(self.indices))
+                shifted_indices = np.minimum(self.indices + shifts, self.movie_length - self.chunk_size)
+            else:
+                shifted_indices = gen_shifts(
+                    np.arange(0, self.movie_length + 1, self.scene_length),
+                    self.indices,
+                    self.chunk_size,
+                    self.allow_over_boundaries,
+                )
 
             # Shuffle the indices
             indices_shuffling = np.random.permutation(len(self.indices))
