@@ -1,4 +1,8 @@
-exp_name: example_core_readout_low_res
+defaults:
+  - _self_
+  - quality_checks: hoefling_2024
+
+exp_name: example_core_readout_low_res_filtered
 data_folder: "/gpfs01/euler/data/SharedFiles/projects/TP12/"
 movies_filename: "2024-01-11_movies_dict_8c18928.pkl"
 responses_filename: "2024-08-14_neuron_data_responses_484c12d_djimaging.h5"
@@ -16,7 +20,7 @@ core_readout:
   gaussian_masks: True
   gaussian_mean_scale: 6.0
   gaussian_var_scale: 4.0
-  positive: True
+  positive: False
   gamma_readout: 0.4
   learning_rate: 0.01
   cut_first_n_frames_in_core: 30

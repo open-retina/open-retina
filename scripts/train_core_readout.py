@@ -7,14 +7,14 @@ import hydra
 import lightning
 import torch
 from lightning.pytorch.callbacks import Callback, ModelCheckpoint
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from openretina.cyclers import LongCycler
 from openretina.hoefling_2024.data_io import (
     natmov_dataloaders_v2,
 )
 from openretina.models.core_readout import CoreReadout
-from openretina.neuron_data_io import make_final_responses
+from openretina.neuron_data_io import filter_responses, make_final_responses
 from openretina.utils.h5_handling import load_h5_into_dict
 
 
@@ -28,9 +28,9 @@ class OptimizerResetCallback(Callback):
         optims = pl_module.optimizers()
         try:
             optim = optims[0]
-        except:
+        except:  # noqa
             optim = optims
-        current_lr = optim.param_groups[0]['lr']
+        current_lr = optim.param_groups[0]["lr"]
 
         # Compare with the previous learning rate
         if self.prev_lr is not None and current_lr < self.prev_lr:
@@ -39,11 +39,16 @@ class OptimizerResetCallback(Callback):
             params_dict = optim.param_groups[0]
             # below could be written shorter
             new_optimizer = torch.optim.AdamW(
-                pl_module.parameters(), lr=current_lr,
-                betas=params_dict["betas"], eps=params_dict["eps"],
-                weight_decay=params_dict["weight_decay"], amsgrad=params_dict["amsgrad"],
-                maximize=params_dict["maximize"], foreach=params_dict["foreach"],
-                capturable=params_dict["capturable"], differentiable=params_dict["differentiable"],
+                pl_module.parameters(),
+                lr=current_lr,
+                betas=params_dict["betas"],
+                eps=params_dict["eps"],
+                weight_decay=params_dict["weight_decay"],
+                amsgrad=params_dict["amsgrad"],
+                maximize=params_dict["maximize"],
+                foreach=params_dict["foreach"],
+                capturable=params_dict["capturable"],
+                differentiable=params_dict["differentiable"],
                 fused=params_dict["fused"],
             )
             trainer.optimizers = [new_optimizer]  # Replace the optimizer in the trainer
@@ -61,8 +66,9 @@ def main(conf: DictConfig) -> None:
 
     data_path_responses = os.path.join(data_folder, conf.responses_filename)
     responses = load_h5_into_dict(data_path_responses)
+    filtered_responses = filter_responses(responses, **OmegaConf.to_object(conf.quality_checks))  # type: ignore
 
-    data_dict = make_final_responses(responses, response_type="natural")  # type: ignore
+    data_dict = make_final_responses(filtered_responses, response_type="natural")  # type: ignore
     dataloaders = natmov_dataloaders_v2(data_dict, movies_dictionary=movies_dict, train_chunk_size=100, seed=1000)
 
     # when num_workers > 0 the docker container needs more shared memory

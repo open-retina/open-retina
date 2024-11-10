@@ -3,10 +3,10 @@ from collections import OrderedDict
 from typing import Iterable, Optional
 
 import lightning
-from lightning.pytorch.utilities import grad_norm
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from lightning.pytorch.utilities import grad_norm
 from matplotlib.colors import Normalize
 from torch import nn
 
@@ -385,7 +385,7 @@ class CoreReadout(lightning.LightningModule):
     def get_last_lr(self) -> float:
         try:
             return self.lr_schedulers().get_last_lr()[0]
-        except:
+        except:  # noqa
             return -1.0
 
     def forward(self, x: torch.Tensor, data_key: str) -> torch.Tensor:
