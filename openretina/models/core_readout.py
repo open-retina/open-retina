@@ -378,9 +378,9 @@ class CoreReadout(lightning.LightningModule):
         # Compute the 2-norm for each layer
         # If using mixed precision, the gradients are already unscaled here
         core_norms = grad_norm(self.core, norm_type=2)
-        self.log_dict(core_norms)
+        self.log_dict(core_norms, on_step=False, on_epoch=True)
         readout_norms = grad_norm(self.readout, norm_type=2)
-        self.log_dict(readout_norms)
+        self.log_dict(readout_norms, on_step=False, on_epoch=True)
 
     def get_last_lr(self) -> float:
         try:
