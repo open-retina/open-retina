@@ -3,6 +3,7 @@ from collections import OrderedDict
 from typing import Iterable, Optional
 
 import lightning
+from lightning.pytorch.utilities import grad_norm
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -373,6 +374,14 @@ class CoreReadout(lightning.LightningModule):
         self.loss = PoissonLoss3d()
         self.correlation_loss = CorrelationLoss3d(avg=True)
 
+    def on_before_optimizer_step(self, optimizer):
+        # Compute the 2-norm for each layer
+        # If using mixed precision, the gradients are already unscaled here
+        core_norms = grad_norm(self.core, norm_type=2)
+        self.log_dict(core_norms)
+        readout_norms = grad_norm(self.readout, norm_type=2)
+        self.log_dict(readout_norms)
+
     def get_last_lr(self) -> float:
         try:
             return self.lr_schedulers().get_last_lr()[0]
@@ -391,11 +400,13 @@ class CoreReadout(lightning.LightningModule):
         regularization_loss_core = self.core.regularizer()
         regularization_loss_readout = self.readout.regularizer(session_id)
         total_loss = loss + regularization_loss_core + regularization_loss_readout
+        correlation = -self.correlation_loss.forward(model_output, data_point.targets)
 
-        self.log("loss", loss)
-        self.log("regularization_loss_core", regularization_loss_core)
-        self.log("regularization_loss_readout", regularization_loss_readout)
-        self.log("total_loss", total_loss)
+        self.log("regularization_loss_core", regularization_loss_core, on_step=False, on_epoch=True)
+        self.log("regularization_loss_readout", regularization_loss_readout, on_step=False, on_epoch=True)
+        self.log("train_total_loss", total_loss, on_step=False, on_epoch=True)
+        self.log("train_loss", loss, on_step=False, on_epoch=True)
+        self.log("train_correlation", correlation, on_step=False, on_epoch=True)
 
         return total_loss
 
