@@ -384,7 +384,7 @@ class CoreReadout(lightning.LightningModule):
 
     def get_last_lr(self) -> float:
         try:
-            return self.lr_schedulers().get_last_lr()[0]
+            return self.lr_schedulers().get_last_lr()[0]  # type: ignore
         except:  # noqa
             return -1.0
 

@@ -117,7 +117,7 @@ def gen_shifts_with_boundaries(
         return bounds[min(insertion_index, len(bounds) - 1)]
 
     shifted_indices = []
-    shifts = np.random.randint(1, clip_chunk_size // 2, len(start_indices))
+    shifts = np.random.randint(0, clip_chunk_size // 2, len(start_indices))
 
     for i, start_idx in enumerate(start_indices):
         next_bound = get_next_bound(start_idx, clip_bounds)
