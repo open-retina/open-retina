@@ -2,7 +2,7 @@ defaults:
   - _self_
   - quality_checks: hoefling_2024
 
-exp_name: example_core_readout_negative_optim_reset_prec16
+exp_name: example_core_readout_filtered
 data_folder: "/gpfs01/euler/data/SharedFiles/projects/TP12/"
 movies_filename: "2024-10-11_movies_dict_72x64_joint_normalised.pkl"
 responses_filename: "2024-08-14_neuron_data_responses_484c12d_djimaging.h5"
