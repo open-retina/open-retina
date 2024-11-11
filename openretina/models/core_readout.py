@@ -350,7 +350,7 @@ class CoreReadout(lightning.LightningModule):
             maxpool_every_n_layers=maxpool_every_n_layers,
             downsample_input_kernel_size=downsample_input_kernel_size,
         )
-        # Run one forward path to determine output shape of core
+        # Run one forward pass to determine output shape of core
         example_input = torch.zeros((1,) + tuple(in_shape))
         core_test_output = self.core.to(device).forward(example_input.to(device))
         in_shape_readout: tuple[int, int, int, int] = core_test_output.shape[1:]  # type: ignore
@@ -504,7 +504,7 @@ class GRUCoreReadout(CoreReadout):
             use_projections=core_use_projections,
             gru_kwargs=core_gru_kwargs,
         )
-        # Run one forward path to determine output shape of core
+        # Run one forward pass to determine output shape of core
         core_test_output = self.core.forward(torch.zeros((1,) + tuple(in_shape)))
         in_shape_readout: tuple[int, int, int, int] = core_test_output.shape[1:]  # type: ignore
         print(f"{in_shape_readout=}")
