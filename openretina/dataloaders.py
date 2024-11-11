@@ -72,13 +72,12 @@ class MovieSampler(Sampler):
 
     def __iter__(self):
         if self.split == "train" and (self.scene_length != self.chunk_size):
-            # Always start the clip from a random point in the scene, within the chosen chunk size
-            # All while making sure it does not go over the scene length bound.
             if self.allow_over_boundaries:
-                shifts = np.random.randint(0, self.scene_length, len(self.indices))
+                shifts = np.random.randint(0, self.chunk_size, len(self.indices))
+                # apply shifts while making sure we do not exceed the movie length
                 shifted_indices = np.minimum(self.indices + shifts, self.movie_length - self.chunk_size)
             else:
-                shifted_indices = gen_shifts(
+                shifted_indices = gen_shifts_with_boundaries(
                     np.arange(0, self.movie_length + 1, self.scene_length),
                     self.indices,
                     self.chunk_size,
@@ -95,7 +94,9 @@ class MovieSampler(Sampler):
         return len(self.indices)
 
 
-def gen_shifts(clip_bounds, start_indices, clip_chunk_size=50):
+def gen_shifts_with_boundaries(
+    clip_bounds: list[int] | np.ndarray, start_indices: list[int] | np.ndarray, clip_chunk_size: int = 50
+) -> list[int]:
     """
     Generate shifted indices based on clip bounds and start indices.
     Assumes that the original start indices are already within the clip bounds.
@@ -105,8 +106,6 @@ def gen_shifts(clip_bounds, start_indices, clip_chunk_size=50):
         clip_bounds (list): A list of clip bounds.
         start_indices (list): A list of start indices.
         clip_chunk_size (int, optional): The size of each clip chunk. Defaults to 50.
-        allow_over_boundaries (bool, optional): Whether to allow training clips to be
-                                sampled over single-clip boundaries. Defaults to False.
 
     Returns:
         list: A list of shifted indices.
