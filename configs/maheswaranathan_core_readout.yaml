@@ -1,0 +1,54 @@
+defaults:
+  - model: base_gru_model_lightning
+
+exp_name: core_readout_maheswaranathan
+
+data:
+  base_folder: /Data
+  save_folder: /Projects/open-retina/models
+
+
+# Overwrite model defaults with specifics for Maheswaranathan 2023 input data format.
+model:
+  in_channels: 1
+  in_shape: [1, 100, 50, 50]
+  hidden_channels: [8, 8]        # as in their paper.
+  spatial_kernel_sizes: [15, 11] # as in the model from the paper. They used stacked convolutions though.
+
+trainer:
+  _target_: lightning.Trainer
+  max_epochs: 30
+  accumulate_grad_batches: 1
+  gradient_clip_val: 1
+  precision: 32
+  default_root_dir: ${data.save_folder}
+
+dataloader:
+  batch_size: null
+  num_workers: 4
+
+loggers:
+  csv:
+    _target_: lightning.pytorch.loggers.CSVLogger
+    name: csv_logger
+  tensorboard:
+    _target_: lightning.pytorch.loggers.TensorBoardLogger
+    name: tensorboard
+  wandb:
+    _target_: lightning.pytorch.loggers.WandbLogger
+    project: "maheswaranathan_2023_lightning"
+    name: ${exp_name}
+
+training_callbacks:
+  early_stopping:
+    _target_: lightning.pytorch.callbacks.early_stopping.EarlyStopping
+    monitor: "val_correlation"
+    min_delta: 0.001
+    patience: 15
+    verbose: True
+    mode: "max"
+  lr_monitor:
+    _target_: lightning.pytorch.callbacks.LearningRateMonitor
+    logging_interval: "epoch"
+    log_momentum: true
+    log_weight_decay: true
