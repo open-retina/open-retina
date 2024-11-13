@@ -1,7 +1,6 @@
-from typing import Any, List, Optional, TypedDict
+from typing import Any, List, Optional
 
 import numpy as np
-import torch
 from tqdm.auto import tqdm
 
 from openretina.dataloaders import get_movie_dataloader

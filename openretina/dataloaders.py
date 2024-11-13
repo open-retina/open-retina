@@ -57,7 +57,7 @@ class MovieDataSet(Dataset):
     ):
         # Will only be a dictionary for certain types of datasets, i.e. Hoefling 2022
         if split == "test" and isinstance(responses, dict):
-            self.samples = movies, responses["avg"]
+            self.samples: tuple = movies, responses["avg"]
             self.test_responses_by_trial = responses["by_trial"]
             self.roi_ids = roi_ids
         else:

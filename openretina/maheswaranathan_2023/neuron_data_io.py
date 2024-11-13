@@ -6,7 +6,7 @@ Data: https://doi.org/10.25740/rk663dm5577
 """
 
 import os
-from typing import Any, List, Literal, Optional
+from typing import Any, List, Optional
 
 import numpy as np
 import torch

@@ -25,7 +25,7 @@ def generate_movie_splits(
     num_val_clips: int = NUM_VAL_CLIPS,
     clip_length: int = CLIP_LENGTH,
     seed=1000,
-):
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, List[int]]:
     if val_clip_idx is None:
         rnd = np.random.RandomState(seed)
         val_clip_idx = list(np.sort(rnd.choice(num_clips, num_val_clips, replace=False)))
@@ -85,8 +85,8 @@ def apply_random_sequences(
                 :, clip_idx * clip_length : (clip_idx + 1) * clip_length, ...
             ]
             k += 1
-        movies["right"]["train"][sequence_index] = reordered_movie
-        movies["left"]["train"][sequence_index] = torch.flip(reordered_movie, [-1])
+        movies["right"]["train"][sequence_index] = reordered_movie  # type: ignore
+        movies["left"]["train"][sequence_index] = torch.flip(reordered_movie, [-1])  # type: ignore
 
     return movies
 

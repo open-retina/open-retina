@@ -1,20 +1,13 @@
 #!/usr/bin/env python3
 
 import os
-import pickle
 
 import hydra
-import lightning
-import numpy as np
-import torch
 import torch.utils.data as data
 from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
 
 from openretina.cyclers import LongCycler
-from openretina.hoefling_2024.data_io import (
-    natmov_dataloaders_v2,
-)
 from openretina.maheswaranathan_2023.constants import CLIP_LENGTH
 from openretina.maheswaranathan_2023.data_io import multiple_movies_dataloaders
 from openretina.maheswaranathan_2023.neuron_data_io import load_all_sessions
