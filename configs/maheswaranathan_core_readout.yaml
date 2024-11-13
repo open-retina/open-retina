@@ -12,7 +12,7 @@ data:
 model:
   in_channels: 1
   in_shape: [1, 100, 50, 50]
-  hidden_channels: [8, 8]        # as in their paper.
+  hidden_channels: [16, 32]
   spatial_kernel_sizes: [15, 11] # as in the model from the paper. They used stacked convolutions though.
 
 trainer:
