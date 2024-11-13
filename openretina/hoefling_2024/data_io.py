@@ -126,7 +126,13 @@ def get_all_movie_combinations(
 
     # Assemble datasets into the final movies structure using the random sequences
     movies = apply_random_sequences(
-        movie_train, movie_train_subset, movie_val, movie_test, random_sequences, val_clip_idx, clip_length
+        torch.tensor(movie_train, dtype=torch.float),
+        movie_train_subset,
+        movie_val,
+        movie_test,
+        random_sequences,
+        val_clip_idx,
+        clip_length,
     )
 
     return movies
