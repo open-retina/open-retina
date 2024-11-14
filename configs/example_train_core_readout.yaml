@@ -47,3 +47,8 @@ training_callbacks:
     patience: 15
     verbose: True
     mode: "max"
+  lr_monitor:
+    _target_: lightning.pytorch.callbacks.LearningRateMonitor
+    logging_interval: "epoch"
+    log_momentum: true
+    log_weight_decay: true
