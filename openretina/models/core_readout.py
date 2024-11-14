@@ -382,12 +382,6 @@ class CoreReadout(lightning.LightningModule):
         readout_norms = grad_norm(self.readout, norm_type=2)
         self.log_dict(readout_norms, on_step=False, on_epoch=True)
 
-    def get_last_lr(self) -> float:
-        try:
-            return self.lr_schedulers().get_last_lr()[0]  # type: ignore
-        except:  # noqa
-            return -1.0
-
     def forward(self, x: torch.Tensor, data_key: str) -> torch.Tensor:
         output_core = self.core(x)
         output_readout = self.readout(output_core, data_key=data_key)
@@ -419,7 +413,6 @@ class CoreReadout(lightning.LightningModule):
         total_loss = loss + regularization_loss_core + regularization_loss_readout
         correlation = -self.correlation_loss.forward(model_output, data_point.targets)
 
-        self.log("learning_rate", self.get_last_lr(), logger=True)
         self.log("val_loss", loss, logger=True, prog_bar=True)
         self.log("val_regularization_loss_core", regularization_loss_core, logger=True)
         self.log("val_regularization_loss_readout", regularization_loss_readout, logger=True)
