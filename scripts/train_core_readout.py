@@ -40,8 +40,9 @@ def main(conf: DictConfig) -> None:
 
     deterministic = conf.seed is not None
     if deterministic:
-        print(f"Using deterministic mode with {conf.seed=}")
         lightning.pytorch.seed_everything(conf.seed)
+        # max_pool3d_with_indices does not have a deterministic implementation in pytorch yet
+        torch.use_deterministic_algorithms(True, warn_only=False)
     n_neurons_dict = {name: data_point.targets.shape[-1] for name, data_point in iter(train_loader)}
     model = CoreReadout(
         n_neurons_dict=n_neurons_dict,
