@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from typing import Literal
 import os
 import pickle
 
@@ -39,7 +40,7 @@ def main(conf: DictConfig) -> None:
     valid_loader = torch.utils.data.DataLoader(LongCycler(dataloaders["validation"], shuffle=False), **conf.dataloader)
 
     # max_pool3d_with_indices does not have a deterministic implementation in pytorch yet
-    deterministic = "warn" if conf.seed is not None else False
+    deterministic: bool | Literal["warn"]  = "warn" if conf.seed is not None else False
     if conf.seed is not None:
         lightning.pytorch.seed_everything(conf.seed)
 
