@@ -26,7 +26,7 @@ class NeuronDataBaccus:
         **kwargs,
     ):
         """
-        Initialize the NeuronData object.
+        Initialize the NeuronDataBaccus object.
         Boilerplate class to store neuron data. Added for backwards compatibility with Hoefling et al., 2022.
 
         Args:
@@ -36,54 +36,48 @@ class NeuronDataBaccus:
                 dictionary with train and test responses of similar structure: The responses of neurons.
             val_clip_idx (List[int]): The indices of validation clips.
             num_clips (int): The number of clips.
+            clip_length (int): The length of each clip.
+            key (dict, optional): Additional key information.
         """
         self.neural_responses = responses_final
-
         self.num_neurons = (
             self.neural_responses["train"].shape[0]
             if isinstance(self.neural_responses, dict)
             else self.neural_responses.shape[0]
         )
-
         self.key = key
         self.roi_coords = ()
         self.clip_length = clip_length
         self.num_clips = num_clips
         self.val_clip_idx = val_clip_idx
 
-    # this has to become a regular method in the future!
-    @property
-    def response_dict(self):
         # Transpose the responses to have the shape (n_timepoints, n_neurons)
         self.responses_test = self.neural_responses["test"].T
         self.responses_train_and_val = self.neural_responses["train"].T
-        self.test_responses_by_trial = []
 
-        self.compute_validation_responses()
+        self.responses_train, self.responses_val = self.compute_validation_responses()
+        self.test_responses_by_trial = []  # For compatibility with Hoefling et al., 2024
 
-        return {
-            "train": torch.tensor(self.responses_train).to(torch.float),
-            "validation": torch.tensor(self.responses_val).to(torch.float),
-            "test": {
-                "avg": torch.tensor(self.responses_test).to(torch.float),
-                "by_trial": torch.tensor(self.test_responses_by_trial),
-            },
-        }
+    def compute_validation_responses(self) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Compute validation responses and updated train responses stripped from validation clips.
 
-    def compute_validation_responses(self) -> None:
+        Returns:
+            Tuple[np.ndarray, np.ndarray]: The updated train and validation responses.
+        """
         movie_ordering = np.arange(self.num_clips)
 
         # Initialise validation responses
         base_movie_sorting = np.argsort(movie_ordering)
 
         validation_mask = np.ones_like(self.responses_train_and_val, dtype=bool)
-        self.responses_val = np.zeros([len(self.val_clip_idx) * self.clip_length, self.num_neurons])
+        responses_val = np.zeros([len(self.val_clip_idx) * self.clip_length, self.num_neurons])
 
         # Compute validation responses and remove sections from training responses
 
         for i, ind1 in enumerate(self.val_clip_idx):
             grab_index = base_movie_sorting[ind1]
-            self.responses_val[i * self.clip_length : (i + 1) * self.clip_length, :] = self.responses_train_and_val[
+            responses_val[i * self.clip_length : (i + 1) * self.clip_length, :] = self.responses_train_and_val[
                 grab_index * self.clip_length : (grab_index + 1) * self.clip_length,
                 :,
             ]
@@ -92,7 +86,22 @@ class NeuronDataBaccus:
                 :,
             ] = False
 
-        self.responses_train = self.responses_train_and_val[validation_mask].reshape(-1, self.num_neurons)
+        responses_train = self.responses_train_and_val[validation_mask].reshape(-1, self.num_neurons)
+        return responses_train, responses_val
+
+    @property
+    def response_dict(self):
+        """
+        Create and return a dictionary of neural responses for train, validation, and test datasets.
+        """
+        return {
+            "train": torch.tensor(self.responses_train, dtype=torch.float),
+            "validation": torch.tensor(self.responses_val, dtype=torch.float),
+            "test": {
+                "avg": torch.tensor(self.responses_test, dtype=torch.float),
+                "by_trial": torch.tensor(self.test_responses_by_trial, dtype=torch.float),
+            },
+        }
 
 
 def load_all_sessions(
@@ -143,10 +152,18 @@ def load_all_sessions(
                 train_session_data = load_dataset_from_h5(recording_file, f"/train/response/{response_type}")
                 test_session_data = load_dataset_from_h5(recording_file, f"/test/response/{response_type}")
 
+                assert (
+                    train_session_data.shape[0] == test_session_data.shape[0]
+                ), "Train and test responses should have the same number of neurons."
+
+                assert (
+                    train_session_data.shape[1] == train_video.shape[1]
+                ), "The number of timepoints in the responses does not match the number of frames in the video."
+
                 responses_all_sessions["".join(session.split("/")[-1])] = {
                     "responses_final": {
-                        "train": train_session_data[:, : train_video.shape[1]] / fr_normalization,
-                        "test": test_session_data[:, : test_video.shape[1]] / fr_normalization,
+                        "train": train_session_data / fr_normalization,
+                        "test": test_session_data / fr_normalization,
                     },
                     "stim_id": "salamander_natural",
                 }

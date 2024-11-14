@@ -272,7 +272,9 @@ def get_movie_dataloader(
     )
 
 
-def handle_missing_start_indices(movies, chunk_size, scene_length, split):
+def handle_missing_start_indices(
+    movies: dict | np.ndarray | torch.Tensor, chunk_size: Optional[int], scene_length: Optional[int], split: str
+):
     """
     Handle missing start indices for different splits of the dataset.
 
@@ -290,30 +292,29 @@ def handle_missing_start_indices(movies, chunk_size, scene_length, split):
     AssertionError: If scene_length is not provided for validation split when start_indices is None.
     NotImplementedError: If start_indices is None and split is not one of "train", "validation", "val", or "test".
     """
-    if split == "train":
-        assert chunk_size is not None, "Chunk size or start indices must be provided for training."
-        if isinstance(movies, dict):
-            start_indices = {k: np.arange(0, movies[k].shape[1], chunk_size).tolist() for k in movies.keys()}
-        else:
-            start_indices = np.arange(0, movies.shape[1], chunk_size).tolist()
 
-    elif split == "validation" or split == "val":
-        assert scene_length is not None, "Scene length or start indices must be provided for validation."
-        if isinstance(movies, dict):
-            start_indices = {k: np.arange(0, movies[k].shape[1], scene_length).tolist() for k in movies.keys()}
+    def get_chunking_interval(split_name):
+        if split_name == "train":
+            assert chunk_size is not None, "Chunk size or start indices must be provided for training."
+            return chunk_size
+        elif split_name in {"validation", "val"}:
+            assert scene_length is not None, "Scene length or start indices must be provided for validation."
+            return scene_length
+        elif split_name == "test":
+            return None
         else:
-            start_indices = np.arange(0, movies.shape[1], scene_length).tolist()
+            raise NotImplementedError("Start indices could not be recovered.")
 
-    elif split == "test":
-        if isinstance(movies, dict):
-            start_indices = {k: [0] for k in movies.keys()}
-        else:
-            start_indices = [0]
+    interval = get_chunking_interval(split)
 
+    if isinstance(movies, dict):
+        if split == "test":
+            return {k: [0] for k in movies.keys()}
+        return {k: np.arange(0, movies[k].shape[1], interval).tolist() for k in movies.keys()}
     else:
-        raise NotImplementedError("Start indices could not be recovered.")
-
-    return start_indices
+        if split == "test":
+            return [0]
+        return np.arange(0, movies.shape[1], interval).tolist()
 
 
 def get_dims_for_loader_dict(dataloaders: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Tuple[int, ...]] | Tuple]:

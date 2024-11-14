@@ -5,9 +5,8 @@ from tqdm.auto import tqdm
 
 from openretina.dataloaders import get_movie_dataloader
 from openretina.hoefling_2024.data_io import MoviesDict, generate_movie_splits
-from openretina.maheswaranathan_2023.neuron_data_io import NeuronDataBaccus
-
 from openretina.maheswaranathan_2023.constants import CLIP_LENGTH
+from openretina.maheswaranathan_2023.neuron_data_io import NeuronDataBaccus
 
 
 def get_movie_splits(
@@ -59,8 +58,6 @@ def multiple_movies_dataloaders(
         "Check the neuron data dictionary sub-dictionaries for the minimal"
         " required fields: 'responses_final' and 'stim_id'."
     )
-
-    #! Todo num_clips needs to be determined on the dataset.
 
     # Initialise dataloaders
     dataloaders: dict[str, Any] = {"train": {}, "validation": {}, "test": {}}
