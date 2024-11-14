@@ -12,7 +12,7 @@ import numpy as np
 import torch
 from jaxtyping import Float
 
-from ..utils.h5_handling import load_dataset_from_h5
+from openretina.utils.h5_handling import load_dataset_from_h5
 
 
 class NeuronDataBaccus:

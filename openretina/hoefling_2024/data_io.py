@@ -100,7 +100,7 @@ def get_all_movie_combinations(
     num_clips: int = NUM_CLIPS,
     num_val_clips: int = NUM_VAL_CLIPS,
     clip_length: int = CLIP_LENGTH,
-    seed=1000,
+    seed: int =1000,
 ):
     """
     Generates combinations of movie data for 'left' and 'right' perspectives and

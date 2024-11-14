@@ -233,7 +233,7 @@ def get_movie_dataloader(
         print("Nans in responses, skipping this dataloader")
         return None
 
-    if scene_length is not None and split == "train" and chunk_size > scene_length and not allow_over_boundaries:
+    if not allow_over_boundaries and scene_length is not None and split == "train" and chunk_size > scene_length:
         raise ValueError("Clip chunk size must be smaller than scene length to not exceed clip bounds during training.")
 
     if start_indices is None:

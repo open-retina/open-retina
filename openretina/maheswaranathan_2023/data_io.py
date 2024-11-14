@@ -7,7 +7,7 @@ from openretina.dataloaders import get_movie_dataloader
 from openretina.hoefling_2024.data_io import MoviesDict, generate_movie_splits
 from openretina.maheswaranathan_2023.neuron_data_io import NeuronDataBaccus
 
-from .constants import CLIP_LENGTH
+from openretina.maheswaranathan_2023.constants import CLIP_LENGTH
 
 
 def get_movie_splits(
