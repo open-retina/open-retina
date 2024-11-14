@@ -8,6 +8,7 @@ movies_filename: "2024-01-11_movies_dict_8c18928.pkl"
 responses_filename: "2024-08-14_neuron_data_responses_484c12d_djimaging.h5"
 save_folder: exp/
 max_epochs: 100
+seed: 42
 
 core_readout:
   in_channels: 2

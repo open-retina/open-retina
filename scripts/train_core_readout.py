@@ -38,6 +38,10 @@ def main(conf: DictConfig) -> None:
     train_loader = torch.utils.data.DataLoader(LongCycler(dataloaders["train"], shuffle=True), **conf.dataloader)
     valid_loader = torch.utils.data.DataLoader(LongCycler(dataloaders["validation"], shuffle=False), **conf.dataloader)
 
+    deterministic = conf.seed is not None
+    if deterministic:
+        print(f"Using deterministic mode with {conf.seed=}")
+        lightning.pytorch.seed_everything(conf.seed)
     n_neurons_dict = {name: data_point.targets.shape[-1] for name, data_point in iter(train_loader)}
     model = CoreReadout(
         n_neurons_dict=n_neurons_dict,
@@ -62,6 +66,7 @@ def main(conf: DictConfig) -> None:
         logger=logger_array,
         callbacks=callbacks,
         accumulate_grad_batches=1,
+        deterministic=deterministic,
     )
     trainer.fit(model=model, train_dataloaders=train_loader, val_dataloaders=valid_loader)
     # test
