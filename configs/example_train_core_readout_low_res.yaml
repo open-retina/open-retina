@@ -20,7 +20,7 @@ core_readout:
   gaussian_masks: True
   gaussian_mean_scale: 6.0
   gaussian_var_scale: 4.0
-  positive: False
+  positive: True
   gamma_readout: 0.4
   learning_rate: 0.01
   cut_first_n_frames_in_core: 30
