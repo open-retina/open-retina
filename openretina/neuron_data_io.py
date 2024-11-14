@@ -190,7 +190,7 @@ class NeuronGroupMembersStore:
 class NeuronData:
     def __init__(
         self,
-        responses_final: Float[np.ndarray, " n_neurons n_timepoints"] | dict,
+        responses_final: Float[np.ndarray, " n_neurons n_timepoints"],
         stim_id: Literal[5, 2, 1],
         val_clip_idx: Optional[List[int]],
         num_clips: Optional[int],
@@ -216,8 +216,7 @@ class NeuronData:
             group_assignment (Float[np.ndarray, "n_neurons"]): The group assignment of neurons.
             key (dict): The key information for the neuron data,
                         includes date, exp_num, experimenter, field_id, stim_id.
-            responses_final (Float[np.ndarray, "n_neurons n_timepoints"]) or
-                dictionary with train and test responses of similar structure: The responses of neurons.
+            responses_final (Float[np.ndarray, "n_neurons n_timepoints"]): The responses of neurons.
             roi_coords (Float[np.ndarray, "n_neurons 2"]): The coordinates of regions of interest (ROIs).
             roi_ids (Float[np.ndarray, "n_neurons"]): The IDs of regions of interest (ROIs).
             scan_sequence_idx (int): The index of the scan sequence.
@@ -273,7 +272,7 @@ class NeuronData:
         if self.stim_id in [1, 2]:
             # Chirp and moving bar
             responses_test = np.array(np.nan)
-            test_responses_by_trial = np.array(np.nan)
+            test_responses_by_trial = [np.nan]
             responses_train_and_val = self.neural_responses.T
 
         else:
@@ -295,7 +294,7 @@ class NeuronData:
                         self.neural_responses[roi, 118 * self.clip_length :],
                     )
                 )
-                test_responses_by_trial.append(tmp)
+                test_responses_by_trial.append(tmp)  # type: ignore
                 responses_test[:, roi] = np.mean(tmp, 0)
                 responses_train_and_val[:, roi] = np.concatenate(
                     (
@@ -303,9 +302,8 @@ class NeuronData:
                         self.neural_responses[roi, 64 * self.clip_length : 118 * self.clip_length],
                     )
                 )
-            test_responses_by_trial = np.asarray(test_responses_by_trial)
 
-        return responses_train_and_val, responses_test, test_responses_by_trial
+        return responses_train_and_val, responses_test, np.asarray(test_responses_by_trial)
 
     @no_type_check
     def compute_validation_responses(self) -> tuple[np.ndarray, np.ndarray]:

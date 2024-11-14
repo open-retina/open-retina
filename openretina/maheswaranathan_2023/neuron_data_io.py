@@ -56,7 +56,7 @@ class NeuronDataBaccus:
         self.responses_train_and_val = self.neural_responses["train"].T
 
         self.responses_train, self.responses_val = self.compute_validation_responses()
-        self.test_responses_by_trial = []  # For compatibility with Hoefling et al., 2024
+        self.test_responses_by_trial = np.array([])  # Added for compatibility with Hoefling et al., 2024
 
     def compute_validation_responses(self) -> tuple[np.ndarray, np.ndarray]:
         """
