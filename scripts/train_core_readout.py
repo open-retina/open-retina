@@ -38,11 +38,11 @@ def main(conf: DictConfig) -> None:
     train_loader = torch.utils.data.DataLoader(LongCycler(dataloaders["train"], shuffle=True), **conf.dataloader)
     valid_loader = torch.utils.data.DataLoader(LongCycler(dataloaders["validation"], shuffle=False), **conf.dataloader)
 
-    deterministic = conf.seed is not None
-    if deterministic:
+    # max_pool3d_with_indices does not have a deterministic implementation in pytorch yet
+    deterministic = "warn" if conf.seed is not None else False
+    if conf.seed is not None:
         lightning.pytorch.seed_everything(conf.seed)
-        # max_pool3d_with_indices does not have a deterministic implementation in pytorch yet
-        torch.use_deterministic_algorithms(True, warn_only=False)
+
     n_neurons_dict = {name: data_point.targets.shape[-1] for name, data_point in iter(train_loader)}
     model = CoreReadout(
         n_neurons_dict=n_neurons_dict,
