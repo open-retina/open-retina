@@ -100,7 +100,7 @@ def get_all_movie_combinations(
     num_clips: int = NUM_CLIPS,
     num_val_clips: int = NUM_VAL_CLIPS,
     clip_length: int = CLIP_LENGTH,
-    seed: int =1000,
+    seed: int = 1000,
 ):
     """
     Generates combinations of movie data for 'left' and 'right' perspectives and
@@ -193,10 +193,9 @@ def natmov_dataloaders_v2(
         " required fields: 'responses_final' and 'stim_id'."
     )
 
-    assert next(iter(neuron_data_dictionary.values()))["stim_id"] in [
-        5,
-        "salamander_natural",
-    ], "This function only supports natural movie stimuli."
+    assert (
+        next(iter(neuron_data_dictionary.values()))["stim_id"] == 5
+    ), "This function only supports natural movie stimuli."
 
     # Draw validation clips based on the random seed
     rnd = np.random.RandomState(seed)

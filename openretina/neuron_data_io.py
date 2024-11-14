@@ -191,7 +191,7 @@ class NeuronData:
     def __init__(
         self,
         responses_final: Float[np.ndarray, " n_neurons n_timepoints"] | dict,
-        stim_id: Literal[5, 2, 1, "salamander_natural"],
+        stim_id: Literal[5, 2, 1],
         val_clip_idx: Optional[List[int]],
         num_clips: Optional[int],
         clip_length: Optional[int],
@@ -258,13 +258,7 @@ class NeuronData:
     # this has to become a regular method in the future!
     @property
     def response_dict(self):
-        if self.stim_id == "salamander_natural":
-            # Transpose the responses to have the shape (n_timepoints, n_neurons)
-            self.responses_test = self.neural_responses["test"].T
-            self.responses_train_and_val = self.neural_responses["train"].T
-            self.test_responses_by_trial = []
-
-        elif self.stim_id in [1, 2]:
+        if self.stim_id in [1, 2]:
             # Chirp and moving bar
             self.responses_test = np.nan
             self.test_responses_by_trial = np.nan
@@ -302,7 +296,7 @@ class NeuronData:
                 )
             self.test_responses_by_trial = np.asarray(self.test_responses_by_trial)
 
-        if self.stim_id in [5, "salamander_natural"]:
+        if self.stim_id == 5:
             self.compute_validation_responses()
 
         return {
