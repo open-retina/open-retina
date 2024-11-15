@@ -5,71 +5,70 @@ See https://www.biorxiv.org/content/10.1101/2023.06.20.545728v1 for the original
 Also: https://www.biorxiv.org/content/10.1101/2021.02.13.431101v1.full for the original biophysical model.
 """
 
+from typing import Optional
+
 import torch
 import torch.nn as nn
 
-
-def fr_cones_trainable():
-    pr_params = {
-        # Opsin decay rate constant
-        "sigma": 2.2,
-        "sigma_scaleFac": 10.0,
-        "sigma_trainable": False,
-        # PDE decay rate constant (in the original paper is constrained equal to sigma)
-        "phi": 2.2,
-        "phi_scaleFac": 10.0,
-        "phi_trainable": False,
-        # PDE dark activation rate
-        "eta": 2.0,
-        "eta_scaleFac": 1000.0,
-        "eta_trainable": True,
-        # Ca2+ extrusion rate constant
-        "beta": 0.9,
-        "beta_scaleFac": 10.0,
-        "beta_trainable": False,
-        # cGMP-to-current constant
-        "cgmp2cur": 0.01,
-        "cgmp2cur_scaleFac": 1.0,
-        "cgmp2cur_trainable": False,
-        # cGMP channel cooperativity
-        "cgmphill": 3.0,
-        "cgmphill_scaleFac": 1.0,
-        "cgmphill_trainable": True,
-        #
-        "cdark": 1.0,
-        "cdark_scaleFac": 1.0,
-        "cdark_trainable": True,
-        # Channel-feedback decay rate constant
-        "betaSlow": 0.4,
-        "betaSlow_scaleFac": 1.0,
-        "betaSlow_trainable": True,
-        # Ca2+ GC-cooperativity
-        "hillcoef": 4.0,
-        "hillcoef_scaleFac": 1.0,
-        "hillcoef_trainable": True,
-        # Ca2+ GC-affinity
-        "hillaffinity": 0.5,
-        "hillaffinity_scaleFac": 1.0,
-        "hillaffinity_trainable": True,
-        # Opsin gain
-        "gamma": 1.0,
-        "gamma_scaleFac": 10.0,
-        "gamma_trainable": True,
-        #
-        "gdark": 0.35,
-        "gdark_scaleFac": 100.0,
-        "gdark_trainable": True,
-        #
-        "timeBin": 5,
-    }
-
-    return pr_params
+PR_PARAMS = {
+    # Opsin decay rate constant
+    "sigma": 2.2,
+    "sigma_scaleFac": 10.0,
+    "sigma_trainable": False,
+    # PDE decay rate constant (in the original paper is constrained equal to sigma)
+    "phi": 2.2,
+    "phi_scaleFac": 10.0,
+    "phi_trainable": False,
+    # PDE dark activation rate
+    "eta": 2.0,
+    "eta_scaleFac": 1000.0,
+    "eta_trainable": True,
+    # Ca2+ extrusion rate constant
+    "beta": 0.9,
+    "beta_scaleFac": 10.0,
+    "beta_trainable": False,
+    # cGMP-to-current constant
+    "cgmp2cur": 0.01,
+    "cgmp2cur_scaleFac": 1.0,
+    "cgmp2cur_trainable": False,
+    # cGMP channel cooperativity
+    "cgmphill": 3.0,
+    "cgmphill_scaleFac": 1.0,
+    "cgmphill_trainable": True,
+    #
+    "cdark": 1.0,
+    "cdark_scaleFac": 1.0,
+    "cdark_trainable": True,
+    # Channel-feedback decay rate constant
+    "betaSlow": 0.4,
+    "betaSlow_scaleFac": 1.0,
+    "betaSlow_trainable": True,
+    # Ca2+ GC-cooperativity
+    "hillcoef": 4.0,
+    "hillcoef_scaleFac": 1.0,
+    "hillcoef_trainable": True,
+    # Ca2+ GC-affinity
+    "hillaffinity": 0.5,
+    "hillaffinity_scaleFac": 1.0,
+    "hillaffinity_trainable": True,
+    # Opsin gain
+    "gamma": 1.0,
+    "gamma_scaleFac": 10.0,
+    "gamma_trainable": True,
+    #
+    "gdark": 0.35,
+    "gdark_scaleFac": 100.0,
+    "gdark_trainable": True,
+    #
+    "timeBin": 5,
+}
 
 
 class PhotoreceptorLayer(nn.Module):
-    def __init__(self, pr_params=fr_cones_trainable(), units=1):
+    def __init__(self, pr_params: Optional[dict], units=1):
         super().__init__()
         self.units = units
+        pr_params = pr_params if pr_params is not None else PR_PARAMS
         self.pr_params = pr_params
 
         dtype = pr_params["dtype"] if "dtype" in pr_params else torch.float32
@@ -152,9 +151,7 @@ class PhotoreceptorLayer(nn.Module):
             requires_grad=pr_params["hillaffinity_trainable"],
         )
         self.hillaffinity_scaleFac = nn.Parameter(
-            torch.tensor(pr_params["hillaffinity_scaleFac"], dtype=dtype).expand(
-                1, units
-            ),
+            torch.tensor(pr_params["hillaffinity_scaleFac"], dtype=dtype).expand(1, units),
             requires_grad=False,
         )
 
@@ -175,9 +172,7 @@ class PhotoreceptorLayer(nn.Module):
             torch.tensor(pr_params["gdark_scaleFac"], dtype=dtype).expand(1, units),
             requires_grad=False,
         )
-        self.timeBin = nn.Parameter(
-            torch.tensor(pr_params["timeBin"], dtype=dtype), requires_grad=True
-        )
+        self.timeBin = nn.Parameter(torch.tensor(pr_params["timeBin"], dtype=dtype), requires_grad=True)
 
     def rieke_model(
         self,
@@ -221,9 +216,7 @@ class PhotoreceptorLayer(nn.Module):
             r_curr = r_prev + TimeStep * (-sigma * r_prev)
             r_curr = r_curr + gamma * X_fun[:, pnt - 1, :]
             p_curr = p_prev + TimeStep * (r_prev + eta - phi * p_prev)
-            c_curr = c_prev + TimeStep * (
-                cur2ca * (cgmp2cur * g_prev**cgmphill) / 2 - beta * c_prev
-            )
+            c_curr = c_prev + TimeStep * (cur2ca * (cgmp2cur * g_prev**cgmphill) / 2 - beta * c_prev)
             s_curr = smax / (1 + (c_curr / hillaffinity) ** hillcoef)
             g_curr = g_prev + TimeStep * (s_prev - p_prev * g_prev)
 
@@ -243,7 +236,7 @@ class PhotoreceptorLayer(nn.Module):
         X_fun = inputs
 
         timeBin = self.timeBin
-        frameTime = timeBin  # ms
+        # frameTime = timeBin  # ms
         # upSamp_fac = int(frameTime / timeBin)
         TimeStep = 1e-3 * timeBin
 
