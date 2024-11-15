@@ -1,0 +1,29 @@
+name: Unit Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+          cache: 'pip'
+
+      - name: Install openretina with dependencies
+        run: |
+          pip install --upgrade pip
+          pip install .
+
+      - name: Run Unit Tests
+        run: make test-unittests

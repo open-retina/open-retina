@@ -1,29 +1,30 @@
+# ruff: noqa: E501  # for long link in this file, it didn't work to put it at that specific line for some reason
 from collections import OrderedDict
 from collections.abc import Iterable
 from operator import itemgetter
-from typing import Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Dict, Literal, Optional, Tuple
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-from neuralpredictors import regularizers
-from neuralpredictors.layers.affine import Bias3DLayer, Scale2DLayer, Scale3DLayer
-from neuralpredictors.layers.readouts import (
+from neuralpredictors import regularizers  # type: ignore
+from neuralpredictors.layers.readouts import (  # type: ignore
     FullGaussian2d,
     Gaussian3d,
     MultiReadoutBase,
 )
-from neuralpredictors.layers.rnn_modules.gru_module import ConvGRUCell
-from neuralpredictors.regularizers import Laplace, Laplace1d, laplace3d
-from neuralpredictors.utils import get_module_output
+from neuralpredictors.layers.rnn_modules.gru_module import ConvGRUCell  # type: ignore
+from neuralpredictors.utils import get_module_output  # type: ignore
 
-from .dataloaders import get_dims_for_loader_dict
-from .hoefling_2022_models import (
+from openretina.dataloaders import get_dims_for_loader_dict
+from openretina.hoefling_2024.models import (
+    Bias3DLayer,
     Core3d,
     Encoder,
     FlatLaplaceL23dnorm,
+    Scale2DLayer,
+    Scale3DLayer,
     STSeparableBatchConv3d,
     TimeIndependentConv3D,
     TimeLaplaceL23dnorm,
@@ -32,8 +33,8 @@ from .hoefling_2022_models import (
     compute_temporal_kernel,
     temporal_smoothing,
 )
-from .misc import set_seed
-from .photoreceptor_layer_torch import PhotoreceptorLayer
+
+from .utils.misc import set_seed
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
@@ -67,24 +68,20 @@ class GRUEnabledCore(Core3d, nn.Module):
         conv_type="custom_separable",
         use_gru=False,
         device=DEVICE,
-        gru_kwargs: Optional[Dict[str, Union[int, float]]] = None,
+        gru_kwargs: Optional[Dict[str, int | float]] = None,
     ):
         super().__init__()
-        self._input_weights_regularizer_spatial = FlatLaplaceL23dnorm(
-            padding=laplace_padding
-        )
-        self._input_weights_regularizer_temporal = TimeLaplaceL23dnorm(
-            padding=laplace_padding
-        )
+        self._input_weights_regularizer_spatial = FlatLaplaceL23dnorm(padding=laplace_padding)
+        self._input_weights_regularizer_temporal = TimeLaplaceL23dnorm(padding=laplace_padding)
 
         if conv_type == "separable":
-            self.conv_class = TorchSTSeparableConv3D
+            self.conv_class = TorchSTSeparableConv3D  # type: ignore
         elif conv_type == "custom_separable":
-            self.conv_class = STSeparableBatchConv3d
+            self.conv_class = STSeparableBatchConv3d  # type: ignore
         elif conv_type == "full":
-            self.conv_class = TorchFullConv3D
+            self.conv_class = TorchFullConv3D  # type: ignore
         elif conv_type == "time_independent":
-            self.conv_class = TimeIndependentConv3D
+            self.conv_class = TimeIndependentConv3D  # type: ignore
         else:
             raise ValueError(f"Un-implemented conv_type {conv_type}")
 
@@ -100,32 +97,28 @@ class GRUEnabledCore(Core3d, nn.Module):
 
         self.features = nn.Sequential()
         if stack is None:
-            self.stack = range(self.layers)
+            self.stack = list(range(self.layers))
         else:
-            self.stack = (
-                [range(self.layers)[stack]] if isinstance(stack, int) else stack
-            )
+            self.stack = [range(self.layers)[stack]] if isinstance(stack, int) else stack  # type: ignore
 
         log_speed_dict = dict()
         for k in n_neurons_dict:
             var_name = "_".join(["log_speed", k])
-            log_speed_val = torch.nn.Parameter(
-                data=torch.zeros(1), requires_grad=batch_adaptation
-            )
+            log_speed_val = torch.nn.Parameter(data=torch.zeros(1), requires_grad=batch_adaptation)
             setattr(self, var_name, log_speed_val)
             log_speed_dict[var_name] = log_speed_val
 
         if input_padding:
-            input_pad = (0, spatial_kernel_size[0] // 2, spatial_kernel_size[0] // 2)
+            input_pad: Tuple[int, ...] | int = (0, spatial_kernel_size[0] // 2, spatial_kernel_size[0] // 2)
         else:
             input_pad = 0
         if hidden_padding & (len(spatial_kernel_size) > 1):
-            hidden_pad = [
-                (0, spatial_kernel_size[l] // 2, spatial_kernel_size[l] // 2)
-                for l in range(1, len(spatial_kernel_size))
+            hidden_pad: list[Tuple[int, ...] | int] = [
+                (0, spatial_kernel_size[x] // 2, spatial_kernel_size[x] // 2)
+                for x in range(1, len(spatial_kernel_size))
             ]
         else:
-            hidden_pad = [0 for l in range(1, len(spatial_kernel_size))]
+            hidden_pad = [0 for _ in range(1, len(spatial_kernel_size))]
 
         if not isinstance(hidden_channels, Iterable):
             hidden_channels = [hidden_channels] * (self.layers)
@@ -135,7 +128,7 @@ class GRUEnabledCore(Core3d, nn.Module):
             spatial_kernel_size = [spatial_kernel_size] * (self.layers)
 
         # --- first layer
-        layer = OrderedDict()
+        layer: OrderedDict[str, Any] = OrderedDict()
         layer["conv"] = self.conv_class(
             input_channels,
             hidden_channels[0],
@@ -143,13 +136,14 @@ class GRUEnabledCore(Core3d, nn.Module):
             temporal_kernel_size[0],
             spatial_kernel_size[0],
             bias=False,
-            padding=input_pad,
+            padding=input_pad,  # type: ignore
             num_scans=self.num_scans,
-            device=device,
         )
         if batch_norm:
             layer["norm"] = nn.BatchNorm3d(
-                hidden_channels[0], momentum=momentum, affine=bias and batch_norm_scale
+                hidden_channels[0],  # type: ignore
+                momentum=momentum,
+                affine=bias and batch_norm_scale,
             )  # ok or should we ensure same batch norm?
             if bias:
                 if not batch_norm_scale:
@@ -157,55 +151,51 @@ class GRUEnabledCore(Core3d, nn.Module):
             elif batch_norm_scale:
                 layer["scale"] = Scale3DLayer(hidden_channels[0])
         if final_nonlinearity:
-            layer["nonlin"] = getattr(
-                nn, nonlinearity
-            )()  # TODO add back in place if necessary
-        self.features.add_module("layer0", nn.Sequential(layer))
+            layer["nonlin"] = getattr(nn, nonlinearity)()  # TODO add back in place if necessary
+        self.features.add_module("layer0", nn.Sequential(layer))  # type: ignore
 
         # --- other layers
 
-        for l in range(1, self.layers):
+        for layer_num in range(1, self.layers):
             layer = OrderedDict()
             layer["conv"] = self.conv_class(
-                hidden_channels[l - 1],
-                hidden_channels[l],
+                hidden_channels[layer_num - 1],
+                hidden_channels[layer_num],
                 log_speed_dict,
-                temporal_kernel_size[l],
-                spatial_kernel_size[l],
+                temporal_kernel_size[layer_num],
+                spatial_kernel_size[layer_num],
                 bias=False,
-                padding=hidden_pad[l - 1],
+                padding=hidden_pad[layer_num - 1],  # type: ignore
                 num_scans=self.num_scans,
             )
             if batch_norm:
                 layer["norm"] = nn.BatchNorm3d(
-                    hidden_channels[l],
+                    hidden_channels[layer_num],
                     momentum=momentum,
                     affine=bias and batch_norm_scale,
                 )
                 if bias:
                     if not batch_norm_scale:
-                        layer["bias"] = Bias3DLayer(hidden_channels[l])
+                        layer["bias"] = Bias3DLayer(hidden_channels[layer_num])
                 elif batch_norm_scale:
-                    layer["scale"] = Scale2DLayer(hidden_channels[l])
-            if final_nonlinearity or l < self.layers - 1:
+                    layer["scale"] = Scale2DLayer(hidden_channels[layer_num])
+            if final_nonlinearity or layer_num < self.layers - 1:
                 layer["nonlin"] = getattr(nn, nonlinearity)()
-            self.features.add_module("layer{}".format(l), nn.Sequential(layer))
+            self.features.add_module(f"layer{layer_num}", nn.Sequential(layer))
 
         self.apply(self.init_conv)
 
         if use_gru:
             print("Using GRU")
-            self.features.add_module("gru", GRU_Module(**gru_kwargs))
+            self.features.add_module("gru", GRU_Module(**gru_kwargs))  # type: ignore
 
     def forward(self, input_, data_key=None):
         ret = []
-        for l, feat in enumerate(self.features):
+        for layer_num, feat in enumerate(self.features):
             do_skip = False
             input_ = feat(
                 (
-                    input_
-                    if not do_skip
-                    else torch.cat(ret[-min(self.skip, l) :], dim=1),
+                    input_ if not do_skip else torch.cat(ret[-min(self.skip, layer_num) :], dim=1),
                     data_key,
                 )
             )
@@ -214,28 +204,16 @@ class GRUEnabledCore(Core3d, nn.Module):
         return torch.cat([ret[ind] for ind in self.stack], dim=1)
 
     def spatial_laplace(self):
-        return self._input_weights_regularizer_spatial(
-            self.features[0].conv.weight_spatial, avg=self.use_avg_reg
-        )
+        return self._input_weights_regularizer_spatial(self.features[0].conv.weight_spatial, avg=self.use_avg_reg)
 
     def group_sparsity(self):  # check if this is really what we want
-        ret = 0
-        for l in range(1, self.layers):
-            ret = (
-                ret
-                + (
-                    self.features[l]
-                    .conv.weight_spatial.pow(2)
-                    .sum([2, 3, 4])
-                    .sqrt()
-                    .sum(1)
-                    / torch.sqrt(
-                        1e-8
-                        + self.features[l].conv.weight_spatial.pow(2).sum([1, 2, 3, 4])
-                    )
-                ).sum()
-            )
-        return ret
+        sparsity_loss = 0
+        for layer_num in range(1, self.layers):
+            spatial_weight_layer = self.features[layer_num].conv.weight_spatial
+            norm = spatial_weight_layer.pow(2).sum([2, 3, 4]).sqrt().sum(1)
+            sparsity_loss_layer = (spatial_weight_layer.pow(2).sum([2, 3, 4]).sqrt().sum(1) / norm).sum()
+            sparsity_loss += sparsity_loss_layer
+        return sparsity_loss
 
     def group_sparsity0(self):  # check if this is really what we want
         weight_temporal = compute_temporal_kernel(
@@ -245,20 +223,15 @@ class GRUEnabledCore(Core3d, nn.Module):
             self.features[0].conv.temporal_kernel_size,
         )
         # abc are dummy dimensions
-        weight = torch.einsum(
-            "oitab,oichw->oithw", weight_temporal, self.features[0].conv.weight_spatial
-        )
-        ret = (
-            weight.pow(2).sum([2, 3, 4]).sqrt().sum(1)
-            / torch.sqrt(1e-8 + weight.pow(2).sum([1, 2, 3, 4]))
-        ).sum()
+        weight = torch.einsum("oitab,oichw->oithw", weight_temporal, self.features[0].conv.weight_spatial)
+        ret = (weight.pow(2).sum([2, 3, 4]).sqrt().sum(1) / torch.sqrt(1e-8 + weight.pow(2).sum([1, 2, 3, 4]))).sum()
         return ret
 
     def temporal_smoothness(self):
         ret = 0
-        for l in range(self.layers):
-            ret = ret + temporal_smoothing(
-                self.features[l].conv.sin_weights, self.features[l].conv.cos_weights
+        for layer_num in range(self.layers):
+            ret += temporal_smoothing(
+                self.features[layer_num].conv.sin_weights, self.features[layer_num].conv.cos_weights
             )
         return ret
 
@@ -280,9 +253,7 @@ class GRUEnabledCore(Core3d, nn.Module):
 
 class MultiGaussian3d(MultiReadoutBase):
     def __init__(self, in_shape_dict, n_neurons_dict, **kwargs):
-        super().__init__(
-            in_shape_dict, n_neurons_dict, base_readout=Gaussian3d, **kwargs
-        )
+        super().__init__(in_shape_dict, n_neurons_dict, base_readout=Gaussian3d, **kwargs)
 
     def regularizer(self, data_key):
         return 0
@@ -383,9 +354,10 @@ class GRU_Module(nn.Module):
     ):
         """
         A GRU module for video data to add between the core and the readout.
-        Recieves as input the output of a 3Dcore. Expected dimentions:
-            -(Batch,Channels,Frames,Height, Widht) or (Channels,Frames,Height, Widht)
-        The input is fed sequentially to a convolutional GRU cell, based on the frames chanell. The output has the same dimentions as the input.
+        Receives as input the output of a 3Dcore. Expected dimensions:
+            - (Batch, Channels, Frames, Height, Width) or (Channels, Frames, Height, Width)
+        The input is fed sequentially to a convolutional GRU cell, based on the frames channel.
+        The output has the same dimensions as the input.
         """
         super().__init__()
         self.gru = ConvGRUCell(
@@ -400,8 +372,9 @@ class GRU_Module(nn.Module):
 
     def forward(self, input_):
         """
-        Forward pass definition based on https://github.com/sinzlab/Sinz2018_NIPS/blob/3a99f7a6985ae8dec17a5f2c54f550c2cbf74263/nips2018/architectures/cores.py#L556
-        Modified to also accept 4 dimentional inputs (assuming no batch dimention is provided).
+        Forward pass definition based on
+        https://github.com/sinzlab/Sinz2018_NIPS/blob/3a99f7a6985ae8dec17a5f2c54f550c2cbf74263/nips2018/architectures/cores.py#L556
+        Modified to also accept 4 dimensional inputs (assuming no batch dimension is provided).
         """
         x, data_key = input_
         if len(x.shape) not in [4, 5]:
@@ -419,9 +392,7 @@ class GRU_Module(nn.Module):
         frame_pos = 2
 
         for frame in range(x.shape[frame_pos]):
-            slice_channel = [
-                frame if frame_pos == i else slice(None) for i in range(len(x.shape))
-            ]
+            slice_channel = [frame if frame_pos == i else slice(None) for i in range(len(x.shape))]
             hidden = self.gru(x[slice_channel], hidden)
             states.append(hidden)
         out = torch.stack(states, frame_pos)
@@ -463,11 +434,9 @@ def SFB3d_core_gaussian_readout(
     stack=None,
     readout_reg_avg: bool = False,
     use_avg_reg: bool = False,
-    data_info: dict = None,
+    data_info: Optional[dict] = None,
     nonlinearity: str = "ELU",
-    conv_type: Literal[
-        "full", "separable", "custom_separable", "time_independent"
-    ] = "custom_separable",
+    conv_type: Literal["full", "separable", "custom_separable", "time_independent"] = "custom_separable",
     device=DEVICE,
     use_gru: bool = False,
     gru_kwargs: dict = {},
@@ -491,7 +460,6 @@ def SFB3d_core_gaussian_readout(
         in_shapes_dict = {k: v["input_dimensions"] for k, v in data_info.items()}
         input_channels = [v["input_channels"] for k, v in data_info.items()]
         n_neurons_dict = {k: v["output_dimension"] for k, v in data_info.items()}
-        roi_masks = {k: torch.tensor(v["roi_coords"]) for k, v in data_info.items()}
     else:
         dataloaders = dataloaders.get("train", dataloaders)
 
@@ -506,13 +474,8 @@ def SFB3d_core_gaussian_readout(
         in_shapes_dict = {
             k: v[in_name] for k, v in session_shape_dict.items()
         }  # dictionary containing input shapes per session
-        input_channels = [
-            v[in_name][1] for v in session_shape_dict.values()
-        ]  # gets the # of input channels
-        roi_masks = {k: dataloaders[k].dataset.roi_coords for k in dataloaders.keys()}
-    assert (
-        np.unique(input_channels).size == 1
-    ), "all input channels must be of equal size"
+        input_channels = [v[in_name][1] for v in session_shape_dict.values()]  # gets the # of input channels
+    assert np.unique(input_channels).size == 1, "all input channels must be of equal size"
 
     set_seed(seed)
 
@@ -550,9 +513,7 @@ def SFB3d_core_gaussian_readout(
     in_shapes_readout = {}
     subselect = itemgetter(0, 2, 3)
     for k in n_neurons_dict:  # iterate over sessions
-        in_shapes_readout[k] = subselect(
-            tuple(get_module_output(core, in_shapes_dict[k])[1:])
-        )
+        in_shapes_readout[k] = subselect(tuple(get_module_output(core, in_shapes_dict[k])[1:]))
 
     readout = MultiGaussian2d(
         in_shape_dict=in_shapes_readout,
@@ -566,9 +527,7 @@ def SFB3d_core_gaussian_readout(
     if readout_bias is True:
         if data_info is None:
             for k in dataloaders:
-                readout[k].bias.data = (
-                    dataloaders[k].dataset[:]._asdict()[out_name].mean(0)
-                )
+                readout[k].bias.data = dataloaders[k].dataset[:]._asdict()[out_name].mean(0)
         else:
             for k in data_info.keys():
                 readout[k].bias.data = torch.from_numpy(data_info[k]["mean_response"])
@@ -638,9 +597,7 @@ class LNP(nn.Module):
             else dict(padding=laplace_padding)
         )
 
-        self._smooth_reg_fn = regularizers.__dict__[smooth_regularizer](
-            **regularizer_config
-        )
+        self._smooth_reg_fn = regularizers.__dict__[smooth_regularizer](**regularizer_config)
 
     def forward(self, x, data_key=None, **kwargs):
         x = self.inner_product(x)
@@ -664,9 +621,7 @@ class LNP(nn.Module):
         return self._smooth_reg_fn(self.inner_product.weight.squeeze(2))
 
     def regularizer(self, **kwargs):
-        return (
-            self.smooth_weight * self.laplace() + self.sparse_weight * self.weights_l1()
-        )
+        return self.smooth_weight * self.laplace() + self.sparse_weight * self.weights_l1()
 
     def initialize(self, *args, **kwargs):
         pass
@@ -675,9 +630,7 @@ class LNP(nn.Module):
 class MultipleLNP(Encoder):
     def __init__(self, in_shape_dict, n_neurons_dict, **kwargs):
         # The multiple LNP model acts like a readout reading directly from the videos
-        readout = MultiReadoutBase(
-            in_shape_dict, n_neurons_dict, base_readout=LNP, **kwargs
-        )
+        readout = MultiReadoutBase(in_shape_dict, n_neurons_dict, base_readout=LNP, **kwargs)
         super().__init__(
             core=DummyCore(),
             readout=readout,

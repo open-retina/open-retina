@@ -1,0 +1,55 @@
+defaults:
+  - _self_
+  - quality_checks: hoefling_2024
+
+exp_name: example_core_readout_filtered
+data_folder: "/gpfs01/euler/data/SharedFiles/projects/TP12/"
+movies_filename: "2024-10-11_movies_dict_72x64_joint_normalised.pkl"
+responses_filename: "2024-08-14_neuron_data_responses_484c12d_djimaging.h5"
+save_folder: exp/
+max_epochs: 100
+seed: 42
+
+core_readout:
+  in_channels: 2
+  features_core: [16, 16, 16, 16]
+  temporal_kernel_sizes: [16, 16, 8, 8]
+  spatial_kernel_sizes: [16, 16, 8, 8]
+  in_shape: [2, 150, 72, 64]
+  scale: True
+  bias: True
+  gaussian_masks: True
+  gaussian_mean_scale: 6.0
+  gaussian_var_scale: 4.0
+  positive: False  # Set to True for positive readout features
+  gamma_readout: 0.4
+  learning_rate: 0.01
+  maxpool_every_n_layers: 2
+  cut_first_n_frames_in_core: 30
+  dropout_rate: 0.0
+  # device: "cuda"
+  # downsample_input_kernel_size: [1, 4, 4]  # to reproduce Hoefling input size of 18x16px
+
+dataloader:
+  batch_size: null
+  num_workers: 4
+
+loggers:
+  csv:
+    _target_: lightning.pytorch.loggers.CSVLogger
+  tensorboard:
+    _target_: lightning.pytorch.loggers.TensorBoardLogger
+
+training_callbacks:
+  early_stopping:
+    _target_: lightning.pytorch.callbacks.early_stopping.EarlyStopping
+    monitor: "val_correlation"
+    min_delta: 0.001
+    patience: 15
+    verbose: True
+    mode: "max"
+  lr_monitor:
+    _target_: lightning.pytorch.callbacks.LearningRateMonitor
+    logging_interval: "epoch"
+    log_momentum: true
+    log_weight_decay: true

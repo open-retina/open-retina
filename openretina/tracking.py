@@ -1,11 +1,13 @@
-from collections import defaultdict
 import time
+from collections import defaultdict
+
 import numpy as np
 
 """
 Parts copied from sinzlab/neuralpredictors/training/tracking.py
 Move to wandb or pytorch_lightning
 """
+
 
 class Tracker:
     """
@@ -42,7 +44,7 @@ class MultipleObjectiveTracker(Tracker):
         Initializes the tracker. Pass any additional objective functions as keywords arguments.
 
         Args:
-            default_name (string, optional): Name under which the objective value passed into `log_objective` is saved under.
+            default_name (string, optional): Name the objective value passed into `log_objective` is saved under.
                 If set to None, the passed in value is NOT saved. Defaults to None.
         """
         self._default_name = default_name
@@ -89,8 +91,8 @@ class MultipleObjectiveTracker(Tracker):
         self.time = np.array(self.time)
         reference = self.time[0] if reference is None else reference
         self.time -= reference
-        for k, l in self.log.items():
-            self.log[k] = np.array(l)
+        for k, x in self.log.items():
+            self.log[k] = np.array(x)
 
     def asdict(self, time_key="time", make_copy=True):
         """

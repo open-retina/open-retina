@@ -1,11 +1,25 @@
 IPython
 jaxtyping
 matplotlib
-numpy
+numpy<2.0  # h5py loading does not work with 2.0
 pandas
+seaborn
 scipy
+tensorboard
 torch
 torchaudio
 torchvision
+einops
+lightning
 wandb
-
+hydra-core
+h5py
+opencv-python
+# Type Checks
+ruff
+mypy>=1.0
+pytest
+types-psutil
+types-tqdm
+types-PyYAML
+types-requests

@@ -17,6 +17,10 @@ class PoissonLoss3d(nn.Module):
         else:
             return loss.view(-1, loss.shape[-1]).mean(dim=0)
 
+    def __str__(self):
+        bias, per_neuron, avg = self.bias, self.per_neuron, self.avg
+        return f"PoissonLoss3d({bias=} {per_neuron=} {avg=})"
+
 
 class CelltypePoissonLoss3d(nn.Module):
     def __init__(self, bias=1e-16, per_neuron=False, avg=False):
@@ -52,13 +56,13 @@ class StandardPoissonLoss3d(nn.Module):  # standard poisson loss for ct dataload
 
 
 class CorrelationLoss3d(nn.Module):
-    def __init__(self, bias=1e-16, per_neuron=False, avg=False):
+    def __init__(self, bias: float = 1e-16, per_neuron: bool = False, avg: bool = False):
         super().__init__()
         self.eps = bias
         self.per_neuron = per_neuron
         self.avg = avg
 
-    def forward(self, output, target, group_assignment, group_counts):
+    def forward(self, output, target):
         lag = target.size(1) - output.size(1)
         delta_out = output - output.mean(1, keepdim=True)
         delta_target = target[:, lag:, :] - target[:, lag:, :].mean(1, keepdim=True)

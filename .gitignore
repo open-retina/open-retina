@@ -159,8 +159,18 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 
+# VS Code
+.vscode/
+
+# Custom miscellaneous
 api_keys.sh
 wandb
 data/
 *.tmp
 random.ipynb
+*.jpg
+*.pdf
+figures/
+/models
+reports/
+model-cache/

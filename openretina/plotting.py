@@ -3,6 +3,7 @@ import os
 from functools import partial
 from typing import Any, List, Optional, Tuple
 
+import cv2
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,16 +14,16 @@ from matplotlib import animation
 from matplotlib.colors import Normalize
 from matplotlib.patches import Rectangle
 
-from .constants import FRAME_RATE_MODEL
-from .hoefling_2022_configs import pre_normalisation_values
-from .video_analysis import calculate_fft, decompose_kernel, weighted_main_frequency
+from openretina.hoefling_2024.configs import MEAN_STD_DICT_74x64, pre_normalisation_values_18x16
+from openretina.hoefling_2024.constants import FRAME_RATE_MODEL
+from openretina.video_analysis import calculate_fft, decompose_kernel, weighted_main_frequency
 
 # Longer animations
 matplotlib.rcParams["animation.embed_limit"] = 2**128
 
 
 def undo_video_normalization(
-    video: Float[torch.Tensor, "channels time height width"], values_dict: dict = pre_normalisation_values
+    video: Float[torch.Tensor, "channels time height width"], values_dict: dict = pre_normalisation_values_18x16
 ) -> Float[torch.Tensor, "channels time height width"]:
     """
     Undo the normalization of the video.
@@ -32,6 +33,42 @@ def undo_video_normalization(
     video[1] = video[1] * values_dict["channel_1_std"] + values_dict["channel_1_mean"]
 
     return video.type(torch.int)
+
+
+def save_stimulus_to_mp4_video(
+    stimulus: np.ndarray,
+    filepath: str,
+    fps: int = 5,
+    start_at_frame: int = 0,
+    apply_undo_video_normalization: bool = False,
+) -> None:
+    assert len(stimulus.shape) == 4
+    assert stimulus.shape[0] == 2  # color channels
+
+    assert filepath.endswith(".mp4")
+    # Create a VideoWriter object
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore
+    video = cv2.VideoWriter(filepath, fourcc, fps, (stimulus.shape[3], stimulus.shape[2]))
+
+    # Normalize to uint8
+    if apply_undo_video_normalization:
+        stimulus[0] = stimulus[0] * MEAN_STD_DICT_74x64["channel_0_mean"] + MEAN_STD_DICT_74x64["channel_0_std"]
+        stimulus[1] = stimulus[1] * MEAN_STD_DICT_74x64["channel_1_mean"] + MEAN_STD_DICT_74x64["channel_1_std"]
+        # Clip to the range of uint8, otherwise there'll be an overflow (-1 will get converted to 255)
+        stimulus_uint8 = stimulus.clip(0.0, 255.0).astype(np.uint8)
+    else:
+        stimulus_norm = stimulus - stimulus.min()
+        stimulus_norm = 255 * (stimulus_norm / stimulus_norm.max())
+        stimulus_uint8 = stimulus_norm.astype(np.uint8)
+
+    for i in range(start_at_frame, stimulus_uint8.shape[1]):
+        # Create an empty 3D array and assign the data from the 4D array
+        frame = np.zeros((stimulus_uint8.shape[2], stimulus_uint8.shape[3], 3), dtype=np.uint8)
+        frame[:, :, 1] = stimulus_uint8[0, i, :, :]  # Green channel
+        frame[:, :, 2] = stimulus_uint8[1, i, :, :]  # Red channel
+        video.write(frame)
+
+    video.release()
 
 
 def update_video(video, ax, frame):
@@ -50,19 +87,15 @@ def update_video(video, ax, frame):
         green_channel = video[0, frame].numpy()
         purple_channel = video[1, frame].numpy()
 
-        # Normalize the channels
-        green_normalized = green_channel / green_channel.max()
-        purple_normalized = purple_channel / purple_channel.max()
-
         # Create an empty RGB image
         current_frame = np.zeros((*green_channel.shape, 3))
 
         # Assign green channel to the green color in RGB
-        current_frame[:, :, 1] = green_normalized
+        current_frame[:, :, 1] = green_channel
 
         # Assign purple channel to the blue and red color in RGB (to create purple)
-        current_frame[:, :, 0] = purple_normalized  # Red
-        current_frame[:, :, 2] = purple_normalized  # Blue
+        current_frame[:, :, 0] = purple_channel  # Red
+        current_frame[:, :, 2] = purple_channel  # Blue
 
     else:
         raise NotImplementedError("Only 1 or 2 channels are supported")
@@ -72,7 +105,12 @@ def update_video(video, ax, frame):
     ax.axis("off")
 
 
-def play_stimulus(video: Float[torch.Tensor, "channels time height width"]) -> HTML:
+def play_stimulus(video: Float[torch.Tensor, "channels time height width"], normalise: bool = True) -> HTML:
+    if normalise:
+        min_val = torch.min(video)
+        max_val = torch.max(video)
+        video = (video - min_val) / (max_val - min_val)
+
     fig, ax = plt.subplots()
 
     update = partial(update_video, video, ax)
@@ -109,7 +147,7 @@ def play_sample_batch(
 
 
 def plot_stimulus_composition(
-    stimulus: np.array,
+    stimulus: np.ndarray,
     temporal_trace_ax,
     freq_ax: Optional[Any],
     spatial_ax,
@@ -132,15 +170,17 @@ def plot_stimulus_composition(
 
     # Spatial structure
     spatial_ax.set_title(f"Spatial Component {color_channel_names_array}")
-    padding = np.zeros((spat_green.shape[0], 8))
+    padding = np.ones((spat_green.shape[0], 8))
     spat = np.concatenate([spat_green, padding, spat_uv], axis=1)
 
     abs_max = np.max([abs(spat.max()), abs(spat.min())])
     norm = Normalize(vmin=-abs_max, vmax=abs_max)
     spatial_ax.imshow(spat, cmap="RdBu_r", norm=norm)
-    scale_bar = Rectangle(xy=(6, 15), width=3, height=1, color="k", transform=spatial_ax.transData)
+    # In the low res model the stimulus shape was 18x16 (50 um pixels), for the high-res it is 72x64 (12.5um pixels)
+    scale_bar_with = 4 if stimulus.shape[-1] > 20 else 1
+    scale_bar = Rectangle(xy=(6, 15), width=scale_bar_with, height=1, color="k", transform=spatial_ax.transData)
     spatial_ax.annotate(
-        text="150 µm",
+        text="50 µm",
         xy=(6, 14),
     )
     spatial_ax.add_patch(scale_bar)
@@ -177,6 +217,34 @@ def plot_stimulus_composition(
             temporal_trace_ax.fill_betweenx(temporal_trace_ax.get_ylim(), x_0, x_1, color="k", alpha=0.1)
 
 
+def polar_plot_of_direction_of_motion_responses(
+    direction_in_degree: list[int],
+    peak_response_per_directions: list[float],
+) -> None:
+    # Convert directions to radians
+    directions_with_peak_response = sorted(
+        [(d, v) for d, v in zip(direction_in_degree, peak_response_per_directions, strict=True)]
+    )
+
+    # Add the first direction and data point to the end to close the plot
+    directions_with_peak_response.append(directions_with_peak_response[0])
+
+    # Create the polar plot
+    plt.figure(figsize=(6, 6))
+    sorted_directions = [x[0] for x in directions_with_peak_response]
+    sorted_data = [x[1] for x in directions_with_peak_response]
+    plt.polar(np.deg2rad(sorted_directions), sorted_data, marker="o")
+
+    # Set the direction of the zero point to the top
+    plt.gca().set_theta_zero_location("N")  # type: ignore
+
+    # Set the direction of rotation to clockwise
+    plt.gca().set_theta_direction(-1)  # type: ignore
+
+    # Set the labels for the directions
+    plt.gca().set_xticklabels([f"{x}°" for x in sorted_directions])
+
+
 def save_figure(filename: str, folder: str, fig=None):
     if not os.path.exists(folder):
         os.makedirs(folder, exist_ok=True)
@@ -186,3 +254,11 @@ def save_figure(filename: str, folder: str, fig=None):
         fig = plt.gcf()
     fig.savefig(os.path.join(folder, filename))
     plt.close(fig)
+
+
+def legend_without_duplicate_labels(ax=None):
+    if ax is None:
+        ax = plt.gca()
+    handles, labels = ax.get_legend_handles_labels()
+    unique = [(handle, label) for i, (handle, label) in enumerate(zip(handles, labels)) if label not in labels[:i]]
+    ax.legend(*zip(*unique))
