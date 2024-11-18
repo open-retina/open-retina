@@ -61,6 +61,5 @@ class LongCycler(torch.utils.data.IterableDataset):
         for k, loader, _ in islice(zip(cycle(keys), cycle(cycles), range(total_iterations)), iter_start, iter_end):
             yield k, next(loader)
 
-
     def __len__(self):
         return len(self.loaders) * self.max_batches

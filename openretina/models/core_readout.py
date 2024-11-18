@@ -20,7 +20,7 @@ class CoreReadout(lightning.LightningModule):
         features_core: Iterable[int],
         temporal_kernel_sizes: Iterable[int],
         spatial_kernel_sizes: Iterable[int],
-        in_shape_readout: Iterable[int],
+        in_shape_readout: tuple[int, int, int, int],
         n_neurons_dict: dict[str, int],
         scale: bool,
         bias: bool,

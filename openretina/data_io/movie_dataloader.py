@@ -1,16 +1,13 @@
 import bisect
+import pickle
 from collections import namedtuple
 from dataclasses import dataclass
 from typing import Literal, Optional
-import pickle
 
 import numpy as np
 import torch
 from jaxtyping import Float
 from torch.utils.data import DataLoader, Dataset, Sampler
-
-from openretina.data_io.hoefling_2024.constants import SCENE_LENGTH
-
 
 DataPoint = namedtuple("DataPoint", ["inputs", "targets"])
 
@@ -199,7 +196,7 @@ class MovieSampler(Sampler):
         self.split = split
         self.chunk_size = chunk_size
         self.movie_length = movie_length
-        self.scene_length = scene_length 
+        self.scene_length = scene_length
         self.allow_over_boundaries = allow_over_boundaries
 
     def __iter__(self):
@@ -316,14 +313,14 @@ def get_movie_dataloader(
     responses: Float[np.ndarray, "n_frames n_neurons"],
     *,
     split: str | Literal["train", "validation", "val", "test"],
+    scene_length: int,
+    chunk_size: int,
+    batch_size: int,
     start_indices: list[int] | dict[int, list[int]] | None = None,
     roi_ids: Float[np.ndarray, " n_neurons"] | None = None,
     roi_coords: Float[np.ndarray, "n_neurons 2"] | None = None,
     group_assignment: Float[np.ndarray, " n_neurons"] | None = None,
     scan_sequence_idx: int | None = None,
-    chunk_size: int = 50,
-    batch_size: int = 32,
-    scene_length: Optional[int] = None,
     drop_last: bool = True,
     use_base_sequence: bool = False,
     allow_over_boundaries: bool = True,
@@ -333,7 +330,7 @@ def get_movie_dataloader(
         print("Nans in responses, skipping this dataloader")
         return None
 
-    if not allow_over_boundaries and scene_length is not None and split == "train" and chunk_size > scene_length:
+    if not allow_over_boundaries and split == "train" and chunk_size > scene_length:
         raise ValueError("Clip chunk size must be smaller than scene length to not exceed clip bounds during training.")
 
     if start_indices is None:
