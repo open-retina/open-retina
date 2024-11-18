@@ -1,6 +1,6 @@
 import bisect
 from collections import namedtuple
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Literal, Optional, Tuple
 
 import numpy as np
 import torch
@@ -13,19 +13,51 @@ DataPoint = namedtuple("DataPoint", ("inputs", "targets"))
 
 
 class MovieDataSet(Dataset):
+    """
+    A dataset class for handling movie data and corresponding neural responses.
+
+    Args:
+        movies (Float[np.ndarray | torch.Tensor, "n_channels n_frames h w"]): The movie data.
+        responses (Float[np.ndarray, "n_frames n_neurons"]): The neural responses.
+        roi_ids (Optional[Float[np.ndarray, " n_neurons"]]): A list of ROI IDs.
+        roi_coords (Optional[Float[np.ndarray, "n_neurons 2"]]): A list of ROI coordinates.
+        group_assignment (Optional[Float[np.ndarray, " n_neurons"]]): A list of group assignments (cell types).
+        split (Literal["train", "validation", "val", "test"]):
+                                                    The data split, either "train", "validation", "val", or "test".
+        chunk_size (int): The size of the chunks to split the data into.
+
+    Attributes:
+        samples (tuple): A tuple containing movie data and neural responses.
+        test_responses_by_trial (Optional[Dict[str, Any]]):
+                                                A dictionary containing test responses by trial (only for test split).
+        roi_ids (Optional[Float[np.ndarray, " n_neurons"]]): A list of region of interest (ROI) IDs.
+        chunk_size (int): The size of the chunks to split the data into.
+        mean_response (torch.Tensor): The mean response per neuron.
+        group_assignment (Optional[Float[np.ndarray, " n_neurons"]]): A list of group assignments.
+        roi_coords (Optional[Float[np.ndarray, "n_neurons 2"]]): A list of ROI coordinates.
+
+    Methods:
+        __getitem__(idx): Returns a DataPoint object for the given index or slice.
+        movies: Returns the movie data.
+        responses: Returns the neural responses.
+        __len__(): Returns the number of chunks of clips and responses used for training.
+        __str__(): Returns a string representation of the dataset.
+        __repr__(): Returns a string representation of the dataset.
+    """
+
     def __init__(
-            self,
-            movies,
-            responses,
-            roi_ids,
-            roi_coords,
-            group_assignment,
-            split: str,
-            chunk_size
+        self,
+        movies: Float[np.ndarray | torch.Tensor, "n_channels n_frames h w"],
+        responses: Float[np.ndarray, "n_frames n_neurons"],
+        roi_ids: Optional[Float[np.ndarray, " n_neurons"]],
+        roi_coords: Optional[Float[np.ndarray, "n_neurons 2"]],
+        group_assignment: Optional[Float[np.ndarray, " n_neurons"]],
+        split: str | Literal["train", "validation", "val", "test"],
+        chunk_size: int,
     ):
         # Will only be a dictionary for certain types of datasets, i.e. Hoefling 2022
         if split == "test" and isinstance(responses, dict):
-            self.samples = movies, responses["avg"]
+            self.samples: tuple = movies, responses["avg"]
             self.test_responses_by_trial = responses["by_trial"]
             self.roi_ids = roi_ids
         else:
@@ -71,14 +103,40 @@ class MovieDataSet(Dataset):
 
 
 class MovieSampler(Sampler):
+    """
+    A custom sampler for selecting movie frames for training, validation, or testing.
+
+    Args:
+        start_indices (list[int]): List of starting indices for the movie sections to select.
+        split (Literal["train", "validation", "val", "test"]): The type of data split.
+        chunk_size (int): The size of each contiguous chunk of frames to select.
+        movie_length (int): The total length of the movie.
+        scene_length (Optional[int], optional): The length of each scene, if the movie is divided in any scenes.
+                                                Defaults to None.
+        allow_over_boundaries (bool, optional): Whether to allow selected chunks to go over scene boundaries.
+                                                Defaults to False.
+
+    Attributes:
+        indices (list[int]): The starting indices for the movie sections to sample.
+        split (str): The type of data split.
+        chunk_size (int): The size of each chunk of frames.
+        movie_length (int): The total length of the movie.
+        scene_length (int): The length of each scene, if the movie is made up of scenes.
+        allow_over_boundaries (bool): Whether to allow chunks to go over scene boundaries.
+
+    Methods:
+        __iter__(): Returns an iterator over the sampled indices.
+        __len__(): Returns the number of starting indices (which will corresponds to the number of sampled clips).
+    """
+
     def __init__(
-            self,
-            start_indices,
-            split,
-            chunk_size,
-            movie_length,
-            scene_length=None,
-            allow_over_boundaries=False
+        self,
+        start_indices: list[int],
+        split: str | Literal["train", "validation", "val", "test"],
+        chunk_size: int,
+        movie_length: int,
+        scene_length: Optional[int] = None,
+        allow_over_boundaries: bool = False,
     ):
         self.indices = start_indices
         self.split = split
@@ -154,11 +212,12 @@ def gen_shifts_with_boundaries(
 def get_movie_dataloader(
     movies: np.ndarray | torch.Tensor | dict[int, np.ndarray],
     responses: Float[np.ndarray, "n_frames n_neurons"],
-    roi_ids: Optional[Float[np.ndarray, " n_neurons"]],
-    roi_coords: Optional[Float[np.ndarray, "n_neurons 2"]],
-    group_assignment: Optional[Float[np.ndarray, " n_neurons"]],
-    split: str,
-    start_indices: List[int] | Dict[int, List[int]],
+    *,
+    split: str | Literal["train", "validation", "val", "test"],
+    start_indices: Optional[list[int] | Dict[int, list[int]]] = None,
+    roi_ids: Optional[Float[np.ndarray, " n_neurons"]] = None,
+    roi_coords: Optional[Float[np.ndarray, "n_neurons 2"]] = None,
+    group_assignment: Optional[Float[np.ndarray, " n_neurons"]] = None,
     scan_sequence_idx: Optional[int] = None,
     chunk_size: int = 50,
     batch_size: int = 32,
@@ -172,11 +231,16 @@ def get_movie_dataloader(
         print("Nans in responses, skipping this dataloader")
         return None
 
-    if scene_length is not None and split == "train" and chunk_size > scene_length:
+    if not allow_over_boundaries and scene_length is not None and split == "train" and chunk_size > scene_length:
         raise ValueError("Clip chunk size must be smaller than scene length to not exceed clip bounds during training.")
+
+    if start_indices is None:
+        start_indices = handle_missing_start_indices(movies, chunk_size, scene_length, split)
 
     # for right movie: flip second frame size axis!
     if split == "train" and isinstance(movies, dict) and scan_sequence_idx is not None:
+        assert isinstance(start_indices, dict), "Start indices should be a dictionary for this case."
+
         if use_base_sequence:
             scan_sequence_idx = 20  # 20 is the base sequence
         dataset = MovieDataSet(
@@ -192,6 +256,7 @@ def get_movie_dataloader(
         )
     else:
         assert not isinstance(movies, dict), "Movies should not be a dictionary for this case."
+        assert not isinstance(start_indices, dict), "Start indices should not be a dictionary for this case."
         dataset = MovieDataSet(movies, responses, roi_ids, roi_coords, group_assignment, split, chunk_size)
         sampler = MovieSampler(
             start_indices,
@@ -207,7 +272,55 @@ def get_movie_dataloader(
     )
 
 
+<<<<<<< HEAD:openretina/data_io/dataloaders.py
 def get_dims_for_loader_dict(dataloaders: dict[str, Dict[str, Any]]) -> dict[str, dict[str, tuple[int, ...]] | tuple]:
+=======
+def handle_missing_start_indices(
+    movies: dict | np.ndarray | torch.Tensor, chunk_size: Optional[int], scene_length: Optional[int], split: str
+):
+    """
+    Handle missing start indices for different splits of the dataset.
+
+    Parameters:
+    movies (dict or np.ndarray): The movies data, either as a dictionary of arrays or a single array.
+    chunk_size (int or None): The size of each chunk for training split. Required if split is "train".
+    scene_length (int or None): The length of each scene. Required if split is "validation" or "val".
+    split (str): The type of split, one of "train", "validation", "val", or "test".
+
+    Returns:
+    dict or list: The generated or provided start indices for each movie.
+
+    Raises:
+    AssertionError: If chunk_size is not provided for training split when start_indices is None.
+    AssertionError: If scene_length is not provided for validation split when start_indices is None.
+    NotImplementedError: If start_indices is None and split is not one of "train", "validation", "val", or "test".
+    """
+
+    def get_chunking_interval(split_name):
+        if split_name == "train":
+            assert chunk_size is not None, "Chunk size or start indices must be provided for training."
+            return chunk_size
+        elif split_name in {"validation", "val"}:
+            assert scene_length is not None, "Scene length or start indices must be provided for validation."
+            return scene_length
+        elif split_name == "test":
+            return None
+        else:
+            raise NotImplementedError("Start indices could not be recovered.")
+
+    interval = get_chunking_interval(split)
+
+    if isinstance(movies, dict):
+        if split == "test":
+            return {k: [0] for k in movies.keys()}
+        return {k: np.arange(0, movies[k].shape[1], interval).tolist() for k in movies.keys()}
+    else:
+        if split == "test":
+            return [0]
+        return np.arange(0, movies.shape[1], interval).tolist()
+
+
+def get_dims_for_loader_dict(dataloaders: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Tuple[int, ...]] | Tuple]:
     """
     Borrowed from nnfabrik/utility/nn_helpers.py.
 

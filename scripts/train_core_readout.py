@@ -18,7 +18,7 @@ from openretina.data_io.neuron_data_io import filter_responses, make_final_respo
 from openretina.utils.h5_handling import load_h5_into_dict
 
 
-@hydra.main(version_base=None, config_path="../example_configs", config_name="train_core_readout")
+@hydra.main(version_base=None, config_path="../configs", config_name="example_train_core_readout")
 def main(conf: DictConfig) -> None:
     torch.set_float32_matmul_precision("medium")
     data_folder = os.path.expanduser(conf.data_folder)

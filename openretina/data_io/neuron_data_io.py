@@ -190,8 +190,8 @@ class NeuronGroupMembersStore:
 class NeuronData:
     def __init__(
         self,
-        responses_final: Float[np.ndarray, " n_neurons n_timepoints"] | dict,
-        stim_id: Literal[5, 2, 1, "salamander_natural"],
+        responses_final: Float[np.ndarray, " n_neurons n_timepoints"],
+        stim_id: Literal[5, 2, 1],
         val_clip_idx: Optional[List[int]],
         num_clips: Optional[int],
         clip_length: Optional[int],
@@ -216,8 +216,7 @@ class NeuronData:
             group_assignment (Float[np.ndarray, "n_neurons"]): The group assignment of neurons.
             key (dict): The key information for the neuron data,
                         includes date, exp_num, experimenter, field_id, stim_id.
-            responses_final (Float[np.ndarray, "n_neurons n_timepoints"]) or
-                dictionary with train and test responses of similar structure: The responses of neurons.
+            responses_final (Float[np.ndarray, "n_neurons n_timepoints"]): The responses of neurons.
             roi_coords (Float[np.ndarray, "n_neurons 2"]): The coordinates of regions of interest (ROIs).
             roi_ids (Float[np.ndarray, "n_neurons"]): The IDs of regions of interest (ROIs).
             scan_sequence_idx (int): The index of the scan sequence.
@@ -255,33 +254,36 @@ class NeuronData:
         self.use_base_sequence = use_base_sequence
         self.val_clip_idx = val_clip_idx
 
-    # this has to become a regular method in the future!
+        self.responses_train_and_val, self.responses_test, self.test_responses_by_trial = self.compute_test_responses()
+        self.responses_train, self.responses_val = self.compute_validation_responses()
+
     @property
     def response_dict(self):
-        if self.stim_id == "salamander_natural":
-            # Transpose the responses to have the shape (n_timepoints, n_neurons)
-            self.responses_test = self.neural_responses["test"].T
-            self.responses_train_and_val = self.neural_responses["train"].T
-            self.test_responses_by_trial = []
+        return {
+            "train": torch.tensor(self.responses_train).to(torch.float),
+            "validation": torch.tensor(self.responses_val).to(torch.float),
+            "test": {
+                "avg": torch.tensor(self.responses_test).to(torch.float),
+                "by_trial": torch.tensor(self.test_responses_by_trial),
+            },
+        }
 
-        elif self.stim_id in [1, 2]:
+    def compute_test_responses(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        if self.stim_id in [1, 2]:
             # Chirp and moving bar
-            self.responses_test = np.nan
-            self.test_responses_by_trial = np.nan
-
-            self.responses_val = np.nan
-
-            self.responses_train = self.neural_responses.T
+            responses_test = np.array(np.nan)
+            test_responses_by_trial = [np.nan]
+            responses_train_and_val = self.neural_responses.T
 
         else:
             assert self.clip_length is not None, "Clip length must be provided for natural scenes"
             assert self.num_clips is not None, "Number of clips must be provided for natural scenes"
             assert self.val_clip_idx is not None, "Validation clip indices must be provided for natural scenes"
 
-            self.responses_test = np.zeros((5 * self.clip_length, self.num_neurons))
-            self.responses_train_and_val = np.zeros((self.num_clips * self.clip_length, self.num_neurons))
+            responses_test = np.zeros((5 * self.clip_length, self.num_neurons))
+            responses_train_and_val = np.zeros((self.num_clips * self.clip_length, self.num_neurons))
 
-            self.test_responses_by_trial = []
+            test_responses_by_trial = []
 
             # Note: the hardcoded indices are the location of test clips in Hoefling 2024
             for roi in range(self.num_neurons):
@@ -292,71 +294,67 @@ class NeuronData:
                         self.neural_responses[roi, 118 * self.clip_length :],
                     )
                 )
-                self.test_responses_by_trial.append(tmp)
-                self.responses_test[:, roi] = np.mean(tmp, 0)
-                self.responses_train_and_val[:, roi] = np.concatenate(
+                test_responses_by_trial.append(tmp)  # type: ignore
+                responses_test[:, roi] = np.mean(tmp, 0)
+                responses_train_and_val[:, roi] = np.concatenate(
                     (
                         self.neural_responses[roi, 5 * self.clip_length : 59 * self.clip_length],
                         self.neural_responses[roi, 64 * self.clip_length : 118 * self.clip_length],
                     )
                 )
-            self.test_responses_by_trial = np.asarray(self.test_responses_by_trial)
 
-        if self.stim_id in [5, "salamander_natural"]:
-            self.compute_validation_responses()
-
-        return {
-            "train": torch.tensor(self.responses_train).to(torch.float),
-            "validation": torch.tensor(self.responses_val).to(torch.float),
-            "test": {
-                "avg": torch.tensor(self.responses_test).to(torch.float),
-                "by_trial": torch.tensor(self.test_responses_by_trial),
-            },
-        }
+        return responses_train_and_val, responses_test, np.asarray(test_responses_by_trial)
 
     @no_type_check
-    def compute_validation_responses(self) -> None:
-        movie_ordering = (
-            np.arange(self.num_clips)
-            if (len(self.random_sequences) == 0 or self.scan_sequence_idx is None)
-            else self.random_sequences[:, self.scan_sequence_idx]
-        )
-
-        # Initialise validation responses
-
-        base_movie_sorting = np.argsort(movie_ordering)
-
-        validation_mask = np.ones_like(self.responses_train_and_val, dtype=bool)
-        self.responses_val = np.zeros([len(self.val_clip_idx) * self.clip_length, self.num_neurons])
-
-        # Compute validation responses and remove sections from training responses
-
-        for i, ind1 in enumerate(self.val_clip_idx):
-            grab_index = base_movie_sorting[ind1]
-            self.responses_val[i * self.clip_length : (i + 1) * self.clip_length, :] = self.responses_train_and_val[
-                grab_index * self.clip_length : (grab_index + 1) * self.clip_length,
-                :,
-            ]
-            validation_mask[
-                (grab_index * self.clip_length) : (grab_index + 1) * self.clip_length,
-                :,
-            ] = False
-
-        if self.use_base_sequence:
-            # Reorder training responses to use the same "base" sequence, which follows the numbering of clips.
-            # This way all training responses are wrt the same order of clips, which can be useful for some applications
-            train_clip_idx = [i for i in range(self.num_clips) if i not in self.val_clip_idx]
-            self.responses_train = np.zeros([len(train_clip_idx) * self.clip_length, self.num_neurons])
-            for i, train_idx in enumerate(train_clip_idx):
-                grab_index = base_movie_sorting[train_idx]
-                self.responses_train[i * self.clip_length : (i + 1) * self.clip_length, :] = (
-                    self.responses_train_and_val[
-                        grab_index * self.clip_length : (grab_index + 1) * self.clip_length,
-                        :,
-                    ]
-                )
+    def compute_validation_responses(self) -> tuple[np.ndarray, np.ndarray]:
+        if self.stim_id in [1, 2]:
+            # Chirp and moving bar
+            responses_val = np.array(np.nan)
+            responses_train = self.responses_train_and_val
         else:
-            self.responses_train = self.responses_train_and_val[validation_mask].reshape(-1, self.num_neurons)
+            movie_ordering = (
+                np.arange(self.num_clips)
+                if (len(self.random_sequences) == 0 or self.scan_sequence_idx is None)
+                else self.random_sequences[:, self.scan_sequence_idx]
+            )
+
+            # Initialise validation responses
+
+            base_movie_sorting = np.argsort(movie_ordering)
+
+            validation_mask = np.ones_like(self.responses_train_and_val, dtype=bool)
+            responses_val = np.zeros([len(self.val_clip_idx) * self.clip_length, self.num_neurons])
+
+            # Compute validation responses and remove sections from training responses
+
+            for i, ind1 in enumerate(self.val_clip_idx):
+                grab_index = base_movie_sorting[ind1]
+                responses_val[i * self.clip_length : (i + 1) * self.clip_length, :] = self.responses_train_and_val[
+                    grab_index * self.clip_length : (grab_index + 1) * self.clip_length,
+                    :,
+                ]
+                validation_mask[
+                    (grab_index * self.clip_length) : (grab_index + 1) * self.clip_length,
+                    :,
+                ] = False
+
+            if self.use_base_sequence:
+                # Reorder training responses to use the same "base" sequence, which follows the numbering of clips.
+                # This way all training responses are wrt the same order of clips, which can be useful in analysis.
+                train_clip_idx = [i for i in range(self.num_clips) if i not in self.val_clip_idx]
+                responses_train = np.zeros([len(train_clip_idx) * self.clip_length, self.num_neurons])
+                for i, train_idx in enumerate(train_clip_idx):
+                    grab_index = base_movie_sorting[train_idx]
+                    responses_train[i * self.clip_length : (i + 1) * self.clip_length, :] = (
+                        self.responses_train_and_val[
+                            grab_index * self.clip_length : (grab_index + 1) * self.clip_length,
+                            :,
+                        ]
+                    )
+            else:
+                responses_train = self.responses_train_and_val[validation_mask].reshape(-1, self.num_neurons)
+
+        return responses_train, responses_val
 
     def transform_roi_mask(self, roi_mask):
         roi_coords = np.zeros((len(self.roi_ids), 2))

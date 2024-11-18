@@ -46,16 +46,26 @@ The openretina package is structured as follows:
 
 ## Related papers
 
-The model in `openretina/hoefling_2024` was developed in the paper [A chromatic feature detector in the retina signals visual context changes](https://www.biorxiv.org/content/10.1101/2022.11.30.518492.abstract) and can be cited as:
+The model in `openretina/hoefling_2024` was developed in the paper [A chromatic feature detector in the retina signals visual context changes](https://elifesciences.org/articles/86860) and can be cited as:
 
 ```
-@article{hofling2022chromatic,
-  title={A chromatic feature detector in the retina signals visual context changes},
-  author={H{\"o}fling, Larissa and Szatko, Klaudia P and Behrens, Christian and Deng, Yuyao and Qiu, Yongrong and Klindt, David A and Jessen, Zachary and Schwartz, Gregory W and Bethge, Matthias and Berens, Philipp and others},
-  journal={bioRxiv},
-  pages={2022--11},
-  year={2022},
-  publisher={Cold Spring Harbor Laboratory}
+@article {10.7554/eLife.86860,
+article_type = {journal},
+title = {A chromatic feature detector in the retina signals visual context changes},
+author = {Höfling, Larissa and Szatko, Klaudia P and Behrens, Christian and Deng, Yuyao and Qiu, Yongrong and Klindt, David Alexander and Jessen, Zachary and Schwartz, Gregory W and Bethge, Matthias and Berens, Philipp and Franke, Katrin and Ecker, Alexander S and Euler, Thomas},
+editor = {Rieke, Fred and Smith, Lois EH and Rieke, Fred and Baccus, Stephen A and Wei, Wei},
+volume = 13,
+year = 2024,
+month = {oct},
+pub_date = {2024-10-04},
+pages = {e86860},
+citation = {eLife 2024;13:e86860},
+doi = {10.7554/eLife.86860},
+url = {https://doi.org/10.7554/eLife.86860},
+keywords = {retina, computational modelling, visual ecology, convolutional neural networks, 2P imaging, natural stimuli},
+journal = {eLife},
+issn = {2050-084X},
+publisher = {eLife Sciences Publications, Ltd},
 }
 ```
 
