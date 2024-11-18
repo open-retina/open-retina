@@ -1,6 +1,7 @@
 import bisect
 from dataclasses import dataclass
 from typing import Literal, Optional
+import pickle
 
 import numpy as np
 import torch
@@ -21,6 +22,16 @@ class MoviesTrainTestSplit:
     train: np.ndarray
     test: np.ndarray
     random_sequences: Optional[np.ndarray]
+
+    @classmethod
+    def from_pickle(cls, file_path: str):
+        with open(file_path, "rb") as f:
+            movies_dict = pickle.load(f)
+        return cls(
+            train=movies_dict["train"],
+            test=movies_dict["test"],
+            random_sequences=movies_dict.get("random_sequences", default=None),
+        )
 
 
 class MovieDataSet(Dataset):

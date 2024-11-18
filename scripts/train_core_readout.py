@@ -11,6 +11,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
 
 from openretina.data_io.cyclers import LongCycler
+from openretina.data_io.movie_dataloader import MoviesTrainTestSplit
 from openretina.data_io.hoefling_2024.data_io import natmov_dataloaders_v2
 from openretina.data_io.hoefling_2024.neuron_data_io import filter_responses, make_final_responses
 from openretina.models.core_readout import CoreReadout
@@ -23,8 +24,7 @@ def main(conf: DictConfig) -> None:
     torch.set_float32_matmul_precision("medium")
     data_folder = os.path.expanduser(conf.data_folder)
     movies_path = os.path.join(data_folder, conf.movies_filename)
-    with open(movies_path, "rb") as f:
-        movies_dict = pickle.load(f)
+    movies_dict = MoviesTrainTestSplit.from_pickle(movies_path)
 
     data_path_responses = os.path.join(data_folder, conf.responses_filename)
     responses = load_h5_into_dict(data_path_responses)
