@@ -36,9 +36,9 @@ For training new models, we rely on [pytorch lightning](https://lightning.ai/doc
 
 The openretina package is structured as follows:
 - modules: pytorch modules that define layers and losses
-- models: pytorch lightning models that define models that can be trained and evaluated
+- models: pytorch lightning models that define models that can be trained and evaluated (i.e. models from specific papers)
 - data_io: dataloaders to manage access of data to be used for training
-- model_anaysis: Methods to interpret above models
+- model_analysis: Methods to interpret above models
     - stimulus_optimization: optimize inputs for neurons of above models according to interpretable objectives (e.g. most exciting inputs)
     - ... (gradient analysis, data analysis)
 - utils: Utility functions that are used across above submodules
