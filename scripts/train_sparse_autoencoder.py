@@ -14,12 +14,12 @@ from lightning.pytorch.loggers import CSVLogger, TensorBoardLogger
 from openretina.data_io.cyclers import LongCycler
 from openretina.data_io.hoefling_2024.data_io import get_chirp_dataloaders, get_mb_dataloaders, natmov_dataloaders_v2
 from openretina.data_io.hoefling_2024.neuron_data_io import make_final_responses
-from openretina.legacy.nnfabrik_model_loading import (
+from openretina.models.autoencoder import ActivationsDataset, Autoencoder, SparsityMSELoss
+from openretina.utils.h5_handling import load_h5_into_dict
+from openretina.utils.nnfabrik_model_loading import (
     Center,
     load_ensemble_retina_model_from_directory,
 )
-from openretina.models.autoencoder import ActivationsDataset, Autoencoder, SparsityMSELoss
-from openretina.utils.h5_handling import load_h5_into_dict
 
 ENSEMBLE_MODEL_PATH = (
     "/gpfs01/euler/data/SharedFiles/projects/Hoefling2024/models/nonlinear/9d574ab9fcb85e8251639080c8d402b7"

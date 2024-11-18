@@ -10,7 +10,6 @@ import numpy as np
 import torch
 
 from openretina.legacy.hoefling_configs import STIMULUS_RANGE_CONSTRAINTS
-from openretina.legacy.nnfabrik_model_loading import Center, load_ensemble_retina_model_from_directory
 from openretina.model_analysis.stimulus_optimization.objective import (
     InnerNeuronVisualizationObjective,
     SingleNeuronObjective,
@@ -23,6 +22,7 @@ from openretina.model_analysis.stimulus_optimization.regularizer import (
     RangeRegularizationLoss,
 )
 from openretina.models.core_readout import CoreReadout
+from openretina.utils.nnfabrik_model_loading import Center, load_ensemble_retina_model_from_directory
 from openretina.utils.plotting import plot_stimulus_composition, save_stimulus_to_mp4_video
 
 DEFAULT_BASE_PATH = "/gpfs01/euler/data/SharedFiles/projects/Hoefling2024/"

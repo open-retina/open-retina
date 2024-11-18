@@ -10,7 +10,6 @@ import numpy as np
 import torch
 
 from openretina.legacy.hoefling_configs import STIMULUS_RANGE_CONSTRAINTS
-from openretina.legacy.nnfabrik_model_loading import Center, load_ensemble_retina_model_from_directory
 from openretina.model_analysis.stimulus_optimization.objective import (
     AbstractObjective,
     ContrastiveNeuronObjective,
@@ -24,6 +23,7 @@ from openretina.model_analysis.stimulus_optimization.regularizer import (
     RangeRegularizationLoss,
 )
 from openretina.models.autoencoder import Autoencoder, AutoencoderWithModel
+from openretina.utils.nnfabrik_model_loading import Center, load_ensemble_retina_model_from_directory
 from openretina.utils.plotting import plot_stimulus_composition
 
 

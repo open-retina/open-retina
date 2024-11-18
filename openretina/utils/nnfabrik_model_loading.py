@@ -23,8 +23,9 @@ def split_module_name(abs_class_name: str) -> Tuple[str, str]:
     return abs_module_path, class_name
 
 
-def dynamic_import(abs_module_path, class_name):
-    module_object = import_module(abs_module_path)
+def dynamic_import(abs_module_path: str, class_name: str):
+    abs_module_path_fixed = abs_module_path.replace("hoefling_2024", "legacy")
+    module_object = import_module(abs_module_path_fixed)
     target_class = getattr(module_object, class_name)
     return target_class
 
