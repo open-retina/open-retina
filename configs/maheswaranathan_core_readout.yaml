@@ -2,6 +2,7 @@ defaults:
   - model: base_gru_model_lightning
 
 exp_name: core_readout_maheswaranathan
+seed: 42
 
 data:
   base_folder: /Data
@@ -22,6 +23,7 @@ trainer:
   gradient_clip_val: 1
   precision: 32
   default_root_dir: ${data.save_folder}
+  deterministic: "warn"
 
 dataloader:
   batch_size: null

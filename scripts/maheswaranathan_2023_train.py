@@ -3,6 +3,7 @@
 import os
 
 import hydra
+import lightning.pytorch
 import torch.utils.data as data
 from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
@@ -33,6 +34,9 @@ def main(cfg: DictConfig) -> None:
     # when num_workers > 0 the docker container needs more shared memory
     train_loader = data.DataLoader(LongCycler(dataloaders["train"], shuffle=True), **cfg.dataloader)
     valid_loader = data.DataLoader(LongCycler(dataloaders["validation"], shuffle=False), **cfg.dataloader)
+
+    if cfg.seed is not None:
+        lightning.pytorch.seed_everything(cfg.seed)
 
     ### Model init
     # Assign missing n_neurons_dict to the model
