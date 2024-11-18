@@ -13,9 +13,9 @@ seed: 42
 core_readout:
   in_channels: 2
   features_core: [16, 16, 16, 16]
-  temporal_kernel_sizes: [16, 16, 8, 8]
-  spatial_kernel_sizes: [16, 16, 8, 8]
-  in_shape: [2, 150, 72, 64]
+  temporal_kernel_sizes: [15, 15, 7, 7]
+  spatial_kernel_sizes: [15, 15, 7, 7]
+  in_shape_readout: [16, 120, 18, 16]
   scale: True
   bias: True
   gaussian_masks: True
@@ -27,7 +27,6 @@ core_readout:
   maxpool_every_n_layers: 2
   cut_first_n_frames_in_core: 30
   dropout_rate: 0.0
-  # device: "cuda"
   # downsample_input_kernel_size: [1, 4, 4]  # to reproduce Hoefling input size of 18x16px
 
 dataloader:

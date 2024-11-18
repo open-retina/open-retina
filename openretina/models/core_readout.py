@@ -20,7 +20,7 @@ class CoreReadout(lightning.LightningModule):
         features_core: Iterable[int],
         temporal_kernel_sizes: Iterable[int],
         spatial_kernel_sizes: Iterable[int],
-        in_shape: Iterable[int],
+        in_shape_readout: Iterable[int],
         n_neurons_dict: dict[str, int],
         scale: bool,
         bias: bool,
@@ -36,7 +36,6 @@ class CoreReadout(lightning.LightningModule):
         dropout_rate: float = 0.0,
         maxpool_every_n_layers: Optional[int] = None,
         downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
-        device: str = "cuda" if torch.cuda.is_available() else "cpu",
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -49,12 +48,6 @@ class CoreReadout(lightning.LightningModule):
             maxpool_every_n_layers=maxpool_every_n_layers,
             downsample_input_kernel_size=downsample_input_kernel_size,
         )
-        # Run one forward pass to determine output shape of core
-        example_input = torch.zeros((1,) + tuple(in_shape))
-        core_test_output = self.core.to("cpu").forward(example_input.to("cpu"))
-        in_shape_readout: tuple[int, int, int, int] = core_test_output.shape[1:]  # type: ignore
-        print(f"{example_input.shape[1:]=} {in_shape_readout=}")
-
         self.readout = ReadoutWrapper(
             in_shape_readout,
             n_neurons_dict,

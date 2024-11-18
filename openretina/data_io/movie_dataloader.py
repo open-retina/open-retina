@@ -1,4 +1,5 @@
 import bisect
+from collections import namedtuple
 from dataclasses import dataclass
 from typing import Literal, Optional
 import pickle
@@ -11,10 +12,7 @@ from torch.utils.data import DataLoader, Dataset, Sampler
 from openretina.data_io.hoefling_2024.constants import SCENE_LENGTH
 
 
-@dataclass
-class DataPoint:
-    inputs: torch.Tensor
-    targets: torch.Tensor
+DataPoint = namedtuple("DataPoint", ["inputs", "targets"])
 
 
 @dataclass
@@ -30,7 +28,7 @@ class MoviesTrainTestSplit:
         return cls(
             train=movies_dict["train"],
             test=movies_dict["test"],
-            random_sequences=movies_dict.get("random_sequences", default=None),
+            random_sequences=movies_dict.get("random_sequences", None),
         )
 
 
@@ -193,7 +191,7 @@ class MovieSampler(Sampler):
         split: str | Literal["train", "validation", "val", "test"],
         chunk_size: int,
         movie_length: int,
-        scene_length: Optional[int] = None,
+        scene_length: int,
         allow_over_boundaries: bool = False,
     ):
         super().__init__()
@@ -201,7 +199,7 @@ class MovieSampler(Sampler):
         self.split = split
         self.chunk_size = chunk_size
         self.movie_length = movie_length
-        self.scene_length = SCENE_LENGTH if scene_length is None else scene_length
+        self.scene_length = scene_length 
         self.allow_over_boundaries = allow_over_boundaries
 
     def __iter__(self):

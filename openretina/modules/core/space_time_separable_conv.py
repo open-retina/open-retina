@@ -264,4 +264,5 @@ class STSeparableBatchConv3d(torch.nn.Module):
             torch.Tensor: The mask tensor.
         """
         mask = 1 / (1 + torch.exp(-time - int(T * 0.95) / stretch))
-        return mask.T
+        assert len(mask.shape) == 1, "Consider transposing the tensor"
+        return mask
