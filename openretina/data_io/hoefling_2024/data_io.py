@@ -4,9 +4,9 @@ import numpy as np
 import torch
 from tqdm.auto import tqdm
 
-from openretina.dataloaders import get_movie_dataloader
-from openretina.neuron_data_io import NeuronData
-from openretina.stimuli import load_chirp, load_moving_bar
+from openretina.data_io.dataloaders import get_movie_dataloader
+from openretina.data_io.neuron_data_io import NeuronData
+from openretina.data_io.stimuli import load_chirp, load_moving_bar
 
 from .constants import CLIP_LENGTH, NUM_CLIPS, NUM_VAL_CLIPS
 

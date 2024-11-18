@@ -12,17 +12,17 @@ import numpy as np
 import seaborn as sns
 import torch
 
-from openretina.hoefling_2024.configs import model_config, trainer_config
-from openretina.hoefling_2024.data_io import (
+from openretina.legacy.configs import model_config, trainer_config
+from openretina.data_io.hoefling_2024 import (
     get_chirp_dataloaders,
     get_mb_dataloaders,
     natmov_dataloaders_v2,
 )
-from openretina.hoefling_2024.models import SFB3d_core_SxF3d_readout
-from openretina.neuron_data_io import make_final_responses
-from openretina.plotting import save_figure
-from openretina.training import save_model
-from openretina.training import standard_early_stop_trainer as trainer
+from openretina.data_io.hoefling_2024 import SFB3d_core_SxF3d_readout
+from openretina.data_io.neuron_data_io import make_final_responses
+from openretina.utils.plotting import save_figure
+from openretina.legacy.training import save_model
+from openretina.legacy.training import standard_early_stop_trainer as trainer
 from openretina.utils.h5_handling import load_h5_into_dict
 
 

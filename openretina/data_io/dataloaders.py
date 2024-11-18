@@ -7,7 +7,7 @@ import torch
 from jaxtyping import Float
 from torch.utils.data import DataLoader, Dataset, Sampler, default_collate
 
-from openretina.hoefling_2024.constants import SCENE_LENGTH
+from openretina.data_io.hoefling_2024.constants import SCENE_LENGTH
 
 DataPoint = namedtuple("DataPoint", ("inputs", "targets"))
 

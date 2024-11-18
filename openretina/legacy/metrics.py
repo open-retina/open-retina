@@ -6,7 +6,7 @@ import torch
 from openretina.models.model_utils import eval_state
 from openretina.utils.constants import EPSILON
 
-from .utils.misc import tensors_to_device
+from openretina.utils.misc import tensors_to_device
 
 
 def correlation_numpy(

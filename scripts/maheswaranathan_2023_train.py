@@ -8,13 +8,13 @@ import numpy as np
 import seaborn as sns
 import torch
 
-from openretina.hoefling_2024.configs import model_config, trainer_config
-from openretina.hoefling_2024.data_io import natmov_dataloaders_v2
-from openretina.hoefling_2024.models import SFB3d_core_SxF3d_readout
-from openretina.maheswaranathan_2023_data_io import CLIP_LENGTH, load_all_sessions
-from openretina.plotting import save_figure
-from openretina.training import save_model
-from openretina.training import standard_early_stop_trainer as trainer
+from openretina.legacy.configs import model_config, trainer_config
+from openretina.data_io.hoefling_2024 import natmov_dataloaders_v2
+from openretina.data_io.hoefling_2024 import SFB3d_core_SxF3d_readout
+from openretina.data_io.maheswaranathan_2023_data_io import CLIP_LENGTH, load_all_sessions
+from openretina.utils.plotting import save_figure
+from openretina.legacy.training import save_model
+from openretina.legacy.training import standard_early_stop_trainer as trainer
 
 
 def main(data_folder) -> None:

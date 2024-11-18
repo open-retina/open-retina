@@ -9,17 +9,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from openretina.hoefling_2024.configs import STIMULUS_RANGE_CONSTRAINTS
-from openretina.hoefling_2024.nnfabrik_model_loading import Center, load_ensemble_retina_model_from_directory
+from openretina.legacy.configs import STIMULUS_RANGE_CONSTRAINTS
+from openretina.data_io.hoefling_2024 import Center, load_ensemble_retina_model_from_directory
 from openretina.models.core_readout import CoreReadout
-from openretina.optimization.objective import InnerNeuronVisualizationObjective, SingleNeuronObjective, SliceMeanReducer
-from openretina.optimization.optimization_stopper import OptimizationStopper
-from openretina.optimization.optimizer import optimize_stimulus
-from openretina.optimization.regularizer import (
+from openretina.model_analysis.stimulus_optimization.objective import InnerNeuronVisualizationObjective, SingleNeuronObjective, SliceMeanReducer
+from openretina.model_analysis.stimulus_optimization.optimization_stopper import OptimizationStopper
+from openretina.model_analysis.stimulus_optimization.optimizer import optimize_stimulus
+from openretina.model_analysis.stimulus_optimization.regularizer import (
     ChangeNormJointlyClipRangeSeparately,
     RangeRegularizationLoss,
 )
-from openretina.plotting import plot_stimulus_composition, save_stimulus_to_mp4_video
+from openretina.utils.plotting import plot_stimulus_composition, save_stimulus_to_mp4_video
 
 DEFAULT_BASE_PATH = "/gpfs01/euler/data/SharedFiles/projects/Hoefling2024/"
 DEFAULT_ENSEMBLE_MODEL_PATH = os.path.join(DEFAULT_BASE_PATH, "models/nonlinear/9d574ab9fcb85e8251639080c8d402b7")

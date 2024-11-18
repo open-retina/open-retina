@@ -3,7 +3,7 @@ from typing import Any
 
 import numpy as np
 
-from .utils.h5_handling import load_dataset_from_h5
+from openretina.utils.h5_handling import load_dataset_from_h5
 
 CLIP_LENGTH = 90  # in frames @ 30 fps
 

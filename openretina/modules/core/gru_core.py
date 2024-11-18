@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from openretina.hoefling_2024.models import (
+from openretina.data_io.hoefling_2024 import (
     Bias3DLayer,
     Core3d,
     FlatLaplaceL23dnorm,

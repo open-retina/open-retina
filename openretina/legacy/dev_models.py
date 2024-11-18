@@ -17,8 +17,8 @@ from neuralpredictors.layers.readouts import (  # type: ignore
 from neuralpredictors.layers.rnn_modules.gru_module import ConvGRUCell  # type: ignore
 from neuralpredictors.utils import get_module_output  # type: ignore
 
-from openretina.dataloaders import get_dims_for_loader_dict
-from openretina.hoefling_2024.models import (
+from openretina.data_io.dataloaders import get_dims_for_loader_dict
+from openretina.data_io.hoefling_2024.models import (
     Bias3DLayer,
     Core3d,
     Encoder,
@@ -34,7 +34,7 @@ from openretina.hoefling_2024.models import (
     temporal_smoothing,
 )
 
-from .utils.misc import set_seed
+from openretina.utils.misc import set_seed
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
@@ -518,6 +518,7 @@ class DummyCore(nn.Module):
 
 
 class LNP(nn.Module):
+    # Linear nonlinear poison
     def __init__(
         self,
         in_shape,

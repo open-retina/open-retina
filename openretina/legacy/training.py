@@ -12,12 +12,13 @@ import numpy as np
 import torch
 from tqdm.auto import tqdm
 
-from . import measures, metrics
-from .cyclers import LongCycler
-from .dataloaders import extract_data_info_from_dataloaders
-from .early_stopping import early_stopping
-from .tracking import MultipleObjectiveTracker
-from .utils.misc import set_seed, tensors_to_device
+from openretina.legacy import metrics
+from openretina.modules import measures
+from openretina.data_io.cyclers import LongCycler
+from openretina.data_io.dataloaders import extract_data_info_from_dataloaders
+from openretina.legacy.early_stopping import early_stopping
+from openretina.legacy.tracking import MultipleObjectiveTracker
+from openretina.utils.misc import set_seed, tensors_to_device
 
 
 def standard_full_objective(

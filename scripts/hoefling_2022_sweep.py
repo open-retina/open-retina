@@ -8,10 +8,10 @@ import seaborn as sns
 import torch
 import wandb
 
-from openretina.hoefling_2024.configs import model_config, trainer_config
-from openretina.hoefling_2024.data_io import natmov_dataloaders_v2
-from openretina.hoefling_2024.models import SFB3d_core_SxF3d_readout
-from openretina.training import standard_early_stop_trainer as trainer
+from openretina.legacy.configs import model_config, trainer_config
+from openretina.data_io.hoefling_2024 import natmov_dataloaders_v2
+from openretina.data_io.hoefling_2024 import SFB3d_core_SxF3d_readout
+from openretina.legacy.training import standard_early_stop_trainer as trainer
 
 wandb.login()
 

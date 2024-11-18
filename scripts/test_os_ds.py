@@ -7,9 +7,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from openretina.hoefling_2024.constants import FRAME_RATE_MODEL
-from openretina.plotting import save_figure
-from openretina.stimuli import load_moving_bar_stack
+from openretina.data_io.hoefling_2024 import FRAME_RATE_MODEL
+from openretina.utils.plotting import save_figure
+from openretina.data_io.stimuli import load_moving_bar_stack
 from openretina.utils.h5_handling import load_h5_into_dict
 
 

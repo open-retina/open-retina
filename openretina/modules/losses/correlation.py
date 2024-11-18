@@ -2,59 +2,6 @@ import torch
 from torch import nn
 
 
-class PoissonLoss3d(nn.Module):
-    def __init__(self, bias=1e-16, per_neuron=False, avg=False):
-        super().__init__()
-        self.bias = bias
-        self.per_neuron = per_neuron
-        self.avg = avg
-
-    def forward(self, output, target):
-        lag = target.size(1) - output.size(1)
-        loss = output - target[:, lag:, :] * torch.log(output + self.bias)
-        if not self.per_neuron:
-            return loss.mean() if self.avg else loss.sum()  # loss.sum(axis=(-2)).mean()
-        else:
-            return loss.view(-1, loss.shape[-1]).mean(dim=0)
-
-    def __str__(self):
-        bias, per_neuron, avg = self.bias, self.per_neuron, self.avg
-        return f"PoissonLoss3d({bias=} {per_neuron=} {avg=})"
-
-
-class CelltypePoissonLoss3d(nn.Module):
-    def __init__(self, bias=1e-16, per_neuron=False, avg=False):
-        super().__init__()
-        self.bias = bias
-        self.per_neuron = per_neuron
-        self.avg = avg
-
-    def forward(self, output, target, group_assignment, group_counts):
-        lag = target.size(1) - output.size(1)
-        loss = output - target[:, lag:, :] * torch.log(output + self.bias)
-        loss = loss * (group_counts.sum() / group_counts.size(0) / group_counts[group_assignment - 1])[:, None, ...]
-        if not self.per_neuron:
-            return loss.mean() if self.avg else loss.sum()  # loss.sum(axis=(-2)).mean()
-        else:
-            return loss.view(-1, loss.shape[-1]).mean(dim=0)
-
-
-class StandardPoissonLoss3d(nn.Module):  # standard poisson loss for ct dataloader
-    def __init__(self, bias=1e-16, per_neuron=False, avg=False):
-        super().__init__()
-        self.bias = bias
-        self.per_neuron = per_neuron
-        self.avg = avg
-
-    def forward(self, output, target, group_assignment, group_counts):
-        lag = target.size(1) - output.size(1)
-        loss = output - target[:, lag:, :] * torch.log(output + self.bias)
-        if not self.per_neuron:
-            return loss.mean() if self.avg else loss.sum()  # loss.sum(axis=(-2)).mean()
-        else:
-            return loss.view(-1, loss.shape[-1]).mean(dim=0)
-
-
 class CorrelationLoss3d(nn.Module):
     def __init__(self, bias: float = 1e-16, per_neuron: bool = False, avg: bool = False):
         super().__init__()
@@ -78,7 +25,7 @@ class CorrelationLoss3d(nn.Module):
 
 
 class CelltypeCorrelationLoss3d(nn.Module):
-    def __init__(self, bias=1e-16, per_neuron=False, avg=False):
+    def __init__(self, bias: float = 1e-16, per_neuron: bool = False, avg: bool = False):
         super().__init__()
         self.eps = bias
         self.per_neuron = per_neuron
@@ -101,15 +48,14 @@ class CelltypeCorrelationLoss3d(nn.Module):
 
 
 class L1CorrelationLoss3d(nn.Module):
-    def __init__(self, bias=1e-16, per_neuron=False, avg=False):
+    def __init__(self, bias: float = 1e-16, per_neuron: bool = False, avg: bool = False):
         super().__init__()
         self.eps = bias
         self.per_neuron = per_neuron
         self.avg = avg
-        # self.gamma_L1 = 0.001
         self.gamma_L1 = 0.0002
 
-    def forward(self, output, target, group_assignment, group_counts):
+    def forward(self, output, target, **kwargs):
         pre_ca = output[1]
         output = output[0]
         lag = target.size(1) - output.size(1)
@@ -140,7 +86,7 @@ class ScaledCorrelationLoss3d(nn.Module):
         self.per_neuron = per_neuron
         self.avg = avg
 
-    def forward(self, output, target, group_assignment, group_counts):
+    def forward(self, output, target, **kwargs):
         lag = target.size(1) - output.size(1)
         corrs = torch.zeros((output.size(0), 1, output.size(2)), device=output.device)
         count = 0
@@ -162,23 +108,3 @@ class ScaledCorrelationLoss3d(nn.Module):
             return -corrs.mean() if self.avg else -corrs.sum()
         else:
             return -corrs.view(-1, corrs.shape[-1]).mean(dim=0)
-
-
-class MSE3d(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, output, target):
-        lag = target.size(1) - output.size(1)
-        loss = output - target[:, lag:, :]
-        return loss.pow(2).sum(dim=-1).sum()
-
-
-class StandardMSE3d(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, output, target, group_assignment, group_counts):
-        lag = target.size(1) - output.size(1)
-        loss = output - target[:, lag:, :]
-        return loss.pow(2).sum(dim=-1).sum()

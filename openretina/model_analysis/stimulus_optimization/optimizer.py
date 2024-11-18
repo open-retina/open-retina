@@ -3,8 +3,8 @@ from typing import Callable, List, Optional
 import torch
 from torch import Tensor
 
-from openretina.optimization.optimization_stopper import OptimizationStopper
-from openretina.optimization.regularizer import StimulusPostprocessor, StimulusRegularizationLoss
+from openretina.model_analysis.stimulus_optimization.optimization_stopper import OptimizationStopper
+from openretina.model_analysis.stimulus_optimization.regularizer import StimulusPostprocessor, StimulusRegularizationLoss
 
 
 def optimize_stimulus(

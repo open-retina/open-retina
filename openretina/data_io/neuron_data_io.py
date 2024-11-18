@@ -9,7 +9,7 @@ import torch
 from jaxtyping import Float
 from tqdm.auto import tqdm
 
-from .hoefling_2024.constants import RGC_GROUP_NAMES_DICT, STIMULI_IDS
+from openretina.data_io.hoefling_2024.constants import RGC_GROUP_NAMES_DICT, STIMULI_IDS
 
 SingleNeuronInfoStruct = namedtuple(
     "SingleNeuronInfoStruct",

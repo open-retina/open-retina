@@ -11,15 +11,15 @@ import lightning
 import torch
 from lightning.pytorch.loggers import CSVLogger, TensorBoardLogger
 
-from openretina.cyclers import LongCycler
-from openretina.hoefling_2024.data_io import (
+from openretina.data_io.cyclers import LongCycler
+from openretina.data_io.hoefling_2024 import (
     get_chirp_dataloaders,
     get_mb_dataloaders,
     natmov_dataloaders_v2,
 )
-from openretina.hoefling_2024.nnfabrik_model_loading import Center, load_ensemble_retina_model_from_directory
+from openretina.data_io.hoefling_2024 import Center, load_ensemble_retina_model_from_directory
 from openretina.models.autoencoder import ActivationsDataset, Autoencoder, SparsityMSELoss
-from openretina.neuron_data_io import make_final_responses
+from openretina.data_io.neuron_data_io import make_final_responses
 from openretina.utils.h5_handling import load_h5_into_dict
 
 ENSEMBLE_MODEL_PATH = (
