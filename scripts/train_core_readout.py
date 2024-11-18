@@ -11,9 +11,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
 
 from openretina.data_io.cyclers import LongCycler
-from openretina.data_io.hoefling_2024 import (
-    natmov_dataloaders_v2,
-)
+from openretina.data_io.hoefling_2024.data_io import natmov_dataloaders_v2
 from openretina.models.core_readout import CoreReadout
 from openretina.models.model_utils import OptimizerResetCallback
 from openretina.data_io.neuron_data_io import filter_responses, make_final_responses

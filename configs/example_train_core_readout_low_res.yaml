@@ -30,7 +30,7 @@ core_readout:
 
 dataloader:
   batch_size: null
-  num_workers: 4
+  num_workers: 0
 
 loggers:
   csv:

@@ -10,9 +10,9 @@ from importlib import import_module
 from typing import Optional, Tuple
 
 import torch
-import torch.nn as nn
 import yaml
 
+from openretina.modules.layers.ensemble import EnsembleModel
 from openretina.utils.file_utils import optionally_download
 from openretina.utils.misc import SafeLoaderWithTuple, tuple_constructor
 
@@ -290,44 +290,6 @@ def load_ensemble_retina_model_from_directory(
     data_info = data_info_list[0]
 
     return data_info, ensemble_model
-
-
-class EnsembleModel(nn.Module):
-    """An ensemble model consisting of several individual ensemble members.
-
-    Attributes:
-        *members: PyTorch modules representing the members of the ensemble.
-    """
-
-    _module_container_cls = nn.ModuleList
-
-    def __init__(self, *members: nn.Module):
-        """Initializes EnsembleModel."""
-        super().__init__()
-        self.members = self._module_container_cls(members)
-
-    def forward(self, x: torch.Tensor, *args, **kwargs) -> torch.Tensor:
-        """Calculates the forward pass through the ensemble.
-
-        The input is passed through all individual members of the ensemble and their outputs are averaged.
-
-        Args:
-            x: A tensor representing the input to the ensemble.
-            *args: Additional arguments will be passed to all ensemble members.
-            **kwargs: Additional keyword arguments will be passed to all ensemble members.
-
-        Returns:
-            A tensor representing the ensemble's output.
-        """
-        outputs = [m(x, *args, **kwargs) for m in self.members]
-        mean_output = torch.stack(outputs, dim=0).mean(dim=0)
-        return mean_output
-
-    def readout_keys(self) -> list[str]:
-        return self.members[0].readout_keys()  # type: ignore
-
-    def __repr__(self):
-        return f"{self.__class__.__qualname__}({', '.join(m.__repr__() for m in self.members)})"
 
 
 def load_ensemble_model_from_remote(

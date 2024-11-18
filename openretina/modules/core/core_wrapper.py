@@ -72,7 +72,7 @@ class CoreWrapper(torch.nn.Module):
                 layer["dropout"] = torch.nn.Dropout3d(p=dropout_rate)
             if maxpool_every_n_layers is not None and (layer_id % maxpool_every_n_layers) == 0:
                 layer["pool"] = torch.nn.MaxPool3d((1, 2, 2))
-            self.features.add_module(f"layer{layer_id}", nn.Sequential(layer))  # type: ignore
+            self.features.add_module(f"layer{layer_id}", torch.nn.Sequential(layer))  # type: ignore
 
     def forward(self, input_: torch.Tensor) -> torch.Tensor:
         if self._downsample_input_kernel_size is not None:

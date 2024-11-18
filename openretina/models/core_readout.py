@@ -8,9 +8,8 @@ from lightning.pytorch.utilities import grad_norm
 from openretina.data_io.dataloaders import DataPoint
 from openretina.modules.core.core_wrapper import CoreWrapper
 from openretina.modules.readout.session_wrapper import ReadoutWrapper
-from openretina.modules.losses.correlation import CorrelationLoss3d
-from openretina.modules.losses.poisson import PoissonLoss3d
-from openretina.modules.core.gru_core import ConvGRUCore
+from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
+# from openretina.modules.core.gru_core import ConvGRUCore
 
 
 class CoreReadout(lightning.LightningModule):

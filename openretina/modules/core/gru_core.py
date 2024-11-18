@@ -5,45 +5,19 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from openretina.data_io.hoefling_2024 import (
-    Bias3DLayer,
-    Core3d,
-    FlatLaplaceL23dnorm,
-    Scale2DLayer,
-    Scale3DLayer,
-    STSeparableBatchConv3d,
-    TimeIndependentConv3D,
-    TimeLaplaceL23dnorm,
-    TorchFullConv3D,
-    TorchSTSeparableConv3D,
-    compute_temporal_kernel,
-    temporal_smoothing,
-)
+from openretina.modules.layers.laplace import TimeLaplaceL23dnorm
+from openretina.modules.core.space_time_separable_conv import STSeparableBatchConv3d, compute_temporal_kernel
+from openretina.modules.layers import Scale3DLayer, Scale2DLayer, Bias3DLayer
+#from openretina.data_io.hoefling_2024 import (
+#    Core3d,
+#    FlatLaplaceL23dnorm,
+#    TimeIndependentConv3D,
+#    TorchFullConv3D,
+#    TorchSTSeparableConv3D,
+#    temporal_smoothing,
+#)
 
-
-class RNNCore:
-    """
-    RNN Core taken from: https://github.com/sinzlab/Sinz2018_NIPS/blob/master/nips2018/architectures/cores.py
-    """
-
-    @staticmethod
-    def init_conv(m):
-        if isinstance(m, nn.Conv2d):
-            nn.init.xavier_normal(m.weight.data)
-            if m.bias is not None:
-                nn.init.constant(m.bias.data, 0.0)
-
-    def __repr__(self):
-        s = super().__repr__()
-        s += f" [{self.__class__.__name__} regularizers: "
-        ret = [
-            f"{attr} = {getattr(self, attr)}"
-            for attr in filter(lambda x: not x.startswith("_") and "gamma" in x, dir(self))
-        ]
-        return s + "|".join(ret) + "]\n"
-
-
-class ConvGRUCell(RNNCore, nn.Module):
+class ConvGRUCell(nn.Module):
     """
     Convolutional GRU cell from: https://github.com/sinzlab/Sinz2018_NIPS/blob/master/nips2018/architectures/cores.py
     """
@@ -154,6 +128,22 @@ class ConvGRUCell(RNNCore, nn.Module):
             + self.update_gate_hidden.weight.abs().mean() / 3
             + self.out_gate_hidden.bias.abs().mean() / 3  # type: ignore
         )
+
+    def __repr__(self):
+        s = super().__repr__()
+        s += f" [{self.__class__.__name__} regularizers: "
+        ret = [
+            f"{attr} = {getattr(self, attr)}"
+            for attr in filter(lambda x: not x.startswith("_") and "gamma" in x, dir(self))
+        ]
+        return s + "|".join(ret) + "]\n"
+
+    @staticmethod
+    def init_conv(m):
+        if isinstance(m, nn.Conv2d):
+            nn.init.xavier_normal(m.weight.data)
+            if m.bias is not None:
+                nn.init.constant(m.bias.data, 0.0)
 
 
 class GRU_Module(nn.Module):

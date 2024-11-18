@@ -3,7 +3,6 @@ Adapted from sinzlab/neuralpredictors/training/cyclers.py
 """
 
 import random
-from typing import Dict
 
 import torch.utils.data
 from torch.utils.data import DataLoader
@@ -24,12 +23,12 @@ def cycle(iterable):
 
 class LongCycler(torch.utils.data.IterableDataset):
     """
-    Cycles through a dictionary of trainloaders until the loader with the largest size is exhausted.
-    In pracice, takes one batch from each loader in each iteration.
-    Needed for dataloaders of unequal size (as in the monkey data).
+    Cycles through a dictionary of data loaders until the loader with the largest size is exhausted.
+    In practice, takes one batch from each loader in each iteration.
+    Necessary for dataloaders of unequal size.
     """
 
-    def __init__(self, loaders: Dict[str, DataLoader], shuffle: bool = True):
+    def __init__(self, loaders: dict[str, DataLoader], shuffle: bool = True):
         self.loaders = loaders
         self.max_batches = max(len(loader) for loader in self.loaders.values())
         self.shuffle = shuffle
@@ -46,6 +45,3 @@ class LongCycler(torch.utils.data.IterableDataset):
             range(len(self.loaders) * self.max_batches),
         ):
             yield k, next(loader)
-
-    def __len__(self):
-        return len(self.loaders) * self.max_batches

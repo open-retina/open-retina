@@ -13,7 +13,16 @@ DataPoint = namedtuple("DataPoint", ("inputs", "targets"))
 
 
 class MovieDataSet(Dataset):
-    def __init__(self, movies, responses, roi_ids, roi_coords, group_assignment, split, chunk_size):
+    def __init__(
+            self,
+            movies,
+            responses,
+            roi_ids,
+            roi_coords,
+            group_assignment,
+            split: str,
+            chunk_size
+    ):
         # Will only be a dictionary for certain types of datasets, i.e. Hoefling 2022
         if split == "test" and isinstance(responses, dict):
             self.samples = movies, responses["avg"]
@@ -62,7 +71,15 @@ class MovieDataSet(Dataset):
 
 
 class MovieSampler(Sampler):
-    def __init__(self, start_indices, split, chunk_size, movie_length, scene_length=None, allow_over_boundaries=False):
+    def __init__(
+            self,
+            start_indices,
+            split,
+            chunk_size,
+            movie_length,
+            scene_length=None,
+            allow_over_boundaries=False
+    ):
         self.indices = start_indices
         self.split = split
         self.chunk_size = chunk_size
@@ -190,7 +207,7 @@ def get_movie_dataloader(
     )
 
 
-def get_dims_for_loader_dict(dataloaders: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Tuple[int, ...]] | Tuple]:
+def get_dims_for_loader_dict(dataloaders: dict[str, Dict[str, Any]]) -> dict[str, dict[str, tuple[int, ...]] | tuple]:
     """
     Borrowed from nnfabrik/utility/nn_helpers.py.
 
@@ -206,7 +223,7 @@ def get_dims_for_loader_dict(dataloaders: Dict[str, Dict[str, Any]]) -> Dict[str
     return {k: get_io_dims(v) for k, v in dataloaders.items()}
 
 
-def get_io_dims(data_loader) -> Dict[str, Tuple[int, ...]] | Tuple:
+def get_io_dims(data_loader) -> dict[str, tuple[int, ...]] | tuple:
     """
     Borrowed from nnfabrik/utility/nn_helpers.py.
 
@@ -272,8 +289,8 @@ def filter_different_size(batch):
 
 
 def extract_data_info_from_dataloaders(
-    dataloaders: Dict[str, Dict[str, Any]] | Dict[str, Any],
-) -> Dict[str, Dict[str, Any]]:
+    dataloaders: dict[str, dict[str, Any]] | dict[str, Any],
+) -> dict[str, dict[str, Any]]:
     """
     Extracts the data_info dictionary from the provided dataloaders.
     Args:
@@ -292,7 +309,7 @@ def extract_data_info_from_dataloaders(
     session_shape_dict = get_dims_for_loader_dict(dataloaders)
 
     # Initialize the new structure
-    data_info: Dict[str, Dict[str, Any]] = {k: {} for k in session_shape_dict.keys()}
+    data_info: dict[str, Dict[str, Any]] = {k: {} for k in session_shape_dict.keys()}
 
     # Populate the new structure
     for session_key, shapes in session_shape_dict.items():
