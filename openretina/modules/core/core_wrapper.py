@@ -1,8 +1,10 @@
-from collections import OrderedDict
 import os
+from collections import OrderedDict
 
 import torch
+
 from openretina.modules.layers.linear import Bias3DLayer
+
 from .space_time_separable_conv import STSeparableBatchConv3d
 
 
@@ -16,17 +18,17 @@ def temporal_smoothing(sin: torch.Tensor, cos: torch.Tensor) -> torch.Tensor:
 
 class CoreWrapper(torch.nn.Module):
     def __init__(
-            self,
-            channels: tuple[int, ...],
-            temporal_kernel_sizes: tuple[int, ...],
-            spatial_kernel_sizes: tuple[int, ...],
-            gamma_input: float = 0.3,
-            gamma_temporal: float = 40.0,
-            gamma_in_sparse: float = 1.0,
-            dropout_rate: float = 0.0,
-            cut_first_n_frames: int = 30,
-            maxpool_every_n_layers: int | None = None,
-            downsample_input_kernel_size: tuple[int, int, int] | None = None,
+        self,
+        channels: tuple[int, ...],
+        temporal_kernel_sizes: tuple[int, ...],
+        spatial_kernel_sizes: tuple[int, ...],
+        gamma_input: float = 0.3,
+        gamma_temporal: float = 40.0,
+        gamma_in_sparse: float = 1.0,
+        dropout_rate: float = 0.0,
+        cut_first_n_frames: int = 30,
+        maxpool_every_n_layers: int | None = None,
+        downsample_input_kernel_size: tuple[int, int, int] | None = None,
     ):
         # Input validation
         if len(channels) < 2:

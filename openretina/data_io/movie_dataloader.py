@@ -1,15 +1,26 @@
 import bisect
-from collections import namedtuple
-from typing import Any, Dict, Literal, Optional, Tuple
+from dataclasses import dataclass
+from typing import Literal, Optional
 
 import numpy as np
 import torch
 from jaxtyping import Float
-from torch.utils.data import DataLoader, Dataset, Sampler, default_collate
+from torch.utils.data import DataLoader, Dataset, Sampler
 
 from openretina.data_io.hoefling_2024.constants import SCENE_LENGTH
 
-DataPoint = namedtuple("DataPoint", ("inputs", "targets"))
+
+@dataclass
+class DataPoint:
+    inputs: torch.Tensor
+    targets: torch.Tensor
+
+
+@dataclass
+class MoviesTrainTestSplit:
+    train: np.ndarray
+    test: np.ndarray
+    random_sequences: Optional[np.ndarray]
 
 
 class MovieDataSet(Dataset):
@@ -49,9 +60,9 @@ class MovieDataSet(Dataset):
         self,
         movies: Float[np.ndarray | torch.Tensor, "n_channels n_frames h w"],
         responses: Float[np.ndarray, "n_frames n_neurons"],
-        roi_ids: Optional[Float[np.ndarray, " n_neurons"]],
-        roi_coords: Optional[Float[np.ndarray, "n_neurons 2"]],
-        group_assignment: Optional[Float[np.ndarray, " n_neurons"]],
+        roi_ids: Float[np.ndarray, " n_neurons"] | None,
+        roi_coords: Float[np.ndarray, "n_neurons 2"] | None,
+        group_assignment: Float[np.ndarray, " n_neurons"] | None,
         split: str | Literal["train", "validation", "val", "test"],
         chunk_size: int,
     ):
@@ -102,6 +113,42 @@ class MovieDataSet(Dataset):
         return str(self)
 
 
+def generate_movie_splits(
+    movie_train,
+    movie_test,
+    val_clip_idx: list[int] | None,
+    num_clips: int,
+    num_val_clips: int,
+    clip_length: int,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, list[int]]:
+    if val_clip_idx is None:
+        val_clip_idx = list(np.sort(np.random.choice(num_clips, num_val_clips, replace=False)))
+
+    movie_train = torch.tensor(movie_train, dtype=torch.float)
+    movie_test = torch.tensor(movie_test, dtype=torch.float)
+
+    channels, _, px_y, px_x = movie_train.shape
+
+    # Prepare validation movie data
+    movie_val = torch.zeros((channels, len(val_clip_idx) * clip_length, px_y, px_x), dtype=torch.float)
+    for i, ind in enumerate(val_clip_idx):
+        movie_val[:, i * clip_length : (i + 1) * clip_length, ...] = movie_train[
+            :, ind * clip_length : (ind + 1) * clip_length, ...
+        ]
+
+    # Create a boolean mask to indicate which clips are not part of the validation set
+    mask = np.ones(num_clips, dtype=bool)
+    mask[val_clip_idx] = False
+    train_clip_idx = np.arange(num_clips)[mask]
+
+    movie_train_subset = torch.cat(
+        [movie_train[:, i * clip_length : (i + 1) * clip_length] for i in train_clip_idx],
+        dim=1,
+    )
+
+    return movie_train_subset, movie_val, movie_test, val_clip_idx
+
+
 class MovieSampler(Sampler):
     """
     A custom sampler for selecting movie frames for training, validation, or testing.
@@ -138,6 +185,7 @@ class MovieSampler(Sampler):
         scene_length: Optional[int] = None,
         allow_over_boundaries: bool = False,
     ):
+        super().__init__()
         self.indices = start_indices
         self.split = split
         self.chunk_size = chunk_size
@@ -209,16 +257,61 @@ def gen_shifts_with_boundaries(
     return shifted_indices
 
 
+def handle_missing_start_indices(
+    movies: dict | np.ndarray | torch.Tensor, chunk_size: int | None, scene_length: int | None, split: str
+):
+    """
+    Handle missing start indices for different splits of the dataset.
+
+    Parameters:
+    movies (dict or np.ndarray): The movies data, either as a dictionary of arrays or a single array.
+    chunk_size (int or None): The size of each chunk for training split. Required if split is "train".
+    scene_length (int or None): The length of each scene. Required if split is "validation" or "val".
+    split (str): The type of split, one of "train", "validation", "val", or "test".
+
+    Returns:
+    dict or list: The generated or provided start indices for each movie.
+
+    Raises:
+    AssertionError: If chunk_size is not provided for training split when start_indices is None.
+    AssertionError: If scene_length is not provided for validation split when start_indices is None.
+    NotImplementedError: If start_indices is None and split is not one of "train", "validation", "val", or "test".
+    """
+
+    def get_chunking_interval(split_name):
+        if split_name == "train":
+            assert chunk_size is not None, "Chunk size or start indices must be provided for training."
+            return chunk_size
+        elif split_name in {"validation", "val"}:
+            assert scene_length is not None, "Scene length or start indices must be provided for validation."
+            return scene_length
+        elif split_name == "test":
+            return None
+        else:
+            raise NotImplementedError("Start indices could not be recovered.")
+
+    interval = get_chunking_interval(split)
+
+    if isinstance(movies, dict):
+        if split == "test":
+            return {k: [0] for k in movies.keys()}
+        return {k: np.arange(0, movies[k].shape[1], interval).tolist() for k in movies.keys()}
+    else:
+        if split == "test":
+            return [0]
+        return np.arange(0, movies.shape[1], interval).tolist()
+
+
 def get_movie_dataloader(
     movies: np.ndarray | torch.Tensor | dict[int, np.ndarray],
     responses: Float[np.ndarray, "n_frames n_neurons"],
     *,
     split: str | Literal["train", "validation", "val", "test"],
-    start_indices: Optional[list[int] | Dict[int, list[int]]] = None,
-    roi_ids: Optional[Float[np.ndarray, " n_neurons"]] = None,
-    roi_coords: Optional[Float[np.ndarray, "n_neurons 2"]] = None,
-    group_assignment: Optional[Float[np.ndarray, " n_neurons"]] = None,
-    scan_sequence_idx: Optional[int] = None,
+    start_indices: list[int] | dict[int, list[int]] | None = None,
+    roi_ids: Float[np.ndarray, " n_neurons"] | None = None,
+    roi_coords: Float[np.ndarray, "n_neurons 2"] | None = None,
+    group_assignment: Float[np.ndarray, " n_neurons"] | None = None,
+    scan_sequence_idx: int | None = None,
     chunk_size: int = 50,
     batch_size: int = 32,
     scene_length: Optional[int] = None,
@@ -270,166 +363,3 @@ def get_movie_dataloader(
     return DataLoader(
         dataset, sampler=sampler, batch_size=batch_size, drop_last=split == "train" and drop_last, **kwargs
     )
-
-
-<<<<<<< HEAD:openretina/data_io/dataloaders.py
-def get_dims_for_loader_dict(dataloaders: dict[str, Dict[str, Any]]) -> dict[str, dict[str, tuple[int, ...]] | tuple]:
-=======
-def handle_missing_start_indices(
-    movies: dict | np.ndarray | torch.Tensor, chunk_size: Optional[int], scene_length: Optional[int], split: str
-):
-    """
-    Handle missing start indices for different splits of the dataset.
-
-    Parameters:
-    movies (dict or np.ndarray): The movies data, either as a dictionary of arrays or a single array.
-    chunk_size (int or None): The size of each chunk for training split. Required if split is "train".
-    scene_length (int or None): The length of each scene. Required if split is "validation" or "val".
-    split (str): The type of split, one of "train", "validation", "val", or "test".
-
-    Returns:
-    dict or list: The generated or provided start indices for each movie.
-
-    Raises:
-    AssertionError: If chunk_size is not provided for training split when start_indices is None.
-    AssertionError: If scene_length is not provided for validation split when start_indices is None.
-    NotImplementedError: If start_indices is None and split is not one of "train", "validation", "val", or "test".
-    """
-
-    def get_chunking_interval(split_name):
-        if split_name == "train":
-            assert chunk_size is not None, "Chunk size or start indices must be provided for training."
-            return chunk_size
-        elif split_name in {"validation", "val"}:
-            assert scene_length is not None, "Scene length or start indices must be provided for validation."
-            return scene_length
-        elif split_name == "test":
-            return None
-        else:
-            raise NotImplementedError("Start indices could not be recovered.")
-
-    interval = get_chunking_interval(split)
-
-    if isinstance(movies, dict):
-        if split == "test":
-            return {k: [0] for k in movies.keys()}
-        return {k: np.arange(0, movies[k].shape[1], interval).tolist() for k in movies.keys()}
-    else:
-        if split == "test":
-            return [0]
-        return np.arange(0, movies.shape[1], interval).tolist()
-
-
-def get_dims_for_loader_dict(dataloaders: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Tuple[int, ...]] | Tuple]:
-    """
-    Borrowed from nnfabrik/utility/nn_helpers.py.
-
-    Given a dictionary of DataLoaders, returns a dictionary with same keys as the
-    input and shape information (as returned by `get_io_dims`) on each keyed DataLoader.
-
-    Args:
-        dataloaders (dict of DataLoader): Dictionary of dataloaders.
-
-    Returns:
-        dict: A dict containing the result of calling `get_io_dims` for each entry of the input dict
-    """
-    return {k: get_io_dims(v) for k, v in dataloaders.items()}
-
-
-def get_io_dims(data_loader) -> dict[str, tuple[int, ...]] | tuple:
-    """
-    Borrowed from nnfabrik/utility/nn_helpers.py.
-
-    Returns the shape of the dataset for each item within an entry returned by the `data_loader`
-    The DataLoader object must return either a namedtuple, dictionary or a plain tuple.
-    If `data_loader` entry is a namedtuple or a dictionary, a dictionary with the same keys as the
-    namedtuple/dict item is returned, where values are the shape of the entry. Otherwise, a tuple of
-    shape information is returned.
-
-    Note that the first dimension is always the batch dim with size depending on the data_loader configuration.
-
-    Args:
-        data_loader (torch.DataLoader): is expected to be a pytorch Dataloader object returning
-            either a namedtuple, dictionary, or a plain tuple.
-    Returns:
-        dict or tuple: If data_loader element is either namedtuple or dictionary, a ditionary
-            of shape information, keyed for each entry of dataset is returned. Otherwise, a tuple
-            of shape information is returned. The first dimension is always the batch dim
-            with size depending on the data_loader configuration.
-    """
-    items = next(iter(data_loader))
-    if hasattr(items, "_asdict"):  # if it's a named tuple
-        items = items._asdict()
-
-    if hasattr(items, "items"):  # if dict like
-        return {k: v.shape for k, v in items.items() if isinstance(v, (torch.Tensor, np.ndarray))}
-    else:
-        return tuple(v.shape for v in items)
-
-
-def filter_nan_collate(batch):
-    """
-    Filters out batches containing NaN values and then calls the default_collate function.
-    Can happen for inferred spikes exported with CASCADE.
-    To be used as a collate_fn in a DataLoader.
-
-    Args:
-        batch (list): A list of tuples representing the batch.
-
-    Returns:
-        tuple of torch.Tensor: The collated batch after filtering out NaN values.
-
-    """
-    batch = list(filter(lambda x: not np.isnan(x[1]).any(), batch))
-    return default_collate(batch)
-
-
-def filter_different_size(batch):
-    """
-    Filters out batches that do not have the same shape as most of the other batches.
-    """
-    # Get the shapes of all the elements in the batch
-    shapes = [element[1].shape for element in batch]
-
-    # Find the most common shape in the batch
-    most_common_shape = max(set(shapes), key=shapes.count)
-
-    # Filter out elements that do not have the most common shape
-    filtered_batch = [element for element in batch if element[1].shape == most_common_shape]
-
-    # If the filtered batch is empty, return None
-    return default_collate(filtered_batch) if filtered_batch else None
-
-
-def extract_data_info_from_dataloaders(
-    dataloaders: dict[str, dict[str, Any]] | dict[str, Any],
-) -> dict[str, dict[str, Any]]:
-    """
-    Extracts the data_info dictionary from the provided dataloaders.
-    Args:
-        dataloaders: A dictionary of dataloaders for different sessions.
-    Returns:
-        data_info: A dictionary containing input_dimensions, input_channels, and output_dimension for each session,
-                   nested with these attributes as the first level keys and sessions as the second level.
-    """
-    # Ensure train loader is used if available and not provided directly
-    dataloaders = dataloaders.get("train", dataloaders)
-
-    # Obtain the named tuple fields from the first entry of the first dataloader in the dictionary
-    in_name, out_name, *_ = next(iter(list(dataloaders.values())[0]))._fields  # type: ignore
-
-    # Get the input and output dimensions for each session
-    session_shape_dict = get_dims_for_loader_dict(dataloaders)
-
-    # Initialize the new structure
-    data_info: dict[str, Dict[str, Any]] = {k: {} for k in session_shape_dict.keys()}
-
-    # Populate the new structure
-    for session_key, shapes in session_shape_dict.items():
-        data_info[session_key]["input_dimensions"] = shapes[in_name]
-        data_info[session_key]["input_channels"] = shapes[in_name][1]
-        data_info[session_key]["output_dimension"] = shapes[out_name][-1]
-        data_info[session_key]["mean_response"] = np.array(dataloaders[session_key].dataset.mean_response)  # type: ignore
-        data_info[session_key]["roi_coords"] = np.array(dataloaders[session_key].dataset.roi_coords)  # type: ignore
-
-    return data_info

@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from openretina.legacy.configs import STIMULUS_RANGE_CONSTRAINTS
+from openretina.legacy.hoefling_configs import STIMULUS_RANGE_CONSTRAINTS
 from openretina.model_analysis.stimulus_optimization.objective import MeanReducer, SingleNeuronObjective
 from openretina.model_analysis.stimulus_optimization.optimization_stopper import OptimizationStopper
 from openretina.model_analysis.stimulus_optimization.optimizer import optimize_stimulus

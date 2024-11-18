@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from matplotlib.colors import Normalize
 
-from openretina.data_io.dataloaders import get_dims_for_loader_dict
+from openretina.data_io.hoefling_2024.dataloaders import get_dims_for_loader_dict
 from openretina.utils.misc import set_seed
 
 

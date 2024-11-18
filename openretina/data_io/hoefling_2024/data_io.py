@@ -1,58 +1,14 @@
-from typing import Any, List, Optional, TypedDict
+from typing import Any, List, Optional
 
 import numpy as np
 import torch
 from tqdm.auto import tqdm
 
-from openretina.data_io.dataloaders import get_movie_dataloader
-from openretina.data_io.neuron_data_io import NeuronData
+from openretina.data_io.hoefling_2024.neuron_data_io import NeuronData
+from openretina.data_io.movie_dataloader import MoviesTrainTestSplit, generate_movie_splits, get_movie_dataloader
 from openretina.data_io.stimuli import load_chirp, load_moving_bar
 
 from .constants import CLIP_LENGTH, NUM_CLIPS, NUM_VAL_CLIPS
-
-
-class MoviesDict(TypedDict):
-    train: np.ndarray
-    test: np.ndarray
-    random_sequences: Optional[np.ndarray]
-
-
-def generate_movie_splits(
-    movie_train,
-    movie_test,
-    val_clip_idx: Optional[List[int]] = None,
-    num_clips: int = NUM_CLIPS,
-    num_val_clips: int = NUM_VAL_CLIPS,
-    clip_length: int = CLIP_LENGTH,
-    seed=1000,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, List[int]]:
-    if val_clip_idx is None:
-        rnd = np.random.RandomState(seed)
-        val_clip_idx = list(np.sort(rnd.choice(num_clips, num_val_clips, replace=False)))
-
-    movie_train = torch.tensor(movie_train, dtype=torch.float)
-    movie_test = torch.tensor(movie_test, dtype=torch.float)
-
-    channels, _, px_y, px_x = movie_train.shape
-
-    # Prepare validation movie data
-    movie_val = torch.zeros((channels, len(val_clip_idx) * clip_length, px_y, px_x), dtype=torch.float)
-    for i, ind in enumerate(val_clip_idx):
-        movie_val[:, i * clip_length : (i + 1) * clip_length, ...] = movie_train[
-            :, ind * clip_length : (ind + 1) * clip_length, ...
-        ]
-
-    # Create a boolean mask to indicate which clips are not part of the validation set
-    mask = np.ones(num_clips, dtype=bool)
-    mask[val_clip_idx] = False
-    train_clip_idx = np.arange(num_clips)[mask]
-
-    movie_train_subset = torch.cat(
-        [movie_train[:, i * clip_length : (i + 1) * clip_length] for i in train_clip_idx],
-        dim=1,
-    )
-
-    return movie_train_subset, movie_val, movie_test, val_clip_idx
 
 
 # Helper function to assemble the datasets
@@ -62,7 +18,7 @@ def apply_random_sequences(
     movie_val,
     movie_test,
     random_sequences: np.ndarray,
-    val_clip_idx: List[int],
+    val_clip_idx: list[int],
     clip_length: int,
 ):
     movies = {
@@ -100,7 +56,6 @@ def get_all_movie_combinations(
     num_clips: int = NUM_CLIPS,
     num_val_clips: int = NUM_VAL_CLIPS,
     clip_length: int = CLIP_LENGTH,
-    seed: int = 1000,
 ):
     """
     Generates combinations of movie data for 'left' and 'right' perspectives and
@@ -112,7 +67,6 @@ def get_all_movie_combinations(
     - movie_test: Tensor representing the test movie data.
     - random_sequences: Numpy array of random sequences for reordering training movies.
     - val_clip_idx: list of indices for validation clips. Needs to be between 0 and the number of clips.
-    - seed: seed for random number generator, if val_clip_idx is None.
 
     Returns:
     - movies: Dictionary with processed movies for 'left' and 'right' perspectives, each
@@ -121,7 +75,7 @@ def get_all_movie_combinations(
 
     # Generate train, validation, and test datasets
     movie_train_subset, movie_val, movie_test, val_clip_idx = generate_movie_splits(
-        movie_train, movie_test, val_clip_idx, num_clips, num_val_clips, clip_length, seed
+        movie_train, movie_test, val_clip_idx, num_clips, num_val_clips, clip_length
     )
 
     # Assemble datasets into the final movies structure using the random sequences
@@ -138,7 +92,9 @@ def get_all_movie_combinations(
     return movies
 
 
-def gen_start_indices(random_sequences, val_clip_idx, clip_length, chunk_size, num_clips):
+def gen_start_indices(
+    random_sequences: np.ndarray, val_clip_idx: list[int], clip_length: int, chunk_size: int, num_clips: int
+):
     """
     Optimized function to generate a list of indices for training chunks while
     excluding validation clips.
@@ -165,7 +121,7 @@ def gen_start_indices(random_sequences, val_clip_idx, clip_length, chunk_size, n
         start_idx_dict["train"] = list(np.arange(0, clip_length * (num_train_clips - 1), chunk_size, dtype=int))
     else:
         for sequence_index in range(random_sequences.shape[1]):
-            start_idx_dict["train"][sequence_index] = list(
+            start_idx_dict["train"][sequence_index] = list(  # type: ignore
                 np.arange(0, clip_length * (num_train_clips - 1), chunk_size, dtype=int)
             )
 
@@ -173,51 +129,42 @@ def gen_start_indices(random_sequences, val_clip_idx, clip_length, chunk_size, n
 
 
 def natmov_dataloaders_v2(
-    neuron_data_dictionary,
-    movies_dictionary: MoviesDict,
+    neuron_data_dictionary: dict[str, Any],
+    movies_dictionary: MoviesTrainTestSplit,
     train_chunk_size: int = 50,
     batch_size: int = 32,
-    seed: int = 42,
     num_clips: int = NUM_CLIPS,
     clip_length: int = CLIP_LENGTH,
     num_val_clips: int = NUM_VAL_CLIPS,
 ):
-    assert isinstance(
-        neuron_data_dictionary, dict
-    ), "neuron_data_dictionary should be a dictionary of sessions and their corresponding neuron data."
-    assert (
-        isinstance(movies_dictionary, dict) and "train" in movies_dictionary and "test" in movies_dictionary
-    ), "movies_dictionary should be a dictionary with keys 'train' and 'test'."
     assert all(field in next(iter(neuron_data_dictionary.values())) for field in ["responses_final", "stim_id"]), (
         "Check the neuron data dictionary sub-dictionaries for the minimal"
         " required fields: 'responses_final' and 'stim_id'."
     )
-
     assert (
         next(iter(neuron_data_dictionary.values()))["stim_id"] == 5
     ), "This function only supports natural movie stimuli."
 
     # Draw validation clips based on the random seed
-    rnd = np.random.RandomState(seed)
-    val_clip_idx = list(rnd.choice(num_clips, num_val_clips, replace=False))
+    val_clip_idx = list(np.random.choice(num_clips, num_val_clips, replace=False))
 
     clip_chunk_sizes = {
         "train": train_chunk_size,
         "validation": clip_length,
-        "test": movies_dictionary["test"].shape[1],
+        "test": movies_dictionary.test.shape[1],
     }
     dataloaders: dict[str, Any] = {"train": {}, "validation": {}, "test": {}}
 
     # Get the random sequences of movies presentations for each session if available
-    if "random_sequences" not in movies_dictionary or movies_dictionary["random_sequences"] is None:
-        movie_length = movies_dictionary["train"].shape[1]
+    if movies_dictionary.random_sequences is None:
+        movie_length = movies_dictionary.train.shape[1]
         random_sequences = np.arange(0, movie_length // clip_length)[:, np.newaxis]
     else:
-        random_sequences = movies_dictionary["random_sequences"]
+        random_sequences = movies_dictionary.random_sequences
 
     movies = get_all_movie_combinations(
-        movies_dictionary["train"],
-        movies_dictionary["test"],
+        movies_dictionary.train,
+        movies_dictionary.test,
         random_sequences,
         val_clip_idx=val_clip_idx,
         num_clips=num_clips,

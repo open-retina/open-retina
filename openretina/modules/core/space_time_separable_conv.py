@@ -1,14 +1,12 @@
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from matplotlib.colors import Normalize
 from torch.functional import F
-import matplotlib.pyplot as plt
 
 
 def compute_temporal_kernel(
-        log_speed: torch.Tensor,
-        sin_weights: torch.Tensor,
-        cos_weights: torch.Tensor,
-        length: int
+    log_speed: torch.Tensor, sin_weights: torch.Tensor, cos_weights: torch.Tensor, length: int
 ) -> torch.Tensor:
     """
     Computes the temporal kernel for the convolution.
@@ -50,17 +48,17 @@ class STSeparableBatchConv3d(torch.nn.Module):
     """
 
     def __init__(
-            self,
-            in_channels: int,
-            out_channels: int,
-            log_speed_dict: dict,
-            temporal_kernel_size: int,
-            spatial_kernel_size: int,
-            spatial_kernel_size2: int | None = None,
-            stride: int | tuple[int, int, int] = 1,
-            padding: int | str | tuple[int, ...] = 0,
-            num_scans: int = 1,
-            bias: bool = True,
+        self,
+        in_channels: int,
+        out_channels: int,
+        log_speed_dict: dict,
+        temporal_kernel_size: int,
+        spatial_kernel_size: int,
+        spatial_kernel_size2: int | None = None,
+        stride: int | tuple[int, int, int] = 1,
+        padding: int | str | tuple[int, ...] = 0,
+        num_scans: int = 1,
+        bias: bool = True,
     ):
         """
         Initializes the STSeparableBatchConv3d layer.
@@ -208,7 +206,7 @@ class STSeparableBatchConv3d(torch.nn.Module):
 
     @staticmethod
     def temporal_weights(
-            length: int, num_channels: int, num_feat: int, scale: float = 0.01
+        length: int, num_channels: int, num_feat: int, scale: float = 0.01
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Generates initial weights for the temporal components of the convolution.

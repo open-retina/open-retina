@@ -12,9 +12,9 @@ from omegaconf import DictConfig, OmegaConf
 
 from openretina.data_io.cyclers import LongCycler
 from openretina.data_io.hoefling_2024.data_io import natmov_dataloaders_v2
+from openretina.data_io.hoefling_2024.neuron_data_io import filter_responses, make_final_responses
 from openretina.models.core_readout import CoreReadout
 from openretina.models.model_utils import OptimizerResetCallback
-from openretina.data_io.neuron_data_io import filter_responses, make_final_responses
 from openretina.utils.h5_handling import load_h5_into_dict
 
 
@@ -31,7 +31,7 @@ def main(conf: DictConfig) -> None:
     filtered_responses = filter_responses(responses, **OmegaConf.to_object(conf.quality_checks))  # type: ignore
 
     data_dict = make_final_responses(filtered_responses, response_type="natural")  # type: ignore
-    dataloaders = natmov_dataloaders_v2(data_dict, movies_dictionary=movies_dict, train_chunk_size=100, seed=1000)
+    dataloaders = natmov_dataloaders_v2(data_dict, movies_dictionary=movies_dict, train_chunk_size=100)
 
     # when num_workers > 0 the docker container needs more shared memory
     train_loader = torch.utils.data.DataLoader(LongCycler(dataloaders["train"], shuffle=True), **conf.dataloader)

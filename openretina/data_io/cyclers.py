@@ -47,6 +47,7 @@ class LongCycler(torch.utils.data.IterableDataset):
         if worker_info is None:  # Single-process data loading
             iter_start = 0
             iter_end = len(self.loaders) * self.max_batches
+            total_iterations = iter_end
         else:
             # Partition the iterations among the workers
             num_workers = worker_info.num_workers

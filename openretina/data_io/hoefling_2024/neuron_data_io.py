@@ -2,7 +2,7 @@ import pickle
 import warnings
 from collections import defaultdict, namedtuple
 from copy import deepcopy
-from typing import Dict, List, Literal, Optional, no_type_check
+from typing import Literal, Optional, no_type_check
 
 import numpy as np
 import torch
@@ -36,13 +36,13 @@ class NeuronGroupMembersStore:
         train_ratio: float = 0.8,
         validation_ratio: float = 0.1,
     ):
-        self._all_neurons: List[SingleNeuronInfoStruct] = []
-        self._group_to_neuron_dict: Dict[int, List[SingleNeuronInfoStruct]] = defaultdict(list)
+        self._all_neurons: list[SingleNeuronInfoStruct] = []
+        self._group_to_neuron_dict: dict[int, list[SingleNeuronInfoStruct]] = defaultdict(list)
         self._selection_keys = key
         self._train_ratio = train_ratio
         self._validation_ratio = validation_ratio
 
-    def initialize_groups(self, neuron_list: List[SingleNeuronInfoStruct]):
+    def initialize_groups(self, neuron_list: list[SingleNeuronInfoStruct]):
         for neuron_struct in neuron_list:
             self._group_to_neuron_dict[neuron_struct.celltype].append(neuron_struct)
         self._all_neurons = neuron_list
@@ -65,9 +65,9 @@ class NeuronGroupMembersStore:
         return obj
 
     def estimate_mean_and_variance_on_training_data(
-        self, dataloader_dict: Dict[str, torch.utils.data.dataloader.DataLoader]
+        self, dataloader_dict: dict[str, torch.utils.data.dataloader.DataLoader]
     ) -> None:
-        new_neuron_list: List[SingleNeuronInfoStruct] = []
+        new_neuron_list: list[SingleNeuronInfoStruct] = []
         for session_id, dataloader in dataloader_dict.items():
             batches_targets = torch.concat([x.targets for x in dataloader], dim=0)
             targets = torch.concat(list(batches_targets), dim=0)
@@ -107,7 +107,7 @@ class NeuronGroupMembersStore:
         group_id: int,
         min_confidence: float = 0.0,
         min_neurons_per_group: int = 1,
-    ) -> List[SingleNeuronInfoStruct]:
+    ) -> list[SingleNeuronInfoStruct]:
         neuron_list = self._group_to_neuron_dict[group_id]
         max_id = int(len(neuron_list) * self._train_ratio)
         neuron_list = neuron_list[:max_id]
@@ -118,7 +118,7 @@ class NeuronGroupMembersStore:
 
     def get_validation_samples_for_group(
         self, group_id: int, min_confidence: float = 0.0
-    ) -> List[SingleNeuronInfoStruct]:
+    ) -> list[SingleNeuronInfoStruct]:
         neuron_struct_list = self._group_to_neuron_dict[group_id]
         min_id = int(len(neuron_struct_list) * self._train_ratio)
         max_id = int(len(neuron_struct_list) * (self._train_ratio + self._validation_ratio))
@@ -126,7 +126,7 @@ class NeuronGroupMembersStore:
         neuron_struct_list = [n for n in neuron_struct_list if n.celltype_confidences.max() > min_confidence]
         return neuron_struct_list
 
-    def get_test_samples_for_group(self, group_id: int, min_confidence: float = 0.0) -> List[SingleNeuronInfoStruct]:
+    def get_test_samples_for_group(self, group_id: int, min_confidence: float = 0.0) -> list[SingleNeuronInfoStruct]:
         neuron_struct_list = self._group_to_neuron_dict[group_id]
         min_id = int(len(neuron_struct_list) * (self._train_ratio + self._validation_ratio))
         neuron_struct_list = neuron_struct_list[min_id:]
@@ -135,10 +135,10 @@ class NeuronGroupMembersStore:
 
     def get_all_training_samples(
         self,
-        list_of_ids: List[int],
+        list_of_ids: list[int],
         min_confidence: float = 0.0,
         min_neurons_per_group: int = 1,
-    ) -> List[SingleNeuronInfoStruct]:
+    ) -> list[SingleNeuronInfoStruct]:
         training_samples = sum(
             (
                 self.get_training_samples_for_group(
@@ -153,8 +153,8 @@ class NeuronGroupMembersStore:
         return training_samples
 
     def get_all_validation_samples(
-        self, list_of_ids: List[int], min_confidence: float = 0.0
-    ) -> List[SingleNeuronInfoStruct]:
+        self, list_of_ids: list[int], min_confidence: float = 0.0
+    ) -> list[SingleNeuronInfoStruct]:
         valid_samples = sum(
             (
                 self.get_validation_samples_for_group(group_id, min_confidence=min_confidence)
@@ -164,7 +164,7 @@ class NeuronGroupMembersStore:
         )
         return valid_samples
 
-    def get_all_test_samples(self, list_of_ids: List[int], min_confidence: float = 0.0) -> List[SingleNeuronInfoStruct]:
+    def get_all_test_samples(self, list_of_ids: list[int], min_confidence: float = 0.0) -> list[SingleNeuronInfoStruct]:
         test_samples = sum(
             (self.get_test_samples_for_group(group_id, min_confidence=min_confidence) for group_id in list_of_ids),
             [],
@@ -192,7 +192,7 @@ class NeuronData:
         self,
         responses_final: Float[np.ndarray, " n_neurons n_timepoints"],
         stim_id: Literal[5, 2, 1],
-        val_clip_idx: Optional[List[int]],
+        val_clip_idx: Optional[list[int]],
         num_clips: Optional[int],
         clip_length: Optional[int],
         roi_mask: Optional[Float[np.ndarray, "64 64"]] = None,
@@ -422,8 +422,6 @@ def upsample_traces(
         traces (list): List of traces.
         tracestimes (list): List of trace times.
         stim_id (int): Stimulus ID.
-        stim_framerate (int, optional): Frame rate of the stimulus.
-                                        Required for certain stimulus types like moving bar and chirp.
         target_fr (int, optional): Target frame rate for upsampling. Default is 30.
 
     Returns:
@@ -515,7 +513,7 @@ def _apply_qi_mask(data_dict, qi_types: list[str], qi_thresholds: list[float], l
         data_dict (dict): The data dictionary.
         qi_types (list): List of quality index types. Supported types are 'd' and 'chirp', corresponding to the
                         quality indices for the direction selectivity and chirp responses, respectively.
-        qi_threshold (list): List of quality index thresholds.
+        qi_thresholds (list): List of quality index thresholds.
         logic (str): The logic to combine different qi_types. Can be 'and' or 'or'. Default is 'and'.
 
     Returns:
@@ -556,7 +554,7 @@ def _clean_up_empty_fields(data_dict, check_field="group_assignment"):
     return {k: v for k, v in data_dict.items() if len(v[check_field]) > 0}
 
 
-def _mask_by_cell_type(data_dict, cell_types: List[int] | int):
+def _mask_by_cell_type(data_dict, cell_types: list[int] | int):
     if not isinstance(cell_types, list):
         if isinstance(cell_types, int):
             cell_types = [cell_types]
@@ -673,9 +671,9 @@ def make_final_responses(
 
 
 def filter_responses(
-    all_responses: Dict[str, dict],
+    all_responses: dict[str, dict],
     filter_cell_types: bool = False,
-    cell_types_list: Optional[List[int] | int] = None,
+    cell_types_list: Optional[list[int] | int] = None,
     chirp_qi: float = 0.35,
     d_qi: float = 0.6,
     qi_logic: Literal["and", "or"] = "or",
@@ -683,7 +681,7 @@ def filter_responses(
     count_threshold: int = 10,
     classifier_confidence: float = 0.25,
     verbose: bool = False,
-) -> Dict[str, dict]:
+) -> dict[str, dict]:
     """
     This function processes the input dictionary of neuron responses, applying various filters
     to exclude unwanted data based on the provided parameters. It can filter by cell types,

@@ -14,8 +14,8 @@ from matplotlib import animation
 from matplotlib.colors import Normalize
 from matplotlib.patches import Rectangle
 
-from openretina.legacy.configs import MEAN_STD_DICT_74x64, pre_normalisation_values_18x16
-from openretina.data_io.hoefling_2024 import FRAME_RATE_MODEL
+from openretina.data_io.hoefling_2024.constants import FRAME_RATE_MODEL
+from openretina.legacy.hoefling_configs import MEAN_STD_DICT_74x64, pre_normalisation_values_18x16
 from openretina.utils.video_analysis import calculate_fft, decompose_kernel, weighted_main_frequency
 
 # Longer animations

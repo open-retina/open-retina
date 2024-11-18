@@ -2,7 +2,6 @@ import numpy as np
 import torch
 from torch.functional import F
 
-
 # Laplace filters
 LAPLACE_1D = np.array([-1, 4, -1]).astype(np.float32)[None, None, ...]
 LAPLACE_3x3 = np.array([[0, -1, 0], [-1, 4, -1], [0, -1, 0]]).astype(np.float32)[None, None, ...]
@@ -34,9 +33,9 @@ class Laplace(torch.nn.Module):
     """
 
     def __init__(
-            self,
-            padding: int | None = None,
-            filter_size: int = 3,
+        self,
+        padding: int | None = None,
+        filter_size: int = 3,
     ):
         """Laplace filter for a stack of data"""
 

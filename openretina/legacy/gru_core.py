@@ -1,21 +1,21 @@
-from collections import OrderedDict
 from typing import Any, Dict, Optional
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from openretina.modules.layers.laplace import TimeLaplaceL23dnorm
+from openretina.data_io.hoefling_2024 import (
+    Core3d,
+    FlatLaplaceL23dnorm,
+    TimeIndependentConv3D,
+    TorchFullConv3D,
+    TorchSTSeparableConv3D,
+    temporal_smoothing,
+)
 from openretina.modules.core.space_time_separable_conv import STSeparableBatchConv3d, compute_temporal_kernel
-from openretina.modules.layers import Scale3DLayer, Scale2DLayer, Bias3DLayer
-#from openretina.data_io.hoefling_2024 import (
-#    Core3d,
-#    FlatLaplaceL23dnorm,
-#    TimeIndependentConv3D,
-#    TorchFullConv3D,
-#    TorchSTSeparableConv3D,
-#    temporal_smoothing,
-#)
+from openretina.modules.layers import Bias3DLayer, Scale2DLayer, Scale3DLayer
+from openretina.modules.layers.laplace import TimeLaplaceL23dnorm
+
 
 class ConvGRUCell(nn.Module):
     """
@@ -348,7 +348,7 @@ class ConvGRUCore(Core3d, nn.Module):
         log_speed_dict,
         batch_norm,
         batch_norm_momentum,
-        bias,
+        bias: bool,
         batch_norm_scale,
         final_nonlinearity,
         input_pad,

@@ -3,7 +3,7 @@ from typing import Optional
 import pytest
 import torch
 
-from openretina.data_io.hoefling_2024 import Center, load_ensemble_model_from_remote
+from openretina.legacy.nnfabrik_model_loading import Center, load_ensemble_model_from_remote
 
 
 @pytest.mark.parametrize(
