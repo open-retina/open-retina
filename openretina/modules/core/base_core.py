@@ -2,10 +2,10 @@ import os
 from collections import OrderedDict
 
 import torch
+import torch.nn as nn
 
-from openretina.modules.layers.linear import Bias3DLayer
-
-from .space_time_separable_conv import STSeparableBatchConv3d
+from openretina.modules.layers.convolutions import STSeparableBatchConv3d
+from openretina.modules.layers.scaling import Bias3DLayer
 
 
 def temporal_smoothing(sin: torch.Tensor, cos: torch.Tensor) -> torch.Tensor:
@@ -16,7 +16,7 @@ def temporal_smoothing(sin: torch.Tensor, cos: torch.Tensor) -> torch.Tensor:
     return reg
 
 
-class CoreWrapper(torch.nn.Module):
+class SimpleCoreWrapper(torch.nn.Module):
     def __init__(
         self,
         channels: tuple[int, ...],
@@ -113,3 +113,27 @@ class CoreWrapper(torch.nn.Module):
             os.makedirs(output_dir, exist_ok=True)
             layer.conv.save_weight_visualizations(output_dir)
             print(f"Saved weight visualization at path {output_dir}")
+
+
+class Core(nn.Module):
+    def initialize(self) -> None:
+        raise NotImplementedError("Not initializing")
+
+    def __repr__(self) -> str:
+        s = f"{repr(super())} [{self.__class__.__name__} regularizers: "
+        ret = []
+        for attr in filter(lambda x: "gamma" in x or "skip" in x, dir(self)):
+            ret.append(f"{attr} = {getattr(self, attr)}")
+        return s + "|".join(ret) + "]\n"
+
+
+class Core3d(Core):
+    def initialize(self) -> None:
+        self.apply(self.init_conv)
+
+    @staticmethod
+    def init_conv(m) -> None:
+        if isinstance(m, nn.Conv3d):
+            nn.init.xavier_normal_(m.weight.data)
+            if m.bias is not None:
+                m.bias.data.fill_(0)

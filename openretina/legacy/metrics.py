@@ -3,7 +3,7 @@ import warnings
 import numpy as np
 import torch
 
-from openretina.models.model_utils import eval_state
+from openretina.utils.model_utils import eval_state
 from openretina.utils.constants import EPSILON
 from openretina.utils.misc import tensors_to_device
 

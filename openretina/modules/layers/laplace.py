@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from torch.functional import F
+import torch.nn.functional as F
 
 # Laplace filters
 LAPLACE_1D = np.array([-1, 4, -1]).astype(np.float32)[None, None, ...]

@@ -20,19 +20,14 @@ from neuralpredictors.utils import get_module_output  # type: ignore
 from openretina.data_io.hoefling_2024.dataloaders import get_dims_for_loader_dict
 from openretina.legacy.models import (
     Bias3DLayer,
-    Core3d,
     Encoder,
     FlatLaplaceL23dnorm,
     Scale2DLayer,
     Scale3DLayer,
-    STSeparableBatchConv3d,
-    TimeIndependentConv3D,
     TimeLaplaceL23dnorm,
-    TorchFullConv3D,
-    TorchSTSeparableConv3D,
-    compute_temporal_kernel,
-    temporal_smoothing,
 )
+from openretina.modules.core.base_core import Core3d
+from openretina.modules.layers.convolutions import STSeparableBatchConv3d, TimeIndependentConv3D, TorchFullConv3D, TorchSTSeparableConv3D, compute_temporal_kernel, temporal_smoothing
 from openretina.utils.misc import set_seed
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"

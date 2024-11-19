@@ -14,8 +14,8 @@ from openretina.data_io.hoefling_2024.data_io import natmov_dataloaders_v2
 from openretina.data_io.hoefling_2024.neuron_data_io import filter_responses, make_final_responses
 from openretina.data_io.movie_dataloader import MoviesTrainTestSplit
 from openretina.models.core_readout import CoreReadout
-from openretina.models.model_utils import OptimizerResetCallback
 from openretina.utils.h5_handling import load_h5_into_dict
+from openretina.utils.model_utils import OptimizerResetCallback
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="example_train_core_readout")

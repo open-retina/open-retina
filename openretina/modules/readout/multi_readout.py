@@ -2,10 +2,14 @@ import os
 
 import torch
 
-from .spatial import SimpleSpatialXFeature3d
+from .factorised_gaussian import SimpleSpatialXFeature3d
 
 
-class ReadoutWrapper(torch.nn.ModuleDict):
+class MultiGaussianReadoutWrapper(torch.nn.ModuleDict):
+    """
+    Multiple Sessions version of the SimpleSpatialXFeature3d factorised gaussian readout.
+    """
+
     def __init__(
         self,
         in_shape: tuple[int, int, int, int],

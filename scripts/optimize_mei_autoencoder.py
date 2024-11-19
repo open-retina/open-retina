@@ -22,7 +22,7 @@ from openretina.model_analysis.stimulus_optimization.regularizer import (
     ChangeNormJointlyClipRangeSeparately,
     RangeRegularizationLoss,
 )
-from openretina.models.autoencoder import Autoencoder, AutoencoderWithModel
+from openretina.models.sparse_autoencoder import Autoencoder, AutoencoderWithModel
 from openretina.utils.nnfabrik_model_loading import Center, load_ensemble_retina_model_from_directory
 from openretina.utils.plotting import plot_stimulus_composition
 

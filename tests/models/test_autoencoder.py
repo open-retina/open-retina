@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import torch
 
-from openretina.models.autoencoder import SparsityMSELoss
+from openretina.models.sparse_autoencoder import SparsityMSELoss
 
 
 @pytest.mark.parametrize(
