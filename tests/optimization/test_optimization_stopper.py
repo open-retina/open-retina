@@ -1,6 +1,6 @@
 import pytest
 
-from openretina.model_analysis.stimulus_optimization.optimization_stopper import EarlyStopper
+from openretina.insilico.stimulus_optimization.optimization_stopper import EarlyStopper
 
 
 @pytest.mark.parametrize(
