@@ -28,6 +28,11 @@ dependencies = {file = ["requirements.txt"]}
 [tool.setuptools.package-data]
 "openretina" = ["data/stimuli/*.pickle"]
 
+[project.optional-dependencies]
+dev = [
+    "neuralpredictors",
+]
+
 [tool.ruff]
 line-length = 120
 indent-width = 4

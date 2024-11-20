@@ -8,24 +8,19 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from neuralpredictors import regularizers  # type: ignore
-from neuralpredictors.layers.readouts import (  # type: ignore
-    FullGaussian2d,
-    Gaussian3d,
-    MultiReadoutBase,
-)
 from neuralpredictors.layers.rnn_modules.gru_module import ConvGRUCell  # type: ignore
 from neuralpredictors.utils import get_module_output  # type: ignore
 
 from openretina.data_io.hoefling_2024.dataloaders import get_dims_for_loader_dict
 from openretina.legacy.models import (
     Bias3DLayer,
-    Encoder,
     FlatLaplaceL23dnorm,
     Scale2DLayer,
     Scale3DLayer,
     TimeLaplaceL23dnorm,
 )
+from openretina.models.dev import Encoder
+from openretina.models.dev import MultiGaussian2d
 from openretina.modules.core.base_core import Core3d
 from openretina.modules.layers.convolutions import STSeparableBatchConv3d, TimeIndependentConv3D, TorchFullConv3D, TorchSTSeparableConv3D, compute_temporal_kernel, temporal_smoothing
 from openretina.utils.misc import set_seed
@@ -243,25 +238,6 @@ class GRUEnabledCore(Core3d, nn.Module):
     @property
     def outchannels(self):
         return len(self.features) * self.hidden_channels[-1]
-
-
-class MultiGaussian3d(MultiReadoutBase):
-    def __init__(self, in_shape_dict, n_neurons_dict, **kwargs):
-        super().__init__(in_shape_dict, n_neurons_dict, base_readout=Gaussian3d, **kwargs)
-
-    def regularizer(self, data_key):
-        return 0
-
-
-class MultiGaussian2d(MultiReadoutBase):
-    def __init__(self, in_shape_dict, n_neurons_dict, **kwargs):
-        super().__init__(
-            in_shape_dict,
-            n_neurons_dict,
-            base_readout=FullGaussian2d,
-            gauss_type="full",
-            **kwargs,
-        )
 
 
 class VideoEncoder(Encoder):
@@ -493,99 +469,4 @@ def SFB3d_core_gaussian_readout(
     return model
 
 
-# Baseline NLP:
 
-
-class DummyCore(nn.Module):
-    """
-    A dummy core that does nothing. Used for readout only models, like the LNP model.
-    """
-
-    def __init__(self, **kwargs):
-        super().__init__()
-
-    def forward(self, x, data_key=None, **kwargs):
-        return x
-
-    def regularizer(self):
-        return 0
-
-
-class LNP(nn.Module):
-    # Linear nonlinear poison
-    def __init__(
-        self,
-        in_shape,
-        outdims,
-        smooth_weight=0.0,
-        sparse_weight=0.0,
-        smooth_regularizer="LaplaceL2norm",
-        laplace_padding=None,
-        nonlinearity="exp",
-        **kwargs,
-    ):
-        super().__init__()
-        self.smooth_weight = smooth_weight
-        self.sparse_weight = sparse_weight
-        self.kernel_size = list(in_shape[3:])
-        self.in_channels = in_shape[1]
-        self.n_neurons = outdims
-        self.nonlinearity = torch.__dict__[nonlinearity]
-
-        self.inner_product = nn.Conv3d(
-            in_channels=self.in_channels,
-            out_channels=self.n_neurons,
-            kernel_size=(1, *self.kernel_size),  # Not using time
-            bias=False,
-            stride=1,
-        )
-
-        if smooth_regularizer == "GaussianLaplaceL2":
-            regularizer_config = dict(padding=laplace_padding, kernel=self.kernel_size)
-        else:
-            regularizer_config = dict(padding=laplace_padding)
-
-        regularizer_config = (
-            dict(padding=laplace_padding, kernel=self.kernel_size)
-            if smooth_regularizer == "GaussianLaplaceL2"
-            else dict(padding=laplace_padding)
-        )
-
-        self._smooth_reg_fn = regularizers.__dict__[smooth_regularizer](**regularizer_config)
-
-    def forward(self, x, data_key=None, **kwargs):
-        x = self.inner_product(x)
-        x = self.nonlinearity(x)
-        x = torch.squeeze(x, dim=(3, 4))
-        return x.transpose(1, 2)
-
-    def weights_l1(self, average=True):
-        """Returns l1 regularization across all weight dimensions
-
-        Args:
-            average (bool, optional): use mean of weights instad of sum. Defaults to True.
-        """
-        if average:
-            return self.inner_product.weight.abs().mean()
-        else:
-            return self.inner_product.weight.abs().sum()
-
-    def laplace(self):
-        # Squeezing out the empty time dimension so we can use 2D regularizers
-        return self._smooth_reg_fn(self.inner_product.weight.squeeze(2))
-
-    def regularizer(self, **kwargs):
-        return self.smooth_weight * self.laplace() + self.sparse_weight * self.weights_l1()
-
-    def initialize(self, *args, **kwargs):
-        pass
-
-
-class MultipleLNP(Encoder):
-    def __init__(self, in_shape_dict, n_neurons_dict, **kwargs):
-        # The multiple LNP model acts like a readout reading directly from the videos
-        readout = MultiReadoutBase(in_shape_dict, n_neurons_dict, base_readout=LNP, **kwargs)
-        super().__init__(
-            core=DummyCore(),
-            readout=readout,
-        )
