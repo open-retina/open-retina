@@ -10,7 +10,6 @@ import torch.nn.functional as F
 from matplotlib.colors import Normalize
 
 from openretina.data_io.hoefling_2024.dataloaders import get_dims_for_loader_dict
-from openretina.models.dev import Encoder
 from openretina.modules.core.base_core import Core
 from openretina.modules.core.base_core import Core3d
 from openretina.modules.layers.convolutions import STSeparableBatchConv3d
@@ -23,6 +22,34 @@ from openretina.modules.layers.convolutions import TimeIndependentConv3D
 from openretina.modules.layers.laplace import FlatLaplaceL23dnorm, TimeLaplaceL23dnorm
 from openretina.utils.misc import set_seed
 from openretina.utils.model_utils import eval_state
+
+class Encoder(nn.Module):
+    """
+    puts together all parts of model (core, readouts) and defines a forward
+    function which will return the output of the model; PyTorch then allows
+    to call .backward() on the Encoder which will compute the gradients
+    """
+
+    def __init__(
+        self,
+        core: nn.Module,
+        readout,
+    ):
+        super().__init__()
+        self.core = core
+        self.readout = readout
+        self.detach_core = False
+
+    def forward(self, x: torch.Tensor, data_key: str | None = None, detach_core: bool = False, **kwargs):
+        self.detach_core = detach_core
+        x = self.core(x, data_key=data_key)
+        if self.detach_core:
+            x = x.detach()
+        x = self.readout(x, data_key=data_key)
+        return x
+
+    def readout_keys(self) -> list[str]:
+        return self.readout.readout_keys()
 
 
 def get_module_output_shape(

@@ -53,7 +53,7 @@ exclude = [
 ]
 [[tool.mypy.overrides]]
 module = [
-    "neuralpredictors",
+    "neuralpredictors.*",
     "h5py",
     "scipy",
     "wandb",
