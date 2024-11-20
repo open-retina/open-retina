@@ -18,7 +18,7 @@ from openretina.data_io.hoefling_2024 import (
     get_mb_dataloaders,
     natmov_dataloaders_v2,
 )
-from openretina.data_io.hoefling_2024.neuron_data_io import make_final_responses
+from openretina.data_io.hoefling_2024.responses import make_final_responses
 from openretina.legacy.configs import model_config, trainer_config
 from openretina.legacy.training import save_model
 from openretina.legacy.training import standard_early_stop_trainer as trainer

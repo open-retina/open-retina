@@ -4,7 +4,7 @@ import numpy as np
 from tqdm.auto import tqdm
 
 from openretina.data_io.maheswaranathan_2023.constants import CLIP_LENGTH
-from openretina.data_io.maheswaranathan_2023.neuron_data_io import NeuronDataBaccus
+from openretina.data_io.maheswaranathan_2023.responses import NeuronDataBaccus
 from openretina.data_io.movie_dataloader import MoviesTrainTestSplit, generate_movie_splits, get_movie_dataloader
 
 

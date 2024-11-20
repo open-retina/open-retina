@@ -11,7 +11,7 @@ from omegaconf import DictConfig, OmegaConf
 from openretina.data_io.cyclers import LongCycler
 from openretina.data_io.maheswaranathan_2023.constants import CLIP_LENGTH
 from openretina.data_io.maheswaranathan_2023.dataloader import multiple_movies_dataloaders
-from openretina.data_io.maheswaranathan_2023.neuron_data_io import load_all_sessions
+from openretina.data_io.maheswaranathan_2023.stimuli import load_all_sessions
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="maheswaranathan_core_readout")
