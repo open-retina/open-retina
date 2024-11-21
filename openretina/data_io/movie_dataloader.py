@@ -16,7 +16,7 @@ DataPoint = namedtuple("DataPoint", ["inputs", "targets"])
 class MoviesTrainTestSplit:
     train: np.ndarray
     test: np.ndarray
-    random_sequences: Optional[np.ndarray]
+    random_sequences: Optional[np.ndarray] = None
 
     @classmethod
     def from_pickle(cls, file_path: str):

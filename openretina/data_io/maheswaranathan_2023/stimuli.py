@@ -8,6 +8,7 @@ Data: https://doi.org/10.25740/rk663dm5577
 import os
 from typing import Any
 
+from openretina.data_io.movie_dataloader import MoviesTrainTestSplit
 from openretina.utils.h5_handling import load_dataset_from_h5
 
 CLIP_LENGTH = 90  # in frames @ 30 fps
@@ -53,10 +54,10 @@ def load_all_sessions(
                     train_video = train_video - train_video.mean() / train_video.std()
                     test_video = test_video - test_video.mean() / test_video.std()
 
-                stimuli_all_sessions["".join(session.split("/")[-1])] = {
-                    "train": train_video,
-                    "test": test_video,
-                }
+                stimuli_all_sessions["".join(session.split("/")[-1])] = MoviesTrainTestSplit(
+                    train=train_video,
+                    test=test_video,
+                )
 
                 train_session_data = load_dataset_from_h5(recording_file, f"/train/response/{response_type}")
                 test_session_data = load_dataset_from_h5(recording_file, f"/test/response/{response_type}")
