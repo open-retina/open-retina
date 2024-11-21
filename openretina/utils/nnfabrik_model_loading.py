@@ -7,7 +7,6 @@ import pickle
 from copy import deepcopy
 from functools import partial
 from importlib import import_module
-from typing import Optional, Tuple
 
 import torch
 import yaml
@@ -17,7 +16,7 @@ from openretina.utils.file_utils import optionally_download
 from openretina.utils.misc import SafeLoaderWithTuple, tuple_constructor
 
 
-def split_module_name(abs_class_name: str) -> Tuple[str, str]:
+def split_module_name(abs_class_name: str) -> tuple[str, str]:
     abs_module_path = ".".join(abs_class_name.split(".")[:-1])
     class_name = abs_class_name.split(".")[-1]
     return abs_module_path, class_name
@@ -63,9 +62,9 @@ def get_model(
     model_fn,
     model_config,
     dataloaders=None,
-    seed=None,
+    seed: int | None = None,
     state_dict=None,
-    strict=True,
+    strict: bool = True,
     data_info=None,
 ):
     """
@@ -176,7 +175,7 @@ def load_state_dict(
     model.load_state_dict(updated_model_dict, strict=(not ignore_missing))
 
 
-def find_prefix(keys: list, p_agree: float = 0.66, separator: str = ".") -> Tuple[str, int]:
+def find_prefix(keys: list, p_agree: float = 0.66, separator: str = ".") -> tuple[str, int]:
     """
     Finds common prefix among state_dict keys
     :param keys: list of strings to find a common prefix
@@ -210,7 +209,7 @@ class Center:
     Class centering readouts
     """
 
-    def __init__(self, target_mean, mean_key="mask_mean"):
+    def __init__(self, target_mean, mean_key: str = "mask_mean"):
         self.target_mean = target_mean
         self.mean_key = mean_key
 
@@ -235,8 +234,8 @@ class Center:
 def load_ensemble_retina_model_from_directory(
     directory_path: str,
     device: str = "cuda",
-    center_readout: Optional[Center] = None,
-) -> Tuple:
+    center_readout: Center | None = None,
+) -> tuple:
     """
     Returns an ensemble data_info object and an ensemble model that it loads from the directory path.
 
@@ -297,8 +296,8 @@ def load_ensemble_model_from_remote(
     remote_url: str = "https://gin.g-node.org/eulerlab/rgc-natstim/raw/master",
     model_path: str = "models/nonlinear/9d574ab9fcb85e8251639080c8d402b7",
     device: str = "cpu",
-    center_readout: Optional[Center] = None,
-) -> Tuple:
+    center_readout: Center | None = None,
+) -> tuple:
     local_folders = []
     for id_ in ["00000", "01000", "02000", "03000", "04000"]:
         for prefix, postfix in [("config_", ".yaml"), ("data_info_", ".pkl"), ("state_dict_", ".pth.tar")]:

@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import numpy as np
 import scipy
 
@@ -14,7 +12,7 @@ def calculate_fft(
     temporal_kernel: np.ndarray,
     sampling_frequency: float = 30.0,
     lowpass_cutoff: float = 10.0,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     y = butter_lowpass_filter(temporal_kernel, lowpass_cutoff=lowpass_cutoff, fs=sampling_frequency)
     n_samples = temporal_kernel.shape[0]
     fft_frequencies = scipy.fft.fftfreq(n_samples, 1 / sampling_frequency)
@@ -34,7 +32,7 @@ def weighted_main_frequency(fft_frequencies: np.ndarray, fft_weights: np.ndarray
 
 def decompose_kernel(
     space_time_kernel: np.ndarray, scaling_factor: float = 1.0
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Scale spatial and temporal components such that spatial component is in the range [-1, 1]
     Args:

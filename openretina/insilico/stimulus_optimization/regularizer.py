@@ -1,5 +1,5 @@
 from collections.abc import Iterable
-from typing import Optional, Tuple
+from typing import Optional
 
 import torch
 
@@ -13,7 +13,7 @@ class RangeRegularizationLoss(StimulusRegularizationLoss):
     def __init__(
         self,
         min_max_values: Iterable[tuple[float, float]],
-        max_norm: Optional[float],
+        max_norm: float | None,
         factor: float = 1.0,
     ):
         self._min_max_values = list(min_max_values)
@@ -51,13 +51,13 @@ class ChangeNormJointlyClipRangeSeparately(StimulusPostprocessor):
 
     def __init__(
         self,
-        min_max_values: Iterable[Tuple[Optional[float], Optional[float]]],
-        norm: Optional[float],
+        min_max_values: Iterable[tuple[Optional[float], Optional[float]]],
+        norm: float | None,
     ):
         self._norm = norm
         self._min_max_values = list(min_max_values)
 
-    def process(self, x):
+    def process(self, x: torch.Tensor) -> torch.Tensor:
         assert x.shape[1] == len(
             self._min_max_values
         ), f"Expected {len(self._min_max_values)} channels in dim 1, got {x.shape=}"

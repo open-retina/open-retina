@@ -1,4 +1,4 @@
-from typing import Callable, List, Optional
+from typing import Callable
 
 import torch
 from torch import Tensor
@@ -12,11 +12,11 @@ from openretina.insilico.stimulus_optimization.regularizer import (
 
 def optimize_stimulus(
     stimulus: Tensor,
-    optimizer_init_fn: Callable[[List[torch.Tensor]], torch.optim.Optimizer],
+    optimizer_init_fn: Callable[[list[torch.Tensor]], torch.optim.Optimizer],
     objective_object,
     optimization_stopper: OptimizationStopper,
-    stimulus_regularization_loss: Optional[StimulusRegularizationLoss] = None,
-    stimulus_postprocessor: Optional[StimulusPostprocessor] = None,
+    stimulus_regularization_loss: StimulusRegularizationLoss | None = None,
+    stimulus_postprocessor: StimulusPostprocessor | None = None,
 ) -> None:
     """
     Optimize a stimulus to maximize a given objective while minimizing a regularizing function.

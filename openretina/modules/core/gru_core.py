@@ -1,5 +1,6 @@
+from builtins import int
 from collections import OrderedDict
-from typing import Any, Dict, Optional
+from typing import Any
 
 import torch
 import torch.nn as nn
@@ -22,31 +23,31 @@ from openretina.modules.layers.scaling import FiLM
 class ConvGRUCore(Core3d, nn.Module):
     def __init__(
         self,
-        n_neurons_dict: Optional[Dict[str, int]] = None,
-        input_channels=2,
+        n_neurons_dict: dict[str, int] | None = None,
+        input_channels: int = 2,
         hidden_channels=(8,),
         temporal_kernel_size=(21,),
         spatial_kernel_size=(14,),
-        layers=1,
-        gamma_hidden=0.0,
-        gamma_input=0.0,
-        gamma_in_sparse=0.0,
-        gamma_temporal=0.0,
-        final_nonlinearity=True,
-        bias=True,
-        input_padding=False,
-        hidden_padding=True,
-        batch_norm=True,
-        batch_norm_scale=True,
-        batch_norm_momentum=0.1,
-        laplace_padding: Optional[int] = 0,
-        batch_adaptation=False,
-        use_avg_reg=False,
-        nonlinearity="ELU",
-        conv_type="custom_separable",
-        use_gru=False,
-        use_projections=False,
-        gru_kwargs: Optional[Dict[str, int | float]] = None,
+        layers: int = 1,
+        gamma_hidden: float = 0.0,
+        gamma_input: float = 0.0,
+        gamma_in_sparse: float = 0.0,
+        gamma_temporal: float = 0.0,
+        final_nonlinearity: bool = True,
+        bias: bool = True,
+        input_padding: bool = False,
+        hidden_padding: bool = True,
+        batch_norm: bool = True,
+        batch_norm_scale: bool = True,
+        batch_norm_momentum: float = 0.1,
+        laplace_padding: int | None = 0,
+        batch_adaptation: bool = False,
+        use_avg_reg: bool = False,
+        nonlinearity: str = "ELU",
+        conv_type: str = "custom_separable",
+        use_gru: bool = False,
+        use_projections: bool = False,
+        gru_kwargs: dict[str, int | float] | None = None,
         **kwargs,
     ):
         super().__init__()
@@ -166,7 +167,7 @@ class ConvGRUCore(Core3d, nn.Module):
         input_pad,
         hidden_pad,
         nonlinearity,
-        use_projections,
+        use_projections: bool,
     ):
         layer: OrderedDict[str, Any] = OrderedDict()
         layer["conv"] = self.conv_class(

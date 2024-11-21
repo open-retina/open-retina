@@ -49,7 +49,7 @@ class FiLM(nn.Module):
         Tensor: The modulated output tensor after applying the scaling and shifting.
     """
 
-    def __init__(self, num_features, cond_dim):
+    def __init__(self, num_features: int, cond_dim: int):
         super(FiLM, self).__init__()
         self.num_features = num_features
         self.cond_dim = cond_dim
@@ -64,7 +64,7 @@ class FiLM(nn.Module):
         nn.init.normal_(self.fc_beta.weight, mean=0.0, std=0.01)
         nn.init.constant_(self.fc_beta.bias, 0.0)
 
-    def forward(self, x, cond):
+    def forward(self, x: torch.Tensor, cond: torch.Tensor) -> torch.Tensor:
         # View the conditioning tensor to match the input tensor shape
         gamma = self.fc_gamma(cond).view(cond.size(0), self.num_features, *[1] * (x.dim() - 2))
         beta = self.fc_beta(cond).view(cond.size(0), self.num_features, *[1] * (x.dim() - 2))

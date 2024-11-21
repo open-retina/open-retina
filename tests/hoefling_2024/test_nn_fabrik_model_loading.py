@@ -1,5 +1,3 @@
-from typing import Optional
-
 import pytest
 import torch
 
@@ -14,7 +12,7 @@ from openretina.utils.nnfabrik_model_loading import Center, load_ensemble_model_
         ("2_ventral1_20201021", Center(target_mean=(0.0, 0.0))),
     ],
 )
-def test_loading_model_from_remote(session_id: str, center_readout: Optional[Center]) -> None:
+def test_loading_model_from_remote(session_id: str, center_readout: Center | None) -> None:
     data_info, ensemble_model = load_ensemble_model_from_remote(device="cpu", center_readout=center_readout)
     assert session_id in data_info
 

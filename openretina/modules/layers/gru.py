@@ -12,11 +12,11 @@ class ConvGRUCell(nn.Module):
         self,
         input_channels,
         rec_channels,
-        input_kern,
-        rec_kern,
-        groups=1,
-        gamma_rec=0,
-        pad_input=True,
+        input_kern: int,
+        rec_kern: int,
+        groups: int = 1,
+        gamma_rec: int = 0,
+        pad_input: bool = True,
         **kwargs,
     ):
         super().__init__()
@@ -115,7 +115,7 @@ class ConvGRUCell(nn.Module):
             + self.out_gate_hidden.bias.abs().mean() / 3  # type: ignore
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         s = super().__repr__()
         s += f" [{self.__class__.__name__} regularizers: "
         ret = [
@@ -139,9 +139,9 @@ class GRU_Module(nn.Module):
         rec_channels,
         input_kern,
         rec_kern,
-        groups=1,
-        gamma_rec=0,
-        pad_input=True,
+        groups: int = 1,
+        gamma_rec: int = 0,
+        pad_input: bool = True,
         **kwargs,
     ):
         """

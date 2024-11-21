@@ -3,7 +3,7 @@ from torch import nn
 
 
 class PoissonLoss3d(nn.Module):
-    def __init__(self, bias=1e-16, per_neuron=False, avg=False):
+    def __init__(self, bias: float = 1e-16, per_neuron: bool = False, avg: bool = False):
         super().__init__()
         self.bias = bias
         self.per_neuron = per_neuron
@@ -17,13 +17,13 @@ class PoissonLoss3d(nn.Module):
         else:
             return loss.view(-1, loss.shape[-1]).mean(dim=0)
 
-    def __str__(self):
+    def __str__(self) -> str:
         bias, per_neuron, avg = self.bias, self.per_neuron, self.avg
         return f"PoissonLoss3d({bias=} {per_neuron=} {avg=})"
 
 
 class CelltypePoissonLoss3d(nn.Module):
-    def __init__(self, bias=1e-16, per_neuron=False, avg=False):
+    def __init__(self, bias: float = 1e-16, per_neuron: bool = False, avg: bool = False):
         super().__init__()
         self.bias = bias
         self.per_neuron = per_neuron
@@ -40,7 +40,7 @@ class CelltypePoissonLoss3d(nn.Module):
 
 
 class StandardPoissonLoss3d(nn.Module):  # standard poisson loss for ct dataloader
-    def __init__(self, bias=1e-16, per_neuron=False, avg=False):
+    def __init__(self, bias: float = 1e-16, per_neuron: bool = False, avg: bool = False):
         super().__init__()
         self.bias = bias
         self.per_neuron = per_neuron
@@ -78,7 +78,7 @@ class CorrelationLoss3d(nn.Module):
 
 
 class CelltypeCorrelationLoss3d(nn.Module):
-    def __init__(self, bias=1e-16, per_neuron=False, avg=False):
+    def __init__(self, bias: float = 1e-16, per_neuron: bool = False, avg: bool = False):
         super().__init__()
         self.eps = bias
         self.per_neuron = per_neuron
@@ -101,7 +101,7 @@ class CelltypeCorrelationLoss3d(nn.Module):
 
 
 class L1CorrelationLoss3d(nn.Module):
-    def __init__(self, bias=1e-16, per_neuron=False, avg=False):
+    def __init__(self, bias: float = 1e-16, per_neuron: bool = False, avg: bool = False):
         super().__init__()
         self.eps = bias
         self.per_neuron = per_neuron
@@ -133,7 +133,7 @@ class L1CorrelationLoss3d(nn.Module):
 
 
 class ScaledCorrelationLoss3d(nn.Module):
-    def __init__(self, bias=1e-16, scale=30, per_neuron=False, avg=False):
+    def __init__(self, bias: float = 1e-16, scale: float = 30, per_neuron: bool = False, avg: bool = False):
         super().__init__()
         self.eps = bias
         self.scale = scale

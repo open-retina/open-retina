@@ -1,6 +1,5 @@
 import os
 import pickle
-from typing import Optional
 
 import numpy as np
 
@@ -59,7 +58,7 @@ def align_stimulus_to_trigger(stimulus: np.ndarray, start_trigger_times: list[in
 def load_stimulus(
     file_path: str,
     normalize: bool,
-    trigger_times: Optional[np.ndarray],
+    trigger_times: np.ndarray | None,
     num_triggers_per_repetition: int,
     downsample_t_factor: int = 1,
 ) -> np.ndarray:
@@ -83,7 +82,7 @@ def load_stimulus(
 
 def load_chirp(
     normalize: bool = True,
-    trigger_times: Optional[np.ndarray] = None,
+    trigger_times: np.ndarray | None = None,
 ) -> np.ndarray:
     """The chirp has 2 triggers per repetition"""
     chirp = load_stimulus(
@@ -97,7 +96,7 @@ def load_chirp(
 
 def load_chirp_30hz_72_64px(
     normalize: bool = True,
-    trigger_times: Optional[np.ndarray] = None,
+    trigger_times: np.ndarray | None = None,
 ) -> np.ndarray:
     chirp = load_stimulus(
         file_path=_CHIRP_72_64_PATH,
@@ -111,7 +110,7 @@ def load_chirp_30hz_72_64px(
 
 def load_moving_bar(
     normalize: bool = True,
-    trigger_times: Optional[np.ndarray] = None,
+    trigger_times: np.ndarray | None = None,
 ) -> np.ndarray:
     """Moving bar has 8 triggers, one for each direction.
     Its directions are [0,180, 45,225, 90,270, 135,315] (in degrees)
@@ -134,7 +133,7 @@ def load_moving_bar(
 
 def load_moving_bar_30hz_72_64px(
     normalize: bool = True,
-    trigger_times: Optional[np.ndarray] = None,
+    trigger_times: np.ndarray | None = None,
 ) -> np.ndarray:
     """Moving bar has 8 triggers, one for each direction.
     Its directions are [0,180, 45,225, 90,270, 135,315] (in degrees)

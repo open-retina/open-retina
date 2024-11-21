@@ -1,7 +1,7 @@
 import datetime
 import os
 from functools import partial
-from typing import Any, List, Optional, Tuple
+from typing import Any
 
 import cv2
 import matplotlib
@@ -122,7 +122,7 @@ def play_stimulus(video: Float[torch.Tensor, "channels time height width"], norm
 def play_sample_batch(
     video: Float[torch.Tensor, "channels time height width"],
     responses: Float[torch.Tensor, "time n_neurons"],
-    neuron_idx: Optional[int] = 0,
+    neuron_idx: int | None = 0,
 ):
     assert video.shape[1] == responses.shape[0], "Movie length and response length must match"
 
@@ -149,11 +149,11 @@ def play_sample_batch(
 def plot_stimulus_composition(
     stimulus: np.ndarray,
     temporal_trace_ax,
-    freq_ax: Optional[Any],
+    freq_ax: Any | None,
     spatial_ax,
     lowpass_cutoff: float = 10.0,
-    highlight_x_list: Optional[List[Tuple[int, int]]] = None,
-):
+    highlight_x_list: list[tuple[int, int]] | None = None,
+) -> None:
     color_array = ["darkgreen", "darkviolet"]
     color_channel_names_array = ("Green", "UV")
 
@@ -245,7 +245,7 @@ def polar_plot_of_direction_of_motion_responses(
     plt.gca().set_xticklabels([f"{x}°" for x in sorted_directions])
 
 
-def save_figure(filename: str, folder: str, fig=None):
+def save_figure(filename: str, folder: str, fig=None) -> None:
     if not os.path.exists(folder):
         os.makedirs(folder, exist_ok=True)
     date = datetime.datetime.now().strftime("%Y-%m-%d")
@@ -256,7 +256,7 @@ def save_figure(filename: str, folder: str, fig=None):
     plt.close(fig)
 
 
-def legend_without_duplicate_labels(ax=None):
+def legend_without_duplicate_labels(ax=None) -> None:
     if ax is None:
         ax = plt.gca()
     handles, labels = ax.get_legend_handles_labels()

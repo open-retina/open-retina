@@ -32,7 +32,7 @@ class SliceMeanReducer(ResponseReducer):
         narrowed_responses = torch.narrow(responses, self._axis, self.start, self.length)
         return torch.mean(narrowed_responses, dim=self._axis)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._axis=} {self.start=}, {self.length=})"
 
 
@@ -101,7 +101,7 @@ class InnerNeuronVisualizationObjective(AbstractObjective):
         self.layer_name = ""
         self.channel_id = -1
 
-    def set_layer_channel(self, layer: str, channel: int):
+    def set_layer_channel(self, layer: str, channel: int) -> None:
         if layer not in self.features_dict:
             raise ValueError(f"{layer=} not in features {self.features_dict.keys=}")
         self.layer_name = layer
