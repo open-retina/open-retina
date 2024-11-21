@@ -86,7 +86,7 @@ class MovieDataSet(Dataset):
         self.group_assignment = group_assignment
         self.roi_coords = roi_coords
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int | slice) -> DataPoint:
         if isinstance(idx, slice):
             return DataPoint(*[self.samples[0][:, idx, ...], self.samples[1][idx, ...]])
         else:
@@ -105,17 +105,17 @@ class MovieDataSet(Dataset):
     def responses(self):
         return self.samples[1]
 
-    def __len__(self):
+    def __len__(self) -> int:
         # Returns the number of chunks of clips and responses used for training
         return self.samples[1].shape[0] // self.chunk_size
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f"MovieDataSet with {self.samples[1].shape[1]} neuron responses "
             f"to a movie of shape {list(self.samples[0].shape)}."
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self)
 
 
@@ -219,7 +219,7 @@ class MovieSampler(Sampler):
 
         return iter(np.array(shifted_indices)[indices_shuffling])
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.indices)
 
 
@@ -325,7 +325,7 @@ def get_movie_dataloader(
     use_base_sequence: bool = False,
     allow_over_boundaries: bool = True,
     **kwargs,
-):
+) -> DataLoader:
     if isinstance(responses, torch.Tensor) and bool(torch.isnan(responses).any()):
         print("Nans in responses, skipping this dataloader")
         return None
