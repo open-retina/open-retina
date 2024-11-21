@@ -27,16 +27,16 @@ class LongCycler(torch.utils.data.IterableDataset):
     Cycles through a dictionary of data loaders until the loader with the largest size is exhausted.
     In practice, takes one batch from each loader in each iteration.
     Necessary for dataloaders of unequal size.
-    Note: iterable dataloaders can lead to duplicate data entries when using long cycler
+    Note: iterable dataloaders as this one can lead to duplicate data when using multiprocessing
     """
 
-    def __init__(self, loaders: dict[str, DataLoader], shuffle=True):
+    def __init__(self, loaders: dict[str, DataLoader], shuffle: bool = True):
         self.loaders = loaders
         self.max_batches = max(len(loader) for loader in self.loaders.values())
         self.shuffle = shuffle
 
     def __iter__(self):
-        keys = list(self.loaders.keys())
+        keys = sorted(self.loaders.keys())
 
         if self.shuffle:
             random.shuffle(keys)
@@ -49,15 +49,13 @@ class LongCycler(torch.utils.data.IterableDataset):
         for k, loader, _ in zip(cycle(keys), cycle(cycles), range(total_iterations)):
             yield k, next(loader)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.loaders) * self.max_batches
 
 
 class ShortCycler(torch.utils.data.IterableDataset):
     """
-    Cycles through a dictionary of data loaders until the loader with the largest size is exhausted.
-    In practice, takes one batch from each loader in each iteration.
-    Necessary for dataloaders of unequal size.
+    Cycles through the elements of each dataloader without repeating any element.
     """
 
     def __init__(self, loaders: dict[str, DataLoader]):
@@ -67,3 +65,6 @@ class ShortCycler(torch.utils.data.IterableDataset):
         for k in sorted(self.loaders.keys()):
             for example in self.loaders[k]:
                 yield k, example
+
+    def __len__(self) -> int:
+        return sum(len(x) for x in self.loaders)
