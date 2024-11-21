@@ -6,11 +6,11 @@ from typing import Literal
 import hydra
 import lightning
 import torch
-from torch.utils.data import DataLoader
 from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
+from torch.utils.data import DataLoader
 
-from openretina.data_io.cyclers import ShortCycler, LongCycler
+from openretina.data_io.cyclers import LongCycler, ShortCycler
 from openretina.data_io.hoefling_2024.dataloaders import natmov_dataloaders_v2
 from openretina.data_io.hoefling_2024.responses import filter_responses, make_final_responses
 from openretina.data_io.movie_dataloader import MoviesTrainTestSplit
