@@ -8,7 +8,7 @@ import torch.utils.data as data
 from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
 
-from openretina.data_io.cyclers import LongCycler
+from openretina.data_io.cyclers import LongCycler, ShortCycler
 from openretina.data_io.maheswaranathan_2023.constants import CLIP_LENGTH
 from openretina.data_io.maheswaranathan_2023.dataloader import multiple_movies_dataloaders
 from openretina.data_io.maheswaranathan_2023.stimuli import load_all_sessions
@@ -33,7 +33,7 @@ def main(cfg: DictConfig) -> None:
 
     # when num_workers > 0 the docker container needs more shared memory
     train_loader = data.DataLoader(LongCycler(dataloaders["train"], shuffle=True), **cfg.dataloader)
-    valid_loader = data.DataLoader(LongCycler(dataloaders["validation"], shuffle=False), **cfg.dataloader)
+    valid_loader = data.DataLoader(ShortCycler(dataloaders["validation"]), **cfg.dataloader)
 
     if cfg.seed is not None:
         lightning.pytorch.seed_everything(cfg.seed)
@@ -63,7 +63,7 @@ def main(cfg: DictConfig) -> None:
     trainer.fit(model=model, train_dataloaders=train_loader, val_dataloaders=valid_loader)
 
     ### Testing
-    test_loader = data.DataLoader(LongCycler(dataloaders["test"], shuffle=False), **cfg.dataloader)
+    test_loader = data.DataLoader(ShortCycler(dataloaders["test"]), **cfg.dataloader)
     trainer.test(model, dataloaders=[train_loader, valid_loader, test_loader], ckpt_path="best")
     trainer.save_checkpoint(os.path.join(log_folder, "model.ckpt"))
 

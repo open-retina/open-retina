@@ -6,10 +6,11 @@ from typing import Literal
 import hydra
 import lightning
 import torch
+from torch.utils.data import DataLoader
 from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
 
-from openretina.data_io.cyclers import LongCycler
+from openretina.data_io.cyclers import ShortCycler, LongCycler
 from openretina.data_io.hoefling_2024.dataloaders import natmov_dataloaders_v2
 from openretina.data_io.hoefling_2024.responses import filter_responses, make_final_responses
 from openretina.data_io.movie_dataloader import MoviesTrainTestSplit
@@ -33,8 +34,8 @@ def main(conf: DictConfig) -> None:
     dataloaders = natmov_dataloaders_v2(data_dict, movies_dictionary=movies_dict, train_chunk_size=100)
 
     # when num_workers > 0 the docker container needs more shared memory
-    train_loader = torch.utils.data.DataLoader(LongCycler(dataloaders["train"], shuffle=True), **conf.dataloader)
-    valid_loader = torch.utils.data.DataLoader(LongCycler(dataloaders["validation"], shuffle=False), **conf.dataloader)
+    train_loader = DataLoader(LongCycler(dataloaders["train"], shuffle=True), **conf.dataloader)
+    valid_loader = DataLoader(ShortCycler(dataloaders["validation"]), **conf.dataloader)
 
     # max_pool3d_with_indices does not have a deterministic implementation in pytorch yet
     deterministic: bool | Literal["warn"] = "warn" if conf.seed is not None else False
@@ -69,7 +70,7 @@ def main(conf: DictConfig) -> None:
     )
     trainer.fit(model=model, train_dataloaders=train_loader, val_dataloaders=valid_loader)
     # test
-    test_loader = torch.utils.data.DataLoader(LongCycler(dataloaders["test"], shuffle=False), **conf.dataloader)
+    test_loader = DataLoader(ShortCycler(dataloaders["test"]), **conf.dataloader)
     trainer.test(model, dataloaders=[train_loader, valid_loader, test_loader], ckpt_path="best")
     trainer.save_checkpoint(os.path.join(log_folder, "model.ckpt"))
 

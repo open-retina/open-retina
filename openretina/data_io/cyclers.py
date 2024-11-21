@@ -3,7 +3,6 @@ Adapted from sinzlab/neuralpredictors/training/cyclers.py
 """
 
 import random
-from itertools import islice
 
 import torch.utils.data
 from torch.utils.data import DataLoader
