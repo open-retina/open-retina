@@ -27,15 +27,15 @@ class LongCycler(torch.utils.data.IterableDataset):
     Cycles through a dictionary of data loaders until the loader with the largest size is exhausted.
     In practice, takes one batch from each loader in each iteration.
     Necessary for dataloaders of unequal size.
+    Note: iterable dataloaders can lead to duplicate data entries when using long cycler
     """
 
-    def __init__(self, loaders: dict[str, DataLoader], shuffle: bool = True):
+    def __init__(self, loaders: dict[str, DataLoader], shuffle=True):
         self.loaders = loaders
         self.max_batches = max(len(loader) for loader in self.loaders.values())
         self.shuffle = shuffle
 
     def __iter__(self):
-        worker_info = torch.utils.data.get_worker_info()
         keys = list(self.loaders.keys())
 
         if self.shuffle:
@@ -43,23 +43,27 @@ class LongCycler(torch.utils.data.IterableDataset):
 
         # Create cycles for each loader
         cycles = [cycle(self.loaders[k]) for k in keys]
-
-        if worker_info is None:  # Single-process data loading
-            iter_start = 0
-            iter_end = len(self.loaders) * self.max_batches
-            total_iterations = iter_end
-        else:
-            # Partition the iterations among the workers
-            num_workers = worker_info.num_workers
-            worker_id = worker_info.id
-            total_iterations = len(self.loaders) * self.max_batches
-            per_worker = (total_iterations + num_workers - 1) // num_workers
-            iter_start = worker_id * per_worker
-            iter_end = min(iter_start + per_worker, total_iterations)
+        total_iterations = len(self.loaders) * self.max_batches
 
         # Yield batches in the assigned range
-        for k, loader, _ in islice(zip(cycle(keys), cycle(cycles), range(total_iterations)), iter_start, iter_end):
+        for k, loader, _ in zip(cycle(keys), cycle(cycles), range(total_iterations)):
             yield k, next(loader)
 
     def __len__(self):
         return len(self.loaders) * self.max_batches
+
+
+class ShortCycler(torch.utils.data.IterableDataset):
+    """
+    Cycles through a dictionary of data loaders until the loader with the largest size is exhausted.
+    In practice, takes one batch from each loader in each iteration.
+    Necessary for dataloaders of unequal size.
+    """
+
+    def __init__(self, loaders: dict[str, DataLoader]):
+        self.loaders = loaders
+
+    def __iter__(self):
+        for k in sorted(self.loaders.keys()):
+            for example in self.loaders[k]:
+                yield k, example
