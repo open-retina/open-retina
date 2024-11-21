@@ -2,6 +2,9 @@
 
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![mypy](https://img.shields.io/badge/type%20checked-mypy-039dfc)](https://github.com/python/mypy)
+[![pytorch](https://img.shields.io/badge/PyTorch_2.0+-ee4c2c?logo=pytorch&logoColor=white)](https://pytorch.org/get-started/locally/)
+[![lightning](https://img.shields.io/badge/-Lightning_2.0+-792ee5?logo=pytorchlightning&logoColor=white)](https://pytorchlightning.ai/)
+[![hydra](https://img.shields.io/badge/Config-Hydra_1.3-89b8cd)](https://hydra.cc/)
 
 Open-source repository containing neural network models of the retina.
 The models in this repository are inspired by and partially contain adapted code of [sinzlab/neuralpredictors](https://github.com/sinzlab/neuralpredictors).
@@ -29,6 +32,20 @@ make fix-formatting
 # Run type checks and unit tests
 make test-all
 ```
+
+## Design decisions and structure
+With this repository we provide already pre-trained retina models that can be used for inference and intepretability out of the box, and dataloaders together with model architectures to train new models.
+For training new models, we rely on [pytorch lightning](https://lightning.ai/docs/pytorch/stable/) in combination with [hydra](https://hydra.cc/docs/intro/) to manage the configurations for training and dataloading.
+
+The openretina package is structured as follows:
+- modules: pytorch modules that define layers and losses
+- models: pytorch lightning models that define models that can be trained and evaluated (i.e. models from specific papers)
+- data_io: dataloaders to manage access of data to be used for training
+- insilico: Methods perform _insilico_ experiments with above models
+    - stimulus_optimization: optimize inputs for neurons of above models according to interpretable objectives (e.g. most exciting inputs)
+    - future options: gradient analysis, data analysis
+- utils: Utility functions that are used across above submodules
+
 
 ## Related papers
 

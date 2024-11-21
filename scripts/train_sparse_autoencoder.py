@@ -11,16 +11,19 @@ import lightning
 import torch
 from lightning.pytorch.loggers import CSVLogger, TensorBoardLogger
 
-from openretina.cyclers import LongCycler
-from openretina.hoefling_2024.data_io import (
+from openretina.data_io.cyclers import LongCycler
+from openretina.data_io.hoefling_2024.dataloaders import (
     get_chirp_dataloaders,
     get_mb_dataloaders,
     natmov_dataloaders_v2,
 )
-from openretina.hoefling_2024.nnfabrik_model_loading import Center, load_ensemble_retina_model_from_directory
-from openretina.models.autoencoder import ActivationsDataset, Autoencoder, SparsityMSELoss
-from openretina.neuron_data_io import make_final_responses
+from openretina.data_io.hoefling_2024.responses import make_final_responses
+from openretina.models.sparse_autoencoder import ActivationsDataset, Autoencoder, SparsityMSELoss
 from openretina.utils.h5_handling import load_h5_into_dict
+from openretina.utils.nnfabrik_model_loading import (
+    Center,
+    load_ensemble_retina_model_from_directory,
+)
 
 ENSEMBLE_MODEL_PATH = (
     "/gpfs01/euler/data/SharedFiles/projects/Hoefling2024/models/nonlinear/9d574ab9fcb85e8251639080c8d402b7"
@@ -72,7 +75,7 @@ def generate_neuron_activations(
     dataloader_name_to_function: dict[str, Callable] = {
         "chirp": get_chirp_dataloaders,
         "mb": get_mb_dataloaders,
-        "natural": functools.partial(natmov_dataloaders_v2, movies_dictionary=movies_dict, seed=1000),
+        "natural": functools.partial(natmov_dataloaders_v2, movies_dictionary=movies_dict),
     }
     for dataset_name in dataset_names_list:
         data_dict = make_final_responses(responses, response_type=dataset_name)  # type: ignore

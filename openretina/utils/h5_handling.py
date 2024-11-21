@@ -19,7 +19,7 @@ def count_items(group: h5.Group) -> int:
     return count
 
 
-def load_h5_into_dict(file_path):
+def load_h5_into_dict(file_path) -> dict:
     """
     Recursively loads the structure and data of the HDF5 file into a dictionary.
     """
@@ -56,7 +56,7 @@ def load_h5_into_dict(file_path):
     return structure
 
 
-def h5_to_folders(file_path, output_dir):
+def h5_to_folders(file_path, output_dir) -> None:
     """Converts an HDF5 file to a folder structure.
 
     Args:
@@ -109,7 +109,7 @@ def h5_to_folders(file_path, output_dir):
             explore_and_save(file, output_dir, progress_bar)
 
 
-def print_h5_structure(file_path):
+def print_h5_structure(file_path) -> None:
     def explore_group(group, path=""):
         """Recursively explores and prints the structure of the HDF5 file."""
         items = {}

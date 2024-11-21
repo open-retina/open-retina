@@ -13,6 +13,7 @@ einops
 lightning
 wandb
 hydra-core
+omegaconf
 h5py
 opencv-python
 # Type Checks

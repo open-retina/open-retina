@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import os
-import pickle
 from typing import Literal
 
 import hydra
@@ -10,14 +9,13 @@ import torch
 from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
 
-from openretina.cyclers import LongCycler
-from openretina.hoefling_2024.data_io import (
-    natmov_dataloaders_v2,
-)
+from openretina.data_io.cyclers import LongCycler
+from openretina.data_io.hoefling_2024.dataloaders import natmov_dataloaders_v2
+from openretina.data_io.hoefling_2024.responses import filter_responses, make_final_responses
+from openretina.data_io.movie_dataloader import MoviesTrainTestSplit
 from openretina.models.core_readout import CoreReadout
-from openretina.models.model_utils import OptimizerResetCallback
-from openretina.neuron_data_io import filter_responses, make_final_responses
 from openretina.utils.h5_handling import load_h5_into_dict
+from openretina.utils.model_utils import OptimizerResetCallback
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="example_train_core_readout")
@@ -25,15 +23,14 @@ def main(conf: DictConfig) -> None:
     torch.set_float32_matmul_precision("medium")
     data_folder = os.path.expanduser(conf.data_folder)
     movies_path = os.path.join(data_folder, conf.movies_filename)
-    with open(movies_path, "rb") as f:
-        movies_dict = pickle.load(f)
+    movies_dict = MoviesTrainTestSplit.from_pickle(movies_path)
 
     data_path_responses = os.path.join(data_folder, conf.responses_filename)
     responses = load_h5_into_dict(data_path_responses)
     filtered_responses = filter_responses(responses, **OmegaConf.to_object(conf.quality_checks))  # type: ignore
 
     data_dict = make_final_responses(filtered_responses, response_type="natural")  # type: ignore
-    dataloaders = natmov_dataloaders_v2(data_dict, movies_dictionary=movies_dict, train_chunk_size=100, seed=1000)
+    dataloaders = natmov_dataloaders_v2(data_dict, movies_dictionary=movies_dict, train_chunk_size=100)
 
     # when num_workers > 0 the docker container needs more shared memory
     train_loader = torch.utils.data.DataLoader(LongCycler(dataloaders["train"], shuffle=True), **conf.dataloader)

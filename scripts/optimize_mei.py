@@ -8,15 +8,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from openretina.hoefling_2024.configs import STIMULUS_RANGE_CONSTRAINTS
-from openretina.optimization.objective import MeanReducer, SingleNeuronObjective
-from openretina.optimization.optimization_stopper import OptimizationStopper
-from openretina.optimization.optimizer import optimize_stimulus
-from openretina.optimization.regularizer import (
+from openretina.insilico.stimulus_optimization.objective import MeanReducer, SingleNeuronObjective
+from openretina.insilico.stimulus_optimization.optimization_stopper import OptimizationStopper
+from openretina.insilico.stimulus_optimization.optimizer import optimize_stimulus
+from openretina.insilico.stimulus_optimization.regularizer import (
     ChangeNormJointlyClipRangeSeparately,
     RangeRegularizationLoss,
 )
-from openretina.plotting import plot_stimulus_composition
+from openretina.legacy.hoefling_configs import STIMULUS_RANGE_CONSTRAINTS
+from openretina.utils.plotting import plot_stimulus_composition
 
 
 def parse_args():

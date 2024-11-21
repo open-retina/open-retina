@@ -9,22 +9,22 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from openretina.hoefling_2024.configs import STIMULUS_RANGE_CONSTRAINTS
-from openretina.hoefling_2024.nnfabrik_model_loading import Center, load_ensemble_retina_model_from_directory
-from openretina.models.autoencoder import Autoencoder, AutoencoderWithModel
-from openretina.optimization.objective import (
+from openretina.insilico.stimulus_optimization.objective import (
     AbstractObjective,
     ContrastiveNeuronObjective,
     SingleNeuronObjective,
     SliceMeanReducer,
 )
-from openretina.optimization.optimization_stopper import OptimizationStopper
-from openretina.optimization.optimizer import optimize_stimulus
-from openretina.optimization.regularizer import (
+from openretina.insilico.stimulus_optimization.optimization_stopper import OptimizationStopper
+from openretina.insilico.stimulus_optimization.optimizer import optimize_stimulus
+from openretina.insilico.stimulus_optimization.regularizer import (
     ChangeNormJointlyClipRangeSeparately,
     RangeRegularizationLoss,
 )
-from openretina.plotting import plot_stimulus_composition
+from openretina.legacy.hoefling_configs import STIMULUS_RANGE_CONSTRAINTS
+from openretina.models.sparse_autoencoder import Autoencoder, AutoencoderWithModel
+from openretina.utils.nnfabrik_model_loading import Center, load_ensemble_retina_model_from_directory
+from openretina.utils.plotting import plot_stimulus_composition
 
 
 def parse_args():
