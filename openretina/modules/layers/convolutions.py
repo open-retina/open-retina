@@ -395,7 +395,7 @@ class STSeparableBatchConv3d(nn.Module):
             torch.Tensor: The mask tensor.
         """
         mask = 1 / (1 + torch.exp(-time - int(T * 0.95) / stretch))
-        return mask.T
+        return mask.T if mask.ndim > 1 else mask
 
 
 def temporal_smoothing(sin: torch.Tensor, cos: torch.Tensor) -> torch.Tensor:
