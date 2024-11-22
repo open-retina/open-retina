@@ -51,7 +51,6 @@ RGC_GROUP_NAMES_DICT = {
 
 SCENE_LENGTH = 150  # Frames
 NUM_CLIPS = 108
-NUM_VAL_CLIPS = 15
 CLIP_LENGTH = 150  # Frames
 
 STIMULI_IDS = {"natural": 5, "chirp": 1, "mb": 2}

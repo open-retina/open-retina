@@ -1,11 +1,9 @@
-from typing import List, Optional
-
 import numpy as np
 import torch
 
 from openretina.data_io.movie_dataloader import generate_movie_splits
 
-from .constants import CLIP_LENGTH, NUM_CLIPS, NUM_VAL_CLIPS
+from .constants import CLIP_LENGTH, NUM_CLIPS
 
 
 # Helper function to assemble the datasets
@@ -49,9 +47,8 @@ def get_all_movie_combinations(
     movie_train,
     movie_test,
     random_sequences: np.ndarray,
-    val_clip_idx: Optional[List[int]] = None,
+    validation_clip_indices: list[int],
     num_clips: int = NUM_CLIPS,
-    num_val_clips: int = NUM_VAL_CLIPS,
     clip_length: int = CLIP_LENGTH,
 ):
     """
@@ -71,8 +68,8 @@ def get_all_movie_combinations(
     """
 
     # Generate train, validation, and test datasets
-    movie_train_subset, movie_val, movie_test, val_clip_idx = generate_movie_splits(
-        movie_train, movie_test, val_clip_idx, num_clips, num_val_clips, clip_length
+    movie_train_subset, movie_val, movie_test = generate_movie_splits(
+        movie_train, movie_test, validation_clip_indices, num_clips, clip_length
     )
 
     # Assemble datasets into the final movies structure using the random sequences
@@ -82,7 +79,7 @@ def get_all_movie_combinations(
         movie_val,
         movie_test,
         random_sequences,
-        val_clip_idx,
+        validation_clip_indices,
         clip_length,
     )
 

@@ -6,7 +6,7 @@ from torch.utils.data import default_collate
 from tqdm.auto import tqdm
 
 from openretina.data_io.artificial_stimuli import load_chirp, load_moving_bar
-from openretina.data_io.hoefling_2024.constants import CLIP_LENGTH, NUM_CLIPS, NUM_VAL_CLIPS
+from openretina.data_io.hoefling_2024.constants import CLIP_LENGTH, NUM_CLIPS
 from openretina.data_io.hoefling_2024.responses import NeuronData
 from openretina.data_io.hoefling_2024.stimuli import gen_start_indices, get_all_movie_combinations
 from openretina.data_io.movie_dataloader import MoviesTrainTestSplit, get_movie_dataloader
@@ -135,7 +135,6 @@ def natmov_dataloaders_v2(
     batch_size: int = 32,
     num_clips: int = NUM_CLIPS,
     clip_length: int = CLIP_LENGTH,
-    num_val_clips: int = NUM_VAL_CLIPS,
 ):
     assert all(field in next(iter(neuron_data_dictionary.values())) for field in ["responses_final", "stim_id"]), (
         "Check the neuron data dictionary sub-dictionaries for the minimal"
@@ -163,7 +162,7 @@ def natmov_dataloaders_v2(
         movies_dictionary.train,
         movies_dictionary.test,
         random_sequences,
-        val_clip_idx=validation_clip_indices,
+        validation_clip_indices=validation_clip_indices,
         num_clips=num_clips,
         clip_length=clip_length,
     )

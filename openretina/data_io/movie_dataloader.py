@@ -122,29 +122,25 @@ class MovieDataSet(Dataset):
 def generate_movie_splits(
     movie_train,
     movie_test,
-    val_clip_idx: list[int] | None,
+    val_clip_idc: list[int],
     num_clips: int,
-    num_val_clips: int,
     clip_length: int,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, list[int]]:
-    if val_clip_idx is None:
-        val_clip_idx = list(np.sort(np.random.choice(num_clips, num_val_clips, replace=False)))
-
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     movie_train = torch.tensor(movie_train, dtype=torch.float)
     movie_test = torch.tensor(movie_test, dtype=torch.float)
 
     channels, _, px_y, px_x = movie_train.shape
 
     # Prepare validation movie data
-    movie_val = torch.zeros((channels, len(val_clip_idx) * clip_length, px_y, px_x), dtype=torch.float)
-    for i, ind in enumerate(val_clip_idx):
+    movie_val = torch.zeros((channels, len(val_clip_idc) * clip_length, px_y, px_x), dtype=torch.float)
+    for i, idx in enumerate(val_clip_idc):
         movie_val[:, i * clip_length : (i + 1) * clip_length, ...] = movie_train[
-            :, ind * clip_length : (ind + 1) * clip_length, ...
+            :, idx * clip_length : (idx + 1) * clip_length, ...
         ]
 
     # Create a boolean mask to indicate which clips are not part of the validation set
     mask = np.ones(num_clips, dtype=bool)
-    mask[val_clip_idx] = False
+    mask[val_clip_idc] = False
     train_clip_idx = np.arange(num_clips)[mask]
 
     movie_train_subset = torch.cat(
@@ -152,7 +148,7 @@ def generate_movie_splits(
         dim=1,
     )
 
-    return movie_train_subset, movie_val, movie_test, val_clip_idx
+    return movie_train_subset, movie_val, movie_test
 
 
 class MovieSampler(Sampler):
