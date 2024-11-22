@@ -1,5 +1,5 @@
 import pytest
-from torch.utils.data import IterableDataset, DataLoader
+from torch.utils.data import DataLoader, IterableDataset
 
 from openretina.data_io.cyclers import LongCycler, ShortCycler
 
