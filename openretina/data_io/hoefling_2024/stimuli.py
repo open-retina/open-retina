@@ -3,7 +3,7 @@ from typing import List, Optional
 import numpy as np
 import torch
 
-from openretina.data_io.movie_dataloader import generate_movie_splits
+from openretina.data_io.base_dataloader import generate_movie_splits
 
 from .constants import CLIP_LENGTH, NUM_CLIPS, NUM_VAL_CLIPS
 

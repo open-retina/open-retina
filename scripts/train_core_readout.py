@@ -9,10 +9,10 @@ import torch
 from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
 
+from openretina.data_io.base import MoviesTrainTestSplit
 from openretina.data_io.cyclers import LongCycler
 from openretina.data_io.hoefling_2024.dataloaders import natmov_dataloaders_v2
 from openretina.data_io.hoefling_2024.responses import filter_responses, make_final_responses
-from openretina.data_io.movie_dataloader import MoviesTrainTestSplit
 from openretina.models.core_readout import CoreReadout
 from openretina.utils.h5_handling import load_h5_into_dict
 from openretina.utils.model_utils import OptimizerResetCallback

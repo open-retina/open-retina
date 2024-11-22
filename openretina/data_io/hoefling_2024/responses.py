@@ -10,7 +10,7 @@ from tqdm.auto import tqdm
 from openretina.data_io.hoefling_2024.constants import STIMULI_IDS
 
 
-class NeuronData:
+class NeuronDataHoefling:
     def __init__(
         self,
         responses_final: Float[np.ndarray, " n_neurons n_timepoints"],
@@ -31,7 +31,7 @@ class NeuronData:
         **kwargs,
     ):
         """
-        Initialize the NeuronData object.
+        Initialize the NeuronDataHoefling object.
         Boilerplate class to store neuron data. Added for backwards compatibility with Hoefling et al., 2022.
 
         Args:

@@ -6,10 +6,11 @@ from torch.utils.data import default_collate
 from tqdm.auto import tqdm
 
 from openretina.data_io.artificial_stimuli import load_chirp, load_moving_bar
+from openretina.data_io.base import MoviesTrainTestSplit
+from openretina.data_io.base_dataloader import get_movie_dataloader
 from openretina.data_io.hoefling_2024.constants import CLIP_LENGTH, NUM_CLIPS, NUM_VAL_CLIPS
-from openretina.data_io.hoefling_2024.responses import NeuronData
+from openretina.data_io.hoefling_2024.responses import NeuronDataHoefling
 from openretina.data_io.hoefling_2024.stimuli import gen_start_indices, get_all_movie_combinations
-from openretina.data_io.movie_dataloader import MoviesTrainTestSplit, get_movie_dataloader
 
 
 def get_dims_for_loader_dict(dataloaders: dict[str, dict[str, Any]]) -> dict[str, dict[str, tuple[int, ...]] | tuple]:
@@ -173,7 +174,7 @@ def natmov_dataloaders_v2(
     start_indices = gen_start_indices(random_sequences, val_clip_idx, clip_length, train_chunk_size, num_clips)
 
     for session_key, session_data in tqdm(neuron_data_dictionary.items(), desc="Creating movie dataloaders"):
-        neuron_data = NeuronData(
+        neuron_data = NeuronDataHoefling(
             **session_data,
             random_sequences=random_sequences,  # Used together with the validation index to
             # get the validation response in the corresponding dict
@@ -245,7 +246,7 @@ def get_chirp_dataloaders(
     start_indices = np.arange(0, chirp_stimulus.shape[1] - 1, chirp_stimulus.shape[1] // num_chirps).tolist()
 
     for session_key, session_data in tqdm(neuron_data_dictionary.items(), desc="Creating chirp dataloaders"):
-        neuron_data = NeuronData(
+        neuron_data = NeuronDataHoefling(
             **session_data,
             random_sequences=None,
             val_clip_idx=None,
@@ -318,7 +319,7 @@ def get_mb_dataloaders(
     start_indices = np.arange(0, mb_stimulus.shape[1] - 1, step=mb_stimulus.shape[1] // total_num_mbs).tolist()
 
     for session_key, session_data in tqdm(neuron_data_dictionary.items(), desc="Creating moving bars dataloaders"):
-        neuron_data = NeuronData(
+        neuron_data = NeuronDataHoefling(
             **session_data,
             random_sequences=None,
             val_clip_idx=None,
