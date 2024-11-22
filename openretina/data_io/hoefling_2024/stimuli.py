@@ -95,7 +95,7 @@ def gen_start_indices(
 
     :param random_sequences: int np array; 108 x 20, giving the ordering of the
                              108 training clips for the 20 different sequences
-    :param val_clip_idx:     list of integers indicating the 15 clips to be used
+    :param val_clip_idx:     list of integers indicating the clips to be used
                              for validation
     :param clip_length:      clip length in frames (5s*30frames/s = 150 frames)
     :param chunk_size:       temporal chunk size per sample in frames (50)
