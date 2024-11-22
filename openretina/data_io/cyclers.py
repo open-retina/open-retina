@@ -2,6 +2,7 @@
 Adapted from sinzlab/neuralpredictors/training/cyclers.py
 """
 
+import math
 import random
 
 import torch.utils.data
@@ -60,8 +61,22 @@ class ShortCycler(torch.utils.data.IterableDataset):
     def __init__(self, loaders: dict[str, DataLoader]):
         self.loaders = loaders
 
+    def _get_keys(self) -> list[str]:
+        sorted_keys = sorted(self.loaders.keys())
+        worker_info = torch.utils.data.get_worker_info()
+
+        if worker_info is not None:
+            if worker_info.num_workers > len(sorted_keys):
+                raise ValueError(f"Too many workers for {len(sorted_keys)} sessions: {worker_info=}")
+
+            sess_per_worker = math.ceil(len(sorted_keys) / worker_info.num_workers)
+            start_idx = sess_per_worker * worker_info.id
+            return sorted_keys[start_idx : start_idx + sess_per_worker]
+        else:
+            return sorted_keys
+
     def __iter__(self):
-        for k in sorted(self.loaders.keys()):
+        for k in self._get_keys():
             for example in self.loaders[k]:
                 yield k, example
 

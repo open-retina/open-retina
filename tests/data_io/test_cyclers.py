@@ -41,7 +41,7 @@ def get_all_elements_from_cycler_dataloader(dataloader) -> list:
 
 @pytest.mark.parametrize(
     "num_workers",
-    [0, 1, 4],
+    [0, 1, 3, 4],
 )
 def test_short_cycler(num_workers: int):
     dataloaders = get_dataloaders([1, 20, 5, 10])
@@ -50,12 +50,7 @@ def test_short_cycler(num_workers: int):
     cycler = ShortCycler(dataloaders)
     dl_cycler = DataLoader(cycler, num_workers=num_workers)
     all_elements_cycler = sorted(get_all_elements_from_cycler_dataloader(dl_cycler))
-    if num_workers <= 1:
-        assert len(all_elements_cycler) == len(all_elements_dataloader)
-    else:
-        # for multiple processes we might duplicate data
-        assert len(all_elements_cycler) >= len(all_elements_dataloader)
-    assert set(all_elements_cycler) == set(all_elements_dataloader)
+    assert all_elements_cycler == all_elements_dataloader
 
 
 @pytest.mark.parametrize(
