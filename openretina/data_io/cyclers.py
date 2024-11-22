@@ -79,6 +79,3 @@ class ShortCycler(torch.utils.data.IterableDataset):
         for k in self._get_keys():
             for example in self.loaders[k]:
                 yield k, example
-
-    def __len__(self) -> int:
-        return sum(len(x) for x in self.loaders)
