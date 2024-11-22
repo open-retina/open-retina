@@ -7,21 +7,19 @@ import torch
 from jaxtyping import Float
 from tqdm.auto import tqdm
 
-from openretina.data_io.hoefling_2024.constants import STIMULI_IDS
+from openretina.data_io.base import ResponsesTrainTestSplit
+from openretina.data_io.hoefling_2024.constants import CLIP_LENGTH, NUM_CLIPS, STIMULI_IDS
 
 
-class NeuronDataHoefling:
+class NeuronDataSplitHoefling:
     def __init__(
         self,
-        responses_final: Float[np.ndarray, " n_neurons n_timepoints"],
-        stim_id: Literal[5, 2, 1],
+        neural_responses: ResponsesTrainTestSplit,
         val_clip_idx: Optional[list[int]],
         num_clips: Optional[int],
         clip_length: Optional[int],
         roi_mask: Optional[Float[np.ndarray, "64 64"]] = None,
         roi_ids: Optional[Float[np.ndarray, " n_neurons"]] = None,
-        traces: Optional[Float[np.ndarray, " n_neurons n_timepoints"]] = None,
-        tracestimes: Optional[Float[np.ndarray, " n_timepoints"]] = None,
         scan_sequence_idx: Optional[int] = None,
         random_sequences: Optional[Float[np.ndarray, "n_clips n_sequences"]] = None,
         eye: Optional[Literal["left", "right"]] = None,
@@ -31,8 +29,9 @@ class NeuronDataHoefling:
         **kwargs,
     ):
         """
-        Initialize the NeuronDataHoefling object.
-        Boilerplate class to store neuron data. Added for backwards compatibility with Hoefling et al., 2022.
+        Initialize the NeuronData object.
+        Boilerplate class to store neuron data train/test/validation splits before feeding into a dataloader.
+        Customized for compatibility with the data format in Hoefling et al., 2024.
 
         Args:
             eye (str): The eye from which the neuron data is recorded.
@@ -44,21 +43,15 @@ class NeuronDataHoefling:
             roi_ids (Float[np.ndarray, "n_neurons"]): The IDs of regions of interest (ROIs).
             scan_sequence_idx (int): The index of the scan sequence.
             stim_id (int): The ID of the stimulus. 5 is mouse natural scenes.
-            traces: The traces of the neuron data.
-            tracestimes: The timestamps of the traces.
             random_sequences (Float[np.ndarray, "n_clips n_sequences"]): The random sequences of clips.
             val_clip_idx (List[int]): The indices of validation clips.
             num_clips (int): The number of clips.
             clip_length (int): The length of each clip.
             use_base_sequence (bool): Whether to re-order all training responses to use the same "base" sequence.
         """
-        self.neural_responses = responses_final
+        self.neural_responses = neural_responses
 
-        self.num_neurons = (
-            self.neural_responses["train"].shape[0]
-            if isinstance(self.neural_responses, dict)
-            else self.neural_responses.shape[0]
-        )
+        self.num_neurons = self.neural_responses.n_neurons
 
         self.eye = eye if eye is not None else "right"
         self.group_assignment = group_assignment
@@ -68,16 +61,20 @@ class NeuronDataHoefling:
             np.array(self.transform_roi_mask(roi_mask), dtype=np.float32) if roi_mask is not None else None
         )
         self.scan_sequence_idx = scan_sequence_idx
-        self.stim_id = stim_id
-        self.traces = traces
-        self.tracestimes = tracestimes
+        self.stim_id = self.neural_responses.stim_id
         self.clip_length = clip_length
         self.num_clips = num_clips
         self.random_sequences = random_sequences if random_sequences is not None else np.array([])
         self.use_base_sequence = use_base_sequence
         self.val_clip_idx = val_clip_idx
 
-        self.responses_train_and_val, self.responses_test, self.test_responses_by_trial = self.compute_test_responses()
+        self.responses_train_and_val, self.responses_test, self.test_responses_by_trial = (
+            self.neural_responses.train.T,
+            self.neural_responses.test.T,
+            self.neural_responses.test_by_trial.transpose(0, 2, 1)
+            if self.neural_responses.test_by_trial is not None
+            else None,
+        )
         self.responses_train, self.responses_val = self.compute_validation_responses()
 
     @property
@@ -91,46 +88,9 @@ class NeuronDataHoefling:
             },
         }
 
-    def compute_test_responses(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        if self.stim_id in [1, 2]:
-            # Chirp and moving bar
-            responses_test = np.array(np.nan)
-            test_responses_by_trial = [np.nan]
-            responses_train_and_val = self.neural_responses.T
-
-        else:
-            assert self.clip_length is not None, "Clip length must be provided for natural scenes"
-            assert self.num_clips is not None, "Number of clips must be provided for natural scenes"
-            assert self.val_clip_idx is not None, "Validation clip indices must be provided for natural scenes"
-
-            responses_test = np.zeros((5 * self.clip_length, self.num_neurons))
-            responses_train_and_val = np.zeros((self.num_clips * self.clip_length, self.num_neurons))
-
-            test_responses_by_trial = []
-
-            # Note: the hardcoded indices are the location of test clips in Hoefling 2024
-            for roi in range(self.num_neurons):
-                tmp = np.vstack(
-                    (
-                        self.neural_responses[roi, : 5 * self.clip_length],
-                        self.neural_responses[roi, 59 * self.clip_length : 64 * self.clip_length],
-                        self.neural_responses[roi, 118 * self.clip_length :],
-                    )
-                )
-                test_responses_by_trial.append(tmp)  # type: ignore
-                responses_test[:, roi] = np.mean(tmp, 0)
-                responses_train_and_val[:, roi] = np.concatenate(
-                    (
-                        self.neural_responses[roi, 5 * self.clip_length : 59 * self.clip_length],
-                        self.neural_responses[roi, 64 * self.clip_length : 118 * self.clip_length],
-                    )
-                )
-
-        return responses_train_and_val, responses_test, np.asarray(test_responses_by_trial)
-
     @no_type_check
     def compute_validation_responses(self) -> tuple[np.ndarray, np.ndarray]:
-        if self.stim_id in [1, 2]:
+        if self.stim_id in ["mb", "chirp"]:
             # Chirp and moving bar
             responses_val = np.array(np.nan)
             responses_train = self.responses_train_and_val
@@ -227,6 +187,50 @@ class NeuronDataHoefling:
         val = val - 0.5
         val = val * 2
         return val
+
+
+def compute_test_responses(
+    neural_responses: Float[np.ndarray, "n_neurons time"],
+    clip_length=CLIP_LENGTH,
+    num_clips=NUM_CLIPS,
+    response_type: Literal["natural", "chirp", "mb"] = "natural",
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    if response_type in ["chirp", "mb"]:
+        # Chirp and moving bar
+        responses_test = np.array(np.nan)
+        test_responses_by_trial = [np.nan]
+        responses_train_and_val = neural_responses.T
+
+    else:
+        assert clip_length is not None, "Clip length must be provided for natural scenes"
+        assert num_clips is not None, "Number of clips must be provided for natural scenes"
+
+        num_neurons = neural_responses.shape[0]
+
+        responses_test = np.zeros((5 * clip_length, num_neurons))
+        responses_train_and_val = np.zeros((num_clips * clip_length, num_neurons))
+
+        test_responses_by_trial = []
+
+        # Note: the hardcoded indices are the location of test clips in Hoefling 2024
+        for roi in range(num_neurons):
+            tmp = np.vstack(
+                (
+                    neural_responses[roi, : 5 * clip_length],
+                    neural_responses[roi, 59 * clip_length : 64 * clip_length],
+                    neural_responses[roi, 118 * clip_length :],
+                )
+            )
+            test_responses_by_trial.append(tmp.T)  # type: ignore
+            responses_test[:, roi] = np.mean(tmp, 0)
+            responses_train_and_val[:, roi] = np.concatenate(
+                (
+                    neural_responses[roi, 5 * clip_length : 59 * clip_length],
+                    neural_responses[roi, 64 * clip_length : 118 * clip_length],
+                )
+            )
+
+    return responses_train_and_val.T, responses_test.T, np.asarray(test_responses_by_trial)
 
 
 def upsample_traces(
@@ -410,8 +414,44 @@ def make_final_responses(
     scale_traces: float = 1.0,
     norm_by_std: bool = True,
 ):
+    upsampled_data_dict = upsample_all_responses(
+        data_dict, response_type, trace_type, d_qi, chirp_qi, qi_logic, scale_traces, norm_by_std
+    )
+
+    responses_dictionary = {}
+
+    for field in upsampled_data_dict.keys():
+        train_responses, test_responses, test_responses_by_trial = compute_test_responses(
+            upsampled_data_dict[field]["responses_final"],
+            response_type=response_type,
+        )
+        responses_dictionary[field] = ResponsesTrainTestSplit(
+            train=train_responses,
+            test=test_responses,
+            test_by_trial=test_responses_by_trial,
+            stim_id=response_type,
+            session_kwargs={
+                "eye": upsampled_data_dict[field]["eye"],
+                "scan_sequence_idx": upsampled_data_dict[field]["scan_sequence_idx"],
+            },
+        )
+
+    return responses_dictionary
+
+
+def upsample_all_responses(
+    data_dict: dict,
+    response_type: Literal["natural", "chirp", "mb"] = "natural",
+    trace_type: Literal["spikes", "raw", "preprocessed", "detrended"] = "spikes",
+    d_qi: Optional[float] = None,
+    chirp_qi: Optional[float] = None,
+    qi_logic: Literal["and", "or"] = "or",
+    scale_traces: float = 1.0,
+    norm_by_std: bool = True,
+):
     """
-    Converts inferred spikes into final responses by upsampling the traces.
+    Converts inferred spikes into final responses by upsampling the traces of all sessions of a given response_type.
+    This is to match the framerate used in the stimulus presentation.
 
     Args:
         data_dict (dict): A dictionary containing the data.

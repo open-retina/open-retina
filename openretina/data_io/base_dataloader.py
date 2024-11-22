@@ -354,7 +354,7 @@ def get_movie_dataloader(
     )
 
 
-class NeuronData:
+class NeuronDataSplit:
     def __init__(
         self,
         responses: ResponsesTrainTestSplit,
@@ -366,8 +366,7 @@ class NeuronData:
     ):
         """
         Initialize the NeuronData object.
-        Boilerplate class to store neuron data before feeding into a dataloader.
-        Computes training and validation responses.
+        Boilerplate class to compute and store neuron data train/test/validation splits before feeding into a dataloader
 
         Args:
             key (dict): The key information for the neuron data,

@@ -1,7 +1,7 @@
 import pickle
 import warnings
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Any, Optional
 
 import numpy as np
 from jaxtyping import Float
@@ -42,7 +42,9 @@ class MoviesTrainTestSplit:
 class ResponsesTrainTestSplit:
     train: Float[np.ndarray, "neurons train_time"]
     test: Float[np.ndarray, "neurons test_time"]
+    test_by_trial: Optional[Float[np.ndarray, "trials neurons test_time"]] = None
     stim_id: Optional[str] = None
+    session_kwargs: dict[str, Any] = field(default_factory=lambda: {})
 
     def __post_init__(self):
         assert (

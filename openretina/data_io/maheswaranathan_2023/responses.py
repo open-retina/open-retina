@@ -5,8 +5,8 @@ Paper: https://doi.org/10.1016/j.neuron.2023.06.007
 Data: https://doi.org/10.25740/rk663dm5577
 """
 
-from openretina.data_io.base_dataloader import NeuronData
+from openretina.data_io.base_dataloader import NeuronDataSplit
 
 
-class NeuronDataBaccus(NeuronData):
+class NeuronDataBaccus(NeuronDataSplit):
     pass

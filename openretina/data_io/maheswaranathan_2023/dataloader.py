@@ -6,7 +6,7 @@ from tqdm.auto import tqdm
 from openretina.data_io.base import MoviesTrainTestSplit, ResponsesTrainTestSplit
 from openretina.data_io.base_dataloader import generate_movie_splits, get_movie_dataloader
 from openretina.data_io.maheswaranathan_2023.constants import CLIP_LENGTH
-from openretina.data_io.maheswaranathan_2023.responses import NeuronData
+from openretina.data_io.maheswaranathan_2023.responses import NeuronDataSplit
 
 
 def get_movie_splits(
@@ -80,7 +80,7 @@ def multiple_movies_dataloaders(
         )
 
         # Extract all splits from neural data
-        neuron_data = NeuronData(
+        neuron_data = NeuronDataSplit(
             responses=session_data,
             val_clip_idx=val_clip_idx,
             num_clips=num_clips,
