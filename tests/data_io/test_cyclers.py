@@ -35,7 +35,7 @@ def get_all_elements_from_dataloaders(dataloaders) -> list:
 
 def get_all_elements_from_cycler_dataloader(dataloader) -> list:
     all_elements_lists = list(dataloader)
-    all_elements = [x[1][0][0] for x in all_elements_lists]
+    all_elements = [x[1][0] for x in all_elements_lists]
     return all_elements
 
 
@@ -48,7 +48,7 @@ def test_short_cycler(num_workers: int):
 
     all_elements_dataloader = sorted(get_all_elements_from_dataloaders(dataloaders.values()))
     cycler = ShortCycler(dataloaders)
-    dl_cycler = DataLoader(cycler, num_workers=num_workers)
+    dl_cycler = DataLoader(cycler, num_workers=num_workers, batch_size=None, drop_last=False)
     all_elements_cycler = sorted(get_all_elements_from_cycler_dataloader(dl_cycler))
     assert all_elements_cycler == all_elements_dataloader
 
@@ -69,7 +69,7 @@ def test_long_cycler(num_workers: int, shuffle: bool):
 
     all_elements_dataloader = get_all_elements_from_dataloaders(dataloaders.values())
     cycler = LongCycler(dataloaders, shuffle=shuffle)
-    dl_cycler = DataLoader(cycler, num_workers=num_workers, drop_last=False)
+    dl_cycler = DataLoader(cycler, num_workers=num_workers, batch_size=None, drop_last=False)
     all_elements_cycler = get_all_elements_from_cycler_dataloader(dl_cycler)
 
     # cycler can produce more elements if the individual dataloaders have different sizes
