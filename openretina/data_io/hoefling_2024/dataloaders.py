@@ -130,6 +130,7 @@ def extract_data_info_from_dataloaders(
 def natmov_dataloaders_v2(
     neuron_data_dictionary: dict[str, Any],
     movies_dictionary: MoviesTrainTestSplit,
+    validation_clip_indices: list[int],
     train_chunk_size: int = 50,
     batch_size: int = 32,
     num_clips: int = NUM_CLIPS,
@@ -143,9 +144,6 @@ def natmov_dataloaders_v2(
     assert (
         next(iter(neuron_data_dictionary.values()))["stim_id"] == 5
     ), "This function only supports natural movie stimuli."
-
-    # Draw validation clips based on the random seed
-    val_clip_idx = list(np.random.choice(num_clips, num_val_clips, replace=False))
 
     clip_chunk_sizes = {
         "train": train_chunk_size,
@@ -165,19 +163,21 @@ def natmov_dataloaders_v2(
         movies_dictionary.train,
         movies_dictionary.test,
         random_sequences,
-        val_clip_idx=val_clip_idx,
+        val_clip_idx=validation_clip_indices,
         num_clips=num_clips,
         clip_length=clip_length,
     )
 
-    start_indices = gen_start_indices(random_sequences, val_clip_idx, clip_length, train_chunk_size, num_clips)
+    start_indices = gen_start_indices(
+        random_sequences, validation_clip_indices, clip_length, train_chunk_size, num_clips
+    )
 
     for session_key, session_data in tqdm(neuron_data_dictionary.items(), desc="Creating movie dataloaders"):
         neuron_data = NeuronData(
             **session_data,
             random_sequences=random_sequences,  # Used together with the validation index to
             # get the validation response in the corresponding dict
-            val_clip_idx=val_clip_idx,
+            val_clip_idx=validation_clip_indices,
             num_clips=num_clips,
             clip_length=clip_length,
         )

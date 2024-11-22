@@ -31,7 +31,7 @@ def main(conf: DictConfig) -> None:
     filtered_responses = filter_responses(responses, **OmegaConf.to_object(conf.quality_checks))  # type: ignore
 
     data_dict = make_final_responses(filtered_responses, response_type="natural")  # type: ignore
-    dataloaders = natmov_dataloaders_v2(data_dict, movies_dictionary=movies_dict, train_chunk_size=100)
+    dataloaders = natmov_dataloaders_v2(data_dict, movies_dictionary=movies_dict, **conf.natmov_dataloader)
 
     # when num_workers > 0 the docker container needs more shared memory
     train_loader = DataLoader(LongCycler(dataloaders["train"], shuffle=True), **conf.dataloader)
