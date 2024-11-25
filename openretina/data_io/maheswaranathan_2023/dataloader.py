@@ -1,4 +1,4 @@
-from typing import Any, List, Optional
+from typing import Any
 
 import numpy as np
 from tqdm.auto import tqdm
@@ -12,13 +12,12 @@ from openretina.data_io.maheswaranathan_2023.responses import NeuronDataSplit
 def get_movie_splits(
     movie_train,
     movie_test,
-    val_clip_idx: Optional[List[int]],
+    val_clip_idx: list[int],
     num_clips: int,
-    num_val_clips: int,
     clip_length: int,
 ):
-    movie_train_subset, movie_val, movie_test, val_clip_idx = generate_movie_splits(
-        movie_train, movie_test, val_clip_idx, num_clips, num_val_clips, clip_length
+    movie_train_subset, movie_val, movie_test = generate_movie_splits(
+        movie_train, movie_test, val_clip_idx, num_clips, clip_length
     )
 
     movies = {
@@ -75,7 +74,6 @@ def multiple_movies_dataloaders(
             movies_dictionary[session_key].test,
             val_clip_idx=val_clip_idx,
             num_clips=num_clips,
-            num_val_clips=num_val_clips,
             clip_length=clip_length,
         )
 

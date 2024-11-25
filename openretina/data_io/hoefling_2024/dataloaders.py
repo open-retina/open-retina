@@ -8,7 +8,7 @@ from tqdm.auto import tqdm
 from openretina.data_io.artificial_stimuli import load_chirp, load_moving_bar
 from openretina.data_io.base import MoviesTrainTestSplit, ResponsesTrainTestSplit
 from openretina.data_io.base_dataloader import get_movie_dataloader
-from openretina.data_io.hoefling_2024.constants import CLIP_LENGTH, NUM_CLIPS, NUM_VAL_CLIPS
+from openretina.data_io.hoefling_2024.constants import CLIP_LENGTH, NUM_CLIPS
 from openretina.data_io.hoefling_2024.responses import NeuronDataSplitHoefling
 from openretina.data_io.hoefling_2024.stimuli import gen_start_indices, get_all_movie_combinations
 
@@ -131,11 +131,11 @@ def extract_data_info_from_dataloaders(
 def natmov_dataloaders_v2(
     neuron_data_dictionary: dict[str, ResponsesTrainTestSplit],
     movies_dictionary: MoviesTrainTestSplit,
+    validation_clip_indices: list[int],
     train_chunk_size: int = 50,
     batch_size: int = 32,
     num_clips: int = NUM_CLIPS,
     clip_length: int = CLIP_LENGTH,
-    num_val_clips: int = NUM_VAL_CLIPS,
 ):
     assert (
         getattr(next(iter(neuron_data_dictionary.values())), "stim_id") == "natural"
@@ -162,12 +162,14 @@ def natmov_dataloaders_v2(
         movies_dictionary.train,
         movies_dictionary.test,
         random_sequences,
-        val_clip_idx=val_clip_idx,
+        validation_clip_indices=validation_clip_indices,
         num_clips=num_clips,
         clip_length=clip_length,
     )
 
-    start_indices = gen_start_indices(random_sequences, val_clip_idx, clip_length, train_chunk_size, num_clips)
+    start_indices = gen_start_indices(
+        random_sequences, validation_clip_indices, clip_length, train_chunk_size, num_clips
+    )
 
     for session_key, session_data in tqdm(neuron_data_dictionary.items(), desc="Creating movie dataloaders"):
         # Extract training, validation, and test responses
@@ -175,7 +177,7 @@ def natmov_dataloaders_v2(
             neural_responses=session_data,
             random_sequences=random_sequences,
             **session_data.session_kwargs,
-            val_clip_idx=val_clip_idx,
+            val_clip_idx=validation_clip_indices,
             num_clips=num_clips,
             clip_length=clip_length,
         )

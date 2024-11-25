@@ -90,7 +90,7 @@ class CoreReadout(lightning.LightningModule):
         self.log("regularization_loss_readout", regularization_loss_readout, on_step=False, on_epoch=True)
         self.log("train_total_loss", total_loss, on_step=False, on_epoch=True)
         self.log("train_loss", loss, on_step=False, on_epoch=True)
-        self.log("train_correlation", correlation, on_step=False, on_epoch=True)
+        self.log("train_correlation", correlation, on_step=False, on_epoch=True, prog_bar=True)
 
         return total_loss
 
@@ -106,7 +106,7 @@ class CoreReadout(lightning.LightningModule):
         self.log("val_loss", loss, logger=True, prog_bar=True)
         self.log("val_regularization_loss_core", regularization_loss_core, logger=True)
         self.log("val_regularization_loss_readout", regularization_loss_readout, logger=True)
-        self.log("val_total_loss", total_loss, logger=True, prog_bar=True)
+        self.log("val_total_loss", total_loss, logger=True)
         self.log("val_correlation", correlation, logger=True, prog_bar=True)
 
         return loss

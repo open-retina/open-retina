@@ -8,9 +8,10 @@ import lightning
 import torch
 from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
+from torch.utils.data import DataLoader
 
 from openretina.data_io.base import MoviesTrainTestSplit
-from openretina.data_io.cyclers import LongCycler
+from openretina.data_io.cyclers import LongCycler, ShortCycler
 from openretina.data_io.hoefling_2024.dataloaders import natmov_dataloaders_v2
 from openretina.data_io.hoefling_2024.responses import filter_responses, make_final_responses
 from openretina.models.core_readout import CoreReadout
@@ -30,11 +31,11 @@ def main(conf: DictConfig) -> None:
     filtered_responses = filter_responses(responses, **OmegaConf.to_object(conf.quality_checks))  # type: ignore
 
     data_dict = make_final_responses(filtered_responses, response_type="natural")  # type: ignore
-    dataloaders = natmov_dataloaders_v2(data_dict, movies_dictionary=movies_dict, train_chunk_size=100)
+    dataloaders = natmov_dataloaders_v2(data_dict, movies_dictionary=movies_dict, **conf.natmov_dataloader)
 
     # when num_workers > 0 the docker container needs more shared memory
-    train_loader = torch.utils.data.DataLoader(LongCycler(dataloaders["train"], shuffle=True), **conf.dataloader)
-    valid_loader = torch.utils.data.DataLoader(LongCycler(dataloaders["validation"], shuffle=False), **conf.dataloader)
+    train_loader = DataLoader(LongCycler(dataloaders["train"], shuffle=True), **conf.dataloader)
+    valid_loader = DataLoader(ShortCycler(dataloaders["validation"]), **conf.dataloader)
 
     # max_pool3d_with_indices does not have a deterministic implementation in pytorch yet
     deterministic: bool | Literal["warn"] = "warn" if conf.seed is not None else False
@@ -69,7 +70,7 @@ def main(conf: DictConfig) -> None:
     )
     trainer.fit(model=model, train_dataloaders=train_loader, val_dataloaders=valid_loader)
     # test
-    test_loader = torch.utils.data.DataLoader(LongCycler(dataloaders["test"], shuffle=False), **conf.dataloader)
+    test_loader = DataLoader(ShortCycler(dataloaders["test"]), **conf.dataloader)
     trainer.test(model, dataloaders=[train_loader, valid_loader, test_loader], ckpt_path="best")
     trainer.save_checkpoint(os.path.join(log_folder, "model.ckpt"))
 
