@@ -137,12 +137,11 @@ def natmov_dataloaders_v2(
     num_clips: int = NUM_CLIPS,
     clip_length: int = CLIP_LENGTH,
 ):
-    assert (
-        getattr(next(iter(neuron_data_dictionary.values())), "stim_id") == "natural"
-    ), f"This function only supports natural movie stimuli, not {next(iter(neuron_data_dictionary.values())).stim_id}."
-
-    # Draw validation clips based on the random seed
-    val_clip_idx = list(np.random.choice(num_clips, num_val_clips, replace=False))
+    stim_ids = {x.stim_id for x in neuron_data_dictionary.values()}
+    assert stim_ids == {"natural"}, (
+        "This function only supports natural movie stimuli. Stimuli type found",
+        f" in neural responses: {stim_ids}",
+    )
 
     clip_chunk_sizes = {
         "train": train_chunk_size,

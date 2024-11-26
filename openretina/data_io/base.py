@@ -65,5 +65,5 @@ class ResponsesTrainTestSplit:
             assert self.stim_id == movies.stim_id, "Stimulus ID in responses and movies do not match."
 
     @property
-    def n_neurons(self):
+    def n_neurons(self) -> int:
         return self.train.shape[0]

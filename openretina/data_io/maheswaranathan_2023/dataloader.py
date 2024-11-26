@@ -47,11 +47,6 @@ def multiple_movies_dataloaders(
         neuron_data_dictionary.keys() == movies_dictionary.keys()
     ), "The keys of neuron_data_dictionary and movies_dictionary should match."
 
-    # assert all(field in next(iter(neuron_data_dictionary.values())) for field in ["responses_final", "stim_id"]), (
-    #     "Check the neuron data dictionary sub-dictionaries for the minimal"
-    #     " required fields: 'responses_final' and 'stim_id'."
-    # )
-
     # Initialise dataloaders
     dataloaders: dict[str, Any] = {"train": {}, "validation": {}, "test": {}}
 

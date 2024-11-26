@@ -213,20 +213,20 @@ def compute_test_responses(
         test_responses_by_trial = []
 
         # Note: the hardcoded indices are the location of test clips in Hoefling 2024
-        for roi in range(num_neurons):
+        for idx in range(num_neurons):
             tmp = np.vstack(
                 (
-                    neural_responses[roi, : 5 * clip_length],
-                    neural_responses[roi, 59 * clip_length : 64 * clip_length],
-                    neural_responses[roi, 118 * clip_length :],
+                    neural_responses[idx, : 5 * clip_length],
+                    neural_responses[idx, 59 * clip_length : 64 * clip_length],
+                    neural_responses[idx, 118 * clip_length :],
                 )
             )
             test_responses_by_trial.append(tmp.T)  # type: ignore
-            responses_test[:, roi] = np.mean(tmp, 0)
-            responses_train_and_val[:, roi] = np.concatenate(
+            responses_test[:, idx] = np.mean(tmp, 0)
+            responses_train_and_val[:, idx] = np.concatenate(
                 (
-                    neural_responses[roi, 5 * clip_length : 59 * clip_length],
-                    neural_responses[roi, 64 * clip_length : 118 * clip_length],
+                    neural_responses[idx, 5 * clip_length : 59 * clip_length],
+                    neural_responses[idx, 64 * clip_length : 118 * clip_length],
                 )
             )
 
