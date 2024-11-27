@@ -5,7 +5,6 @@ from typing import Literal
 
 import hydra
 import lightning
-import torch
 from lightning.pytorch import seed_everything
 from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
