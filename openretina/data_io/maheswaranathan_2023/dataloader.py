@@ -3,9 +3,10 @@ from typing import Any
 import numpy as np
 from tqdm.auto import tqdm
 
+from openretina.data_io.base import MoviesTrainTestSplit, ResponsesTrainTestSplit
+from openretina.data_io.base_dataloader import generate_movie_splits, get_movie_dataloader
 from openretina.data_io.maheswaranathan_2023.constants import CLIP_LENGTH
-from openretina.data_io.maheswaranathan_2023.responses import NeuronDataBaccus
-from openretina.data_io.movie_dataloader import MoviesTrainTestSplit, generate_movie_splits, get_movie_dataloader
+from openretina.data_io.maheswaranathan_2023.responses import NeuronDataSplit
 
 
 def get_movie_splits(
@@ -30,7 +31,7 @@ def get_movie_splits(
 
 
 def multiple_movies_dataloaders(
-    neuron_data_dictionary: dict[str, Any],
+    neuron_data_dictionary: dict[str, ResponsesTrainTestSplit],
     movies_dictionary: dict[str, MoviesTrainTestSplit],
     train_chunk_size: int = 50,
     batch_size: int = 32,
@@ -45,11 +46,6 @@ def multiple_movies_dataloaders(
     assert (
         neuron_data_dictionary.keys() == movies_dictionary.keys()
     ), "The keys of neuron_data_dictionary and movies_dictionary should match."
-
-    assert all(field in next(iter(neuron_data_dictionary.values())) for field in ["responses_final", "stim_id"]), (
-        "Check the neuron data dictionary sub-dictionaries for the minimal"
-        " required fields: 'responses_final' and 'stim_id'."
-    )
 
     # Initialise dataloaders
     dataloaders: dict[str, Any] = {"train": {}, "validation": {}, "test": {}}
@@ -76,9 +72,9 @@ def multiple_movies_dataloaders(
             clip_length=clip_length,
         )
 
-        # Extract neural data
-        neuron_data = NeuronDataBaccus(
-            **session_data,
+        # Extract all splits from neural data
+        neuron_data = NeuronDataSplit(
+            responses=session_data,
             val_clip_idx=val_clip_idx,
             num_clips=num_clips,
             clip_length=clip_length,

@@ -1,32 +1,15 @@
 import bisect
-import pickle
 from collections import namedtuple
-from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 import numpy as np
 import torch
 from jaxtyping import Float
 from torch.utils.data import DataLoader, Dataset, Sampler
 
+from openretina.data_io.base import ResponsesTrainTestSplit
+
 DataPoint = namedtuple("DataPoint", ["inputs", "targets"])
-
-
-@dataclass
-class MoviesTrainTestSplit:
-    train: np.ndarray
-    test: np.ndarray
-    random_sequences: Optional[np.ndarray] = None
-
-    @classmethod
-    def from_pickle(cls, file_path: str):
-        with open(file_path, "rb") as f:
-            movies_dict = pickle.load(f)
-        return cls(
-            train=movies_dict["train"],
-            test=movies_dict["test"],
-            random_sequences=movies_dict.get("random_sequences", None),
-        )
 
 
 class MovieDataSet(Dataset):
@@ -365,3 +348,82 @@ def get_movie_dataloader(
     return DataLoader(
         dataset, sampler=sampler, batch_size=batch_size, drop_last=split == "train" and drop_last, **kwargs
     )
+
+
+class NeuronDataSplit:
+    def __init__(
+        self,
+        responses: ResponsesTrainTestSplit,
+        val_clip_idx: List[int],
+        num_clips: int,
+        clip_length: int,
+        key: Optional[dict] = None,
+        **kwargs,
+    ):
+        """
+        Initialize the NeuronData object.
+        Boilerplate class to compute and store neuron data train/test/validation splits before feeding into a dataloader
+
+        Args:
+            key (dict): The key information for the neuron data,
+                        includes date, exp_num, experimenter, field_id, stim_id.
+            responses (ResponsesTrainTestSplit): The train and test responses of neurons.
+            val_clip_idx (List[int]): The indices of validation clips.
+            num_clips (int): The number of clips.
+            clip_length (int): The length of each clip.
+            key (dict, optional): Additional key information.
+        """
+        self.neural_responses = responses
+        self.num_neurons = self.neural_responses.n_neurons
+        self.key = key
+        self.roi_coords = ()
+        self.clip_length = clip_length
+        self.num_clips = num_clips
+        self.val_clip_idx = val_clip_idx
+
+        # Transpose the responses to have the shape (n_timepoints, n_neurons)
+        self.responses_test = self.neural_responses.test.T
+        self.responses_train_and_val = self.neural_responses.train.T
+
+        self.responses_train, self.responses_val = self.split_data_train_val()
+        self.test_responses_by_trial = np.array([])  # Added for compatibility with Hoefling et al., 2024
+
+    def split_data_train_val(self) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Compute validation responses and updated train responses stripped from validation clips.
+
+        Returns:
+            Tuple[np.ndarray, np.ndarray]: The updated train and validation responses.
+        """
+        val_idx_set = set(self.val_clip_idx)
+        train_responses, val_responses = [], []
+
+        for i in range(self.num_clips):
+            # Extract responses for the current clip
+            clip_responses = self.responses_train_and_val[i * self.clip_length : (i + 1) * self.clip_length, :]
+
+            # Append to the appropriate list
+            if i in val_idx_set:
+                val_responses.append(clip_responses)
+            else:
+                train_responses.append(clip_responses)
+
+        # Concatenate lists into arrays along the time axis
+        responses_train = np.concatenate(train_responses, axis=0)
+        responses_val = np.concatenate(val_responses, axis=0)
+
+        return responses_train, responses_val
+
+    @property
+    def response_dict(self) -> dict:
+        """
+        Create and return a dictionary of neural responses for train, validation, and test datasets.
+        """
+        return {
+            "train": torch.tensor(self.responses_train, dtype=torch.float),
+            "validation": torch.tensor(self.responses_val, dtype=torch.float),
+            "test": {
+                "avg": torch.tensor(self.responses_test, dtype=torch.float),
+                "by_trial": torch.tensor(self.test_responses_by_trial, dtype=torch.float),
+            },
+        }

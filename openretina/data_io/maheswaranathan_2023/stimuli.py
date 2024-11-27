@@ -8,7 +8,7 @@ Data: https://doi.org/10.25740/rk663dm5577
 import os
 from typing import Any
 
-from openretina.data_io.movie_dataloader import MoviesTrainTestSplit
+from openretina.data_io.base import MoviesTrainTestSplit, ResponsesTrainTestSplit
 from openretina.utils.h5_handling import load_dataset_from_h5
 
 CLIP_LENGTH = 90  # in frames @ 30 fps
@@ -57,6 +57,7 @@ def load_all_sessions(
                 stimuli_all_sessions["".join(session.split("/")[-1])] = MoviesTrainTestSplit(
                     train=train_video,
                     test=test_video,
+                    stim_id=stim_type,
                 )
 
                 train_session_data = load_dataset_from_h5(recording_file, f"/train/response/{response_type}")
@@ -70,12 +71,10 @@ def load_all_sessions(
                     train_session_data.shape[1] == train_video.shape[1]
                 ), "The number of timepoints in the responses does not match the number of frames in the video."
 
-                responses_all_sessions["".join(session.split("/")[-1])] = {
-                    "responses_final": {
-                        "train": train_session_data / fr_normalization,
-                        "test": test_session_data / fr_normalization,
-                    },
-                    "stim_id": "salamander_natural",
-                }
+                responses_all_sessions["".join(session.split("/")[-1])] = ResponsesTrainTestSplit(
+                    train=train_session_data / fr_normalization,
+                    test=test_session_data / fr_normalization,
+                    stim_id=stim_type,
+                )
 
     return responses_all_sessions, stimuli_all_sessions

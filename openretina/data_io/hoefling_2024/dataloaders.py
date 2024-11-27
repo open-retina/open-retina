@@ -2,14 +2,15 @@ from typing import Any, Optional
 
 import numpy as np
 import torch
-from torch.utils.data import default_collate
+from torch.utils.data import DataLoader, default_collate
 from tqdm.auto import tqdm
 
 from openretina.data_io.artificial_stimuli import load_chirp, load_moving_bar
+from openretina.data_io.base import MoviesTrainTestSplit, ResponsesTrainTestSplit
+from openretina.data_io.base_dataloader import get_movie_dataloader
 from openretina.data_io.hoefling_2024.constants import CLIP_LENGTH, NUM_CLIPS
-from openretina.data_io.hoefling_2024.responses import NeuronData
+from openretina.data_io.hoefling_2024.responses import NeuronDataSplitHoefling
 from openretina.data_io.hoefling_2024.stimuli import gen_start_indices, get_all_movie_combinations
-from openretina.data_io.movie_dataloader import MoviesTrainTestSplit, get_movie_dataloader
 
 
 def get_dims_for_loader_dict(dataloaders: dict[str, dict[str, Any]]) -> dict[str, dict[str, tuple[int, ...]] | tuple]:
@@ -128,7 +129,7 @@ def extract_data_info_from_dataloaders(
 
 
 def natmov_dataloaders_v2(
-    neuron_data_dictionary: dict[str, Any],
+    neuron_data_dictionary: dict[str, ResponsesTrainTestSplit],
     movies_dictionary: MoviesTrainTestSplit,
     validation_clip_indices: list[int],
     train_chunk_size: int = 50,
@@ -136,20 +137,18 @@ def natmov_dataloaders_v2(
     num_clips: int = NUM_CLIPS,
     clip_length: int = CLIP_LENGTH,
 ):
-    assert all(field in next(iter(neuron_data_dictionary.values())) for field in ["responses_final", "stim_id"]), (
-        "Check the neuron data dictionary sub-dictionaries for the minimal"
-        " required fields: 'responses_final' and 'stim_id'."
+    stim_ids = {x.stim_id for x in neuron_data_dictionary.values()}
+    assert stim_ids == {"natural"}, (
+        "This function only supports natural movie stimuli. Stimuli type found",
+        f" in neural responses: {stim_ids}",
     )
-    assert (
-        next(iter(neuron_data_dictionary.values()))["stim_id"] == 5
-    ), "This function only supports natural movie stimuli."
 
     clip_chunk_sizes = {
         "train": train_chunk_size,
         "validation": clip_length,
         "test": movies_dictionary.test.shape[1],
     }
-    dataloaders: dict[str, Any] = {"train": {}, "validation": {}, "test": {}}
+    dataloaders: dict[str, dict[str, DataLoader]] = {"train": {}, "validation": {}, "test": {}}
 
     # Get the random sequences of movies presentations for each session if available
     if movies_dictionary.random_sequences is None:
@@ -172,10 +171,11 @@ def natmov_dataloaders_v2(
     )
 
     for session_key, session_data in tqdm(neuron_data_dictionary.items(), desc="Creating movie dataloaders"):
-        neuron_data = NeuronData(
-            **session_data,
-            random_sequences=random_sequences,  # Used together with the validation index to
-            # get the validation response in the corresponding dict
+        # Extract training, validation, and test responses
+        neuron_data = NeuronDataSplitHoefling(
+            neural_responses=session_data,
+            random_sequences=random_sequences,
+            **session_data.session_kwargs,
             val_clip_idx=validation_clip_indices,
             num_clips=num_clips,
             clip_length=clip_length,
@@ -185,9 +185,6 @@ def natmov_dataloaders_v2(
         if session_key == "session_2_ventral2_20200626":
             # session incorrectly labeled as left
             _eye = "right"
-        # if neuron_data.responses_train.shape[-1] == 0:
-        #     print("skipped: {}".format(session_key))
-        #     break
         for fold in ["train", "validation", "test"]:
             dataloaders[fold][session_key] = get_movie_dataloader(
                 movies=movies[_eye][fold],
@@ -244,7 +241,7 @@ def get_chirp_dataloaders(
     start_indices = np.arange(0, chirp_stimulus.shape[1] - 1, chirp_stimulus.shape[1] // num_chirps).tolist()
 
     for session_key, session_data in tqdm(neuron_data_dictionary.items(), desc="Creating chirp dataloaders"):
-        neuron_data = NeuronData(
+        neuron_data = NeuronDataSplitHoefling(
             **session_data,
             random_sequences=None,
             val_clip_idx=None,
@@ -317,7 +314,7 @@ def get_mb_dataloaders(
     start_indices = np.arange(0, mb_stimulus.shape[1] - 1, step=mb_stimulus.shape[1] // total_num_mbs).tolist()
 
     for session_key, session_data in tqdm(neuron_data_dictionary.items(), desc="Creating moving bars dataloaders"):
-        neuron_data = NeuronData(
+        neuron_data = NeuronDataSplitHoefling(
             **session_data,
             random_sequences=None,
             val_clip_idx=None,

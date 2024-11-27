@@ -5,7 +5,7 @@ import lightning
 import torch
 from lightning.pytorch.utilities import grad_norm
 
-from openretina.data_io.movie_dataloader import DataPoint
+from openretina.data_io.base_dataloader import DataPoint
 from openretina.modules.core.base_core import SimpleCoreWrapper
 from openretina.modules.core.gru_core import ConvGRUCore
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
