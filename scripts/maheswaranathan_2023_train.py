@@ -8,9 +8,9 @@ import torch.utils.data as data
 from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
 
+from openretina.data_io.base_dataloader import multiple_movies_dataloaders
 from openretina.data_io.cyclers import LongCycler, ShortCycler
 from openretina.data_io.maheswaranathan_2023.constants import CLIP_LENGTH
-from openretina.data_io.maheswaranathan_2023.dataloader import multiple_movies_dataloaders
 from openretina.data_io.maheswaranathan_2023.stimuli import load_all_sessions
 
 
