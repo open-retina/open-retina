@@ -37,7 +37,7 @@ class LongCycler(torch.utils.data.IterableDataset):
 
     def __iter__(self):
         worker_info = torch.utils.data.get_worker_info()
-        if worker_info is not None:
+        if worker_info is not None and worker_info.num_workers > 1:
             raise NotImplementedError("LongCycler does not support multiple workers yet.")
 
         keys = sorted(self.loaders.keys())
