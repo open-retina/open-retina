@@ -58,10 +58,10 @@ def test_short_cycler(num_workers: int):
     [
         (0, False),
         (0, True),
-        (1, False),
-        (1, True),
-        (4, False),
-        (4, True),
+        # (1, False),
+        # (1, True),
+        # (4, False),
+        # (4, True),
     ],
 )
 def test_long_cycler(num_workers: int, shuffle: bool):

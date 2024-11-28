@@ -5,14 +5,13 @@ from typing import Literal
 
 import hydra
 import lightning
-import torch
+from lightning.pytorch import seed_everything
 from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
 
 from openretina.data_io.base import MoviesTrainTestSplit
 from openretina.data_io.cyclers import LongCycler, ShortCycler
-from openretina.data_io.hoefling_2024.dataloaders import natmov_dataloaders_v2
 from openretina.data_io.hoefling_2024.responses import filter_responses, make_final_responses
 from openretina.models.core_readout import CoreReadout
 from openretina.utils.h5_handling import load_h5_into_dict
@@ -21,7 +20,8 @@ from openretina.utils.model_utils import OptimizerResetCallback
 
 @hydra.main(version_base=None, config_path="../configs", config_name="example_train_core_readout")
 def main(conf: DictConfig) -> None:
-    torch.set_float32_matmul_precision("medium")
+    hydra.utils.call(conf.matmul_precision)
+
     data_folder = os.path.expanduser(conf.data_folder)
     movies_path = os.path.join(data_folder, conf.movies_filename)
     movies_dict = MoviesTrainTestSplit.from_pickle(movies_path)
@@ -31,7 +31,10 @@ def main(conf: DictConfig) -> None:
     filtered_responses = filter_responses(responses, **OmegaConf.to_object(conf.quality_checks))  # type: ignore
 
     data_dict = make_final_responses(filtered_responses, response_type="natural")  # type: ignore
-    dataloaders = natmov_dataloaders_v2(data_dict, movies_dictionary=movies_dict, **conf.natmov_dataloader)
+
+    dataloaders = hydra.utils.call(
+        conf.natmov_dataloader, neuron_data_dictionary=data_dict, movies_dictionary=movies_dict
+    )
 
     # when num_workers > 0 the docker container needs more shared memory
     train_loader = DataLoader(LongCycler(dataloaders["train"], shuffle=True), **conf.dataloader)
@@ -40,7 +43,7 @@ def main(conf: DictConfig) -> None:
     # max_pool3d_with_indices does not have a deterministic implementation in pytorch yet
     deterministic: bool | Literal["warn"] = "warn" if conf.seed is not None else False
     if conf.seed is not None:
-        lightning.pytorch.seed_everything(conf.seed)
+        seed_everything(conf.seed)
 
     n_neurons_dict = {name: data_point.targets.shape[-1] for name, data_point in iter(train_loader)}
     model = CoreReadout(
@@ -62,11 +65,10 @@ def main(conf: DictConfig) -> None:
     trainer = lightning.Trainer(
         max_epochs=conf.max_epochs,
         default_root_dir=conf.save_folder,
-        precision="16-mixed",
         logger=logger_array,
         callbacks=callbacks,
-        accumulate_grad_batches=1,
         deterministic=deterministic,
+        **conf.trainer,
     )
     trainer.fit(model=model, train_dataloaders=train_loader, val_dataloaders=valid_loader)
     # test

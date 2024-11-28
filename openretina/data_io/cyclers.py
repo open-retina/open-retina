@@ -27,7 +27,7 @@ class LongCycler(torch.utils.data.IterableDataset):
     Cycles through a dictionary of data loaders until the loader with the largest size is exhausted.
     In practice, takes one batch from each loader in each iteration.
     Necessary for dataloaders of unequal size.
-    Note: iterable dataloaders as this one can lead to duplicate data when using multiprocessing
+    Note: iterable dataloaders as this one can lead to duplicate data when using multiprocessing.
     """
 
     def __init__(self, loaders: dict[str, DataLoader], shuffle: bool = True):
@@ -36,6 +36,10 @@ class LongCycler(torch.utils.data.IterableDataset):
         self.shuffle = shuffle
 
     def __iter__(self):
+        worker_info = torch.utils.data.get_worker_info()
+        if worker_info is not None and worker_info.num_workers > 1:
+            raise NotImplementedError("LongCycler does not support multiple workers yet.")
+
         keys = sorted(self.loaders.keys())
 
         if self.shuffle:
@@ -48,6 +52,9 @@ class LongCycler(torch.utils.data.IterableDataset):
         # Yield batches in the assigned range
         for k, loader, _ in zip(cycle(keys), cycle(cycles), range(total_iterations)):
             yield k, next(loader)
+
+    def __len__(self):
+        return len(self.loaders) * self.max_batches
 
 
 class ShortCycler(torch.utils.data.IterableDataset):

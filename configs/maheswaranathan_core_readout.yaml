@@ -27,7 +27,7 @@ trainer:
 
 dataloader:
   batch_size: null
-  num_workers: 3
+  num_workers: 0
 
 loggers:
   csv:

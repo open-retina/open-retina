@@ -136,6 +136,7 @@ def natmov_dataloaders_v2(
     batch_size: int = 32,
     num_clips: int = NUM_CLIPS,
     clip_length: int = CLIP_LENGTH,
+    allow_over_boundaries: bool = True,
 ):
     stim_ids = {x.stim_id for x in neuron_data_dictionary.values()}
     assert stim_ids == {"natural"}, (
@@ -198,6 +199,7 @@ def natmov_dataloaders_v2(
                 start_indices=start_indices[fold],
                 batch_size=batch_size,
                 scene_length=clip_length,
+                allow_over_boundaries=allow_over_boundaries,
             )
 
     return dataloaders

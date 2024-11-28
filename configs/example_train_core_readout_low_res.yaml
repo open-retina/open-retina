@@ -1,6 +1,7 @@
 defaults:
   - _self_
   - quality_checks: hoefling_2024
+  - dataloader@natmov_dataloader: hoefling_2024 # looks for default under "dataloader" and names it "natmov_dataloader"
 
 exp_name: example_core_readout_low_res_filtered
 data_folder: "/gpfs01/euler/data/SharedFiles/projects/TP12/"
@@ -9,6 +10,10 @@ responses_filename: "2024-08-14_neuron_data_responses_484c12d_djimaging.h5"
 save_folder: exp/
 max_epochs: 100
 seed: 42
+
+matmul_precision:
+  _target_: torch.set_float32_matmul_precision
+  precision: highest
 
 core_readout:
   in_channels: 2
@@ -27,13 +32,13 @@ core_readout:
   cut_first_n_frames_in_core: 30
   dropout_rate: 0.0
 
-natmov_dataloader:
-    validation_clip_indices: [0, 4, 10, 11, 18, 30, 45, 62, 67, 77, 79, 80, 81, 83, 95]
-    train_chunk_size: 100
-
 dataloader:
   batch_size: null
-  num_workers: 4
+  num_workers: 0
+
+trainer:
+  precision: "32-true"
+  accumulate_grad_batches: 1
 
 loggers:
   csv:
