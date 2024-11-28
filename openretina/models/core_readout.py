@@ -1,8 +1,8 @@
 import os
 from typing import Iterable, Optional
 
-import lightning
 import torch
+from lightning import LightningModule
 from lightning.pytorch.utilities import grad_norm
 
 from openretina.data_io.base_dataloader import DataPoint
@@ -12,7 +12,7 @@ from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
 from openretina.modules.readout.multi_readout import MultiGaussianReadoutWrapper
 
 
-class CoreReadout(lightning.LightningModule):
+class CoreReadout(LightningModule):
     def __init__(
         self,
         in_channels: int,
@@ -185,7 +185,7 @@ class GRUCoreReadout(CoreReadout):
         core_gru_kwargs: Optional[dict] = None,
     ):
         # Want methods from CoreReadout, but with different init (same as base lightning module)
-        lightning.LightningModule.__init__(self)
+        LightningModule.__init__(self)
 
         self.save_hyperparameters()
         self.core = ConvGRUCore(  # type: ignore

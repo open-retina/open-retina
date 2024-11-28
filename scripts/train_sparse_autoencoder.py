@@ -33,7 +33,7 @@ ENSEMBLE_MODEL_PATH = (
 def parse_args():
     parser = argparse.ArgumentParser(description="Model training")
 
-    parser.add_argument("--data_folder", type=str, help="Path to the base data folder", default="/Data/fd_export")
+    parser.add_argument("--data_folder", type=str, help="Path to the base data folder", default="/Data/euler_data")
     parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
     parser.add_argument(
         "--device", type=str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu"

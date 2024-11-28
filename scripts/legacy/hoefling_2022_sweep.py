@@ -45,7 +45,7 @@ def main():
     model_config["conv_type"] = wandb.config.conv_type
 
     # Load models and data
-    base_folder = "/Data/fd_export"
+    base_folder = "/Data/euler_data"
     data_path = os.path.join(base_folder, "2024-01-11_neuron_data_stim_8c18928_responses_99c71a0.pkl")
     movies_path = os.path.join(base_folder, "2024-01-11_movies_dict_8c18928.pkl")
     stim_dataloaders_dict = pickle.load(open(data_path, "rb"))
