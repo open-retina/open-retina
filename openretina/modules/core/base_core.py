@@ -1,4 +1,5 @@
 import os
+import warnings
 from collections import OrderedDict
 
 import torch
@@ -16,7 +17,37 @@ def temporal_smoothing(sin: torch.Tensor, cos: torch.Tensor) -> torch.Tensor:
     return reg
 
 
-class SimpleCoreWrapper(torch.nn.Module):
+class Core(nn.Module):
+    def initialize(self) -> None:
+        pass
+
+    def regularizer(self) -> torch.Tensor | float:
+        warnings.warn(
+            f"Regularizer not implemented for {self.__class__.__name__}", category=RuntimeWarning, stacklevel=2
+        )
+        return 0.0
+
+    def __repr__(self) -> str:
+        s = f"{repr(super())} [{self.__class__.__name__} regularizers: "
+        ret = []
+        for attr in filter(lambda x: "gamma" in x or "skip" in x, dir(self)):
+            ret.append(f"{attr} = {getattr(self, attr)}")
+        return s + "|".join(ret) + "]\n"
+
+
+class Core3d(Core):
+    def initialize(self) -> None:
+        self.apply(self.init_conv)
+
+    @staticmethod
+    def init_conv(m) -> None:
+        if isinstance(m, nn.Conv3d):
+            nn.init.xavier_normal_(m.weight.data)
+            if m.bias is not None:
+                m.bias.data.fill_(0)
+
+
+class SimpleCoreWrapper(Core):
     def __init__(
         self,
         channels: tuple[int, ...],
@@ -113,27 +144,3 @@ class SimpleCoreWrapper(torch.nn.Module):
             os.makedirs(output_dir, exist_ok=True)
             layer.conv.save_weight_visualizations(output_dir)
             print(f"Saved weight visualization at path {output_dir}")
-
-
-class Core(nn.Module):
-    def initialize(self) -> None:
-        raise NotImplementedError("Not initializing")
-
-    def __repr__(self) -> str:
-        s = f"{repr(super())} [{self.__class__.__name__} regularizers: "
-        ret = []
-        for attr in filter(lambda x: "gamma" in x or "skip" in x, dir(self)):
-            ret.append(f"{attr} = {getattr(self, attr)}")
-        return s + "|".join(ret) + "]\n"
-
-
-class Core3d(Core):
-    def initialize(self) -> None:
-        self.apply(self.init_conv)
-
-    @staticmethod
-    def init_conv(m) -> None:
-        if isinstance(m, nn.Conv3d):
-            nn.init.xavier_normal_(m.weight.data)
-            if m.bias is not None:
-                m.bias.data.fill_(0)

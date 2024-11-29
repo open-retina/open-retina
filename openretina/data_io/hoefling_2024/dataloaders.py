@@ -188,20 +188,19 @@ def natmov_dataloaders_v2(
             _eye = "right"
         for fold in ["train", "validation", "test"]:
             movie = movies[_eye][fold]
-            start_indices = start_indices[fold]
+            start_idxes = start_indices[fold]
             if fold == "train":
                 movie = movie[neuron_data.scan_sequence_idx]
-                start_indices = start_indices[neuron_data.scan_sequence_idx]
+                start_idxes = start_idxes[neuron_data.scan_sequence_idx]
             dataloaders[fold][session_key] = get_movie_dataloader(
                 movie=movie,
                 responses=neuron_data.response_dict[fold],
                 roi_ids=neuron_data.roi_ids,
                 roi_coords=neuron_data.roi_coords,
                 group_assignment=neuron_data.group_assignment,
-                scan_sequence_idx=neuron_data.scan_sequence_idx,
                 split=fold,
                 chunk_size=clip_chunk_sizes[fold],
-                start_indices=start_indices,
+                start_indices=start_idxes,
                 batch_size=batch_size,
                 scene_length=clip_length,
                 allow_over_boundaries=allow_over_boundaries,

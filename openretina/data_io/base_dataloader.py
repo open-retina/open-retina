@@ -404,26 +404,30 @@ class NeuronDataSplit:
     def split_data_train_val(self) -> tuple[np.ndarray, np.ndarray]:
         """
         Compute validation responses and updated train responses stripped from validation clips.
+        Can deal with unsorted validation clip indices, and parallels the way movie validation clips are handled.
 
         Returns:
             Tuple[np.ndarray, np.ndarray]: The updated train and validation responses.
         """
-        val_idx_set = set(self.val_clip_idx)
-        train_responses, val_responses = [], []
+        # Initialise validation responses
+        base_movie_sorting = np.arange(self.num_clips)
 
-        for i in range(self.num_clips):
-            # Extract responses for the current clip
-            clip_responses = self.responses_train_and_val[i * self.clip_length : (i + 1) * self.clip_length, :]
+        validation_mask = np.ones_like(self.responses_train_and_val, dtype=bool)
+        responses_val = np.zeros([len(self.val_clip_idx) * self.clip_length, self.num_neurons])
 
-            # Append to the appropriate list
-            if i in val_idx_set:
-                val_responses.append(clip_responses)
-            else:
-                train_responses.append(clip_responses)
+        # Compute validation responses and remove sections from training responses
+        for i, ind1 in enumerate(self.val_clip_idx):
+            grab_index = base_movie_sorting[ind1]
+            responses_val[i * self.clip_length : (i + 1) * self.clip_length, :] = self.responses_train_and_val[
+                grab_index * self.clip_length : (grab_index + 1) * self.clip_length,
+                :,
+            ]
+            validation_mask[
+                (grab_index * self.clip_length) : (grab_index + 1) * self.clip_length,
+                :,
+            ] = False
 
-        # Concatenate lists into arrays along the time axis
-        responses_train = np.concatenate(train_responses, axis=0)
-        responses_val = np.concatenate(val_responses, axis=0)
+        responses_train = self.responses_train_and_val[validation_mask].reshape(-1, self.num_neurons)
 
         return responses_train, responses_val
 

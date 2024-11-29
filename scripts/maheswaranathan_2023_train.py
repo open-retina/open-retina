@@ -24,7 +24,7 @@ def main(cfg: DictConfig) -> None:
 
     dataloaders = multiple_movies_dataloaders(
         neuron_data_dict,
-        movies_dict,  # type: ignore
+        movies_dict,
         train_chunk_size=50,
         batch_size=64,
         clip_length=CLIP_LENGTH,

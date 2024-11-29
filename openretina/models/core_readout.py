@@ -2,67 +2,33 @@ import os
 from typing import Iterable, Optional
 
 import torch
+import torch.nn as nn
 from lightning import LightningModule
 from lightning.pytorch.utilities import grad_norm
 
 from openretina.data_io.base_dataloader import DataPoint
-from openretina.modules.core.base_core import SimpleCoreWrapper
+from openretina.modules.core.base_core import Core, SimpleCoreWrapper
 from openretina.modules.core.gru_core import ConvGRUCore
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
 from openretina.modules.readout.multi_readout import MultiGaussianReadoutWrapper
 
 
-class CoreReadout(LightningModule):
+class BaseCoreReadout(LightningModule):
     def __init__(
         self,
-        in_channels: int,
-        features_core: Iterable[int],
-        temporal_kernel_sizes: Iterable[int],
-        spatial_kernel_sizes: Iterable[int],
-        in_shape_readout: tuple[int, int, int, int],
-        n_neurons_dict: dict[str, int],
-        scale: bool,
-        bias: bool,
-        gaussian_masks: bool,
-        gaussian_mean_scale: float,
-        gaussian_var_scale: float,
-        positive: bool,
-        gamma_readout: float,
-        gamma_masks: float = 0.0,
-        readout_reg_avg: bool = False,
-        learning_rate: float = 0.01,
-        cut_first_n_frames_in_core: int = 30,
-        dropout_rate: float = 0.0,
-        maxpool_every_n_layers: Optional[int] = None,
-        downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
+        core: Core,
+        readout: nn.Module,
+        learning_rate: float,
+        loss: nn.Module | None = None,
+        correlation_loss: nn.Module | None = None,
     ):
         super().__init__()
-        self.save_hyperparameters()
-        self.core = SimpleCoreWrapper(
-            channels=(in_channels,) + tuple(features_core),
-            temporal_kernel_sizes=tuple(temporal_kernel_sizes),
-            spatial_kernel_sizes=tuple(spatial_kernel_sizes),
-            cut_first_n_frames=cut_first_n_frames_in_core,
-            dropout_rate=dropout_rate,
-            maxpool_every_n_layers=maxpool_every_n_layers,
-            downsample_input_kernel_size=downsample_input_kernel_size,
-        )
-        self.readout = MultiGaussianReadoutWrapper(
-            in_shape_readout,
-            n_neurons_dict,
-            scale,
-            bias,
-            gaussian_masks,
-            gaussian_mean_scale,
-            gaussian_var_scale,
-            positive,
-            gamma_readout,
-            gamma_masks,
-            readout_reg_avg,
-        )
+
+        self.core = core
+        self.readout = readout
         self.learning_rate = learning_rate
-        self.loss = PoissonLoss3d()
-        self.correlation_loss = CorrelationLoss3d(avg=True)
+        self.loss = loss if loss is not None else PoissonLoss3d()
+        self.correlation_loss = correlation_loss if correlation_loss is not None else CorrelationLoss3d(avg=True)
 
     def on_before_optimizer_step(self, optimizer):
         # Compute the 2-norm for each layer
@@ -154,7 +120,58 @@ class CoreReadout(LightningModule):
         self.readout.save_weight_visualizations(os.path.join(folder_path, "weights_readout"))
 
 
-class GRUCoreReadout(CoreReadout):
+class CoreReadout(BaseCoreReadout):
+    def __init__(
+        self,
+        in_channels: int,
+        features_core: Iterable[int],
+        temporal_kernel_sizes: Iterable[int],
+        spatial_kernel_sizes: Iterable[int],
+        in_shape_readout: tuple[int, int, int, int],
+        n_neurons_dict: dict[str, int],
+        scale: bool,
+        bias: bool,
+        gaussian_masks: bool,
+        gaussian_mean_scale: float,
+        gaussian_var_scale: float,
+        positive: bool,
+        gamma_readout: float,
+        gamma_masks: float = 0.0,
+        readout_reg_avg: bool = False,
+        learning_rate: float = 0.01,
+        cut_first_n_frames_in_core: int = 30,
+        dropout_rate: float = 0.0,
+        maxpool_every_n_layers: Optional[int] = None,
+        downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
+    ):
+        core = SimpleCoreWrapper(
+            channels=(in_channels,) + tuple(features_core),
+            temporal_kernel_sizes=tuple(temporal_kernel_sizes),
+            spatial_kernel_sizes=tuple(spatial_kernel_sizes),
+            cut_first_n_frames=cut_first_n_frames_in_core,
+            dropout_rate=dropout_rate,
+            maxpool_every_n_layers=maxpool_every_n_layers,
+            downsample_input_kernel_size=downsample_input_kernel_size,
+        )
+        readout = MultiGaussianReadoutWrapper(
+            in_shape_readout,
+            n_neurons_dict,
+            scale,
+            bias,
+            gaussian_masks,
+            gaussian_mean_scale,
+            gaussian_var_scale,
+            positive,
+            gamma_readout,
+            gamma_masks,
+            readout_reg_avg,
+        )
+
+        super().__init__(core=core, readout=readout, learning_rate=learning_rate)
+        self.save_hyperparameters()
+
+
+class GRUCoreReadout(BaseCoreReadout):
     def __init__(
         self,
         in_channels: int,
@@ -184,11 +201,7 @@ class GRUCoreReadout(CoreReadout):
         learning_rate: float = 0.01,
         core_gru_kwargs: Optional[dict] = None,
     ):
-        # Want methods from CoreReadout, but with different init (same as base lightning module)
-        LightningModule.__init__(self)
-
-        self.save_hyperparameters()
-        self.core = ConvGRUCore(  # type: ignore
+        core = ConvGRUCore(  # type: ignore
             input_channels=in_channels,
             hidden_channels=hidden_channels,
             temporal_kernel_size=temporal_kernel_sizes,
@@ -214,11 +227,11 @@ class GRUCoreReadout(CoreReadout):
             gru_kwargs=core_gru_kwargs,
         )
         # Run one forward pass to determine output shape of core
-        core_test_output = self.core.forward(torch.zeros((1,) + tuple(in_shape)))
+        core_test_output = core.forward(torch.zeros((1,) + tuple(in_shape)))
         in_shape_readout: tuple[int, int, int, int] = core_test_output.shape[1:]  # type: ignore
         print(f"{in_shape_readout=}")
 
-        self.readout = MultiGaussianReadoutWrapper(
+        readout = MultiGaussianReadoutWrapper(
             in_shape_readout,
             n_neurons_dict,
             readout_scale,
@@ -231,6 +244,6 @@ class GRUCoreReadout(CoreReadout):
             readout_gamma_masks,
             readout_reg_avg,
         )
-        self.learning_rate = learning_rate
-        self.loss = PoissonLoss3d()
-        self.correlation_loss = CorrelationLoss3d(avg=True)
+
+        super().__init__(core=core, readout=readout, learning_rate=learning_rate)
+        self.save_hyperparameters()
