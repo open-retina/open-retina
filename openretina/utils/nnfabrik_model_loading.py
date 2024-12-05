@@ -12,7 +12,7 @@ import torch
 import yaml
 
 from openretina.modules.layers.ensemble import EnsembleModel
-from openretina.utils.file_utils import optionally_download
+from openretina.utils.file_utils import optionally_download_from_url
 from openretina.utils.misc import SafeLoaderWithTuple, tuple_constructor
 
 
@@ -293,8 +293,8 @@ def load_ensemble_retina_model_from_directory(
 
 
 def load_ensemble_model_from_remote(
-    remote_url: str = "https://gin.g-node.org/eulerlab/rgc-natstim/raw/master",
-    model_path: str = "models/nonlinear/9d574ab9fcb85e8251639080c8d402b7",
+    remote_url: str = "https://gin.g-node.org/",
+    model_path: str = "eulerlab/rgc-natstim/raw/master/models/nonlinear/9d574ab9fcb85e8251639080c8d402b7",
     device: str = "cpu",
     center_readout: Center | None = None,
 ) -> tuple:
@@ -303,7 +303,7 @@ def load_ensemble_model_from_remote(
         for prefix, postfix in [("config_", ".yaml"), ("data_info_", ".pkl"), ("state_dict_", ".pth.tar")]:
             file_name = prefix + id_ + postfix
             file_path = f"{model_path}/{file_name}"
-            local_path = optionally_download(remote_url, file_path)
+            local_path = optionally_download_from_url(remote_url, file_path)
             assert local_path.endswith(file_path)
             local_folders.append(local_path[: -len(file_name)])
     assert len(set(local_folders)) == 1

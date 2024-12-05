@@ -175,3 +175,4 @@ figures/
 reports/
 model-cache/
 /exp
+/cache_folder
