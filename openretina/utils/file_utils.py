@@ -4,7 +4,6 @@ from pathlib import Path
 
 import requests
 
-
 LOGGER = logging.getLogger(__name__)
 _DEFAULT_CACHE_DIRECTORY = "./cache_folder"
 GIN_BASE_URL = "https://gin.g-node.org/"
@@ -36,7 +35,7 @@ def get_local_file_path(file_path: str, cache_folder: str) -> Path:
         # gin node
         return optionally_download_from_url(
             GIN_BASE_URL,
-            file_path[len(GIN_BASE_URL):],
+            file_path[len(GIN_BASE_URL) :],
             os.path.expanduser(cache_folder),
         )
     elif file_path.startswith("http"):

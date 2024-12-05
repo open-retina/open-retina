@@ -14,9 +14,9 @@ from openretina.data_io.base import MoviesTrainTestSplit
 from openretina.data_io.cyclers import LongCycler, ShortCycler
 from openretina.data_io.hoefling_2024.responses import filter_responses, make_final_responses
 from openretina.models.core_readout import CoreReadout
+from openretina.utils.file_utils import get_local_file_path
 from openretina.utils.h5_handling import load_h5_into_dict
 from openretina.utils.model_utils import OptimizerResetCallback
-from openretina.utils.file_utils import get_local_file_path
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="example_train_core_readout")
