@@ -4,6 +4,7 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 
+from openretina.modules.layers import FlatLaplaceL23dnorm
 from openretina.modules.layers.convolutions import STSeparableBatchConv3d
 from openretina.modules.layers.scaling import Bias3DLayer
 
@@ -22,9 +23,10 @@ class SimpleCoreWrapper(torch.nn.Module):
         channels: tuple[int, ...],
         temporal_kernel_sizes: tuple[int, ...],
         spatial_kernel_sizes: tuple[int, ...],
-        gamma_input: float = 0.3,
-        gamma_temporal: float = 40.0,
-        gamma_in_sparse: float = 1.0,
+        gamma_input: float,
+        gamma_temporal: float,
+        gamma_in_sparse: float,
+        gamma_hidden: float,
         dropout_rate: float = 0.0,
         cut_first_n_frames: int = 30,
         maxpool_every_n_layers: int | None = None,
@@ -48,10 +50,13 @@ class SimpleCoreWrapper(torch.nn.Module):
         self.gamma_input = gamma_input
         self.gamma_temporal = gamma_temporal
         self.gamma_in_sparse = gamma_in_sparse
+        self.gamma_hidden = gamma_hidden
         self._cut_first_n_frames = cut_first_n_frames
         self._downsample_input_kernel_size = (
             list(downsample_input_kernel_size) if downsample_input_kernel_size is not None else None
         )
+
+        self._input_weights_regularizer_spatial = FlatLaplaceL23dnorm(padding=0)
 
         self.features = torch.nn.Sequential()
         for layer_id, (num_in_channels, num_out_channels) in enumerate(zip(channels[:-1], channels[1:], strict=True)):
@@ -85,7 +90,7 @@ class SimpleCoreWrapper(torch.nn.Module):
         return res_cut
 
     def spatial_laplace(self) -> torch.Tensor:
-        return 0.0  # type: ignore
+        return self._input_weights_regularizer_spatial(self.features[0].conv.weight_spatial, avg=False)
 
     def temporal_smoothness(self) -> torch.Tensor:
         results = [temporal_smoothing(x.conv.sin_weights, x.conv.cos_weights) for x in self.features]
@@ -101,10 +106,26 @@ class SimpleCoreWrapper(torch.nn.Module):
 
         return torch.sum(torch.stack(result_array))
 
+    def group_sparsity(self) -> torch.Tensor:
+        sparsities: list[torch.Tensor] = []
+        for feat in self.features[1:]:
+            val = feat.conv.weight_spatial.pow(2).sum([2, 3, 4]).sqrt().sum(1) / torch.sqrt(
+                1e-8 + feat.conv.weight_spatial.pow(2).sum([1, 2, 3, 4])
+            )
+            sparsities.append(val)
+        return torch.sum(torch.stack(sparsities))
+
     def regularizer(self) -> torch.Tensor:
-        res = self.spatial_laplace() * self.gamma_input
-        res += self.temporal_smoothness() * self.gamma_temporal
-        res += self.group_sparsity_0() * self.gamma_in_sparse
+        res: torch.Tensor = 0.0  # type: ignore
+        for weight, reg_fn in [
+            (self.gamma_input, self.spatial_laplace),
+            (self.gamma_hidden, self.group_sparsity),
+            (self.gamma_temporal, self.temporal_smoothness),
+            (self.gamma_in_sparse, self.group_sparsity_0),
+        ]:
+            # lazy calculation of regularization functions
+            if weight != 0.0:
+                res += weight * reg_fn()
         return res
 
     def save_weight_visualizations(self, folder_path: str) -> None:

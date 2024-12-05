@@ -28,6 +28,10 @@ class CoreReadout(lightning.LightningModule):
         gaussian_var_scale: float,
         positive: bool,
         gamma_readout: float,
+        gamma_input: float,
+        gamma_in_sparse: float,
+        gamma_hidden: float,
+        gamma_temporal: float,
         gamma_masks: float = 0.0,
         readout_reg_avg: bool = False,
         learning_rate: float = 0.01,
@@ -46,6 +50,10 @@ class CoreReadout(lightning.LightningModule):
             dropout_rate=dropout_rate,
             maxpool_every_n_layers=maxpool_every_n_layers,
             downsample_input_kernel_size=downsample_input_kernel_size,
+            gamma_input=gamma_input,
+            gamma_in_sparse=gamma_in_sparse,
+            gamma_hidden=gamma_hidden,
+            gamma_temporal=gamma_temporal,
         )
         self.readout = MultiGaussianReadoutWrapper(
             in_shape_readout,
