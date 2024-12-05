@@ -29,8 +29,8 @@ core_readout:
   positive: True
   gamma_readout: 0.4
   # core regularization weights
-  gamma_input: 0.3
-  gamma_in_sparse: 1.0
+  gamma_input: 0.0
+  gamma_in_sparse: 0.0
   gamma_hidden: 0.0
   gamma_temporal: 40.0
   learning_rate: 0.01
