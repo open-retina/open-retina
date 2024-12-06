@@ -244,7 +244,7 @@ def gen_shifts_with_boundaries(
 
 
 def handle_missing_start_indices(
-    movies: np.ndarray | torch.Tensor, chunk_size: int | None, scene_length: int | None, split: str
+    movie_length: int, chunk_size: int | None, scene_length: int | None, split: str
 ) -> list[int]:
     """
     Handle missing start indices for different splits of the dataset.
@@ -276,11 +276,11 @@ def handle_missing_start_indices(
         else:
             raise NotImplementedError("Start indices could not be recovered.")
 
-    interval = get_chunking_interval(split)
-
     if split == "test":
         return [0]
-    return np.arange(0, movies.shape[1], interval).tolist()
+
+    interval = get_chunking_interval(split)
+    return np.arange(0, movie_length, interval).tolist()
 
 
 def get_movie_dataloader(
@@ -347,7 +347,7 @@ def get_movie_dataloader(
         raise ValueError("Clip chunk size must be smaller than scene length to not exceed clip bounds during training.")
 
     if start_indices is None:
-        start_indices = handle_missing_start_indices(movie, chunk_size, scene_length, split)
+        start_indices = handle_missing_start_indices(movie.shape[1], chunk_size, scene_length, split)
     dataset = MovieDataSet(movie, responses, roi_ids, roi_coords, group_assignment, split, chunk_size)
     sampler = MovieSampler(
         start_indices,
@@ -475,10 +475,13 @@ def multiple_movies_dataloaders(
     seed: int = 42,
     clip_length: int = 100,
     num_val_clips: int = 10,
+    val_clip_indices: list[int] | None = None,
 ) -> dict[str, dict[str, DataLoader]]:
     """
     Create multiple dataloaders for training, validation, and testing from given neuron and movie data.
     This function ensures that the neuron data and movie data are aligned and generates dataloaders for each session.
+    It does not make assumptions about the movies in different sessions to be the same, the same length,composed
+    from the same clips or in the same order.
 
     Args:
         neuron_data_dictionary (dict[str, ResponsesTrainTestSplit]):
@@ -495,6 +498,8 @@ def multiple_movies_dataloaders(
             The length of each clip. Defaults to 100.
         num_val_clips (int, optional):
             The number of validation clips to draw. Defaults to 10.
+        val_clip_indices (list[int], optional): The indices of validation clips to use. If provided, num_val_clips is
+                                                ignored. Defaults to None.
 
     Returns:
         dict:
@@ -515,9 +520,12 @@ def multiple_movies_dataloaders(
         # Extract all data related to the movies first
         num_clips = movies_dictionary[session_key].train.shape[1] // clip_length
 
-        # Draw validation clips based on the random seed
-        rnd = np.random.RandomState(seed)
-        val_clip_idx = list(rnd.choice(num_clips, num_val_clips, replace=False))
+        if val_clip_indices is not None:
+            val_clip_idx = val_clip_indices
+        else:
+            # Draw validation clips based on the random seed
+            rnd = np.random.RandomState(seed)
+            val_clip_idx = list(rnd.choice(num_clips, num_val_clips, replace=False))
 
         clip_chunk_sizes = {
             "train": train_chunk_size,

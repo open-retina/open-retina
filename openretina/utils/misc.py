@@ -213,7 +213,7 @@ class CaptureOutputAndWarnings:
         pass
 
 
-def check_server_responding(url):
+def check_server_responding(url: str) -> bool:
     try:
         response = requests.get(url)
     except ConnectionError:

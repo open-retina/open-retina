@@ -23,7 +23,7 @@ def load_all_stimuli(
     stim_type: Literal["fixationmovie", "frozencheckerflicker", "gratingflicker", "imagesequence"] = "fixationmovie",
     normalize_stimuli: bool = True,
     specie: Literal["mouse", "marmoset"] = "mouse",
-    downsampled_size: tuple = (60, 80),
+    downsampled_size: tuple[int, int] = (60, 80),
 ) -> dict[str, MoviesTrainTestSplit]:
     stimuli_all_sessions = {}
     exp_sessions = [
@@ -41,7 +41,6 @@ def load_all_stimuli(
 
     for session in tqdm(exp_sessions, desc="Processing sessions"):
         session_path = os.path.join(base_data_path, session)
-        npz_file_found = False
         mat_file = None
         npz_file = None
 
@@ -53,13 +52,12 @@ def load_all_stimuli(
                 f"{stim_type}_data_extracted_stimuli_{downsampled_size[0]}_{downsampled_size[1]}.npz"
             ):
                 npz_file = full_path
-                npz_file_found = True
                 break  # Prefer `.npz` file, no need to check further
 
             elif str(recording_file).endswith(f"{stim_type}_data.mat"):
                 mat_file = full_path
 
-        if npz_file_found and npz_file:
+        if npz_file is not None:
             tqdm.write(f"Loading stimuli from cached {npz_file}")
             video_data = np.load(npz_file)
             train_video = video_data["train_data"]
@@ -91,13 +89,14 @@ def load_all_stimuli(
                 test_data=test_video,
             )
         else:
+            tqdm.write(f"No relevant file found for {session} and stim type {stim_type}")
             continue  # Skip session if no relevant file found
 
         if normalize_stimuli:
             train_video = train_video - train_video.mean() / train_video.std()
             test_video = test_video - train_video.mean() / train_video.std()
 
-        stimuli_all_sessions["".join(session.split("/")[-1])] = MoviesTrainTestSplit(
+        stimuli_all_sessions[session.split("/")[-1]] = MoviesTrainTestSplit(
             train=train_video,
             test=test_video,
             stim_id=stim_type,

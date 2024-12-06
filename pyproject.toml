@@ -26,7 +26,7 @@ find = {exclude = ["tests", "scripts"]}
 dependencies = {file = ["requirements.txt"]}
 
 [tool.setuptools.package-data]
-"openretina" = ["data/stimuli/*.pickle", "py.typed"]
+"openretina" = ["py.typed"]
 
 [project.optional-dependencies]
 dev = [
