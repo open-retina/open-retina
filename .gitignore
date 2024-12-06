@@ -166,6 +166,7 @@ cython_debug/
 api_keys.sh
 wandb
 data/
+data
 *.tmp
 random.ipynb
 *.jpg

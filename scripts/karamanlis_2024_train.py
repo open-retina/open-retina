@@ -10,24 +10,27 @@ from omegaconf import DictConfig, OmegaConf
 
 from openretina.data_io.base_dataloader import multiple_movies_dataloaders
 from openretina.data_io.cyclers import LongCycler, ShortCycler
-from openretina.data_io.maheswaranathan_2023.constants import CLIP_LENGTH
-from openretina.data_io.maheswaranathan_2023.stimuli import load_all_sessions
+from openretina.data_io.karamanlis_2024.responses import load_all_responses
+from openretina.data_io.karamanlis_2024.stimuli import load_all_stimuli
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="maheswaranathan_core_readout")
+@hydra.main(version_base=None, config_path="../configs", config_name="karamanlis_core_readout")
 def main(cfg: DictConfig) -> None:
     print(OmegaConf.to_yaml(cfg))
 
-    data_path = os.path.join(cfg.data.base_folder, "baccus_data/neural_code_data/ganglion_cell_data/")
+    neuron_data_dict = load_all_responses(cfg.data.base_folder)
 
-    neuron_data_dict, movies_dict = load_all_sessions(data_path, fr_normalization=1)
+    movies_dict = load_all_stimuli(cfg.data.base_folder)
+
+    for session, neuron_data in neuron_data_dict.items():
+        neuron_data.check_matching_stimulus(movies_dict[session])
 
     dataloaders = multiple_movies_dataloaders(
         neuron_data_dict,
         movies_dict,
         train_chunk_size=50,
         batch_size=64,
-        clip_length=CLIP_LENGTH,
+        clip_length=75,
         num_val_clips=20,
     )
 

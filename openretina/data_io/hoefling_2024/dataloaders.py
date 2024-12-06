@@ -187,16 +187,20 @@ def natmov_dataloaders_v2(
             # session incorrectly labeled as left
             _eye = "right"
         for fold in ["train", "validation", "test"]:
+            movie = movies[_eye][fold]
+            fold_start_indices = start_indices[fold]
+            if fold == "train":
+                movie = movie[neuron_data.scan_sequence_idx]
+                fold_start_indices = fold_start_indices[neuron_data.scan_sequence_idx]
             dataloaders[fold][session_key] = get_movie_dataloader(
-                movies=movies[_eye][fold],
+                movie=movie,
                 responses=neuron_data.response_dict[fold],
                 roi_ids=neuron_data.roi_ids,
                 roi_coords=neuron_data.roi_coords,
                 group_assignment=neuron_data.group_assignment,
-                scan_sequence_idx=neuron_data.scan_sequence_idx,
                 split=fold,
                 chunk_size=clip_chunk_sizes[fold],
-                start_indices=start_indices[fold],
+                start_indices=fold_start_indices,
                 batch_size=batch_size,
                 scene_length=clip_length,
                 allow_over_boundaries=allow_over_boundaries,
@@ -254,7 +258,7 @@ def get_chirp_dataloaders(
         session_key += "_chirp"
 
         dataloader = get_movie_dataloader(
-            movies=chirp_stimulus if neuron_data.eye == "right" else torch.flip(chirp_stimulus, [-1]),
+            movie=chirp_stimulus if neuron_data.eye == "right" else torch.flip(chirp_stimulus, [-1]),
             responses=neuron_data.response_dict["train"],
             roi_ids=neuron_data.roi_ids,
             roi_coords=neuron_data.roi_coords,
@@ -327,7 +331,7 @@ def get_mb_dataloaders(
         session_key += "_mb"
 
         dataloaders["train"][session_key] = get_movie_dataloader(
-            movies=mb_stimulus if neuron_data.eye == "right" else torch.flip(mb_stimulus, [-1]),
+            movie=mb_stimulus if neuron_data.eye == "right" else torch.flip(mb_stimulus, [-1]),
             responses=neuron_data.response_dict["train"],
             roi_ids=neuron_data.roi_ids,
             roi_coords=neuron_data.roi_coords,

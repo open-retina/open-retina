@@ -16,7 +16,7 @@ from openretina.modules.layers.convolutions import (
     temporal_smoothing,
 )
 from openretina.modules.layers.gru import GRU_Module
-from openretina.modules.layers.laplace import FlatLaplaceL23dnorm, TimeLaplaceL23dnorm
+from openretina.modules.layers.regularizers import FlatLaplaceL23dnorm, TimeLaplaceL23dnorm
 from openretina.modules.layers.scaling import FiLM
 
 

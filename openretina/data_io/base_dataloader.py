@@ -1,13 +1,14 @@
 import bisect
 from collections import namedtuple
-from typing import List, Literal, Optional
+from typing import Any, List, Literal, Optional
 
 import numpy as np
 import torch
 from jaxtyping import Float
 from torch.utils.data import DataLoader, Dataset, Sampler
+from tqdm.auto import tqdm
 
-from openretina.data_io.base import ResponsesTrainTestSplit
+from openretina.data_io.base import MoviesTrainTestSplit, ResponsesTrainTestSplit
 
 DataPoint = namedtuple("DataPoint", ["inputs", "targets"])
 
@@ -243,13 +244,13 @@ def gen_shifts_with_boundaries(
 
 
 def handle_missing_start_indices(
-    movies: dict | np.ndarray | torch.Tensor, chunk_size: int | None, scene_length: int | None, split: str
-):
+    movie_length: int, chunk_size: int | None, scene_length: int | None, split: str
+) -> list[int]:
     """
     Handle missing start indices for different splits of the dataset.
 
     Parameters:
-    movies (dict or np.ndarray): The movies data, either as a dictionary of arrays or a single array.
+    movies (np.ndarray or torch.Tensor): The movies data, as an array.
     chunk_size (int or None): The size of each chunk for training split. Required if split is "train".
     scene_length (int or None): The length of each scene. Required if split is "validation" or "val".
     split (str): The type of split, one of "train", "validation", "val", or "test".
@@ -275,75 +276,87 @@ def handle_missing_start_indices(
         else:
             raise NotImplementedError("Start indices could not be recovered.")
 
-    interval = get_chunking_interval(split)
+    if split == "test":
+        return [0]
 
-    if isinstance(movies, dict):
-        if split == "test":
-            return {k: [0] for k in movies.keys()}
-        return {k: np.arange(0, movies[k].shape[1], interval).tolist() for k in movies.keys()}
-    else:
-        if split == "test":
-            return [0]
-        return np.arange(0, movies.shape[1], interval).tolist()
+    interval = get_chunking_interval(split)
+    return np.arange(0, movie_length, interval).tolist()
 
 
 def get_movie_dataloader(
-    movies: np.ndarray | torch.Tensor | dict[int, np.ndarray],
+    movie: Float[np.ndarray | torch.Tensor, "n_channels n_frames h w"],
     responses: Float[np.ndarray, "n_frames n_neurons"],
     *,
     split: str | Literal["train", "validation", "val", "test"],
     scene_length: int,
     chunk_size: int,
     batch_size: int,
-    start_indices: list[int] | dict[int, list[int]] | None = None,
+    start_indices: list[int] | None = None,
     roi_ids: Float[np.ndarray, " n_neurons"] | None = None,
     roi_coords: Float[np.ndarray, "n_neurons 2"] | None = None,
     group_assignment: Float[np.ndarray, " n_neurons"] | None = None,
-    scan_sequence_idx: int | None = None,
     drop_last: bool = True,
-    use_base_sequence: bool = False,
     allow_over_boundaries: bool = True,
     **kwargs,
 ) -> DataLoader:
+    """
+    Create a DataLoader for processing movie data and associated responses.
+    This function prepares the dataset and sampler for training or evaluation based on the specified parameters.
+
+    Args:
+        movie (Float[np.ndarray | torch.Tensor, "n_channels n_frames h w"]):
+            The movie data represented as a multi-dimensional array or tensor.
+        responses (Float[np.ndarray, "n_frames n_neurons"]):
+            The responses corresponding to the frames of the movie.
+        split (str | Literal["train", "validation", "val", "test"]):
+            The dataset split to use (train, validation, or test).
+        scene_length (int):
+            The length of the scene to be processed.
+        chunk_size (int):
+            The size of each chunk to be extracted from the movie.
+        batch_size (int):
+            The number of samples per batch.
+        start_indices (list[int] | None, optional):
+            The starting indices for each chunk. If None, will be computed.
+        roi_ids (Float[np.ndarray, " n_neurons"] | None, optional):
+            The region of interest IDs. If None, will not be used.
+        roi_coords (Float[np.ndarray, "n_neurons 2"] | None, optional):
+            The coordinates of the regions of interest. If None, will not be used.
+        group_assignment (Float[np.ndarray, " n_neurons"] | None, optional):
+            The group assignments (cell types) for the neurons. If None, will not be used.
+        drop_last (bool, optional):
+            Whether to drop the last incomplete batch. Defaults to True.
+        allow_over_boundaries (bool, optional):
+            Whether to allow chunks that exceed the scene boundaries. Defaults to True.
+        **kwargs:
+            Additional keyword arguments for the DataLoader.
+
+    Returns:
+        DataLoader:
+            A DataLoader instance configured with the specified dataset and sampler.
+
+    Raises:
+        ValueError:
+            If `allow_over_boundaries` is False and `chunk_size` exceeds `scene_length` during training.
+    """
     if isinstance(responses, torch.Tensor) and bool(torch.isnan(responses).any()):
         print("Nans in responses, skipping this dataloader")
-        return None
+        return
 
     if not allow_over_boundaries and split == "train" and chunk_size > scene_length:
         raise ValueError("Clip chunk size must be smaller than scene length to not exceed clip bounds during training.")
 
     if start_indices is None:
-        start_indices = handle_missing_start_indices(movies, chunk_size, scene_length, split)
-
-    # for right movie: flip second frame size axis!
-    if split == "train" and isinstance(movies, dict) and scan_sequence_idx is not None:
-        assert isinstance(start_indices, dict), "Start indices should be a dictionary for this case."
-
-        if use_base_sequence:
-            scan_sequence_idx = 20  # 20 is the base sequence
-        dataset = MovieDataSet(
-            movies[scan_sequence_idx], responses, roi_ids, roi_coords, group_assignment, split, chunk_size
-        )
-        sampler = MovieSampler(
-            start_indices[scan_sequence_idx],
-            split,
-            chunk_size,
-            movie_length=movies[scan_sequence_idx].shape[1],
-            scene_length=scene_length,
-            allow_over_boundaries=allow_over_boundaries,
-        )
-    else:
-        assert not isinstance(movies, dict), "Movies should not be a dictionary for this case."
-        assert not isinstance(start_indices, dict), "Start indices should not be a dictionary for this case."
-        dataset = MovieDataSet(movies, responses, roi_ids, roi_coords, group_assignment, split, chunk_size)
-        sampler = MovieSampler(
-            start_indices,
-            split,
-            chunk_size,
-            movie_length=movies.shape[1],
-            scene_length=scene_length,
-            allow_over_boundaries=allow_over_boundaries,
-        )
+        start_indices = handle_missing_start_indices(movie.shape[1], chunk_size, scene_length, split)
+    dataset = MovieDataSet(movie, responses, roi_ids, roi_coords, group_assignment, split, chunk_size)
+    sampler = MovieSampler(
+        start_indices,
+        split,
+        chunk_size,
+        movie_length=movie.shape[1],
+        scene_length=scene_length,
+        allow_over_boundaries=allow_over_boundaries,
+    )
 
     return DataLoader(
         dataset, sampler=sampler, batch_size=batch_size, drop_last=split == "train" and drop_last, **kwargs
@@ -391,26 +404,30 @@ class NeuronDataSplit:
     def split_data_train_val(self) -> tuple[np.ndarray, np.ndarray]:
         """
         Compute validation responses and updated train responses stripped from validation clips.
+        Can deal with unsorted validation clip indices, and parallels the way movie validation clips are handled.
 
         Returns:
             Tuple[np.ndarray, np.ndarray]: The updated train and validation responses.
         """
-        val_idx_set = set(self.val_clip_idx)
-        train_responses, val_responses = [], []
+        # Initialise validation responses
+        base_movie_sorting = np.arange(self.num_clips)
 
-        for i in range(self.num_clips):
-            # Extract responses for the current clip
-            clip_responses = self.responses_train_and_val[i * self.clip_length : (i + 1) * self.clip_length, :]
+        validation_mask = np.ones_like(self.responses_train_and_val, dtype=bool)
+        responses_val = np.zeros([len(self.val_clip_idx) * self.clip_length, self.num_neurons])
 
-            # Append to the appropriate list
-            if i in val_idx_set:
-                val_responses.append(clip_responses)
-            else:
-                train_responses.append(clip_responses)
+        # Compute validation responses and remove sections from training responses
+        for i, ind1 in enumerate(self.val_clip_idx):
+            grab_index = base_movie_sorting[ind1]
+            responses_val[i * self.clip_length : (i + 1) * self.clip_length, :] = self.responses_train_and_val[
+                grab_index * self.clip_length : (grab_index + 1) * self.clip_length,
+                :,
+            ]
+            validation_mask[
+                (grab_index * self.clip_length) : (grab_index + 1) * self.clip_length,
+                :,
+            ] = False
 
-        # Concatenate lists into arrays along the time axis
-        responses_train = np.concatenate(train_responses, axis=0)
-        responses_val = np.concatenate(val_responses, axis=0)
+        responses_train = self.responses_train_and_val[validation_mask].reshape(-1, self.num_neurons)
 
         return responses_train, responses_val
 
@@ -427,3 +444,120 @@ class NeuronDataSplit:
                 "by_trial": torch.tensor(self.test_responses_by_trial, dtype=torch.float),
             },
         }
+
+
+def get_movie_splits(
+    movie_train,
+    movie_test,
+    val_clip_idx: list[int],
+    num_clips: int,
+    clip_length: int,
+):
+    movie_train_subset, movie_val, movie_test = generate_movie_splits(
+        movie_train, movie_test, val_clip_idx, num_clips, clip_length
+    )
+
+    movies = {
+        "train": movie_train_subset,
+        "validation": movie_val,
+        "test": movie_test,
+        "val_clip_idx": val_clip_idx,
+    }
+
+    return movies
+
+
+def multiple_movies_dataloaders(
+    neuron_data_dictionary: dict[str, ResponsesTrainTestSplit],
+    movies_dictionary: dict[str, MoviesTrainTestSplit],
+    train_chunk_size: int = 50,
+    batch_size: int = 32,
+    seed: int = 42,
+    clip_length: int = 100,
+    num_val_clips: int = 10,
+    val_clip_indices: list[int] | None = None,
+) -> dict[str, dict[str, DataLoader]]:
+    """
+    Create multiple dataloaders for training, validation, and testing from given neuron and movie data.
+    This function ensures that the neuron data and movie data are aligned and generates dataloaders for each session.
+    It does not make assumptions about the movies in different sessions to be the same, the same length,composed
+    from the same clips or in the same order.
+
+    Args:
+        neuron_data_dictionary (dict[str, ResponsesTrainTestSplit]):
+            A dictionary containing neuron response data split for training and testing.
+        movies_dictionary (dict[str, MoviesTrainTestSplit]):
+            A dictionary containing movie data split for training and testing.
+        train_chunk_size (int, optional):
+            The size of the chunks for training data. Defaults to 50.
+        batch_size (int, optional):
+            The number of samples per batch. Defaults to 32.
+        seed (int, optional):
+            The random seed for reproducibility. Defaults to 42.
+        clip_length (int, optional):
+            The length of each clip. Defaults to 100.
+        num_val_clips (int, optional):
+            The number of validation clips to draw. Defaults to 10.
+        val_clip_indices (list[int], optional): The indices of validation clips to use. If provided, num_val_clips is
+                                                ignored. Defaults to None.
+
+    Returns:
+        dict:
+            A dictionary containing dataloaders for training, validation, and testing for each session.
+
+    Raises:
+        AssertionError:
+            If the keys of neuron_data_dictionary and movies_dictionary do not match exactly.
+    """
+    assert set(neuron_data_dictionary.keys()) == set(
+        movies_dictionary.keys()
+    ), "The keys of neuron_data_dictionary and movies_dictionary should match exactly."
+
+    # Initialise dataloaders
+    dataloaders: dict[str, Any] = {"train": {}, "validation": {}, "test": {}}
+
+    for session_key, session_data in tqdm(neuron_data_dictionary.items(), desc="Creating movie dataloaders"):
+        # Extract all data related to the movies first
+        num_clips = movies_dictionary[session_key].train.shape[1] // clip_length
+
+        if val_clip_indices is not None:
+            val_clip_idx = val_clip_indices
+        else:
+            # Draw validation clips based on the random seed
+            rnd = np.random.RandomState(seed)
+            val_clip_idx = list(rnd.choice(num_clips, num_val_clips, replace=False))
+
+        clip_chunk_sizes = {
+            "train": train_chunk_size,
+            "validation": clip_length,
+            "test": movies_dictionary[session_key].test.shape[1],
+        }
+
+        all_movies = get_movie_splits(
+            movies_dictionary[session_key].train,
+            movies_dictionary[session_key].test,
+            val_clip_idx=val_clip_idx,
+            num_clips=num_clips,
+            clip_length=clip_length,
+        )
+
+        # Extract all splits from neural data
+        neuron_data = NeuronDataSplit(
+            responses=session_data,
+            val_clip_idx=val_clip_idx,
+            num_clips=num_clips,
+            clip_length=clip_length,
+        )
+
+        # Create dataloaders for each fold
+        for fold in ["train", "validation", "test"]:
+            dataloaders[fold][session_key] = get_movie_dataloader(
+                movie=all_movies[fold],
+                responses=neuron_data.response_dict[fold],
+                split=fold,
+                chunk_size=clip_chunk_sizes[fold],
+                batch_size=batch_size,
+                scene_length=clip_length,
+            )
+
+    return dataloaders
