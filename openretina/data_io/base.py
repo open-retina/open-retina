@@ -1,6 +1,7 @@
 import pickle
 import warnings
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Optional
 
 import numpy as np
@@ -28,7 +29,7 @@ class MoviesTrainTestSplit:
             )
 
     @classmethod
-    def from_pickle(cls, file_path: str):
+    def from_pickle(cls, file_path: str | Path):
         with open(file_path, "rb") as f:
             movies_dict = pickle.load(f)
         return cls(

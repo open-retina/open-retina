@@ -12,7 +12,7 @@ import torch
 import yaml
 
 from openretina.modules.layers.ensemble import EnsembleModel
-from openretina.utils.file_utils import optionally_download
+from openretina.utils.file_utils import optionally_download_from_url
 from openretina.utils.misc import SafeLoaderWithTuple, tuple_constructor
 
 
@@ -257,7 +257,7 @@ def load_ensemble_retina_model_from_directory(
         model_config_path = f"{directory_path}/config_{seed:05d}.yaml"
         data_info_path = f"{directory_path}/data_info_{seed:05d}.pkl"
 
-        state_dict = torch.load(state_dir_path)
+        state_dict = torch.load(state_dir_path, weights_only=True)
         with open(model_config_path, "r") as f:
             config = yaml.load(f, SafeLoaderWithTuple)
         with open(data_info_path, "rb") as fb:
@@ -293,8 +293,8 @@ def load_ensemble_retina_model_from_directory(
 
 
 def load_ensemble_model_from_remote(
-    remote_url: str = "https://gin.g-node.org/eulerlab/rgc-natstim/raw/master",
-    model_path: str = "models/nonlinear/9d574ab9fcb85e8251639080c8d402b7",
+    remote_url: str = "https://gin.g-node.org/",
+    model_path: str = "eulerlab/rgc-natstim/raw/master/models/nonlinear/9d574ab9fcb85e8251639080c8d402b7",
     device: str = "cpu",
     center_readout: Center | None = None,
 ) -> tuple:
@@ -302,10 +302,9 @@ def load_ensemble_model_from_remote(
     for id_ in ["00000", "01000", "02000", "03000", "04000"]:
         for prefix, postfix in [("config_", ".yaml"), ("data_info_", ".pkl"), ("state_dict_", ".pth.tar")]:
             file_name = prefix + id_ + postfix
-            file_path = f"{model_path}/{file_name}"
-            local_path = optionally_download(remote_url, file_path)
-            assert local_path.endswith(file_path)
-            local_folders.append(local_path[: -len(file_name)])
+            server_path = f"{model_path}/{file_name}"
+            local_path = optionally_download_from_url(remote_url, server_path)
+            local_folders.append(str(local_path)[: -len(file_name)])
     assert len(set(local_folders)) == 1
     local_folder = local_folders[0]
     data_info, ensemble_model = load_ensemble_retina_model_from_directory(local_folder, device, center_readout)
