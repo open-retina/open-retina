@@ -4,7 +4,7 @@ defaults:
   - dataloader@natmov_dataloader: hoefling_2024 # looks for default under "dataloader" and names it "natmov_dataloader"
 
 exp_name: example_core_readout_low_res_filtered
-cache_folder: "./cache_folder/"
+cache_folder: "./openretina_cache_folder/"
 movies_path: "https://gin.g-node.org/teulerlab/open-retina/raw/master/stimuli/eulerlab/rgc_natstim_18x16_joint_normalized_2024-01-11.pkl"
 responses_path: "https://gin.g-node.org/teulerlab/open-retina/raw/master/responses/eulerlab/rgc_natstim_2024-08-14.h5"
 save_folder: exp/

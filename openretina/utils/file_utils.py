@@ -6,7 +6,7 @@ import requests
 import tenacity
 
 LOGGER = logging.getLogger(__name__)
-_DEFAULT_CACHE_DIRECTORY = "cache_folder"
+_DEFAULT_CACHE_DIRECTORY = "openretina_cache_folder"
 GIN_BASE_URL = "https://gin.g-node.org/"
 
 
