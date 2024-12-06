@@ -4,9 +4,9 @@ defaults:
   - dataloader@natmov_dataloader: hoefling_2024 # looks for default under "dataloader" and names it "natmov_dataloader"
 
 exp_name: example_core_readout_low_res_filtered
-data_folder: "/gpfs01/euler/data/SharedFiles/projects/TP12/"
-movies_filename: "2024-01-11_movies_dict_8c18928.pkl"
-responses_filename: "2024-08-14_neuron_data_responses_484c12d_djimaging.h5"
+cache_folder: "./openretina_cache_folder/"
+movies_path: "https://gin.g-node.org/teulerlab/open-retina/raw/master/stimuli/eulerlab/rgc_natstim_18x16_joint_normalized_2024-01-11.pkl"
+responses_path: "https://gin.g-node.org/teulerlab/open-retina/raw/master/responses/eulerlab/rgc_natstim_2024-08-14.h5"
 save_folder: exp/
 max_epochs: 100
 seed: 42

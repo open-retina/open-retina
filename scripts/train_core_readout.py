@@ -14,6 +14,7 @@ from openretina.data_io.base import MoviesTrainTestSplit
 from openretina.data_io.cyclers import LongCycler, ShortCycler
 from openretina.data_io.hoefling_2024.responses import filter_responses, make_final_responses
 from openretina.models.core_readout import CoreReadout
+from openretina.utils.file_utils import get_local_file_path
 from openretina.utils.h5_handling import load_h5_into_dict
 from openretina.utils.model_utils import OptimizerResetCallback
 
@@ -22,11 +23,10 @@ from openretina.utils.model_utils import OptimizerResetCallback
 def main(conf: DictConfig) -> None:
     hydra.utils.call(conf.matmul_precision)
 
-    data_folder = os.path.expanduser(conf.data_folder)
-    movies_path = os.path.join(data_folder, conf.movies_filename)
+    movies_path = get_local_file_path(conf.movies_path, conf.cache_folder)
     movies_dict = MoviesTrainTestSplit.from_pickle(movies_path)
 
-    data_path_responses = os.path.join(data_folder, conf.responses_filename)
+    data_path_responses = get_local_file_path(conf.responses_path, conf.cache_folder)
     responses = load_h5_into_dict(data_path_responses)
     filtered_responses = filter_responses(responses, **OmegaConf.to_object(conf.quality_checks))  # type: ignore
 

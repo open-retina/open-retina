@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 
 import h5py as h5
 import numpy as np
@@ -19,7 +20,7 @@ def count_items(group: h5.Group) -> int:
     return count
 
 
-def load_h5_into_dict(file_path) -> dict:
+def load_h5_into_dict(file_path: str | Path) -> dict:
     """
     Recursively loads the structure and data of the HDF5 file into a dictionary.
     """
