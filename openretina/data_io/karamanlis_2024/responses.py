@@ -59,7 +59,7 @@ def load_all_responses(
             else:
                 continue  # Skip session if no relevant file found
 
-            responses_all_sessions["".join(session.split("/")[-1])] = ResponsesTrainTestSplit(
+            responses_all_sessions[session.split("/")[-1]] = ResponsesTrainTestSplit(
                 train=training_responses,
                 test=mean_test_response,
                 test_by_trial=testing_responses,

@@ -155,7 +155,7 @@ def return_fix_movie_torch(
     return blockstimulus
 
 
-def return_fix_movie(screensize, im_ensemble, list_fixations):
+def return_fix_movie(screensize: tuple[int, int], im_ensemble: np.ndarray, list_fixations: np.ndarray) -> np.ndarray:
     """
     Generates a movie of fixations using an image ensemble.
 

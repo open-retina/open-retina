@@ -15,11 +15,11 @@ class LNP(nn.Module):
         self,
         in_shape: Int[tuple, "channel time height width"],
         outdims: int,
-        smooth_weight=0.0,
-        sparse_weight=0.0,
-        smooth_regularizer="LaplaceL2norm",
+        smooth_weight: float = 0.0,
+        sparse_weight: float = 0.0,
+        smooth_regularizer: str = "LaplaceL2norm",
         laplace_padding=None,
-        nonlinearity="exp",
+        nonlinearity: str = "exp",
         **kwargs,
     ):
         super().__init__()
@@ -57,7 +57,7 @@ class LNP(nn.Module):
         out = rearrange(out, "batch neurons t 1 1 -> batch t neurons")
         return out
 
-    def weights_l1(self, average=True):
+    def weights_l1(self, average: bool = True):
         """Returns l1 regularization across all weight dimensions
 
         Args:
