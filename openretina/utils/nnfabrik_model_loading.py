@@ -257,7 +257,7 @@ def load_ensemble_retina_model_from_directory(
         model_config_path = f"{directory_path}/config_{seed:05d}.yaml"
         data_info_path = f"{directory_path}/data_info_{seed:05d}.pkl"
 
-        state_dict = torch.load(state_dir_path)
+        state_dict = torch.load(state_dir_path, weights_only=True)
         with open(model_config_path, "r") as f:
             config = yaml.load(f, SafeLoaderWithTuple)
         with open(data_info_path, "rb") as fb:
