@@ -165,3 +165,18 @@ class SimpleCoreWrapper(Core):
             os.makedirs(output_dir, exist_ok=True)
             layer.conv.save_weight_visualizations(output_dir)
             print(f"Saved weight visualization at path {output_dir}")
+
+
+class DummyCore(Core):
+    """
+    A dummy core that does nothing. Used for readout only models, like the LNP model.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__()
+
+    def forward(self, x, data_key=None, **kwargs):
+        return x
+
+    def regularizer(self):
+        return 0

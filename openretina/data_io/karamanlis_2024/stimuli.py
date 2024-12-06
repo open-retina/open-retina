@@ -106,7 +106,9 @@ def load_all_stimuli(
     return stimuli_all_sessions
 
 
-def return_fix_movie_torch(screensize, im_ensemble, list_fixations):
+def return_fix_movie_torch(
+    screensize: tuple[int, int], im_ensemble: np.ndarray | torch.Tensor, list_fixations: np.ndarray
+) -> torch.Tensor:
     """
     Generates a movie of fixations using an image ensemble.
     Faster version using PyTorch, which supports fancier indexing.
@@ -145,8 +147,8 @@ def return_fix_movie_torch(screensize, im_ensemble, list_fixations):
             np.arange(1, Nx + 1),
             np.arange(1, Ny + 1),
         )
-        x_or = torch.tensor(x_or, dtype=torch.int64).unsqueeze(0)
-        y_or = torch.tensor(y_or, dtype=torch.int64).unsqueeze(1)
+        x_or = torch.tensor(x_or, dtype=torch.int64).unsqueeze(0)  # type: ignore
+        y_or = torch.tensor(y_or, dtype=torch.int64).unsqueeze(1)  # type: ignore
         blockstimulus[ymin : ymax + 1, xmin : xmax + 1, ifix] = im_ensemble[
             y_or, x_or, list_fixations_tensor[0, ifix] - 1
         ]
@@ -199,7 +201,9 @@ def return_fix_movie(screensize, im_ensemble, list_fixations):
     return blockstimulus
 
 
-def get_ranges(tr_x, tr_y, Nxs, Nys, Nx, Ny, rx, ry):
+def get_ranges(
+    tr_x: int, tr_y: int, Nxs: int, Nys: int, Nx: int, Ny: int, rx: np.ndarray, ry: np.ndarray
+) -> tuple[int, int, int, int, np.ndarray, np.ndarray]:
     """
     Compute valid ranges and indices based on translations.
 

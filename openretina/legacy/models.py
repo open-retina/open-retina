@@ -19,7 +19,7 @@ from openretina.modules.layers.scaling import Bias3DLayer, Scale2DLayer, Scale3D
 from openretina.modules.layers.convolutions import TorchFullConv3D
 from openretina.modules.layers.convolutions import TorchSTSeparableConv3D
 from openretina.modules.layers.convolutions import TimeIndependentConv3D
-from openretina.modules.layers.laplace import FlatLaplaceL23dnorm, TimeLaplaceL23dnorm
+from openretina.modules.layers.regularizers import FlatLaplaceL23dnorm, TimeLaplaceL23dnorm
 from openretina.utils.misc import set_seed
 from openretina.utils.model_utils import eval_state
 
