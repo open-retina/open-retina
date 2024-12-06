@@ -5,6 +5,7 @@ numpy<2.0  # h5py loading does not work with 2.0
 pandas
 seaborn
 scipy
+tenacity
 tensorboard
 torch
 torchaudio

@@ -3,16 +3,18 @@ import os
 from pathlib import Path
 
 import requests
+import tenacity
 
 LOGGER = logging.getLogger(__name__)
-_DEFAULT_CACHE_DIRECTORY = "./cache_folder"
+_DEFAULT_CACHE_DIRECTORY = "cache_folder"
 GIN_BASE_URL = "https://gin.g-node.org/"
 
 
+@tenacity.retry(stop=tenacity.stop_after_attempt(3), wait=tenacity.wait_exponential(min=10))
 def optionally_download_from_url(
     base_url: str,
     path: str,
-    cache_folder: str,
+    cache_folder: str = _DEFAULT_CACHE_DIRECTORY,
 ) -> Path:
     cache_path = Path(cache_folder) / Path(path)
     os.makedirs(Path(cache_path).parent, exist_ok=True)
@@ -20,6 +22,7 @@ def optionally_download_from_url(
         full_url = f"{base_url}/{path}"
         LOGGER.info(f"Downloading {full_url} ...")
         response = requests.get(full_url)
+
         if response.status_code != 200:
             raise FileNotFoundError(
                 f"Received status code {response.status_code} " f"when trying to download from {full_url=}"

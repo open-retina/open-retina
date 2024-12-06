@@ -302,10 +302,9 @@ def load_ensemble_model_from_remote(
     for id_ in ["00000", "01000", "02000", "03000", "04000"]:
         for prefix, postfix in [("config_", ".yaml"), ("data_info_", ".pkl"), ("state_dict_", ".pth.tar")]:
             file_name = prefix + id_ + postfix
-            file_path = f"{model_path}/{file_name}"
-            local_path = optionally_download_from_url(remote_url, file_path)
-            assert local_path.endswith(file_path)
-            local_folders.append(local_path[: -len(file_name)])
+            server_path = f"{model_path}/{file_name}"
+            local_path = optionally_download_from_url(remote_url, server_path)
+            local_folders.append(str(local_path)[: -len(file_name)])
     assert len(set(local_folders)) == 1
     local_folder = local_folders[0]
     data_info, ensemble_model = load_ensemble_retina_model_from_directory(local_folder, device, center_readout)
