@@ -63,7 +63,6 @@ def main(conf: DictConfig) -> None:
         callbacks.append(hydra.utils.instantiate(callback_params))
 
     trainer = lightning.Trainer(
-        max_epochs=conf.max_epochs,
         default_root_dir=conf.save_folder,
         logger=logger_array,
         callbacks=callbacks,
