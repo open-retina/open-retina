@@ -8,7 +8,6 @@ cache_folder: "./openretina_cache_folder/"
 movies_path: "https://gin.g-node.org/teulerlab/open-retina/raw/master/stimuli/eulerlab/rgc_natstim_72x64_joint_normalized_2024-10-11.pkl"
 responses_path: "https://gin.g-node.org/teulerlab/open-retina/raw/master/responses/eulerlab/rgc_natstim_2024-08-14.h5"
 save_folder: exp/
-max_epochs: 100
 seed: 42
 
 matmul_precision:
@@ -16,25 +15,27 @@ matmul_precision:
   precision: medium
 
 core_readout:
+  # core
   in_channels: 2
   features_core: [16, 16, 16, 16]
   temporal_kernel_sizes: [15, 15, 7, 7]
   spatial_kernel_sizes: [15, 15, 7, 7]
-  in_shape_readout: [16, 120, 18, 16]
-  scale: True
-  bias: True
-  gaussian_masks: True
-  gaussian_mean_scale: 6.0
-  gaussian_var_scale: 4.0
-  positive: False  # Set to True for positive readout features
-  gamma_readout: 0.4
-  # core regularization weights
-  gamma_input: 0.0
-  gamma_in_sparse: 0.0
-  gamma_hidden: 0.0
-  gamma_temporal: 40.0
-  learning_rate: 0.01
+  core_gamma_input: 0.0
+  core_gamma_in_sparse: 0.0
+  core_gamma_hidden: 0.0
+  core_gamma_temporal: 40.0
   maxpool_every_n_layers: 2
+  # readout
+  in_shape_readout: [16, 120, 18, 16]
+  readout_scale: True
+  readout_bias: True
+  readout_gaussian_masks: True
+  readout_gaussian_mean_scale: 6.0
+  readout_gaussian_var_scale: 4.0
+  readout_positive: False  # Set to True for positive readout features
+  readout_gamma: 0.4
+  # training
+  learning_rate: 0.01
   cut_first_n_frames_in_core: 30
   dropout_rate: 0.0
   # downsample_input_kernel_size: [1, 4, 4]  # to reproduce Hoefling input size of 18x16px
@@ -46,6 +47,7 @@ dataloader:
 trainer:
   precision: "16-mixed"
   accumulate_grad_batches: 1
+  max_epochs: 100
 
 
 loggers:
