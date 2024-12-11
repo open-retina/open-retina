@@ -1,0 +1,38 @@
+defaults:
+  - data_io: maheswaranathan_2023
+  - dataloader: maheswaranathan_2023
+  - model: GRU_core_readout
+  - training_callbacks:
+    - early_stopping
+    - lr_monitor
+    - model_checkpoint
+  - logger:
+    - tensorboard
+    - csv
+  - trainer: default_deterministic
+
+exp_name: core_readout_maheswaranathan
+seed: 42
+check_matches: false
+
+data:
+  root_dir: /Data
+  data_dir: ${data.root_dir}/baccus_data/neural_code_data/ganglion_cell_data/
+  output_dir: /Projects/open-retina/exp
+
+# Overwrite model defaults with specifics for Maheswaranathan 2023 input data format.
+model:
+  in_shape: [1, 100, 50, 50]
+  hidden_channels: [16, 32]
+  spatial_kernel_sizes: [15, 11] # as in the model from the paper. They used stacked convolutions though.
+
+matmul_precision:
+  _target_: torch.set_float32_matmul_precision
+  precision: highest
+
+trainer:
+  gradient_clip_val: 1
+
+hydra:
+  run:
+    dir: ${data.root_dir}/open-retina/hydra_output/${hydra.job.name}/${now:%Y-%m-%d_%H-%M-%S}

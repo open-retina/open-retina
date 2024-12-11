@@ -1,0 +1,45 @@
+defaults:
+  - data_io: hoefling_2024
+  - quality_checks: hoefling_2024
+  - dataloader: hoefling_2024
+  - model: GRU_core_readout
+  - training_callbacks:
+    - early_stopping
+    - lr_monitor
+    - model_checkpoint
+  - logger:
+    - tensorboard
+    - csv
+  - trainer: default_deterministic
+
+exp_name: hoefling_2024_core_readout_low_res_filtered
+seed: 42
+check_matches: false
+
+dataloader:
+  batch_size: 128
+
+
+model:
+  in_shape: [2, 150, 18, 16]
+
+data:
+  root_dir: "/Data/"
+  data_dir: ${data.root_dir}/euler_data/
+  output_dir: ${data.root_dir}/open-retina/exp
+  movies_path: "${data.data_dir}/2024-01-11_movies_dict_8c18928.pkl"
+  responses_path: "${data.data_dir}/2024-08-14_neuron_data_responses_484c12d_djimaging.h5"
+
+matmul_precision:
+  _target_: torch.set_float32_matmul_precision
+  precision: highest
+
+
+trainer:
+  max_epochs: 100
+  accumulate_grad_batches: 10
+  gradient_clip_val: 1
+
+hydra:
+  run:
+    dir: ${data.root_dir}/open-retina/hydra_output/${hydra.job.name}/${now:%Y-%m-%d_%H-%M-%S}

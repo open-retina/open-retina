@@ -1,0 +1,9 @@
+_target_: lightning.Trainer
+default_root_dir: ${data.output_dir}
+deterministic: "warn"
+
+max_epochs: 50
+gradient_clip_val: null
+
+precision: "32-true"
+accumulate_grad_batches: 1

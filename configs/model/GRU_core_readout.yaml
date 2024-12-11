@@ -1,11 +1,11 @@
 _target_: openretina.models.core_readout.GRUCoreReadout
 _convert_: all
-in_channels: 2
+
+# core
+in_shape: ???
 hidden_channels: [32, 64]
 temporal_kernel_sizes: [21, 11]
 spatial_kernel_sizes: [11, 5]
-in_shape: [2, 150, 18, 16]
-n_neurons_dict: ???
 core_gamma_hidden: 0.0
 core_gamma_input: 0.3
 core_gamma_in_sparse: 1.0
@@ -15,6 +15,18 @@ core_input_padding: false
 core_hidden_padding: true
 core_use_gru: false
 core_use_projections: true
+
+# GRU-specific arguments. GRU is applied before the readout.
+core_gru_kwargs:
+  rec_channels: 64
+  input_kern: 4
+  rec_kern: 4
+  groups: 1
+  gamma_rec: 1
+  pad_input: true
+
+# readout
+n_neurons_dict: ???
 readout_scale: true
 readout_bias: true
 readout_gaussian_masks: true
@@ -24,5 +36,6 @@ readout_positive: true
 readout_gamma: 0.4
 readout_gamma_masks: 0.1
 readout_reg_avg: false
+
+# training
 learning_rate: 0.01
-core_gru_kwargs: null

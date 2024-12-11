@@ -60,8 +60,14 @@ class ResponsesTrainTestSplit:
             )
 
     def check_matching_stimulus(self, movies: MoviesTrainTestSplit):
-        assert self.train.shape[1] == movies.train.shape[1], "Train movie and responses should have the same timebins."
-        assert self.test.shape[1] == movies.test.shape[1], "Test movie and responses should have the same timebins."
+        assert self.train.shape[1] == movies.train.shape[1], (
+            "Train movie and responses should have the same timebins."
+            f"Got {self.train.shape[1]} and {movies.train.shape[1]}."
+        )
+        assert self.test.shape[1] == movies.test.shape[1], (
+            "Test movie and responses should have the same timebins.",
+            f"Got {self.test.shape[1]} and {movies.test.shape[1]}.",
+        )
         if self.stim_id is not None and movies.stim_id is not None:
             assert self.stim_id == movies.stim_id, "Stimulus ID in responses and movies do not match."
 
