@@ -11,6 +11,7 @@ defaults:
     - csv
   - trainer: default_deterministic
   - hydra: default
+  - _self_ # values in this config will overwrite the defaults
 
 exp_name: core_readout_maheswaranathan
 seed: 42

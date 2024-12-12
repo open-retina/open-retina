@@ -12,6 +12,7 @@ defaults:
     - csv
   - trainer: default_deterministic
   - hydra: default
+  - _self_ # values in this config will overwrite the defaults
 
 exp_name: hoefling_2024_core_readout_high_res_filtered
 seed: 42

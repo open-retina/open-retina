@@ -11,6 +11,7 @@ defaults:
     - tensorboard
     - csv
   - hydra: default
+  - _self_ # values in this config will overwrite the defaults
 
 
 exp_name: example_linear_nonlinear_poisson
