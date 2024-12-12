@@ -10,18 +10,22 @@ core_gamma_input: 0.0
 core_gamma_in_sparse: 0.0
 core_gamma_hidden: 0.0
 core_gamma_temporal: 40.0
+core_input_padding: false
+core_hidden_padding: true
+maxpool_every_n_layers: null
+downsample_input_kernel_size: null
 
 # readout
 n_neurons_dict: ??? # needs to be set before training
-readout_scale: True
-readout_bias: True
-readout_gaussian_masks: True
+readout_scale: true
+readout_bias: true
+readout_gaussian_masks: true
 readout_gaussian_mean_scale: 6.0
 readout_gaussian_var_scale: 4.0
-readout_positive: True
+readout_positive: true
 readout_gamma: 0.4
 
 # training
 learning_rate: 0.01
-cut_first_n_frames_in_core: 30
+cut_first_n_frames_in_core: 0
 dropout_rate: 0.0

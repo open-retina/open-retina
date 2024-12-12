@@ -1,13 +1,16 @@
 defaults:
+  - data_io: maheswaranathan_2023
   - dataloader: maheswaranathan_2023
   - model: linear_nonlinear_poisson
   - training_callbacks:
     - early_stopping
     - lr_monitor
     - model_checkpoint
+  - trainer: default_deterministic
   - logger:
     - tensorboard
     - csv
+  - hydra: default
 
 
 exp_name: example_linear_nonlinear_poisson
@@ -16,7 +19,7 @@ seed: 42
 data:
   root_dir: /Data
   data_dir: ${data.root_dir}/baccus_data/neural_code_data/ganglion_cell_data/
-  output_dir: ${data.root_dir}/open-retina/exp
+  output_dir: ${data.root_dir}/open-retina/runs
   stimuli: "2024-01-11_movies_dict_8c18928.pkl"
   responses: "2024-08-14_neuron_data_responses_484c12d_djimaging.h5" 
 
@@ -25,14 +28,6 @@ matmul_precision:
   precision: highest
 
 trainer:
-  _target_: lightning.Trainer
   max_epochs: 60
   accumulate_grad_batches: 1
   gradient_clip_val: 1
-  precision: "32-true"
-  default_root_dir: ${data.output_dir}
-  deterministic: "warn"
-
-hydra:
-  run:
-    dir: ${data.root_dir}/open-retina/hydra_output/${hydra.job.name}/${now:%Y-%m-%d_%H-%M-%S}

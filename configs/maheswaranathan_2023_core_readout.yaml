@@ -10,6 +10,7 @@ defaults:
     - tensorboard
     - csv
   - trainer: default_deterministic
+  - hydra: default
 
 exp_name: core_readout_maheswaranathan
 seed: 42
@@ -18,7 +19,7 @@ check_matches: false
 data:
   root_dir: /Data
   data_dir: ${data.root_dir}/baccus_data/neural_code_data/ganglion_cell_data/
-  output_dir: /Projects/open-retina/exp
+  output_dir: ${data.root_dir}/open-retina/runs
 
 # Overwrite model defaults with specifics for Maheswaranathan 2023 input data format.
 model:
@@ -33,6 +34,3 @@ matmul_precision:
 trainer:
   gradient_clip_val: 1
 
-hydra:
-  run:
-    dir: ${data.root_dir}/open-retina/hydra_output/${hydra.job.name}/${now:%Y-%m-%d_%H-%M-%S}

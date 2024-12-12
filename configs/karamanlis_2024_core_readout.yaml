@@ -10,18 +10,19 @@ defaults:
     - tensorboard
     - csv
   - trainer: default_deterministic
+  - hydra: default
 
 exp_name: GRU_core_readout_karamanlis_2024
 seed: 42
+check_matches: true
 
 data:
   root_dir: /Data
-  data_dir: ${roor_dir}/Karamanlis_Gollisch_2023_RGC_spiketrains_natural_movies_and_subunit_models
-  output_dir: /Projects/open-retina/exp
+  data_dir: ${data.root_dir}/Karamanlis_Gollisch_2023_RGC_spiketrains_natural_movies_and_subunit_models
+  output_dir: ${data.root_dir}/open-retina/runs
 
 # Overwrite model defaults with specifics for Karamanlis 2024 data format
 model:
-  in_channels: 1
   in_shape: 
     - 1
     - 100
@@ -37,7 +38,3 @@ trainer:
   accumulate_grad_batches: 1
   gradient_clip_val: 1
   precision: 16-mixed
-
-hydra:
-  run:
-    dir: ${data.root_dir}/open-retina/hydra_output/${hydra.job.name}/${now:%Y-%m-%d_%H-%M-%S}

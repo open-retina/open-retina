@@ -1,3 +1,4 @@
+# Original videos are 600x800 and need to be downsampled to train models
 video_height: 60
 video_width: 80
 
@@ -11,7 +12,7 @@ stimuli:
   # Set desidered downsampling size above
   downsampled_size: 
     - ${data_io.video_height}
-    - ${data_io.video.width}
+    - ${data_io.video_width}
 
 
 responses:

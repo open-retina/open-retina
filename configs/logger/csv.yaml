@@ -1,2 +1,5 @@
 csv:
   _target_: lightning.pytorch.loggers.csv_logs.CSVLogger
+  name: "csv/"
+  prefix: ""
+  version: "${now:%Y-%m-%d_%H-%M-%S}"
