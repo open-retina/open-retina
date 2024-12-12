@@ -3,36 +3,35 @@ from torch import nn
 from copy import deepcopy
 import torch
 import numpy as np
-
+from openretina.insilico.stimulus_optimization.objective import SingleNeuronObjective
 
 class MeiAcrossContrasts(nn.Module):
     """
-    Create an MEI stimulus as a PyTorch Module for tracking gradients onto the
-    scalars.
+    PyTorch Module wrapper around a stimulus to allow tracking response gradients onto the stimulus.
     """
-    def __init__(self, contrast_values, mei_stim_private):
+    def __init__(self, contrast_values: torch.TensorType, stim: torch.TensorType):
         """
+        Initialize the ResponseGradient class.
 
-        :param contrast_values: a torch Tensor with 2 scalar values that the
-        MEI green and UV channels will be multiplied with
-        :param mei_stim_private: MEI stimulus as torch Tensor
+        Parameters:
+        contrast_values (torch.TensorType): A torch Tensor with 2 scalar values that the MEI green and UV channels will be multiplied with.
+        stim (torch.TensorType): MEI stimulus as torch Tensor.
         """
         super().__init__()
         self.contrast_values = nn.Parameter(contrast_values, requires_grad=True)
-
-        self.mei_stim_private = nn.Parameter(mei_stim_private, requires_grad=False)
+        self.stim = nn.Parameter(stim, requires_grad=False)
 
     def forward(self):
         return torch.mul(
             torch.stack(
-                [torch.ones_like(self.mei_stim_private[:, 0, ...]) * self.contrast_values[0],
-                 torch.ones_like(self.mei_stim_private[:, 0, ...]) * self.contrast_values[1]
+                [torch.ones_like(self.stim[:, 0, ...]) * self.contrast_values[0],
+                 torch.ones_like(self.stim[:, 0, ...]) * self.contrast_values[1]
                  ], dim=1),
-            self.mei_stim_private.squeeze()
+            self.stim.squeeze()
         )
 
 
-def trainer_fn(mei_contrast_gen, model_neuron, optimizer=optim.Adam, lr=1):
+def trainer_fn(mei_contrast_gen: MeiAcrossContrasts, model_neuron: SingleNeuronObjective, optimizer=optim.Adam, lr=1) -> tuple:
     """
     Trainer function for getting the gradient on the MEI with different contrasts
     """
@@ -43,13 +42,17 @@ def trainer_fn(mei_contrast_gen, model_neuron, optimizer=optim.Adam, lr=1):
     optimizer.zero_grad()
     return grad_val.detach().cpu().numpy().squeeze(), loss.detach().cpu().numpy().squeeze()
 
-def get_gradient_grid(mei_stim: torch.TensorType, 
-                      model_neuron, n_channels=2, start=-1, stop=1, step_size=.1):
+def get_gradient_grid(stim: torch.TensorType, 
+                      model_neuron: SingleNeuronObjective, 
+                      n_channels: int = 2, 
+                      start: float = -1, 
+                      stop: float = 1, 
+                      step_size: float = .1) -> tuple:
     """
-    Generate a grid of gradient values for a given MEI stimulus and model neuron.
+    Generate a grid of response gradients for a given stimulus and model neuron.
 
     Args:
-        mei_stim (torchTensor, 1 x n_channels x time x height x width): The MEI stimulus.
+        stim (torchTensor, 1 x n_channels x time x height x width): The MEI stimulus.
         model_neuron (SingleNeuronObjective): The model neuron objective.
         n_channels (int, optional): The number of channels. Defaults to 2.
         start (float, optional): The starting value for the contrast range. Defaults to -1.
@@ -72,7 +75,7 @@ def get_gradient_grid(mei_stim: torch.TensorType,
 
     for i, contrast_green in enumerate(np.arange(-1, 1+step_size, step_size)):
         for j, contrast_uv in enumerate(np.arange(-1, 1+step_size, step_size)):
-            mei_contrast_gen = MeiAcrossContrasts(torch.Tensor([contrast_green, contrast_uv]), mei_stim)
+            mei_contrast_gen = MeiAcrossContrasts(torch.Tensor([contrast_green, contrast_uv]), stim)
             response_gradient, response = trainer_fn(mei_contrast_gen, model_neuron, lr=.1)
             grid[0, i, j] = response_gradient[0]
             grid[1, i, j] = response_gradient[1]
