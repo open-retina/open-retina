@@ -13,6 +13,9 @@ from jaxtyping import Float
 from matplotlib import animation
 from matplotlib.colors import Normalize
 from matplotlib.patches import Rectangle
+import matplotlib as mpl 
+from matplotlib.ticker import FuncFormatter, FormatStrFormatter, FixedLocator
+import seaborn as sns
 
 from openretina.data_io.hoefling_2024.constants import FRAME_RATE_MODEL
 from openretina.legacy.hoefling_configs import MEAN_STD_DICT_74x64, pre_normalisation_values_18x16
@@ -243,6 +246,81 @@ def polar_plot_of_direction_of_motion_responses(
 
     # Set the labels for the directions
     plt.gca().set_xticklabels([f"{x}°" for x in sorted_directions])
+
+
+class ColorMapper:
+    def __init__(self, cmap_name, vmin=0, vmax=1):
+        self.cmap_name = cmap_name
+        self.vmin = vmin
+        self.vmax = vmax
+        self.cmap = plt.get_cmap(self.cmap_name)
+        self.norm = plt.Normalize(vmin=self.vmin, vmax=self.vmax)
+
+    def get_color(self, number):
+        color = self.cmap(self.norm(number))
+        return color
+
+
+def plot_vector_field_resp_iso(x, y,
+                      gradient_norm_dict, gradient_dict, resp_dict,
+                               neuron_id, normalize_response=False,
+                               colour_norm = False, rc_dict={},
+                               cmap="hsv"):
+    def format_xticks(value, pos):
+        return int(value)
+    Z = resp_dict.transpose()
+    if normalize_response:
+        Z=Z/Z.max() * 100
+    gradient_grid = gradient_dict[:, 1:-1, 1:-1]
+    X, Y = np.meshgrid(x, x)
+
+    # Define levels for isoresponse lines
+    levels = np.linspace(Z.min(), Z.max(), 25)
+    # cm = ColorMapper("cool", vmin=gradient_norm_grid.min(),
+    #                  vmax=gradient_norm_grid.max())
+
+    with mpl.rc_context(rc_dict):
+        fig = plt.figure()
+
+        # Create a contour plot with isoresponse lines
+
+        # cont_lines = plt.contour(X, Y, Z, levels=levels, cmap=cmap, zorder=200)  # Change cmap to the desired colormap
+        # plt.gca().clabel(cont_lines, inline=True, fmt='%1.0f',
+        #                  levels = levels[::2], colors="k", fontsize=5, zorder=400)
+
+        plt.contourf(X, Y, Z, levels=levels, cmap=cmap, zorder=200)  # Change cmap to the desired colormap
+        cont_lines = plt.contour(X,Y,Z, levels=levels, cmap='jet_r',zorder=300)
+        plt.gca().clabel(cont_lines, inline=True, fmt='%1.0f',
+                         levels = cont_lines.levels[::2], colors="k", fontsize=5, zorder=400)
+        ax = plt.gca()
+        ax.set_aspect("equal")
+
+
+        if colour_norm:
+            NotImplementedError()
+            # for i, contrast_green in enumerate(x):
+            #     for j, contrast_uv in enumerate(y):
+            #         unit_vec = calculate_unit_vector(gradient_grid[:, i, j]) * .1
+            #         plt.arrow(contrast_green, contrast_uv, unit_vec[0], unit_vec[1],
+            #                   fill=False,
+            #                   head_width=.03, color=cm.get_color(gradient_norm_grid[i, j]))
+            # plt.colorbar(plt.cm.ScalarMappable(norm=cm.norm, cmap=cm.cmap), FuncFormatter()
+                                 # )
+        else:
+            for i, contrast_green in enumerate(x[1:-1]):
+                for j, contrast_uv in enumerate(y[1:-1]):
+                    unit_vec = gradient_grid[:, i, j]/np.linalg.norm(gradient_grid[:, i, j]) * .1
+                    ax.arrow(contrast_green, contrast_uv, unit_vec[0], unit_vec[1],
+                              fill=True, linewidth=.5,
+                              head_width=.03, color="grey", zorder=300)
+        ax.set_xlabel("Green contrast")
+        ax.set_ylabel("UV contrast")
+        ax.xaxis.set_major_locator(FixedLocator([-1, 0, 1]))
+        ax.xaxis.set_major_formatter(FormatStrFormatter('%d'))
+        ax.yaxis.set_major_locator(FixedLocator([-1, 0, 1]))
+        ax.yaxis.set_major_formatter(FormatStrFormatter('%d'))
+        sns.despine()
+    return fig
 
 
 def save_figure(filename: str, folder: str, fig=None) -> None:
