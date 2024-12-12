@@ -249,7 +249,7 @@ def polar_plot_of_direction_of_motion_responses(
 
 
 class ColorMapper:
-    def __init__(self, cmap_name, vmin=0, vmax=1):
+    def __init__(self, cmap_name: str, vmin: float = 0, vmax: float = 1):
         self.cmap_name = cmap_name
         self.vmin = vmin
         self.vmax = vmax
