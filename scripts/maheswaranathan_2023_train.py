@@ -35,6 +35,9 @@ def main(cfg: DictConfig) -> None:
     train_loader = data.DataLoader(LongCycler(dataloaders["train"], shuffle=True), **cfg.dataloader)
     valid_loader = data.DataLoader(ShortCycler(dataloaders["validation"]), **cfg.dataloader)
 
+    train_loader = LongCycler(dataloaders["train"], shuffle=True)
+    valid_loader = ShortCycler(dataloaders["validation"])
+
     if cfg.seed is not None:
         lightning.pytorch.seed_everything(cfg.seed)
 

@@ -65,7 +65,7 @@ def load_all_responses(
     base_data_path: str | os.PathLike,
     stim_type: Literal["fixationmovie", "frozencheckerflicker", "gratingflicker", "imagesequence"] = "fixationmovie",
     specie: Literal["mouse", "marmoset"] = "mouse",
-    fr_normalisation: float = 1.0,
+    fr_normalization: float = 1.0,
 ) -> dict[str, ResponsesTrainTestSplit]:
     """
     Load responses for all sessions.
@@ -93,7 +93,7 @@ def load_all_responses(
 
     for session in tqdm(exp_sessions, desc="Processing sessions"):
         session_path = os.path.join(base_data_path, session)
-        responses = load_responses_for_session(session_path, stim_type, fr_normalisation)
+        responses = load_responses_for_session(session_path, stim_type, fr_normalization)
         if responses:
             responses_all_sessions[session.split("/")[-1]] = responses
 
