@@ -14,8 +14,8 @@ class MeiAcrossContrasts(nn.Module):
         Initialize the ResponseGradient class.
 
         Parameters:
-        contrast_values (torch.TensorType): A torch Tensor with 2 scalar values that the MEI green and UV channels will be multiplied with.
-        stim (torch.TensorType): MEI stimulus as torch Tensor.
+        contrast_values (torch.Tensor): A torch Tensor with 2 scalar values that the MEI green and UV channels will be multiplied with.
+        stim (torch.Tensor): MEI stimulus as torch Tensor.
         """
         super().__init__()
         self.contrast_values = nn.Parameter(contrast_values, requires_grad=True)
@@ -31,14 +31,14 @@ class MeiAcrossContrasts(nn.Module):
         )
 
 
-def trainer_fn(mei_contrast_gen: MeiAcrossContrasts, model_neuron: SingleNeuronObjective, optimizer=optim.Adam, lr=1) -> tuple:
+def trainer_fn(mei_contrast_gen: MeiAcrossContrasts, model_neuron: SingleNeuronObjective, optimizer=optim.Adam, lr: float = 1.0) -> tuple[np.ndarray, np.ndarray]:
     """
     Trainer function for getting the gradient on the MEI with different contrasts
     """
     optimizer = optimizer(mei_contrast_gen.parameters(), lr=lr)
     loss = model_neuron.forward(mei_contrast_gen())
     loss.backward()
-    grad_val = deepcopy(mei_contrast_gen.contrast_values.grad)
+    grad_val: torch.Tensor = deepcopy(mei_contrast_gen.contrast_values.grad)  # type: ignore
     optimizer.zero_grad()
     return grad_val.detach().cpu().numpy().squeeze(), loss.detach().cpu().numpy().squeeze()
 
@@ -100,7 +100,7 @@ def equalize_channels(mei: torch.Tensor,
     total_norm = torch.norm(mei)
     green_factor = (total_norm/2)/green_norm
     uv_factor = (total_norm/2)/uv_norm
-    equalized_mei = torch.zeros_like(mei).cuda()
+    equalized_mei = torch.zeros_like(mei, device=mei.device)
     equalized_mei[0, 0] = green_factor * mei[0, 0]
     if flip_green:
         equalized_mei[0, 0] = -1 * equalized_mei[0, 0]
