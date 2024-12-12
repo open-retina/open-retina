@@ -263,7 +263,7 @@ class ColorMapper:
 
 def plot_vector_field_resp_iso(x: np.ndarray, y: np.ndarray, gradient_dict: np.ndarray, 
                                resp_dict: np.ndarray, normalize_response: bool = False,
-                               rc_dict: Dict[str, Any] = {},
+                               rc_dict: dict[str, Any] = {},
                                cmap: str = "hsv") -> None:
     """
     Plots a vector field response with isoresponse lines.
