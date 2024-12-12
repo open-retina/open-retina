@@ -1,21 +1,21 @@
 import datetime
 import os
 from functools import partial
-from typing import Any, Dict
+from typing import Any
 
 import cv2
 import matplotlib
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
 import torch
 from IPython.display import HTML
 from jaxtyping import Float
 from matplotlib import animation
 from matplotlib.colors import Normalize
 from matplotlib.patches import Rectangle
-import matplotlib as mpl 
-from matplotlib.ticker import FuncFormatter, FormatStrFormatter, FixedLocator
-import seaborn as sns
+from matplotlib.ticker import FixedLocator, FormatStrFormatter
 
 from openretina.data_io.hoefling_2024.constants import FRAME_RATE_MODEL
 from openretina.legacy.hoefling_configs import MEAN_STD_DICT_74x64, pre_normalisation_values_18x16
@@ -261,7 +261,7 @@ class ColorMapper:
         return color
 
 
-def plot_vector_field_resp_iso(x: np.ndarray, y: np.ndarray, gradient_dict: np.ndarray, 
+def plot_vector_field_resp_iso(x: np.ndarray, y: np.ndarray, gradient_dict: np.ndarray,
                                resp_dict: np.ndarray, normalize_response: bool = False,
                                rc_dict: dict[str, Any] = {},
                                cmap: str = "hsv") -> None:
@@ -304,7 +304,7 @@ def plot_vector_field_resp_iso(x: np.ndarray, y: np.ndarray, gradient_dict: np.n
                          levels = cont_lines.levels[::2], colors="k", fontsize=5, zorder=400)
         ax = plt.gca()
         ax.set_aspect("equal")
-        
+
         for i, contrast_green in enumerate(x[1:-1]):
             for j, contrast_uv in enumerate(y[1:-1]):
                 unit_vec = gradient_grid[:, i, j]/np.linalg.norm(gradient_grid[:, i, j]) * .1
