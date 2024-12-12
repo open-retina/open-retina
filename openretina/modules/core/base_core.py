@@ -62,6 +62,8 @@ class SimpleCoreWrapper(Core):
         cut_first_n_frames: int = 30,
         maxpool_every_n_layers: int | None = None,
         downsample_input_kernel_size: tuple[int, int, int] | None = None,
+        input_padding: bool = False,
+        hidden_padding: bool = True,
     ):
         # Input validation
         if len(channels) < 2:
@@ -86,14 +88,22 @@ class SimpleCoreWrapper(Core):
         self._downsample_input_kernel_size = (
             list(downsample_input_kernel_size) if downsample_input_kernel_size is not None else None
         )
+        if self._cut_first_n_frames and not input_padding:
+            warnings.warn(
+                (
+                    "Cutting frames from the core output can lead to unexpected results if the input is not padded."
+                    "Double check the core output shape."
+                ),
+                UserWarning,
+                stacklevel=2,
+            )
 
         self._input_weights_regularizer_spatial = FlatLaplaceL23dnorm(padding=0)
 
         self.features = torch.nn.Sequential()
         for layer_id, (num_in_channels, num_out_channels) in enumerate(zip(channels[:-1], channels[1:], strict=True)):
             layer: dict[str, torch.nn.Module] = OrderedDict()
-            padding = "same"  # ((temporal_kernel_sizes[layer_id] - 1) // 2,
-            # (spatial_kernel_sizes[layer_id] - 1) // 2, (spatial_kernel_sizes[layer_id] - 1) // 2)
+            padding = "same" if input_padding and layer_id == 0 else ("same" if hidden_padding and layer_id != 0 else 0)
             layer["conv"] = STSeparableBatchConv3d(
                 num_in_channels,
                 num_out_channels,
