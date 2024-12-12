@@ -62,7 +62,7 @@ def main(
 ) -> None:
     model = load_model(model_path, device)
     autoencoder = Autoencoder.load_from_checkpoint(autoencoder_path)  # type: ignore
-    autoencoder_with_model = AutoencoderWithModel(model, autoencoder)
+    autoencoder_with_model = AutoencoderWithModel(model, autoencoder)  # type: ignore
     if use_contrastive_objective:
         objective_class: Type[AbstractObjective] = ContrastiveNeuronObjective
     else:
