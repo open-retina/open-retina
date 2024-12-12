@@ -88,7 +88,7 @@ def main(
         factor=0.1,
     )
 
-    for neuron_id in range(autoencoder.hidden_dim()):
+    for neuron_id in range(autoencoder.hidden_dim()):  # type: ignore
         print(f"Generating MEI for {neuron_id=}")
         objective = objective_class(
             autoencoder_with_model,
