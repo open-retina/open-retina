@@ -264,7 +264,7 @@ class ColorMapper:
 def plot_vector_field_resp_iso(x: np.ndarray, y: np.ndarray, gradient_dict: np.ndarray,
                                resp_dict: np.ndarray, normalize_response: bool = False,
                                rc_dict: dict[str, Any] = {},
-                               cmap: str = "hsv") -> None:
+                               cmap: str = "hsv") -> plt.Figure:
     """
     Plots a vector field response with isoresponse lines.
 
@@ -301,7 +301,7 @@ def plot_vector_field_resp_iso(x: np.ndarray, y: np.ndarray, gradient_dict: np.n
         plt.contourf(X, Y, Z, levels=levels, cmap=cmap, zorder=200)  # Change cmap to the desired colormap
         cont_lines = plt.contour(X,Y,Z, levels=levels, cmap='jet_r',zorder=300)
         plt.gca().clabel(cont_lines, inline=True, fmt='%1.0f',
-                         levels = cont_lines.levels[::2], colors="k", fontsize=5, zorder=400)
+                         levels = list(cont_lines.levels)[::2], colors="k", fontsize=5, zorder=400)
         ax = plt.gca()
         ax.set_aspect("equal")
 
