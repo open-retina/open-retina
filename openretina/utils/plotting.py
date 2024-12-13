@@ -261,10 +261,15 @@ class ColorMapper:
         return color
 
 
-def plot_vector_field_resp_iso(x: np.ndarray, y: np.ndarray, gradient_dict: np.ndarray,
-                               resp_dict: np.ndarray, normalize_response: bool = False,
-                               rc_dict: dict[str, Any] = {},
-                               cmap: str = "hsv") -> plt.Figure:
+def plot_vector_field_resp_iso(
+    x: np.ndarray,
+    y: np.ndarray,
+    gradient_dict: np.ndarray,
+    resp_dict: np.ndarray,
+    normalize_response: bool = False,
+    rc_dict: dict[str, Any] = {},
+    cmap: str = "hsv",
+) -> plt.Figure:
     """
     Plots a vector field response with isoresponse lines.
 
@@ -284,7 +289,7 @@ def plot_vector_field_resp_iso(x: np.ndarray, y: np.ndarray, gradient_dict: np.n
 
     Z = resp_dict.transpose()
     if normalize_response:
-        Z=Z/Z.max() * 100
+        Z = Z / Z.max() * 100
     gradient_grid = gradient_dict[:, 1:-1, 1:-1]
     X, Y = np.meshgrid(x, x)
 
@@ -299,24 +304,39 @@ def plot_vector_field_resp_iso(x: np.ndarray, y: np.ndarray, gradient_dict: np.n
         # Create a contour plot with isoresponse lines
 
         plt.contourf(X, Y, Z, levels=levels, cmap=cmap, zorder=200)  # Change cmap to the desired colormap
-        cont_lines = plt.contour(X,Y,Z, levels=levels, cmap='jet_r',zorder=300)
-        plt.gca().clabel(cont_lines, inline=True, fmt='%1.0f',
-                         levels = list(cont_lines.levels)[::2], colors="k", fontsize=5, zorder=400)
+        cont_lines = plt.contour(X, Y, Z, levels=levels, cmap="jet_r", zorder=300)
+        plt.gca().clabel(
+            cont_lines,
+            inline=True,
+            fmt="%1.0f",
+            levels=list(cont_lines.levels)[::2],
+            colors="k",
+            fontsize=5,
+            zorder=400,
+        )
         ax = plt.gca()
         ax.set_aspect("equal")
 
         for i, contrast_green in enumerate(x[1:-1]):
             for j, contrast_uv in enumerate(y[1:-1]):
-                unit_vec = gradient_grid[:, i, j]/np.linalg.norm(gradient_grid[:, i, j]) * .1
-                ax.arrow(contrast_green, contrast_uv, unit_vec[0], unit_vec[1],
-                            fill=True, linewidth=.5,
-                            head_width=.03, color="grey", zorder=300)
+                unit_vec = gradient_grid[:, i, j] / np.linalg.norm(gradient_grid[:, i, j]) * 0.1
+                ax.arrow(
+                    contrast_green,
+                    contrast_uv,
+                    unit_vec[0],
+                    unit_vec[1],
+                    fill=True,
+                    linewidth=0.5,
+                    head_width=0.03,
+                    color="grey",
+                    zorder=300,
+                )
         ax.set_xlabel("Green contrast")
         ax.set_ylabel("UV contrast")
         ax.xaxis.set_major_locator(FixedLocator([-1, 0, 1]))
-        ax.xaxis.set_major_formatter(FormatStrFormatter('%d'))
+        ax.xaxis.set_major_formatter(FormatStrFormatter("%d"))
         ax.yaxis.set_major_locator(FixedLocator([-1, 0, 1]))
-        ax.yaxis.set_major_formatter(FormatStrFormatter('%d'))
+        ax.yaxis.set_major_formatter(FormatStrFormatter("%d"))
         sns.despine()
     return fig
 
