@@ -48,7 +48,7 @@ def trainer_fn(mei_contrast_gen: MeiAcrossContrasts, model_neuron: SingleNeuronO
     optimizer.zero_grad()
     return grad_val.detach().cpu().numpy().squeeze(), loss.detach().cpu().numpy().squeeze()
 
-def get_gradient_grid(stim: torch.TensorType,
+def get_gradient_grid(stim: torch.Tensor,
                       model_neuron: SingleNeuronObjective,
                       n_channels: int = 2,
                       start: float = -1,
