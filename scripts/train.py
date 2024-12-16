@@ -22,7 +22,7 @@ def main(cfg: DictConfig) -> None:
     movies_dict = hydra.utils.call(cfg.data_io.stimuli)
     neuron_data_dict = hydra.utils.call(cfg.data_io.responses)
 
-    if cfg.check_matches:
+    if cfg.check_stimuli_responses_match:
         for session, neuron_data in neuron_data_dict.items():
             neuron_data.check_matching_stimulus(movies_dict[session])
 

@@ -92,7 +92,7 @@ class SimpleCoreWrapper(Core):
             warnings.warn(
                 (
                     "Cutting frames from the core output can lead to unexpected results if the input is not padded."
-                    "Double check the core output shape."
+                    f"{self._cut_first_n_frames=}, {input_padding=}. Double check the core output shape."
                 ),
                 UserWarning,
                 stacklevel=2,

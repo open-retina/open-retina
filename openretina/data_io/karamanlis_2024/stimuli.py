@@ -6,6 +6,7 @@ Data: https://doi.org/10.12751/g-node.ejk8kx
 """
 
 import os
+import warnings
 from typing import Literal
 
 import numpy as np
@@ -14,7 +15,7 @@ from einops import rearrange
 from torchvision.transforms import Resize
 from tqdm.auto import tqdm
 
-from openretina.data_io.base import MoviesTrainTestSplit
+from openretina.data_io.base import MoviesTrainTestSplit, normalize_train_test_movies
 from openretina.utils.h5_handling import load_dataset_from_h5
 
 
@@ -43,12 +44,14 @@ def load_stimuli_for_session(
     for recording_file in os.listdir(session_path):
         full_path = os.path.join(session_path, recording_file)
 
+        # First check for a `.npz` file, which is a saved version of the preprocessing of the stimuli
         if recording_file.endswith(
             f"{stim_type}_data_extracted_stimuli_{downsampled_size[0]}_{downsampled_size[1]}.npz"
         ):
             npz_file = full_path
             break  # Prefer `.npz` file
 
+        # Fall back to the original `.mat` file if no `.npz` file is found (e.g., for the first run of the script)
         elif recording_file.endswith(f"{stim_type}_data.mat"):
             mat_file = full_path
 
@@ -81,12 +84,13 @@ def load_stimuli_for_session(
             test_data=test_video,
         )
     else:
+        warnings.warn(
+            f"No file with postfix {stim_type}_data.mat (or preprocessed version) found in folder {session_path}",
+        )
         return None
 
     if normalize_stimuli:
-        train_video_preproc = (train_video - train_video.mean()) / train_video.std()
-        test_video = (test_video - train_video.mean()) / train_video.std()
-        train_video = train_video_preproc
+        train_video, test_video = normalize_train_test_movies(train_video, test_video)
 
     return MoviesTrainTestSplit(
         train=train_video,

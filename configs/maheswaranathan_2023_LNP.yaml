@@ -16,6 +16,7 @@ defaults:
 
 exp_name: example_linear_nonlinear_poisson
 seed: 42
+check_stimuli_responses_match: false
 
 data:
   root_dir: /Data

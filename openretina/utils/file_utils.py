@@ -28,7 +28,7 @@ def optionally_download_from_url(
         with requests.get(full_url, stream=True) as response:
             if response.status_code != 200:
                 raise FileNotFoundError(
-                    f"Received status code {response.status_code} " f"when trying to download from {full_url=}"
+                    f"Received status code {response.status_code} when trying to download from {full_url=}"
                 )
             total_size = int(response.headers.get("content-length", 0))  # Total size in bytes
             chunk_size = 1024 * 1024  # 1 MB
@@ -61,8 +61,6 @@ def get_local_file_path(file_path: str, cache_folder: str) -> Path:
         )
     elif file_path.startswith("https://"):
         raise NotImplementedError(f"Only {GIN_BASE_URL} data storage is supported for now.")
-    elif file_path.startswith("http"):
-        raise ValueError(f"Downloading from http {file_path=} is not supported yet.")
     else:
         # assuming this is a local file
         return Path(os.path.expanduser(file_path))

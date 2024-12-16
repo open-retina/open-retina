@@ -16,7 +16,7 @@ defaults:
 
 exp_name: hoefling_2024_core_readout_low_res_filtered
 seed: 42
-check_matches: false
+check_stimuli_responses_match: false
 
 dataloader:
   batch_size: 128

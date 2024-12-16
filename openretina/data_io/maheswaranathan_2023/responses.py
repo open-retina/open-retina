@@ -26,29 +26,26 @@ def load_all_responses(
     (See https://doi.org/10.25740/rk663dm5577 for dataset download)
     """
     responses_all_sessions = {}
-    for session in os.listdir(base_data_path):
+    for session in [x.name for x in os.scandir(base_data_path) if x.is_dir()]:
         session_path = os.path.join(base_data_path, session)
-        if not os.path.isdir(session_path):
-            continue
-        for recording_file in os.listdir(session_path):
-            if str(recording_file).endswith(f"{stim_type}.h5"):
-                recording_file = os.path.join(session_path, recording_file)
+        for recording_file in [x for x in os.listdir(session_path) if str(x).endswith(f"{stim_type}.h5")]:
+            recording_file = os.path.join(session_path, recording_file)
 
-                print(f"Loading responses from {recording_file}")
+            print(f"Loading responses from {recording_file}")
 
-                # Load neural responses
-                train_session_data = load_dataset_from_h5(recording_file, f"/train/response/{response_type}")
-                test_session_data = load_dataset_from_h5(recording_file, f"/test/response/{response_type}")
+            # Load neural responses
+            train_session_data = load_dataset_from_h5(recording_file, f"/train/response/{response_type}")
+            test_session_data = load_dataset_from_h5(recording_file, f"/test/response/{response_type}")
 
-                assert (
-                    train_session_data.shape[0] == test_session_data.shape[0]
-                ), "Train and test responses should have the same number of neurons."
+            assert (
+                train_session_data.shape[0] == test_session_data.shape[0]
+            ), "Train and test responses should have the same number of neurons."
 
-                responses_all_sessions["".join(session.split("/")[-1])] = ResponsesTrainTestSplit(
-                    train=train_session_data / fr_normalization,
-                    test=test_session_data / fr_normalization,
-                    stim_id=stim_type,
-                )
+            responses_all_sessions[session] = ResponsesTrainTestSplit(
+                train=train_session_data / fr_normalization,
+                test=test_session_data / fr_normalization,
+                stim_id=stim_type,
+            )
     return responses_all_sessions
 
 

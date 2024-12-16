@@ -123,11 +123,8 @@ class BaseCoreReadout(LightningModule):
         self.readout.save_weight_visualizations(os.path.join(folder_path, "weights_readout"))
 
     def compute_readout_input_shape(
-        self, core_in_shape: tuple[int, int, int, int], core: Core | None = None
+        self, core_in_shape: tuple[int, int, int, int], core: Core
     ) -> tuple[int, int, int, int]:
-        if core is None:
-            core = self.core
-
         # Use the same device as the core's parameters to avoid potential errors at init.
         device = next(core.parameters()).device
 

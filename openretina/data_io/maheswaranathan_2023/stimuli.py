@@ -8,7 +8,7 @@ Data: https://doi.org/10.25740/rk663dm5577
 import os
 from typing import Literal
 
-from openretina.data_io.base import MoviesTrainTestSplit
+from openretina.data_io.base import MoviesTrainTestSplit, normalize_train_test_movies
 from openretina.utils.h5_handling import load_dataset_from_h5
 
 CLIP_LENGTH = 90  # in frames @ 30 fps
@@ -26,10 +26,8 @@ def load_all_stimuli(
     (See https://doi.org/10.25740/rk663dm5577 for dataset download)
     """
     stimuli_all_sessions = {}
-    for session in os.listdir(base_data_path):
+    for session in [x.name for x in os.scandir(base_data_path) if x.is_dir()]:
         session_path = os.path.join(base_data_path, session)
-        if not os.path.isdir(session_path):
-            continue
         for recording_file in os.listdir(session_path):
             if str(recording_file).endswith(f"{stim_type}.h5"):
                 recording_file = os.path.join(session_path, recording_file)
@@ -45,9 +43,7 @@ def load_all_stimuli(
                 test_video = test_video[None, ...]
 
                 if normalize_stimuli:
-                    train_video_preproc = (train_video - train_video.mean()) / train_video.std()
-                    test_video = (test_video - train_video.mean()) / train_video.std()
-                    train_video = train_video_preproc
+                    train_video, test_video = normalize_train_test_movies(train_video, test_video)
 
                 stimuli_all_sessions["".join(session.split("/")[-1])] = MoviesTrainTestSplit(
                     train=train_video,

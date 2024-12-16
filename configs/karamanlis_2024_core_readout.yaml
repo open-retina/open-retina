@@ -1,7 +1,7 @@
 defaults:
   - data_io: karamanlis_2024
   - dataloader: karamanlis_2024
-  - model: GRU_core_readout
+  - model: base_core_readout
   - training_callbacks:
     - early_stopping
     - lr_monitor
@@ -15,7 +15,7 @@ defaults:
 
 exp_name: GRU_core_readout_karamanlis_2024
 seed: 42
-check_matches: true
+check_stimuli_responses_match: true
 
 data:
   root_dir: /Data
@@ -32,7 +32,7 @@ model:
   hidden_channels: [16, 32, 64]
   spatial_kernel_sizes: [21, 15, 11]
   temporal_kernel_sizes: [11, 11, 11]
-  core_hidden_padding: false
+  core_hidden_padding: true
 
 trainer:
   max_epochs: 50

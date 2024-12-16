@@ -4,7 +4,7 @@ stimuli:
   file_path:
     _target_: openretina.utils.file_utils.get_local_file_path
     _convert_: object
-    file_path: ${data.movies_path}
+    file_path: ${data.movies_path} # Reads from the main config. Can be both higgh and low res.
     cache_folder: ${data.data_dir}
 
 # Taking hydra recursive instantiation to the extreme

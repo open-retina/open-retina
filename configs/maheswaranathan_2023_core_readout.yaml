@@ -15,7 +15,7 @@ defaults:
 
 exp_name: core_readout_maheswaranathan
 seed: 42
-check_matches: false
+check_stimuli_responses_match: false
 
 data:
   root_dir: /Data

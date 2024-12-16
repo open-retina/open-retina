@@ -6,6 +6,7 @@ Data: https://doi.org/10.12751/g-node.ejk8kx
 """
 
 import os
+import warnings
 from typing import Literal
 
 import numpy as np
@@ -30,35 +31,41 @@ def load_responses_for_session(
         fr_normalisation (float): Normalization factor for firing rates.
 
     Returns:
-        ResponsesTrainTestSplit | None: Loaded responses for the session or None if no relevant file found.
+        ResponsesTrainTestSplit: Loaded responses for the session.
+
+    Raises:
+        IOError: If multiple relevant files are found.
     """
-    for recording_file in os.listdir(session_path):
-        full_path = os.path.join(session_path, recording_file)
+    recording_file_names = [x for x in os.listdir(session_path) if x.endswith(f"{stim_type}_data.mat")]
 
-        if recording_file.endswith(f"{stim_type}_data.mat"):
-            tqdm.write(f"Loading responses from {full_path}")
+    if len(recording_file_names) == 0:
+        warnings.warn(
+            f"No file with postfix {f'{stim_type}_data.mat'} found in folder {session_path}", UserWarning, stacklevel=2
+        )
+        return None
+    elif len(recording_file_names) > 1:
+        raise IOError(
+            f"Multiple files with postfix {f'{stim_type}_data.mat'} found in folder {session_path}: "
+            f"{recording_file_names=}"
+        )
 
-            testing_responses = load_dataset_from_h5(full_path, "frozenbin")
-            training_responses = load_dataset_from_h5(full_path, "runningbin")
+    full_path = os.path.join(session_path, recording_file_names[0])
+    tqdm.write(f"Loading responses from {full_path}")
 
-            testing_responses = (
-                rearrange(testing_responses, "trials time neurons -> trials neurons time") / fr_normalisation
-            )
-            mean_test_response = np.mean(testing_responses, axis=0)
+    testing_responses = load_dataset_from_h5(full_path, "frozenbin")
+    training_responses = load_dataset_from_h5(full_path, "runningbin")
 
-            training_responses = (
-                rearrange(training_responses, "block time neurons -> neurons (block time)") / fr_normalisation
-            )
+    testing_responses = rearrange(testing_responses, "trials time neurons -> trials neurons time") / fr_normalisation
+    mean_test_response = np.mean(testing_responses, axis=0)
 
-            return ResponsesTrainTestSplit(
-                train=training_responses,
-                test=mean_test_response,
-                test_by_trial=testing_responses,
-                stim_id=stim_type,
-            )
+    training_responses = rearrange(training_responses, "block time neurons -> neurons (block time)") / fr_normalisation
 
-    # Return None if no relevant file is found
-    return None
+    return ResponsesTrainTestSplit(
+        train=training_responses,
+        test=mean_test_response,
+        test_by_trial=testing_responses,
+        stim_id=stim_type,
+    )
 
 
 def load_all_responses(

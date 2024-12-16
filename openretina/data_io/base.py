@@ -74,3 +74,16 @@ class ResponsesTrainTestSplit:
     @property
     def n_neurons(self) -> int:
         return self.train.shape[0]
+
+
+def get_n_neurons_per_session(responses_dict: dict[str, ResponsesTrainTestSplit]) -> dict[str, int]:
+    return {name: responses.n_neurons for name, responses in responses_dict.items()}
+
+
+def normalize_train_test_movies(
+    train: Float[np.ndarray, "channels train_time height width"],
+    test: Float[np.ndarray, "channels test_time height width"],
+) -> tuple[Float[np.ndarray, "channels train_time height width"], Float[np.ndarray, "channels test_time height width"]]:
+    train_video_preproc = (train - train.mean()) / train.std()
+    test_video = (test - train.mean()) / train.std()
+    return train_video_preproc, test_video
