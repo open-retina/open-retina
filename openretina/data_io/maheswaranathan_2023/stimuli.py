@@ -26,7 +26,7 @@ def load_all_stimuli(
     (See https://doi.org/10.25740/rk663dm5577 for dataset download)
     """
     stimuli_all_sessions = {}
-    for session in [x.name for x in os.scandir(base_data_path) if x.is_dir()]:
+    for session in [x.name for x in os.scandir(os.fspath(base_data_path)) if x.is_dir()]:
         session_path = os.path.join(base_data_path, session)
         for recording_file in os.listdir(session_path):
             if str(recording_file).endswith(f"{stim_type}.h5"):
@@ -45,7 +45,7 @@ def load_all_stimuli(
                 if normalize_stimuli:
                     train_video, test_video = normalize_train_test_movies(train_video, test_video)
 
-                stimuli_all_sessions["".join(session.split("/")[-1])] = MoviesTrainTestSplit(
+                stimuli_all_sessions[str(session)] = MoviesTrainTestSplit(
                     train=train_video,
                     test=test_video,
                     stim_id=stim_type,

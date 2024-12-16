@@ -26,7 +26,7 @@ def load_all_responses(
     (See https://doi.org/10.25740/rk663dm5577 for dataset download)
     """
     responses_all_sessions = {}
-    for session in [x.name for x in os.scandir(base_data_path) if x.is_dir()]:
+    for session in [x.name for x in os.scandir(os.fspath(base_data_path)) if x.is_dir()]:
         session_path = os.path.join(base_data_path, session)
         for recording_file in [x for x in os.listdir(session_path) if str(x).endswith(f"{stim_type}.h5")]:
             recording_file = os.path.join(session_path, recording_file)
@@ -41,7 +41,7 @@ def load_all_responses(
                 train_session_data.shape[0] == test_session_data.shape[0]
             ), "Train and test responses should have the same number of neurons."
 
-            responses_all_sessions[session] = ResponsesTrainTestSplit(
+            responses_all_sessions[str(session)] = ResponsesTrainTestSplit(
                 train=train_session_data / fr_normalization,
                 test=test_session_data / fr_normalization,
                 stim_id=stim_type,
