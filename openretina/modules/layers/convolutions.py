@@ -30,7 +30,9 @@ class TorchFullConv3D(nn.Module):
         if spatial_kernel_size2 is None:
             spatial_kernel_size2 = spatial_kernel_size
 
-        self._log_speed_default = torch.nn.Parameter(data=torch.zeros(1), requires_grad=False)
+        # Initialize default log speed (batch adaptation term)
+        self.register_buffer("_log_speed_default", torch.zeros(1))
+
         self.conv = nn.Conv3d(
             in_channels,
             out_channels,
@@ -75,7 +77,9 @@ class TorchSTSeparableConv3D(nn.Module):
         if spatial_kernel_size2 is None:
             spatial_kernel_size2 = spatial_kernel_size
 
-        self._log_speed_default = torch.nn.Parameter(data=torch.zeros(1), requires_grad=False)
+        # Initialize default log speed (batch adaptation term)
+        self.register_buffer("_log_speed_default", torch.zeros(1))
+
         self.space_conv = nn.Conv3d(
             in_channels,
             out_channels,
@@ -226,7 +230,8 @@ class STSeparableBatchConv3d(nn.Module):
 
         # Initialize bias if required
         self.bias = nn.Parameter(torch.zeros(out_channels)) if bias else None
-        self._log_speed_default = torch.nn.Parameter(data=torch.zeros(1), requires_grad=False)
+        # Initialize default log speed (batch adaptation term)
+        self.register_buffer("_log_speed_default", torch.zeros(1))
 
         # Store log speeds for each data key
         for key, val in log_speed_dict.items():

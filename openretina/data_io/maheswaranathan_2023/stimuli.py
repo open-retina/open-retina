@@ -6,41 +6,33 @@ Data: https://doi.org/10.25740/rk663dm5577
 """
 
 import os
-from typing import Any
+from typing import Literal
 
-from openretina.data_io.base import MoviesTrainTestSplit, ResponsesTrainTestSplit
+from openretina.data_io.base import MoviesTrainTestSplit, normalize_train_test_movies
 from openretina.utils.h5_handling import load_dataset_from_h5
 
 CLIP_LENGTH = 90  # in frames @ 30 fps
 
 
-def load_all_sessions(
+def load_all_stimuli(
     base_data_path: str | os.PathLike,
-    response_type: str = "firing_rate_20ms",
-    stim_type: str = "naturalscene",
-    fr_normalization: float = 1,
+    stim_type: Literal["naturalscene", "whitenoise"] = "naturalscene",
     normalize_stimuli: bool = True,
-) -> tuple[dict[str, Any], dict[str, Any]]:
+) -> dict[str, MoviesTrainTestSplit]:
     """
-    Load all ganglion cell data from sessions within subfolders in a given base data path.
+    Load all stimuli from sessions within subfolders in a given base data path.
 
     The base data path should point to the location of neural_code_data/ganglion_cell_data
     (See https://doi.org/10.25740/rk663dm5577 for dataset download)
     """
-    responses_all_sessions = {}
     stimuli_all_sessions = {}
-    for session in os.listdir(base_data_path):
-        # List sessions in the base data path
+    for session in [x.name for x in os.scandir(os.fspath(base_data_path)) if x.is_dir()]:
         session_path = os.path.join(base_data_path, session)
-        if not os.path.isdir(session_path):
-            continue
-        for recording_file in os.listdir(
-            session_path,
-        ):
+        for recording_file in os.listdir(session_path):
             if str(recording_file).endswith(f"{stim_type}.h5"):
                 recording_file = os.path.join(session_path, recording_file)
 
-                print(f"Loading data from {recording_file}")
+                print(f"Loading stimuli from {recording_file}")
 
                 # Load video stimuli
                 train_video = load_dataset_from_h5(recording_file, "/train/stimulus")
@@ -51,30 +43,11 @@ def load_all_sessions(
                 test_video = test_video[None, ...]
 
                 if normalize_stimuli:
-                    train_video = train_video - train_video.mean() / train_video.std()
-                    test_video = test_video - test_video.mean() / test_video.std()
+                    train_video, test_video = normalize_train_test_movies(train_video, test_video)
 
-                stimuli_all_sessions["".join(session.split("/")[-1])] = MoviesTrainTestSplit(
+                stimuli_all_sessions[str(session)] = MoviesTrainTestSplit(
                     train=train_video,
                     test=test_video,
                     stim_id=stim_type,
                 )
-
-                train_session_data = load_dataset_from_h5(recording_file, f"/train/response/{response_type}")
-                test_session_data = load_dataset_from_h5(recording_file, f"/test/response/{response_type}")
-
-                assert (
-                    train_session_data.shape[0] == test_session_data.shape[0]
-                ), "Train and test responses should have the same number of neurons."
-
-                assert (
-                    train_session_data.shape[1] == train_video.shape[1]
-                ), "The number of timepoints in the responses does not match the number of frames in the video."
-
-                responses_all_sessions["".join(session.split("/")[-1])] = ResponsesTrainTestSplit(
-                    train=train_session_data / fr_normalization,
-                    test=test_session_data / fr_normalization,
-                    stim_id=stim_type,
-                )
-
-    return responses_all_sessions, stimuli_all_sessions
+    return stimuli_all_sessions

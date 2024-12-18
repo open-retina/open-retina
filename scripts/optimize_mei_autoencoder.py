@@ -62,7 +62,7 @@ def main(
 ) -> None:
     model = load_model(model_path, device)
     autoencoder = Autoencoder.load_from_checkpoint(autoencoder_path)  # type: ignore
-    autoencoder_with_model = AutoencoderWithModel(model, autoencoder)
+    autoencoder_with_model = AutoencoderWithModel(model, autoencoder)  # type: ignore
     if use_contrastive_objective:
         objective_class: Type[AbstractObjective] = ContrastiveNeuronObjective
     else:
@@ -88,7 +88,7 @@ def main(
         factor=0.1,
     )
 
-    for neuron_id in range(autoencoder.hidden_dim()):
+    for neuron_id in range(autoencoder.hidden_dim()):  # type: ignore
         print(f"Generating MEI for {neuron_id=}")
         objective = objective_class(
             autoencoder_with_model,

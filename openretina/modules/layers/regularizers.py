@@ -32,6 +32,8 @@ LAPLACE_7x7 = np.array(
     ]
 ).astype(np.float32)[None, None, ...]
 
+EPS = 1e-6
+
 
 def gaussian2d(
     size,
@@ -137,7 +139,7 @@ class TimeLaplaceL23dnorm(nn.Module):
 
         oc, ic, k1, k2, k3 = x.size()
         assert (k2, k3) == (1, 1), "space dimensions must be one"
-        return agg_fn(self.laplace(x.view(oc * ic, 1, k1)).pow(2)) / agg_fn(x.view(oc * ic, 1, k1).pow(2))
+        return agg_fn(self.laplace(x.view(oc * ic, 1, k1)).pow(2)) / (agg_fn(x.view(oc * ic, 1, k1).pow(2)) + EPS)
 
 
 class FlatLaplaceL23dnorm(nn.Module):
@@ -155,7 +157,9 @@ class FlatLaplaceL23dnorm(nn.Module):
 
         oc, ic, k1, k2, k3 = x.size()
         assert k1 == 1, "time dimension must be one"
-        return agg_fn(self.laplace(x.view(oc * ic, 1, k2, k3)).pow(2)) / agg_fn(x.view(oc * ic, 1, k2, k3).pow(2))
+        return agg_fn(self.laplace(x.view(oc * ic, 1, k2, k3)).pow(2)) / (
+            agg_fn(x.view(oc * ic, 1, k2, k3).pow(2)) + EPS
+        )
 
 
 class GaussianLaplaceL2(nn.Module):
@@ -184,7 +188,7 @@ class GaussianLaplaceL2(nn.Module):
         out = self.laplace(x.view(oc * ic, 1, k1, k2))
         out = out * (1 - self.gaussian2d.expand(1, 1, k1, k2).to(x.device))
 
-        return agg_fn(out.pow(2)) / agg_fn(x.view(oc * ic, 1, k1, k2).pow(2))
+        return agg_fn(out.pow(2)) / (agg_fn(x.view(oc * ic, 1, k1, k2).pow(2)) + EPS)
 
 
 class LaplaceL2norm(nn.Module):
@@ -201,4 +205,6 @@ class LaplaceL2norm(nn.Module):
         agg_fn = torch.mean if avg else torch.sum
 
         oc, ic, k1, k2 = x.size()
-        return agg_fn(self.laplace(x.view(oc * ic, 1, k1, k2)).pow(2)) / agg_fn(x.view(oc * ic, 1, k1, k2).pow(2))
+        return agg_fn(self.laplace(x.view(oc * ic, 1, k1, k2)).pow(2)) / (
+            agg_fn(x.view(oc * ic, 1, k1, k2).pow(2)) + EPS
+        )

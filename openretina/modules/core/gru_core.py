@@ -113,7 +113,7 @@ class ConvGRUCore(Core3d, nn.Module):
         # GRU integration
         if use_gru:
             print("Using GRU")
-            self.features.add_module("gru", GRU_Module(**gru_kwargs))  # type: ignore
+            self.features.add_module("gru", GRU_Module(input_channels=hidden_channels[-1], **gru_kwargs))  # type: ignore
 
     def forward(self, input_, data_key=None):
         ret = []

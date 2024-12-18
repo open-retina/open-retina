@@ -1,0 +1,54 @@
+defaults:
+  - data_io: hoefling_2024
+  - quality_checks: hoefling_2024
+  - dataloader: hoefling_2024
+  - model: base_core_readout
+  - training_callbacks:
+    - early_stopping
+    - lr_monitor
+    - model_checkpoint
+  - logger:
+    - tensorboard
+    - csv
+  - trainer: default_deterministic
+  - hydra: default
+  - _self_ # values in this config will overwrite the defaults
+
+exp_name: hoefling_2024_core_readout_high_res_filtered
+seed: 42
+check_stimuli_responses_match: false
+
+dataloader:
+  batch_size: 64
+
+
+model:
+  in_shape: [2, 150, 72, 64]
+  hidden_channels: [16, 16, 16, 16]
+  temporal_kernel_sizes: [15, 15, 7, 7]
+  spatial_kernel_sizes: [15, 15, 7, 7]
+  core_hidden_padding: true
+  core_input_padding: true
+  cut_first_n_frames_in_core: 30
+  maxpool_every_n_layers: 2
+  # downsample_input_kernel_size: [1, 4, 4]  # to reproduce 18x16px lowres input
+
+data:
+  data:
+  root_dir: ??? # Choose the location of the root directory for the project  
+  data_dir: ${data.root_dir}/euler_data/ # Modify according to preferred data location  
+  output_dir: ${data.root_dir}/openretina_assets/runs 
+  movies_path: "https://gin.g-node.org/teulerlab/open-retina/raw/master/stimuli/eulerlab/rgc_natstim_72x64_joint_normalized_2024-10-11.pkl"
+  responses_path: "https://gin.g-node.org/teulerlab/open-retina/raw/master/responses/eulerlab/rgc_natstim_2024-08-14.h5"
+
+matmul_precision:
+  _target_: torch.set_float32_matmul_precision
+  precision: medium
+
+
+trainer:
+  max_epochs: 100
+  accumulate_grad_batches: 10
+  gradient_clip_val: 1
+  precision: 16-mixed
+

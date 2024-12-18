@@ -1,0 +1,43 @@
+defaults:
+  - data_io: hoefling_2024
+  - quality_checks: hoefling_2024
+  - dataloader: hoefling_2024
+  - model: base_core_readout
+  - training_callbacks:
+    - early_stopping
+    - lr_monitor
+    - model_checkpoint
+  - logger:
+    - tensorboard
+    - csv
+  - trainer: default_deterministic
+  - hydra: default
+  - _self_ # values in this config will overwrite the defaults
+
+exp_name: hoefling_2024_core_readout_low_res_filtered
+seed: 42
+check_stimuli_responses_match: false
+
+dataloader:
+  batch_size: 128
+
+
+model:
+  in_shape: [2, 150, 18, 16]
+
+data:
+  root_dir: ??? # Choose the location of the root directory for the project  
+  data_dir: ${data.root_dir}/euler_data/ # Modify according to preferred data location  
+  output_dir: ${data.root_dir}/openretina_assets/runs 
+  movies_path: "https://gin.g-node.org/teulerlab/open-retina/raw/master/stimuli/eulerlab/rgc_natstim_18x16_joint_normalized_2024-01-11.pkl"
+  responses_path: "https://gin.g-node.org/teulerlab/open-retina/raw/master/responses/eulerlab/rgc_natstim_2024-08-14.h5"
+
+matmul_precision:
+  _target_: torch.set_float32_matmul_precision
+  precision: highest
+
+
+trainer:
+  max_epochs: 100
+  accumulate_grad_batches: 1
+  gradient_clip_val: 1

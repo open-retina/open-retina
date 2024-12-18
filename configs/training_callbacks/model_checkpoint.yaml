@@ -1,0 +1,15 @@
+model_checkpoint:
+  _target_: lightning.pytorch.callbacks.ModelCheckpoint
+  dirpath: "${data.output_dir}/${exp_name}/checkpoints/${now:%Y-%m-%d_%H-%M-%S}"
+  filename: "{epoch:02d}_{val_correlation:.3f}" # checkpoint filename, it will be formatted by lightning
+  monitor: "val_correlation" # name of the logged metric which determines when model is improving
+  verbose: false 
+  save_last: false # additionally always save an exact copy of the last checkpoint to a file last.ckpt
+  save_top_k: 1
+  mode: "max" # "max" means higher metric value is better, can be also "min"
+  auto_insert_metric_name: true # whether lightning will deal with filename string formatting
+  save_weights_only: false 
+  every_n_train_steps: null 
+  train_time_interval: null 
+  every_n_epochs: null 
+  save_on_train_epoch_end: null

@@ -1,0 +1,9 @@
+early_stopping:
+  _target_: lightning.pytorch.callbacks.EarlyStopping
+  monitor: "val_correlation"
+  min_delta: 0.001 
+  patience: 10
+  verbose: True 
+  mode: "max"
+  strict: True              # whether to crash the training if monitor is not found in the validation metrics
+  check_finite: False         # when set True, stops training when the monitor becomes NaN or infinite

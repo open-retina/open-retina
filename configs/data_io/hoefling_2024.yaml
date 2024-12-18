@@ -1,0 +1,37 @@
+stimuli:
+  _target_: openretina.data_io.hoefling_2024.stimuli.movies_from_pickle
+  _convert_: object
+  file_path:
+    _target_: openretina.utils.file_utils.get_local_file_path
+    _convert_: object
+    file_path: ${data.movies_path} # Reads from the main config. Can be both higgh and low res.
+    cache_folder: ${data.data_dir}
+
+# Taking hydra recursive instantiation to the extreme
+responses:
+  # outer-most function is make_final_responses
+  _target_: openretina.data_io.hoefling_2024.responses.make_final_responses
+  _convert_: object
+  response_type: "natural"
+  data_dict:
+    # data dictionary is computed via filtering responses
+    _target_: openretina.data_io.hoefling_2024.responses.filter_responses
+    _convert_: object
+    filter_cell_types: ${quality_checks.filter_cell_types}
+    cell_types_list: ${quality_checks.cell_types_list}
+    chirp_qi: ${quality_checks.chirp_qi}
+    d_qi: ${quality_checks.d_qi}
+    qi_logic: ${quality_checks.qi_logic}
+    filter_counts: ${quality_checks.filter_counts}
+    classifier_confidence: ${quality_checks.classifier_confidence}
+    verbose: ${quality_checks.verbose}
+    all_responses:
+      # all_responses are loaded from the .h5 file
+      _target_: openretina.utils.h5_handling.load_h5_into_dict
+      _convert_: object
+      # path can be either remote or local so needs to be resolved
+      file_path:
+        _target_: openretina.utils.file_utils.get_local_file_path
+        _convert_: object
+        file_path: ${data.responses_path}
+        cache_folder: ${data.data_dir}
