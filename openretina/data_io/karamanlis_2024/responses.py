@@ -7,6 +7,7 @@ Data: https://doi.org/10.12751/g-node.ejk8kx
 
 import os
 import warnings
+from pathlib import Path
 from typing import Literal
 
 import numpy as np
@@ -102,6 +103,6 @@ def load_all_responses(
         session_path = os.path.join(base_data_path, session)
         responses = load_responses_for_session(session_path, stim_type, fr_normalization)
         if responses:
-            responses_all_sessions[session.split("/")[-1]] = responses
+            responses_all_sessions[str(os.path.basename(os.path.normpath(session)))] = responses
 
     return responses_all_sessions

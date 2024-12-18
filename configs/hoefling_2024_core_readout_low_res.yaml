@@ -26,9 +26,9 @@ model:
   in_shape: [2, 150, 18, 16]
 
 data:
-  root_dir: "/Data/"
-  data_dir: ${data.root_dir}/euler_data/
-  output_dir: ${data.root_dir}/open-retina/runs
+  root_dir: ??? # Choose the location of the root directory for the project  
+  data_dir: ${data.root_dir}/euler_data/ # Modify according to preferred data location  
+  output_dir: ${data.root_dir}/openretina_assets/runs 
   movies_path: "https://gin.g-node.org/teulerlab/open-retina/raw/master/stimuli/eulerlab/rgc_natstim_18x16_joint_normalized_2024-01-11.pkl"
   responses_path: "https://gin.g-node.org/teulerlab/open-retina/raw/master/responses/eulerlab/rgc_natstim_2024-08-14.h5"
 

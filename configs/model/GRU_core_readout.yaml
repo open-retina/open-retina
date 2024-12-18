@@ -2,7 +2,7 @@ _target_: openretina.models.core_readout.GRUCoreReadout
 _convert_: all
 
 # core
-in_shape: ???
+in_shape: ??? # Required for core init. Needs to be assigned in the top level config.
 hidden_channels: [32, 64]
 temporal_kernel_sizes: [21, 11]
 spatial_kernel_sizes: [11, 5]
@@ -26,7 +26,7 @@ core_gru_kwargs:
   pad_input: true
 
 # readout
-n_neurons_dict: ???
+n_neurons_dict: ??? # Required for readout init. Set dynamically in scripts/train.py based on loaded sessions.
 readout_scale: true
 readout_bias: true
 readout_gaussian_masks: true

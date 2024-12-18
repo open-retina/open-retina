@@ -34,9 +34,10 @@ model:
   # downsample_input_kernel_size: [1, 4, 4]  # to reproduce 18x16px lowres input
 
 data:
-  root_dir: "/Data/"
-  data_dir: ${data.root_dir}/euler_data/
-  output_dir: ${data.root_dir}/open-retina/runs
+  data:
+  root_dir: ??? # Choose the location of the root directory for the project  
+  data_dir: ${data.root_dir}/euler_data/ # Modify according to preferred data location  
+  output_dir: ${data.root_dir}/openretina_assets/runs 
   movies_path: "https://gin.g-node.org/teulerlab/open-retina/raw/master/stimuli/eulerlab/rgc_natstim_72x64_joint_normalized_2024-10-11.pkl"
   responses_path: "https://gin.g-node.org/teulerlab/open-retina/raw/master/responses/eulerlab/rgc_natstim_2024-08-14.h5"
 

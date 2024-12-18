@@ -18,9 +18,9 @@ seed: 42
 check_stimuli_responses_match: true
 
 data:
-  root_dir: /Data
+  root_dir: ???
   data_dir: ${data.root_dir}/Karamanlis_Gollisch_2023_RGC_spiketrains_natural_movies_and_subunit_models
-  output_dir: ${data.root_dir}/open-retina/runs
+  output_dir: ${data.root_dir}/openretina_assets/runs
 
 # Overwrite model defaults with specifics for Karamanlis 2024 data format
 model:

@@ -19,9 +19,9 @@ seed: 42
 check_stimuli_responses_match: false
 
 data:
-  root_dir: /Data
+  root_dir: ???
   data_dir: ${data.root_dir}/baccus_data/neural_code_data/ganglion_cell_data/
-  output_dir: ${data.root_dir}/open-retina/runs
+  output_dir: ${data.root_dir}/openretina_assets/runs
   stimuli: "2024-01-11_movies_dict_8c18928.pkl"
   responses: "2024-08-14_neuron_data_responses_484c12d_djimaging.h5" 
 

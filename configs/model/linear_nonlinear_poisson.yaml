@@ -1,7 +1,7 @@
 _target_: openretina.models.linear_nonlinear.MultipleLNP
 _convert_: all
-in_shape: ???
-n_neurons_dict: ???
+in_shape: ??? # # Required for kernels init. Needs to be assigned in the top level config.
+n_neurons_dict: ??? # Required for init. Set dynamically in scripts/train.py based on loaded sessions.
 learning_rate: 0.001
 nonlinearity: "softplus"
 smooth_weight: 1
