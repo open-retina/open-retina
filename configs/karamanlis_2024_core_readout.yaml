@@ -1,0 +1,41 @@
+defaults:
+  - data_io: karamanlis_2024
+  - dataloader: karamanlis_2024
+  - model: base_core_readout
+  - training_callbacks:
+    - early_stopping
+    - lr_monitor
+    - model_checkpoint
+  - logger:
+    - tensorboard
+    - csv
+  - trainer: default_deterministic
+  - hydra: default
+  - _self_ # values in this config will overwrite the defaults
+
+exp_name: GRU_core_readout_karamanlis_2024
+seed: 42
+check_stimuli_responses_match: true
+
+data:
+  root_dir: ???
+  data_dir: ${data.root_dir}/Karamanlis_Gollisch_2023_RGC_spiketrains_natural_movies_and_subunit_models
+  output_dir: ${data.root_dir}/openretina_assets/runs
+
+# Overwrite model defaults with specifics for Karamanlis 2024 data format
+model:
+  in_shape: 
+    - 1
+    - 100
+    - ${data_io.video_height} 
+    - ${data_io.video_width}
+  hidden_channels: [16, 32, 64]
+  spatial_kernel_sizes: [21, 15, 11]
+  temporal_kernel_sizes: [11, 11, 11]
+  core_hidden_padding: true
+
+trainer:
+  max_epochs: 50
+  accumulate_grad_batches: 1
+  gradient_clip_val: 1
+  precision: 16-mixed

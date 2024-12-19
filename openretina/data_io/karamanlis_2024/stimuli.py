@@ -6,6 +6,7 @@ Data: https://doi.org/10.12751/g-node.ejk8kx
 """
 
 import os
+import warnings
 from typing import Literal
 
 import numpy as np
@@ -14,8 +15,88 @@ from einops import rearrange
 from torchvision.transforms import Resize
 from tqdm.auto import tqdm
 
-from openretina.data_io.base import MoviesTrainTestSplit
+from openretina.data_io.base import MoviesTrainTestSplit, normalize_train_test_movies
 from openretina.utils.h5_handling import load_dataset_from_h5
+
+
+def load_stimuli_for_session(
+    session_path: str,
+    stim_type: Literal["fixationmovie", "frozencheckerflicker", "gratingflicker", "imagesequence"],
+    downsampled_size: tuple[int, int],
+    normalize_stimuli: bool,
+) -> MoviesTrainTestSplit | None:
+    """
+    Load stimuli for a single session.
+
+    Args:
+        session_path (str): Path to the session directory.
+        stim_type (str): The stimulus type to filter files.
+        downsampled_size (tuple[int, int]): Size to downsample the stimuli.
+        normalize_stimuli (bool): Whether to normalize the stimuli.
+
+    Returns:
+        MoviesTrainTestSplit | None: Loaded stimuli for the session or None if no relevant file found.
+    """
+    mat_file = None
+    npz_file = None
+    downsample = Resize(downsampled_size)
+
+    for recording_file in os.listdir(session_path):
+        full_path = os.path.join(session_path, recording_file)
+
+        # First check for a `.npz` file, which is a saved version of the preprocessing of the stimuli
+        if recording_file.endswith(
+            f"{stim_type}_data_extracted_stimuli_{downsampled_size[0]}_{downsampled_size[1]}.npz"
+        ):
+            npz_file = full_path
+            break  # Prefer `.npz` file
+
+        # Fall back to the original `.mat` file if no `.npz` file is found (e.g., for the first run of the script)
+        elif recording_file.endswith(f"{stim_type}_data.mat"):
+            mat_file = full_path
+
+    if npz_file:
+        tqdm.write(f"Loading stimuli from cached {npz_file}")
+        video_data = np.load(npz_file)
+        train_video = video_data["train_data"]
+        test_video = video_data["test_data"]
+
+    elif mat_file:
+        tqdm.write(f"Loading stimuli from {mat_file}")
+        train_images = load_dataset_from_h5(mat_file, "runningImages")
+        test_images = load_dataset_from_h5(mat_file, "frozenImages")
+
+        frozen_fixations = load_dataset_from_h5(mat_file, "frozenfixations").astype(int)
+        running_fixations = load_dataset_from_h5(mat_file, "runningfixations").astype(int)
+
+        test_video = return_fix_movie_torch((600, 800), rearrange(test_images, "n x y -> y x n"), frozen_fixations.T)
+        test_video = downsample(rearrange(test_video, "h w n -> 1 n h w")).cpu().numpy()
+
+        train_videos = []
+        for trial in tqdm(running_fixations, desc=f"Composing training video for {mat_file}"):
+            train_snippet = return_fix_movie_torch((600, 800), rearrange(train_images, "n x y -> y x n"), trial.T)
+            train_videos.append(downsample(rearrange(train_snippet, "h w n -> 1 n h w")))
+        train_video = torch.cat(train_videos, dim=1).cpu().numpy()
+
+        np.savez_compressed(
+            f"{mat_file[:-4]}_extracted_stimuli_{downsampled_size[0]}_{downsampled_size[1]}.npz",
+            train_data=train_video,
+            test_data=test_video,
+        )
+    else:
+        warnings.warn(
+            f"No file with postfix {stim_type}_data.mat (or preprocessed version) found in folder {session_path}",
+        )
+        return None
+
+    if normalize_stimuli:
+        train_video, test_video = normalize_train_test_movies(train_video, test_video)
+
+    return MoviesTrainTestSplit(
+        train=train_video,
+        test=test_video,
+        stim_id=stim_type,
+    )
 
 
 def load_all_stimuli(
@@ -25,6 +106,19 @@ def load_all_stimuli(
     specie: Literal["mouse", "marmoset"] = "mouse",
     downsampled_size: tuple[int, int] = (60, 80),
 ) -> dict[str, MoviesTrainTestSplit]:
+    """
+    Load stimuli for all sessions.
+
+    Args:
+        base_data_path (str | os.PathLike): Base directory containing session data.
+        stim_type (str): The stimulus type to filter files.
+        normalize_stimuli (bool): Whether to normalize the stimuli.
+        specie (str): Animal species (e.g., "mouse", "marmoset").
+        downsampled_size (tuple[int, int]): Size to downsample the stimuli.
+
+    Returns:
+        dict[str, MoviesTrainTestSplit]: Dictionary mapping session names to stimulus data.
+    """
     stimuli_all_sessions = {}
     exp_sessions = [
         path
@@ -37,70 +131,11 @@ def load_all_stimuli(
         "Please check the path and the animal species provided, and that you unrared the data files."
     )
 
-    downsample = Resize(downsampled_size)
-
     for session in tqdm(exp_sessions, desc="Processing sessions"):
         session_path = os.path.join(base_data_path, session)
-        mat_file = None
-        npz_file = None
-
-        # Check all files in the session path to identify relevant files
-        for recording_file in os.listdir(session_path):
-            full_path = os.path.join(session_path, recording_file)
-
-            if str(recording_file).endswith(
-                f"{stim_type}_data_extracted_stimuli_{downsampled_size[0]}_{downsampled_size[1]}.npz"
-            ):
-                npz_file = full_path
-                break  # Prefer `.npz` file, no need to check further
-
-            elif str(recording_file).endswith(f"{stim_type}_data.mat"):
-                mat_file = full_path
-
-        if npz_file is not None:
-            tqdm.write(f"Loading stimuli from cached {npz_file}")
-            video_data = np.load(npz_file)
-            train_video = video_data["train_data"]
-            test_video = video_data["test_data"]
-
-        elif mat_file:
-            tqdm.write(f"Loading stimuli from {mat_file}")
-
-            train_images = load_dataset_from_h5(mat_file, "runningImages")
-            test_images = load_dataset_from_h5(mat_file, "frozenImages")
-
-            frozen_fixations = load_dataset_from_h5(mat_file, "frozenfixations").astype(int)
-            running_fixations = load_dataset_from_h5(mat_file, "runningfixations").astype(int)
-
-            test_video = return_fix_movie_torch(
-                (600, 800), rearrange(test_images, "n x y -> y x n"), frozen_fixations.T
-            )
-            test_video = downsample(rearrange(test_video, "h w n -> 1 n h w")).cpu().numpy()
-
-            train_videos = []
-            for trial in tqdm(running_fixations):
-                train_snippet = return_fix_movie_torch((600, 800), rearrange(train_images, "n x y -> y x n"), trial.T)
-                train_videos.append(downsample(rearrange(train_snippet, "h w n -> 1 n h w")))
-            train_video = torch.cat(train_videos, dim=1).cpu().numpy()
-
-            np.savez_compressed(
-                f"{mat_file[:-4]}_extracted_stimuli_{downsampled_size[0]}_{downsampled_size[1]}.npz",
-                train_data=train_video,
-                test_data=test_video,
-            )
-        else:
-            tqdm.write(f"No relevant file found for {session} and stim type {stim_type}")
-            continue  # Skip session if no relevant file found
-
-        if normalize_stimuli:
-            train_video = train_video - train_video.mean() / train_video.std()
-            test_video = test_video - train_video.mean() / train_video.std()
-
-        stimuli_all_sessions[session.split("/")[-1]] = MoviesTrainTestSplit(
-            train=train_video,
-            test=test_video,
-            stim_id=stim_type,
-        )
+        stimuli = load_stimuli_for_session(session_path, stim_type, downsampled_size, normalize_stimuli)
+        if stimuli:
+            stimuli_all_sessions[session.split("/")[-1]] = stimuli
 
     return stimuli_all_sessions
 

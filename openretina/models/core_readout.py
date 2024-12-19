@@ -1,8 +1,10 @@
+import logging
 import os
 from typing import Iterable, Optional
 
 import torch
 import torch.nn as nn
+from jaxtyping import Int
 from lightning import LightningModule
 from lightning.pytorch.utilities import grad_norm
 
@@ -11,6 +13,8 @@ from openretina.modules.core.base_core import Core, SimpleCoreWrapper
 from openretina.modules.core.gru_core import ConvGRUCore
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
 from openretina.modules.readout.multi_readout import MultiGaussianReadoutWrapper
+
+LOGGER = logging.getLogger(__name__)
 
 
 class BaseCoreReadout(LightningModule):
@@ -30,9 +34,8 @@ class BaseCoreReadout(LightningModule):
         self.loss = loss if loss is not None else PoissonLoss3d()
         self.correlation_loss = correlation_loss if correlation_loss is not None else CorrelationLoss3d(avg=True)
 
-    def on_before_optimizer_step(self, optimizer):
-        # Compute the 2-norm for each layer
-        # If using mixed precision, the gradients are already unscaled here
+    def on_train_epoch_end(self):
+        # Compute the 2-norm for each layer at the end of the epoch
         core_norms = grad_norm(self.core, norm_type=2)
         self.log_dict(core_norms, on_step=False, on_epoch=True)
         readout_norms = grad_norm(self.readout, norm_type=2)
@@ -119,20 +122,32 @@ class BaseCoreReadout(LightningModule):
         self.core.save_weight_visualizations(os.path.join(folder_path, "weights_core"))
         self.readout.save_weight_visualizations(os.path.join(folder_path, "weights_readout"))
 
+    def compute_readout_input_shape(
+        self, core_in_shape: tuple[int, int, int, int], core: Core
+    ) -> tuple[int, int, int, int]:
+        # Use the same device as the core's parameters to avoid potential errors at init.
+        device = next(core.parameters()).device
+
+        with torch.no_grad():
+            core_test_output = core.forward(torch.zeros((1,) + tuple(core_in_shape), device=device))
+
+        return core_test_output.shape[1:]  # type: ignore
+
 
 class CoreReadout(BaseCoreReadout):
     def __init__(
         self,
-        in_channels: int,
-        features_core: Iterable[int],
+        in_shape: Int[tuple, "channels time height width"],
+        hidden_channels: Iterable[int],
         temporal_kernel_sizes: Iterable[int],
         spatial_kernel_sizes: Iterable[int],
-        in_shape_readout: tuple[int, int, int, int],
         n_neurons_dict: dict[str, int],
         core_gamma_input: float,
         core_gamma_hidden: float,
         core_gamma_in_sparse: float,
         core_gamma_temporal: float,
+        core_input_padding: bool,
+        core_hidden_padding: bool,
         readout_scale: bool,
         readout_bias: bool,
         readout_gaussian_masks: bool,
@@ -149,7 +164,7 @@ class CoreReadout(BaseCoreReadout):
         downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
     ):
         core = SimpleCoreWrapper(
-            channels=(in_channels,) + tuple(features_core),
+            channels=(in_shape[0], *hidden_channels),
             temporal_kernel_sizes=tuple(temporal_kernel_sizes),
             spatial_kernel_sizes=tuple(spatial_kernel_sizes),
             gamma_input=core_gamma_input,
@@ -160,7 +175,14 @@ class CoreReadout(BaseCoreReadout):
             dropout_rate=dropout_rate,
             maxpool_every_n_layers=maxpool_every_n_layers,
             downsample_input_kernel_size=downsample_input_kernel_size,
+            input_padding=core_input_padding,
+            hidden_padding=core_hidden_padding,
         )
+
+        # Run one forward pass to determine output shape of core
+        in_shape_readout = self.compute_readout_input_shape(in_shape, core)
+        LOGGER.info(f"{in_shape_readout=}")
+
         readout = MultiGaussianReadoutWrapper(
             in_shape_readout,
             n_neurons_dict,
@@ -182,11 +204,10 @@ class CoreReadout(BaseCoreReadout):
 class GRUCoreReadout(BaseCoreReadout):
     def __init__(
         self,
-        in_channels: int,
+        in_shape: Int[tuple, "channels time height width"],
         hidden_channels: Iterable[int],
         temporal_kernel_sizes: Iterable[int],
         spatial_kernel_sizes: Iterable[int],
-        in_shape: Iterable[int],
         n_neurons_dict: dict[str, int],
         core_gamma_hidden: float,
         core_gamma_input: float,
@@ -210,7 +231,7 @@ class GRUCoreReadout(BaseCoreReadout):
         core_gru_kwargs: Optional[dict] = None,
     ):
         core = ConvGRUCore(  # type: ignore
-            input_channels=in_channels,
+            input_channels=in_shape[0],
             hidden_channels=hidden_channels,
             temporal_kernel_size=temporal_kernel_sizes,
             spatial_kernel_size=spatial_kernel_sizes,
@@ -234,10 +255,10 @@ class GRUCoreReadout(BaseCoreReadout):
             use_projections=core_use_projections,
             gru_kwargs=core_gru_kwargs,
         )
+
         # Run one forward pass to determine output shape of core
-        core_test_output = core.forward(torch.zeros((1,) + tuple(in_shape)))
-        in_shape_readout: tuple[int, int, int, int] = core_test_output.shape[1:]  # type: ignore
-        print(f"{in_shape_readout=}")
+        in_shape_readout = self.compute_readout_input_shape(in_shape, core)
+        LOGGER.info(f"{in_shape_readout=}")
 
         readout = MultiGaussianReadoutWrapper(
             in_shape_readout,

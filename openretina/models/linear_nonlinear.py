@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from einops import rearrange
 from jaxtyping import Float, Int
 
@@ -28,7 +29,7 @@ class LNP(nn.Module):
         self.kernel_size = tuple(in_shape[2:])
         self.in_channels = in_shape[0]
         self.n_neurons = outdims
-        self.nonlinearity = torch.__dict__[nonlinearity]
+        self.nonlinearity = torch.exp if nonlinearity == "exp" else F.__dict__[nonlinearity]
 
         self.inner_product_kernel = nn.Conv3d(
             in_channels=self.in_channels,
@@ -37,6 +38,8 @@ class LNP(nn.Module):
             bias=False,
             stride=1,
         )
+
+        nn.init.xavier_normal_(self.inner_product_kernel.weight.data)
 
         if smooth_regularizer == "GaussianLaplaceL2":
             regularizer_config = dict(padding=laplace_padding, kernel=self.kernel_size)
