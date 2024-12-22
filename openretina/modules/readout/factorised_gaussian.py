@@ -45,6 +45,7 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         self.register_buffer("grid", self.make_mask_grid(outdims, w, h))
 
         self.features = nn.Parameter(torch.Tensor(1, c, 1, outdims))
+        self.features.data.normal_(1.0 / c, 0.01)
 
         if scale:
             self.scale_param = nn.Parameter(torch.ones(outdims))
