@@ -2,12 +2,11 @@ import warnings
 
 import numpy as np
 import torch
-from einops import rearrange
 from jaxtyping import Float
 
-from openretina.utils.model_utils import eval_state
 from openretina.utils.constants import EPSILON
 from openretina.utils.misc import tensors_to_device
+from openretina.utils.model_utils import eval_state
 
 
 def correlation_numpy(
@@ -40,12 +39,7 @@ def model_predictions(loader, model: torch.nn.Module, data_key, device) -> tuple
         output: responses as predicted by the network
     """
     target, output = torch.empty(0), torch.empty(0)
-    for *inputs, responses in loader[data_key]:  # necessary for group assignments
-        # code necessary to allow additional pre Ca kernel L1:
-        #             curr_output = model(images.to(device), data_key=data_key)
-        #             if (type(curr_output) == tuple):
-        #                 curr_output = curr_output[0]
-        #             output = torch.cat((output, curr_output.detach().cpu()), dim=0)
+    for *inputs, responses in loader[data_key]:  # tuple unpacking necessary for group assignments when present
         output = torch.cat(
             (output, (model(*tensors_to_device(inputs, device), data_key=data_key).detach().cpu())), dim=0
         )
@@ -171,41 +165,6 @@ def MSE_stop3d(model: torch.nn.Module, loader, avg: bool = True, device: str = "
         n_neurons += output.shape[-1]
         n_batch += output.shape[0]
     return mse_losses.sum() / (n_neurons * n_batch) if avg else mse_losses.sum()
-
-
-def oracle_corr_jackknife(
-    repeated_outputs: Float[np.ndarray, "frames repeats neurons"], return_oracle: bool = False
-) -> Float[np.ndarray, " neurons"] | tuple[Float[np.ndarray, " neurons"], Float[np.ndarray, " frames repeats neurons"]]:
-    """
-    Adapted from neuralpredictors.
-    Compute the oracle correlations per neuron by averaging over repeated outputs in a leave one out fashion.
-    Note that an unequal number of repeats will introduce bias as it distorts assumptions made about the dataset.
-    Note that oracle_corr_jackknife underestimates the true oracle correlation.
-
-    Args:
-        repeated_outputs (array-like): numpy array with shape (images/time, repeats, neuron responses).
-
-    Returns:
-        array: Oracle correlations per neuron. If return_oracle is True, also returns the oracle.
-    """
-
-    oracles = []
-    oracle_corr = []
-    for outputs in repeated_outputs:
-        num_repeats = outputs.shape[0]
-        oracle = (outputs.sum(axis=0, keepdims=True) - outputs) / (num_repeats - 1)
-        if np.any(np.isnan(oracle)):
-            oracle[np.isnan(oracle)] = 0
-        oracles.append(oracle)
-        oracle_corr.append(correlation_numpy(outputs, oracle, axis=0))
-
-    oracle_score = correlation_numpy(
-        rearrange(repeated_outputs, "t r n -> (t r) n"),
-        rearrange(np.stack(oracles), "t r n -> (t r) n", t=repeated_outputs.shape[0]),
-        axis=0,
-    )
-
-    return (oracle_score, np.stack(oracles)) if return_oracle else oracle_score
 
 
 def explainable_vs_total_var(
