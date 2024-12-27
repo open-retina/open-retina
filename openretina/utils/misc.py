@@ -12,6 +12,7 @@ import warnings
 from typing import Iterable, Union
 
 import numpy as np
+import requests
 import torch
 import yaml
 from IPython.core.interactiveshell import InteractiveShell
@@ -210,3 +211,12 @@ class CaptureOutputAndWarnings:
     def _noop(self, *args, **kwargs):
         """A no-op display function to suppress IPython outputs."""
         pass
+
+
+def check_server_responding(url: str) -> bool:
+    try:
+        response = requests.get(url)
+    except ConnectionError:
+        return False
+
+    return response.status_code == 200

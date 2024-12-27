@@ -1,0 +1,24 @@
+# Original videos are 600x800 and need to be downsampled to train models
+video_height: 60
+video_width: 80
+
+stimuli:
+  _target_: openretina.data_io.karamanlis_2024.stimuli.load_all_stimuli
+  _convert_: object
+  base_data_path: ${data.data_dir}
+  stim_type: "fixationmovie"
+  specie: "mouse"
+  normalize_stimuli: true
+  # Set desidered downsampling size above
+  downsampled_size: 
+    - ${data_io.video_height}
+    - ${data_io.video_width}
+
+
+responses:
+  _target_: openretina.data_io.karamanlis_2024.responses.load_all_responses
+  _convert_: object
+  base_data_path: ${data.data_dir}
+  stim_type: "fixationmovie"
+  specie: "mouse"
+  fr_normalization: 1.0

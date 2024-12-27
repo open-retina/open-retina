@@ -5,6 +5,7 @@ numpy<2.0  # h5py loading does not work with 2.0
 pandas
 seaborn
 scipy
+tenacity
 tensorboard
 torch
 torchaudio
@@ -13,7 +14,9 @@ einops
 lightning
 wandb
 hydra-core
+omegaconf
 h5py
+opencv-python
 # Type Checks
 ruff
 mypy>=1.0
@@ -21,3 +24,4 @@ pytest
 types-psutil
 types-tqdm
 types-PyYAML
+types-requests

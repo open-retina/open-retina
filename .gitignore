@@ -166,6 +166,7 @@ cython_debug/
 api_keys.sh
 wandb
 data/
+data
 *.tmp
 random.ipynb
 *.jpg
@@ -173,3 +174,6 @@ random.ipynb
 figures/
 /models
 reports/
+model-cache/
+/exp
+openretina_cache_folder/

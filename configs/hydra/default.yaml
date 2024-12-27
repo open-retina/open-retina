@@ -1,0 +1,5 @@
+run:
+  dir: ${data.output_dir}/${exp_name}/hydra/${now:%Y-%m-%d_%H-%M-%S}
+
+# suppress by default hydra's "output" folder.
+output_subdir: null

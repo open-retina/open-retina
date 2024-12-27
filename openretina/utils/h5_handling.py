@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 
 import h5py as h5
 import numpy as np
@@ -19,7 +20,7 @@ def count_items(group: h5.Group) -> int:
     return count
 
 
-def load_h5_into_dict(file_path):
+def load_h5_into_dict(file_path: str | Path) -> dict:
     """
     Recursively loads the structure and data of the HDF5 file into a dictionary.
     """
@@ -56,7 +57,7 @@ def load_h5_into_dict(file_path):
     return structure
 
 
-def h5_to_folders(file_path, output_dir):
+def h5_to_folders(file_path, output_dir) -> None:
     """Converts an HDF5 file to a folder structure.
 
     Args:
@@ -109,7 +110,7 @@ def h5_to_folders(file_path, output_dir):
             explore_and_save(file, output_dir, progress_bar)
 
 
-def print_h5_structure(file_path):
+def print_h5_structure(file_path) -> None:
     def explore_group(group, path=""):
         """Recursively explores and prints the structure of the HDF5 file."""
         items = {}
@@ -135,7 +136,7 @@ def print_h5_structure(file_path):
     printer.pprint(structure)
 
 
-def load_dataset_from_h5(file_path, dataset_path: str):
+def load_dataset_from_h5(file_path, dataset_path: str) -> np.ndarray:
     """
     Loads a dataset from an HDF5 file.
 
@@ -149,6 +150,6 @@ def load_dataset_from_h5(file_path, dataset_path: str):
     with h5.File(file_path, "r") as file:
         if dataset_path in file:
             data = file[dataset_path][()]  # type: ignore
-            return data
+            return np.asarray(data)
         else:
             raise FileNotFoundError(f"Dataset path {dataset_path} not found in the file.")

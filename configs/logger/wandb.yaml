@@ -1,0 +1,5 @@
+wandb:
+  _target_: lightning.pytorch.loggers.wandb.WandbLogger
+  offline: False
+  project: ??? # Needs to be set!
+  version: ${now:%Y-%m-%d_%H-%M-%S}
