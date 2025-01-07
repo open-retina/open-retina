@@ -6,8 +6,8 @@ from openretina.eval.metrics import correlation_numpy
 
 
 def oracle_corr_jackknife(
-    repeated_responses: Float[np.ndarray, "frames repeats neurons"], return_oracle: bool = False
-) -> Float[np.ndarray, " neurons"] | tuple[Float[np.ndarray, " neurons"], Float[np.ndarray, " frames repeats neurons"]]:
+    repeated_responses: Float[np.ndarray, "frames repeats neurons"],
+) -> tuple[Float[np.ndarray, " neurons"], Float[np.ndarray, " frames repeats neurons"]]:
     """
     Adapted from neuralpredictors.
     Compute the oracle correlations per neuron by averaging over repeated responses in a leave one out fashion.
@@ -17,7 +17,9 @@ def oracle_corr_jackknife(
         repeated_responses (array-like): numpy array with shape (images/time, repeats, neuron responses).
 
     Returns:
-        array: Oracle correlations per neuron. If return_oracle is True, also returns the oracle.
+        tuple: A tuple containing:
+            - oracle_score (array): Oracle correlation for each neuron
+            - oracle (array): Oracle responses for each neuron
     """
 
     loo_oracles = []
@@ -36,13 +38,12 @@ def oracle_corr_jackknife(
         axis=0,
     )
 
-    return (oracle_score, oracle) if return_oracle else oracle_score
+    return oracle_score, oracle
 
 
 def global_mean_oracle(
     responses: Float[np.ndarray, "frames repeats neurons"] | Float[np.ndarray, "frames neurons"],
-    return_oracle: bool = False,
-) -> Float[np.ndarray, " neurons"] | tuple[Float[np.ndarray, " neurons"], Float[np.ndarray, " frames neurons"]]:
+) -> Float[np.ndarray, " neurons"]:
     """
     Compute the oracle correlation between each neuron's response and the global mean response.
 
@@ -57,13 +58,7 @@ def global_mean_oracle(
             Defaults to False.
 
     Returns:
-        Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
-        If return_oracle is False:
-            - 1D array of shape (neurons,) containing correlation values for each neuron
-        If return_oracle is True:
-            - Tuple containing:
-                - 1D array of shape (neurons,) containing correlation values
-                - 3D array of shape (frames, repeats, neurons) containing oracle responses
+        - 1D array of shape (neurons,) containing correlation values for each neuron
 
     Note:
         The function automatically handles single-repeat data by adding a singleton dimension.
@@ -79,4 +74,4 @@ def global_mean_oracle(
         axis=0,
     )
 
-    return (oracle_mean_corr, global_mean_response) if return_oracle else oracle_mean_corr
+    return oracle_mean_corr

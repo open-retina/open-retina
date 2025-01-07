@@ -168,8 +168,8 @@ def MSE_stop3d(model: torch.nn.Module, loader, avg: bool = True, device: str = "
 
 
 def explainable_vs_total_var(
-    repeated_outputs: Float[np.ndarray, "frames repeats neurons"], eps: float = 1e-9, return_explainable: bool = False
-) -> Float[np.ndarray, " neurons"] | tuple[Float[np.ndarray, " neurons"], Float[np.ndarray, " neurons"]]:
+    repeated_outputs: Float[np.ndarray, "frames repeats neurons"], eps: float = 1e-9
+) -> tuple[Float[np.ndarray, " neurons"], Float[np.ndarray, " neurons"]]:
     """
     Adapted from neuralpredictors.
     Compute the ratio of explainable to total variance per neuron.
@@ -179,8 +179,9 @@ def explainable_vs_total_var(
         repeated_outputs (array): numpy array with shape (images/time, repeats, neurons) containing the responses.
 
     Returns:
-        array: Ratio of explainable to total variance per neuron. If return_explainable is True, also returns the
-        explainable variance for each neuron.
+        tuple: A tuple containing:
+            - var_ratio (array): Ratio of explainable to total variance per neuron
+            - explainable_var (array): Explainable variance for each neuron
     """
     total_var = np.var(repeated_outputs, axis=(0, 1), ddof=1)
     repeats_var = np.var(repeated_outputs, axis=1, ddof=1)
@@ -188,7 +189,7 @@ def explainable_vs_total_var(
     # Clip. In some bad cases, noise_var can be larger than total_var.
     explainable_var = np.clip(total_var - noise_var, eps, None)
     var_ratio = explainable_var / (total_var + eps)
-    return (var_ratio, explainable_var) if return_explainable else var_ratio
+    return var_ratio, explainable_var
 
 
 def fev(
@@ -218,7 +219,7 @@ def fev(
     sum_square_res = [(target - prediction) ** 2 for target, prediction in zip(targets, predictions)]
     sum_square_res = np.concatenate(sum_square_res, axis=0)
 
-    var_ratio, explainable_var = explainable_vs_total_var(targets, return_explainable=True)
+    var_ratio, explainable_var = explainable_vs_total_var(targets)
     # Invert the formula to get the noise variance
     total_var = explainable_var / var_ratio
     noise_var = total_var - explainable_var
