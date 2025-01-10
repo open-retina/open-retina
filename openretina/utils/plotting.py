@@ -46,7 +46,7 @@ def save_stimulus_to_mp4_video(
     apply_undo_video_normalization: bool = False,
 ) -> None:
     assert len(stimulus.shape) == 4
-    assert stimulus.shape[0] == 2  # color channels
+    color_channels = stimulus.shape[0]
 
     assert filepath.endswith(".mp4")
     # Create a VideoWriter object
@@ -55,6 +55,7 @@ def save_stimulus_to_mp4_video(
 
     # Normalize to uint8
     if apply_undo_video_normalization:
+        assert color_channels == 2, "Normalization is only supported for 2 color channels, but {color_channels=}"
         stimulus[0] = stimulus[0] * MEAN_STD_DICT_74x64["channel_0_mean"] + MEAN_STD_DICT_74x64["channel_0_std"]
         stimulus[1] = stimulus[1] * MEAN_STD_DICT_74x64["channel_1_mean"] + MEAN_STD_DICT_74x64["channel_1_std"]
         # Clip to the range of uint8, otherwise there'll be an overflow (-1 will get converted to 255)
@@ -67,8 +68,16 @@ def save_stimulus_to_mp4_video(
     for i in range(start_at_frame, stimulus_uint8.shape[1]):
         # Create an empty 3D array and assign the data from the 4D array
         frame = np.zeros((stimulus_uint8.shape[2], stimulus_uint8.shape[3], 3), dtype=np.uint8)
-        frame[:, :, 1] = stimulus_uint8[0, i, :, :]  # Green channel
-        frame[:, :, 2] = stimulus_uint8[1, i, :, :]  # Red channel
+        if color_channels == 1:
+            for c_id in range(3):
+                frame[:, :, c_id] = stimulus_uint8[0, i, :, :]
+        elif color_channels == 2:
+            frame[:, :, 1] = stimulus_uint8[0, i, :, :]  # Green channel
+            frame[:, :, 2] = stimulus_uint8[1, i, :, :]  # Red channel
+        else:
+            frame[:, :, 0] = stimulus_uint8[0, i, :, :]  # Red
+            frame[:, :, 1] = stimulus_uint8[1, i, :, :]  # Green
+            frame[:, :, 2] = stimulus_uint8[2, i, :, :]  # Blue
         video.write(frame)
 
     video.release()
