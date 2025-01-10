@@ -40,14 +40,23 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         """we train on the log var and transform to var in a separate step"""
         self.mask_mean = torch.nn.Parameter(data=torch.zeros(self.outdims, 2), requires_grad=True)
         self.mask_log_var = torch.nn.Parameter(data=torch.zeros(self.outdims), requires_grad=True)
-        self.grid = torch.nn.Parameter(data=self.make_mask_grid(outdims, w, h), requires_grad=False)
+
+        # Grid is fixed and untrainable, so we register it as a buffer
+        self.register_buffer("grid", self.make_mask_grid(outdims, w, h))
 
         self.features = nn.Parameter(torch.Tensor(1, c, 1, outdims))
         self.features.data.normal_(1.0 / c, 0.01)
-        self.scale_param = nn.Parameter(torch.ones(outdims), requires_grad=scale)
+
         if scale:
+            self.scale_param = nn.Parameter(torch.ones(outdims))
             self.scale_param.data.normal_(1.0, 0.01)
-        self.bias_param = nn.Parameter(torch.zeros(outdims), requires_grad=bias)
+        else:
+            self.register_buffer("scale_param", torch.ones(outdims))  # Non-trainable
+
+        if bias:
+            self.bias_param = nn.Parameter(torch.zeros(outdims))
+        else:
+            self.register_buffer("bias_param", torch.zeros(outdims))  # Non-trainable
 
     def feature_l1(self, average: bool = False) -> torch.Tensor:
         features_abs = self.features.abs()

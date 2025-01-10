@@ -5,14 +5,17 @@ from typing import Any
 
 import cv2
 import matplotlib
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
 import torch
 from IPython.display import HTML
 from jaxtyping import Float
 from matplotlib import animation
 from matplotlib.colors import Normalize
 from matplotlib.patches import Rectangle
+from matplotlib.ticker import FixedLocator, FormatStrFormatter
 
 from openretina.data_io.hoefling_2024.constants import FRAME_RATE_MODEL
 from openretina.legacy.hoefling_configs import MEAN_STD_DICT_74x64, pre_normalisation_values_18x16
@@ -243,6 +246,99 @@ def polar_plot_of_direction_of_motion_responses(
 
     # Set the labels for the directions
     plt.gca().set_xticklabels([f"{x}°" for x in sorted_directions])
+
+
+class ColorMapper:
+    def __init__(self, cmap_name: str, vmin: float = 0, vmax: float = 1):
+        self.cmap_name = cmap_name
+        self.vmin = vmin
+        self.vmax = vmax
+        self.cmap = plt.get_cmap(self.cmap_name)
+        self.norm = plt.Normalize(vmin=self.vmin, vmax=self.vmax)
+
+    def get_color(self, number):
+        color = self.cmap(self.norm(number))
+        return color
+
+
+def plot_vector_field_resp_iso(
+    x: np.ndarray,
+    y: np.ndarray,
+    gradient_dict: np.ndarray,
+    resp_dict: np.ndarray,
+    normalize_response: bool = False,
+    rc_dict: dict[str, Any] = {},
+    cmap: str = "hsv",
+) -> plt.Figure:
+    """
+    Plots a vector field response with isoresponse lines.
+
+    Parameters:
+    x (array-like): The x-coordinates of the grid points.
+    y (array-like): The y-coordinates of the grid points.
+    gradient_dict (ndarray): A dictionary containing response gradients at grid points.
+    resp_dict (ndarray): A dictionary containing responses at grid points.
+    normalize_response (bool, optional): If True, normalize the response data. Default is False.
+    colour_norm (bool, optional): If True, apply color normalization. Default is False.
+    rc_dict (dict, optional): A dictionary of rc settings to use in the plot. Default is an empty dictionary.
+    cmap (str, optional): The colormap to use for the plot. Default is "hsv".
+
+    Returns:
+    None
+    """
+
+    Z = resp_dict.transpose()
+    if normalize_response:
+        Z = Z / Z.max() * 100
+    gradient_grid = gradient_dict[:, 1:-1, 1:-1]
+    X, Y = np.meshgrid(x, x)
+
+    # Define levels for isoresponse lines
+    levels = np.linspace(Z.min(), Z.max(), 25)
+    # cm = ColorMapper("cool", vmin=gradient_norm_grid.min(),
+    #                  vmax=gradient_norm_grid.max())
+
+    with mpl.rc_context(rc_dict):
+        fig = plt.figure()
+
+        # Create a contour plot with isoresponse lines
+
+        plt.contourf(X, Y, Z, levels=levels, cmap=cmap, zorder=200)  # Change cmap to the desired colormap
+        cont_lines = plt.contour(X, Y, Z, levels=levels, cmap="jet_r", zorder=300)
+        plt.gca().clabel(
+            cont_lines,
+            inline=True,
+            fmt="%1.0f",
+            levels=list(cont_lines.levels)[::2],
+            colors="k",
+            fontsize=5,
+            zorder=400,
+        )
+        ax = plt.gca()
+        ax.set_aspect("equal")
+
+        for i, contrast_green in enumerate(x[1:-1]):
+            for j, contrast_uv in enumerate(y[1:-1]):
+                unit_vec = gradient_grid[:, i, j] / np.linalg.norm(gradient_grid[:, i, j]) * 0.1
+                ax.arrow(
+                    contrast_green,
+                    contrast_uv,
+                    unit_vec[0],
+                    unit_vec[1],
+                    fill=True,
+                    linewidth=0.5,
+                    head_width=0.03,
+                    color="grey",
+                    zorder=300,
+                )
+        ax.set_xlabel("Green contrast")
+        ax.set_ylabel("UV contrast")
+        ax.xaxis.set_major_locator(FixedLocator([-1, 0, 1]))
+        ax.xaxis.set_major_formatter(FormatStrFormatter("%d"))
+        ax.yaxis.set_major_locator(FixedLocator([-1, 0, 1]))
+        ax.yaxis.set_major_formatter(FormatStrFormatter("%d"))
+        sns.despine()
+    return fig
 
 
 def save_figure(filename: str, folder: str, fig=None) -> None:

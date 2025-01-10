@@ -476,6 +476,7 @@ def multiple_movies_dataloaders(
     clip_length: int = 100,
     num_val_clips: int = 10,
     val_clip_indices: list[int] | None = None,
+    allow_over_boundaries: bool = True,
 ) -> dict[str, dict[str, DataLoader]]:
     """
     Create multiple dataloaders for training, validation, and testing from given neuron and movie data.
@@ -500,6 +501,7 @@ def multiple_movies_dataloaders(
             The number of validation clips to draw. Defaults to 10.
         val_clip_indices (list[int], optional): The indices of validation clips to use. If provided, num_val_clips is
                                                 ignored. Defaults to None.
+        allow_over_boundaries (bool, optional):  Whether to allow selected chunks to go over scene boundaries.
 
     Returns:
         dict:
@@ -558,6 +560,7 @@ def multiple_movies_dataloaders(
                 chunk_size=clip_chunk_sizes[fold],
                 batch_size=batch_size,
                 scene_length=clip_length,
+                allow_over_boundaries=allow_over_boundaries,
             )
 
     return dataloaders
