@@ -165,12 +165,14 @@ def main(
             fig_axes_tuple = plt.subplots(2, 2, figsize=(7 * 3, 12))
             axes: np.ndarray[Any, plt.Axes] = fig_axes_tuple[1]  # type: ignore
 
+            highlight_stim_start = stimulus_shape[2] - num_timesteps + response_reducer.start
+            highlight_stim_end = highlight_stim_start + response_reducer.length - 1
             plot_stimulus_composition(
                 stimulus=stimulus_np,
                 temporal_trace_ax=axes[0, 0],
                 freq_ax=axes[0, 1],
                 spatial_ax=axes[1, 0],
-                highlight_x_list=[(40, 49)],
+                highlight_x_list=[(highlight_stim_start, highlight_stim_end)],
             )
             output_folder = f"{save_folder}/{layer_name}"
             os.makedirs(output_folder, exist_ok=True)
