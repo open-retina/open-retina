@@ -44,7 +44,7 @@ def parse_args():
         "--datasets",
         type=str,
         default="natural",
-        help="Underscore separated list of datasets, " "e.g. 'natural', 'chirp', 'mb', or 'natural_mb'",
+        help="Underscore separated list of datasets, e.g. 'natural', 'chirp', 'mb', or 'natural_mb'",
     )
 
     return parser.parse_args()
@@ -125,8 +125,8 @@ def generate_neuron_activations(
         # Put each example of the batch individually into the list by using extend instead of append
         outputs_model.extend(all_activations.cpu())
         if (batch_no + 1) % 20 == 0:
-            print(f"Generated {batch_no+1} batches")
-    print(f"Generated {len(outputs_model)} examples in {time.time()-time_generation_start:.1f}s")
+            print(f"Generated {batch_no + 1} batches")
+    print(f"Generated {len(outputs_model)} examples in {time.time() - time_generation_start:.1f}s")
     outputs_model_single_tensor = torch.stack(outputs_model)
     # I/O is more efficient on a single tensor
     return outputs_model_single_tensor

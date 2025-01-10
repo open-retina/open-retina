@@ -37,9 +37,9 @@ def load_all_responses(
             train_session_data = load_dataset_from_h5(recording_file, f"/train/response/{response_type}")
             test_session_data = load_dataset_from_h5(recording_file, f"/test/response/{response_type}")
 
-            assert (
-                train_session_data.shape[0] == test_session_data.shape[0]
-            ), "Train and test responses should have the same number of neurons."
+            assert train_session_data.shape[0] == test_session_data.shape[0], (
+                "Train and test responses should have the same number of neurons."
+            )
 
             responses_all_sessions[str(session)] = ResponsesTrainTestSplit(
                 train=train_session_data / fr_normalization,

@@ -33,7 +33,7 @@ def parse_args():
         "--model_path",
         required=True,
         type=str,
-        help="Path to a model, if this is a directory loads an ensemble model, " "otherwise calls torch.load",
+        help="Path to a model, if this is a directory loads an ensemble model, otherwise calls torch.load",
     )
     parser.add_argument("--autoencoder_path", required=True, type=str)
     parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")

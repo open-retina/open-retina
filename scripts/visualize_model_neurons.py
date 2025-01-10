@@ -41,7 +41,7 @@ def parse_args():
         "--model_id",
         type=int,
         default=-1,
-        help="If >= 0 load the ensemble model with that model_id, " "else use torch.load to load the model",
+        help="If >= 0 load the ensemble model with that model_id, else use torch.load to load the model",
     )
     parser.add_argument("--core_readout_lightning", action="store_true")
     parser.add_argument(

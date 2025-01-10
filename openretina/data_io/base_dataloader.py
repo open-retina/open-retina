@@ -511,9 +511,9 @@ def multiple_movies_dataloaders(
         AssertionError:
             If the keys of neuron_data_dictionary and movies_dictionary do not match exactly.
     """
-    assert set(neuron_data_dictionary.keys()) == set(
-        movies_dictionary.keys()
-    ), "The keys of neuron_data_dictionary and movies_dictionary should match exactly."
+    assert set(neuron_data_dictionary.keys()) == set(movies_dictionary.keys()), (
+        "The keys of neuron_data_dictionary and movies_dictionary should match exactly."
+    )
 
     # Initialise dataloaders
     dataloaders: dict[str, Any] = {"train": {}, "validation": {}, "test": {}}
