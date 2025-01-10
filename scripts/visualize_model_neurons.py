@@ -79,6 +79,18 @@ def load_model(
     return model
 
 
+def get_min_max_values_and_norm(num_channels: int) -> tuple[list[tuple], float | None]:
+    if num_channels == 2:
+        min_max_values = [
+            (STIMULUS_RANGE_CONSTRAINTS["x_min_green"], STIMULUS_RANGE_CONSTRAINTS["x_max_green"]),
+            (STIMULUS_RANGE_CONSTRAINTS["x_min_uv"], STIMULUS_RANGE_CONSTRAINTS["x_max_uv"]),
+        ]
+        norm = float(STIMULUS_RANGE_CONSTRAINTS["norm"])
+        return min_max_values, norm
+    else:
+        return [(None, None)], None
+
+
 def main(
     model_path: str,
     save_folder: str,
@@ -101,19 +113,14 @@ def main(
     model.eval()
 
     response_reducer = SliceMeanReducer(axis=0, start=10, length=10)
+    min_max_values, norm = get_min_max_values_and_norm(stimulus_shape[1])
     stimulus_postprocessor = ChangeNormJointlyClipRangeSeparately(
-        min_max_values=(
-            (STIMULUS_RANGE_CONSTRAINTS["x_min_green"], STIMULUS_RANGE_CONSTRAINTS["x_max_green"]),
-            (STIMULUS_RANGE_CONSTRAINTS["x_min_uv"], STIMULUS_RANGE_CONSTRAINTS["x_max_uv"]),
-        ),
-        norm=STIMULUS_RANGE_CONSTRAINTS["norm"],
+        min_max_values=min_max_values,
+        norm=norm,
     )
     stimulus_regularizing_loss = RangeRegularizationLoss(
-        min_max_values=(
-            (STIMULUS_RANGE_CONSTRAINTS["x_min_green"], STIMULUS_RANGE_CONSTRAINTS["x_max_green"]),
-            (STIMULUS_RANGE_CONSTRAINTS["x_min_uv"], STIMULUS_RANGE_CONSTRAINTS["x_max_uv"]),
-        ),
-        max_norm=STIMULUS_RANGE_CONSTRAINTS["norm"],
+        min_max_values=min_max_values,
+        max_norm=norm,
         factor=0.1,
     )
     optimizer_init_fn = partial(torch.optim.SGD, lr=100.0)
@@ -158,12 +165,14 @@ def main(
             fig_axes_tuple = plt.subplots(2, 2, figsize=(7 * 3, 12))
             axes: np.ndarray[Any, plt.Axes] = fig_axes_tuple[1]  # type: ignore
 
+            highlight_stim_start = stimulus_shape[2] - num_timesteps + response_reducer.start
+            highlight_stim_end = highlight_stim_start + response_reducer.length - 1
             plot_stimulus_composition(
                 stimulus=stimulus_np,
                 temporal_trace_ax=axes[0, 0],
                 freq_ax=axes[0, 1],
                 spatial_ax=axes[1, 0],
-                highlight_x_list=[(40, 49)],
+                highlight_x_list=[(highlight_stim_start, highlight_stim_end)],
             )
             output_folder = f"{save_folder}/{layer_name}"
             os.makedirs(output_folder, exist_ok=True)

@@ -12,7 +12,7 @@ class StimulusRegularizationLoss:
 class RangeRegularizationLoss(StimulusRegularizationLoss):
     def __init__(
         self,
-        min_max_values: Iterable[tuple[float, float]],
+        min_max_values: Iterable[tuple[float | None, float | None]],
         max_norm: float | None,
         factor: float = 1.0,
     ):
@@ -25,9 +25,10 @@ class RangeRegularizationLoss(StimulusRegularizationLoss):
         loss: torch.Tensor = 0.0  # type: ignore
         for i, (min_val, max_val) in enumerate(self._min_max_values):
             stimulus_i = stimulus[:, i]
-            min_penalty = torch.sum(torch.relu(min_val - stimulus_i))
-            max_penalty = torch.sum(torch.relu(stimulus_i - max_val))
-            loss += min_penalty + max_penalty
+            if min_val is not None:
+                loss += torch.sum(torch.relu(min_val - stimulus_i))
+            if max_val is not None:
+                loss += torch.sum(torch.relu(stimulus_i - max_val))
 
         if self._max_norm is not None:
             # Add a loss such that the norm of the stimulus is lower than max_norm
@@ -72,7 +73,9 @@ class ChangeNormJointlyClipRangeSeparately(StimulusPostprocessor):
         # Clip
         clipped_array = []
         for i, (min_val, max_val) in enumerate(self._min_max_values):
-            clipped = torch.clamp(renorm[:, i], min=min_val, max=max_val)
+            clipped = renorm[:, i]
+            if min_val is not None or max_val is not None:
+                clipped = torch.clamp(clipped, min=min_val, max=max_val)
             clipped_array.append(clipped)
         result = torch.stack(clipped_array, dim=1)
 
