@@ -175,7 +175,7 @@ def plot_stimulus_composition(
     color_channel_names_array = color_channel_names_map[num_color_channels]
 
     stimulus_time = np.linspace(0, time_steps / FRAME_RATE_MODEL, time_steps)
-    weighted_main_freqs = [0.0, 0.0]
+    weighted_main_freqs = [0.0] * num_color_channels
     temporal_traces_max = 0.0
 
     temporal_kernels = []
@@ -226,9 +226,10 @@ def plot_stimulus_composition(
     if freq_ax is not None:
         freq_ax.set_xlim(0.0, lowpass_cutoff + 1)
         freq_ax.set_xlabel("Frequency [Hz]")
+        frequencies_str = "/".join([f"x:.1f" for x in weighted_main_freqs])
         freq_ax.set_title(
-            f"Weighted Frequency: {weighted_main_freqs[0]:.1f}/{weighted_main_freqs[1]:.1f} Hz"
-            f" ({color_channel_names_array[0]}/{color_channel_names_array[1]})"
+            f"Weighted Frequency: {frequencies_str} Hz"
+            f" ({'/'.join(color_channel_names_array)})"
         )
 
     if highlight_x_list is not None:
