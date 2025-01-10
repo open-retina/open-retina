@@ -79,6 +79,18 @@ def load_model(
     return model
 
 
+def get_min_max_values_and_norm(num_channels: int) -> tuple[tuple, float | None]:
+    if num_channels == 2:
+        min_max_values = (
+            (STIMULUS_RANGE_CONSTRAINTS["x_min_green"], STIMULUS_RANGE_CONSTRAINTS["x_max_green"]),
+            (STIMULUS_RANGE_CONSTRAINTS["x_min_uv"], STIMULUS_RANGE_CONSTRAINTS["x_max_uv"]),
+        )
+        norm = float(STIMULUS_RANGE_CONSTRAINTS["norm"])
+        return min_max_values, norm
+    else:
+        return (None, None), None
+
+
 def main(
     model_path: str,
     save_folder: str,
@@ -101,19 +113,14 @@ def main(
     model.eval()
 
     response_reducer = SliceMeanReducer(axis=0, start=10, length=10)
+    min_max_values, norm = get_min_max_values_and_norm(stimulus_shape[1])
     stimulus_postprocessor = ChangeNormJointlyClipRangeSeparately(
-        min_max_values=(
-            (STIMULUS_RANGE_CONSTRAINTS["x_min_green"], STIMULUS_RANGE_CONSTRAINTS["x_max_green"]),
-            (STIMULUS_RANGE_CONSTRAINTS["x_min_uv"], STIMULUS_RANGE_CONSTRAINTS["x_max_uv"]),
-        ),
-        norm=STIMULUS_RANGE_CONSTRAINTS["norm"],
+        min_max_values=min_max_values,
+        norm=norm,
     )
     stimulus_regularizing_loss = RangeRegularizationLoss(
-        min_max_values=(
-            (STIMULUS_RANGE_CONSTRAINTS["x_min_green"], STIMULUS_RANGE_CONSTRAINTS["x_max_green"]),
-            (STIMULUS_RANGE_CONSTRAINTS["x_min_uv"], STIMULUS_RANGE_CONSTRAINTS["x_max_uv"]),
-        ),
-        max_norm=STIMULUS_RANGE_CONSTRAINTS["norm"],
+        min_max_values=min_max_values,
+        max_norm=norm,
         factor=0.1,
     )
     optimizer_init_fn = partial(torch.optim.SGD, lr=100.0)
