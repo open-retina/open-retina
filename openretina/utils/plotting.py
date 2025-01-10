@@ -157,25 +157,43 @@ def plot_stimulus_composition(
     lowpass_cutoff: float = 10.0,
     highlight_x_list: list[tuple[int, int]] | None = None,
 ) -> None:
-    color_array = ["darkgreen", "darkviolet"]
-    color_channel_names_array = ("Green", "UV")
-
     assert len(stimulus.shape) == 4
-    num_color_channels, dim_t, dim_y, dim_x = stimulus.shape
+    num_color_channels, time_steps, dim_y, dim_x = stimulus.shape
 
-    time_steps = stimulus.shape[1]
+    # guess color channels
+    color_array_map = {
+        1: ["black"],
+        2: ["darkgreen", "darkviolet"],
+        3: ["red", "green", "blue"],
+    }
+    color_channel_names_map = {
+        1: ("grey",),
+        2: ("Green", "UV"),
+        3: ("Red", "Green", "Blue"),
+    }
+    color_array = color_array_map[num_color_channels]
+    color_channel_names_array = color_channel_names_map[num_color_channels]
+
     stimulus_time = np.linspace(0, time_steps / FRAME_RATE_MODEL, time_steps)
     weighted_main_freqs = [0.0, 0.0]
     temporal_traces_max = 0.0
-    temp_green, spat_green, _ = decompose_kernel(stimulus[0])
-    temp_uv, spat_uv, _ = decompose_kernel(stimulus[1])
-    temporal_kernels = [temp_green, temp_uv]
+
+    temporal_kernels = []
+    spatial_kernels_with_padding = []
+    for color_idx in range(num_color_channels):
+        temporal, spatial, _ = decompose_kernel(stimulus[color_idx])
+        temporal_kernels.append(temporal)
+        spatial_kernels_with_padding.append(spatial)
+
+        if color_idx < (num_color_channels - 1):
+            padding = np.ones((spatial.shape[0], 8))
+            spatial_kernels_with_padding.append(padding)
 
     # Spatial structure
     spatial_ax.set_title(f"Spatial Component {color_channel_names_array}")
-    padding = np.ones((spat_green.shape[0], 8))
-    spat = np.concatenate([spat_green, padding, spat_uv], axis=1)
+    # Create spatial kernel with interleave
 
+    spat = np.concatenate(spatial_kernels_with_padding, axis=1)
     abs_max = np.max([abs(spat.max()), abs(spat.min())])
     norm = Normalize(vmin=-abs_max, vmax=abs_max)
     spatial_ax.imshow(spat, cmap="RdBu_r", norm=norm)
