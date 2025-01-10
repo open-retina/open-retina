@@ -158,9 +158,9 @@ def load_moving_bar_30hz_72_64px(
 def load_moving_bar_stack(normalize: bool = True, number_of_moving_bars: int = 8) -> np.ndarray:
     moving_bar = load_moving_bar(normalize)
 
-    assert (
-        moving_bar.shape[0] % number_of_moving_bars == 0
-    ), "Moving bar timesteps are not divisible by number_of_moving_bars, something went wrong"
+    assert moving_bar.shape[0] % number_of_moving_bars == 0, (
+        "Moving bar timesteps are not divisible by number_of_moving_bars, something went wrong"
+    )
     return np.stack(np.split(moving_bar, number_of_moving_bars, axis=0), axis=0)
 
 

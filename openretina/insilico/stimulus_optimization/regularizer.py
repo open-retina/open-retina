@@ -58,9 +58,9 @@ class ChangeNormJointlyClipRangeSeparately(StimulusPostprocessor):
         self._min_max_values = list(min_max_values)
 
     def process(self, x: torch.Tensor) -> torch.Tensor:
-        assert x.shape[1] == len(
-            self._min_max_values
-        ), f"Expected {len(self._min_max_values)} channels in dim 1, got {x.shape=}"
+        assert x.shape[1] == len(self._min_max_values), (
+            f"Expected {len(self._min_max_values)} channels in dim 1, got {x.shape=}"
+        )
 
         if self._norm is not None:
             # Re-normalize

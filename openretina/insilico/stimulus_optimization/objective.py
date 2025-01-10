@@ -87,7 +87,7 @@ class _ModuleHook:
         assert self.module is module
         self.module_output_tensor = output
         if self.name is not None:
-            print(f"Module hook {self.name} hooked up {type(self.module)=} " f"{self.module_output_tensor.shape=}")
+            print(f"Module hook {self.name} hooked up {type(self.module)=} {self.module_output_tensor.shape=}")
 
     def close(self) -> None:
         self.hook.remove()
