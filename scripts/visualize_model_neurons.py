@@ -79,16 +79,16 @@ def load_model(
     return model
 
 
-def get_min_max_values_and_norm(num_channels: int) -> tuple[tuple, float | None]:
+def get_min_max_values_and_norm(num_channels: int) -> tuple[list[tuple], float | None]:
     if num_channels == 2:
-        min_max_values = (
+        min_max_values = [
             (STIMULUS_RANGE_CONSTRAINTS["x_min_green"], STIMULUS_RANGE_CONSTRAINTS["x_max_green"]),
             (STIMULUS_RANGE_CONSTRAINTS["x_min_uv"], STIMULUS_RANGE_CONSTRAINTS["x_max_uv"]),
-        )
+        ]
         norm = float(STIMULUS_RANGE_CONSTRAINTS["norm"])
         return min_max_values, norm
     else:
-        return (None, None), None
+        return [(None, None)], None
 
 
 def main(

@@ -73,7 +73,9 @@ class ChangeNormJointlyClipRangeSeparately(StimulusPostprocessor):
         # Clip
         clipped_array = []
         for i, (min_val, max_val) in enumerate(self._min_max_values):
-            clipped = torch.clamp(renorm[:, i], min=min_val, max=max_val)
+            clipped = renorm[:, i]
+            if min_val is not None or max_val is not None:
+                clipped = torch.clamp(clipped, min=min_val, max=max_val)
             clipped_array.append(clipped)
         result = torch.stack(clipped_array, dim=1)
 
