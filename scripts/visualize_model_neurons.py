@@ -54,7 +54,7 @@ def parse_args():
         "--stimulus_shape",
         nargs="+",
         type=int,
-        default=[2, 50, 72, 64],
+        default=None,
         help="Stimulus shape: [color_channels, time_dim, height, width",
     )
 
@@ -109,12 +109,8 @@ def main(
     device: str,
     model_id: int,
     is_hoefling_ensemble_model: bool,
-    stimulus_shape: tuple[int, ...],
+    stimulus_shape: tuple[int, ...] | None,
 ) -> None:
-    if len(stimulus_shape) != 4:
-        raise ValueError(f"Invalid stimulus shape, needs to contain 4 integers, but was {stimulus_shape=}")
-    stimulus_shape = (1,) + tuple(stimulus_shape)
-
     model = load_model(
         model_path,
         device=device,
@@ -123,6 +119,12 @@ def main(
         is_hoefling_ensemble_model=is_hoefling_ensemble_model,
     )
     model.eval()
+
+    if stimulus_shape is None:
+        stimulus_shape = model.stimulus_shape(PurePath(model_path).name)
+    if len(stimulus_shape) != 4:
+        raise ValueError(f"Invalid stimulus shape, needs to contain 4 integers, but was {stimulus_shape=}")
+    stimulus_shape = (1,) + tuple(stimulus_shape)
 
     response_reducer = SliceMeanReducer(axis=0, start=10, length=10)
     min_max_values, norm = get_min_max_values_and_norm(stimulus_shape[1])
