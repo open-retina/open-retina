@@ -176,7 +176,7 @@ def plot_stimulus_composition(
         3: ["red", "green", "blue"],
     }
     color_channel_names_map = {
-        1: ("grey",),
+        1: ("Grey",),
         2: ("Green", "UV"),
         3: ("Red", "Green", "Blue"),
     }
@@ -235,7 +235,7 @@ def plot_stimulus_composition(
     if freq_ax is not None:
         freq_ax.set_xlim(0.0, lowpass_cutoff + 1)
         freq_ax.set_xlabel("Frequency [Hz]")
-        frequencies_str = "/".join([f"x:.1f" for x in weighted_main_freqs])
+        frequencies_str = "/".join([f"{x:.1f}" for x in weighted_main_freqs])
         freq_ax.set_title(
             f"Weighted Frequency: {frequencies_str} Hz"
             f" ({'/'.join(color_channel_names_array)})"
