@@ -236,10 +236,7 @@ def plot_stimulus_composition(
         freq_ax.set_xlim(0.0, lowpass_cutoff + 1)
         freq_ax.set_xlabel("Frequency [Hz]")
         frequencies_str = "/".join([f"{x:.1f}" for x in weighted_main_freqs])
-        freq_ax.set_title(
-            f"Weighted Frequency: {frequencies_str} Hz"
-            f" ({'/'.join(color_channel_names_array)})"
-        )
+        freq_ax.set_title(f"Weighted Frequency: {frequencies_str} Hz ({'/'.join(color_channel_names_array)})")
 
     if highlight_x_list is not None:
         for x_0_idx, x_1_idx in highlight_x_list:

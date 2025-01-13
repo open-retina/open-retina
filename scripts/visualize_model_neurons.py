@@ -43,7 +43,7 @@ def parse_args():
         default=-1,
         help="If >= 0 load the ensemble model with that model_id, else use torch.load to load the model",
     )
-    parser.add_argument("--core_readout_lightning", action="store_true")
+    parser.add_argument("--is_hoefling_ensemble_model", action="store_true")
     parser.add_argument(
         "--stimulus_shape",
         nargs="+",
@@ -60,20 +60,25 @@ def load_model(
     device: str = "cuda",
     model_id: int = 0,
     do_center_readout: bool = False,
-    core_readout_lightning: bool = True,
+    is_hoefling_ensemble_model: bool = False,
 ):
-    if core_readout_lightning:
-        model = CoreReadout.load_from_checkpoint(path).to(device)  # type: ignore
-        print(f"Initialized lightning model from {path} to {device=}")
+    map_location = torch.device(device)
+    if not is_hoefling_ensemble_model:
+        if "gru" in path.lower():
+            print(f"Initializing lightning GRU model from {path} to {device=}")
+            model = CoreReadout.load_from_checkpoint(path, map_location=map_location)  # type: ignore
+        else:
+            print(f"Initializing lightning base model from {path} to {device=}")
+            model = CoreReadout.load_from_checkpoint(path, map_location=map_location)  # type: ignore
     elif model_id < 0:
-        model = torch.load(path, map_location=torch.device(device))
-        print(f"Initialized model from {path}")
+        model = torch.load(path, map_location=map_location)
+        print(f"Initialized model using torch.load() from {path}")
     else:
         _, ensemble_model = load_ensemble_retina_model_from_directory(path, device)
         print(f"Initialized ensemble model from {path}")
         model = ensemble_model.members[model_id]
 
-    if do_center_readout and not core_readout_lightning:
+    if do_center_readout and is_hoefling_ensemble_model:
         center_readout = Center(target_mean=(0.0, 0.0))
         center_readout(model)
     return model
@@ -96,7 +101,7 @@ def main(
     save_folder: str,
     device: str,
     model_id: int,
-    core_readout_lightning: bool,
+    is_hoefling_ensemble_model: bool,
     stimulus_shape: tuple[int, ...],
 ) -> None:
     if len(stimulus_shape) != 4:
@@ -108,7 +113,7 @@ def main(
         device=device,
         model_id=model_id,
         do_center_readout=True,
-        core_readout_lightning=core_readout_lightning,
+        is_hoefling_ensemble_model=is_hoefling_ensemble_model,
     )
     model.eval()
 
@@ -229,7 +234,7 @@ def main(
             del stimulus_np
 
     # Reload model without centered readouts
-    if core_readout_lightning:
+    if not is_hoefling_ensemble_model:
         model.save_weight_visualizations(save_folder)
     else:
         model = load_model(
@@ -237,7 +242,7 @@ def main(
             device=device,
             model_id=model_id,
             do_center_readout=False,
-            core_readout_lightning=core_readout_lightning,
+            is_hoefling_ensemble_model=is_hoefling_ensemble_model,
         )
         model.to(device).eval()
         for session_key in model_readout_keys:
