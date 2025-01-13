@@ -199,7 +199,7 @@ def plot_stimulus_composition(
             spatial_kernels_with_padding.append(padding)
 
     # Spatial structure
-    spatial_ax.set_title(f"Spatial Component {color_channel_names_array}")
+    spatial_ax.set_title(f"Spatial Component ({'/'.join(color_channel_names_array)})")
     # Create spatial kernel with interleave
 
     spat = np.concatenate(spatial_kernels_with_padding, axis=1)
