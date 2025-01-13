@@ -149,7 +149,7 @@ def load_dataset_from_h5(file_path, dataset_path: str) -> np.ndarray:
     """
     with h5.File(file_path, "r") as file:
         if dataset_path in file:
-            data = file[dataset_path][()]  # type: ignore
-            return np.asarray(data)
+            data = np.array(file[dataset_path][()], dtype=np.float32)  # explicit conversion for numpy 2.0
+            return data
         else:
             raise FileNotFoundError(f"Dataset path {dataset_path} not found in the file.")
