@@ -3,6 +3,7 @@
 import argparse
 import os
 from functools import partial
+from pathlib import PurePath
 from typing import Any
 
 import matplotlib.pyplot as plt
@@ -21,22 +22,27 @@ from openretina.insilico.stimulus_optimization.regularizer import (
     RangeRegularizationLoss,
 )
 from openretina.legacy.hoefling_configs import STIMULUS_RANGE_CONSTRAINTS
-from openretina.models.core_readout import CoreReadout
+from openretina.models.core_readout import CoreReadout, GRUCoreReadout
 from openretina.utils.nnfabrik_model_loading import Center, load_ensemble_retina_model_from_directory
 from openretina.utils.plotting import plot_stimulus_composition, save_stimulus_to_mp4_video
 
-DEFAULT_BASE_PATH = "/gpfs01/euler/data/SharedFiles/projects/Hoefling2024/"
-DEFAULT_ENSEMBLE_MODEL_PATH = os.path.join(DEFAULT_BASE_PATH, "models/nonlinear/9d574ab9fcb85e8251639080c8d402b7")
-
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="")
+    parser = argparse.ArgumentParser(
+        description="Visualize most exciting stimuli for each neuron in the model "
+        "and visualize the weights of the model"
+    )
 
-    parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
+    parser.add_argument("--model_path", required=True)
+    parser.add_argument(
+        "--save_folder",
+        type=str,
+        required=True,
+        help="Path were to save outputs",
+    )
     parser.add_argument(
         "--device", type=str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu"
     )
-    parser.add_argument("--model_path", default=DEFAULT_ENSEMBLE_MODEL_PATH)
     parser.add_argument(
         "--model_id",
         type=int,
@@ -64,9 +70,10 @@ def load_model(
 ):
     map_location = torch.device(device)
     if not is_hoefling_ensemble_model:
-        if "gru" in path.lower():
+        # check if the filename contains gru to decide whether to load from the gru name
+        if "gru" in PurePath(path).name.lower():
             print(f"Initializing lightning GRU model from {path} to {device=}")
-            model = CoreReadout.load_from_checkpoint(path, map_location=map_location)  # type: ignore
+            model: CoreReadout = GRUCoreReadout.load_from_checkpoint(path, map_location=map_location)  # type: ignore
         else:
             print(f"Initializing lightning base model from {path} to {device=}")
             model = CoreReadout.load_from_checkpoint(path, map_location=map_location)  # type: ignore
