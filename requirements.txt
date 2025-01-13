@@ -18,7 +18,7 @@ omegaconf
 h5py
 opencv-python
 # Type Checks
-ruff
+ruff>=0.9
 mypy>=1.0
 pytest
 types-psutil

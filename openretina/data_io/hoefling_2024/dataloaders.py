@@ -214,9 +214,9 @@ def get_chirp_dataloaders(
     train_chunk_size: Optional[int] = None,
     batch_size: int = 32,
 ):
-    assert isinstance(
-        neuron_data_dictionary, dict
-    ), "neuron_data_dictionary should be a dictionary of sessions and their corresponding neuron data."
+    assert isinstance(neuron_data_dictionary, dict), (
+        "neuron_data_dictionary should be a dictionary of sessions and their corresponding neuron data."
+    )
     assert all(
         field in next(iter(neuron_data_dictionary.values()))
         for field in ["responses_final", "stim_id", "chirp_trigger_times"]
@@ -284,9 +284,9 @@ def get_mb_dataloaders(
     train_chunk_size: Optional[int] = None,
     batch_size: int = 32,
 ):
-    assert isinstance(
-        neuron_data_dictionary, dict
-    ), "neuron_data_dictionary should be a dictionary of sessions and their corresponding neuron data."
+    assert isinstance(neuron_data_dictionary, dict), (
+        "neuron_data_dictionary should be a dictionary of sessions and their corresponding neuron data."
+    )
     assert all(
         field in next(iter(neuron_data_dictionary.values()))
         for field in ["responses_final", "stim_id", "mb_trigger_times"]
@@ -295,9 +295,9 @@ def get_mb_dataloaders(
         "'responses_final', 'stim_id' and 'mb_trigger_times'."
     )
 
-    assert (
-        next(iter(neuron_data_dictionary.values()))["stim_id"] == 2
-    ), "This function only supports moving bar stimuli."
+    assert next(iter(neuron_data_dictionary.values()))["stim_id"] == 2, (
+        "This function only supports moving bar stimuli."
+    )
 
     dataloaders: dict[str, Any] = {"train": {}}
 
