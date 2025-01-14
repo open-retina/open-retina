@@ -27,7 +27,7 @@ def normalize_stimulus(stimulus: np.ndarray) -> np.ndarray:
 
 def discretize_triggers(trigger_times: np.ndarray, frame_rate: int = _DEFAULT_FRAME_RATE) -> list[int]:
     assert len(trigger_times.shape) == 1, "trigger_times should be one dimensional"
-    discrete_trigger_times = (trigger_times * frame_rate).astype(int).tolist()
+    discrete_trigger_times: list[int] = (trigger_times * frame_rate).astype(int).tolist()  # type: ignore
     return discrete_trigger_times
 
 

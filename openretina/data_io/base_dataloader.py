@@ -280,7 +280,7 @@ def handle_missing_start_indices(
         return [0]
 
     interval = get_chunking_interval(split)
-    return np.arange(0, movie_length, interval).tolist()
+    return np.arange(0, movie_length, interval).tolist()  # type: ignore
 
 
 def get_movie_dataloader(
