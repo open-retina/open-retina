@@ -34,15 +34,13 @@ def apply_random_sequences(
     }
 
     for sequence_index in range(random_sequences.shape[1]):
-        k = 0
         reordered_movie = torch.zeros_like(movie_train_subset)
-        for clip_idx in random_sequences[:, sequence_index]:
-            if clip_idx in val_clip_idx:
-                continue
+        # explicitly cast to int, as random_sequences is a np.uint8 which is prone to overflow.
+        clip_indices = [int(idx) for idx in random_sequences[:, sequence_index] if idx not in val_clip_idx]
+        for k, clip_idx in enumerate(clip_indices):
             reordered_movie[:, k * clip_length : (k + 1) * clip_length, ...] = movie_train[
                 :, clip_idx * clip_length : (clip_idx + 1) * clip_length, ...
             ]
-            k += 1
         movies["right"]["train"][sequence_index] = reordered_movie  # type: ignore
         movies["left"]["train"][sequence_index] = torch.flip(reordered_movie, [-1])  # type: ignore
 
