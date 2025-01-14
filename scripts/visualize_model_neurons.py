@@ -56,7 +56,7 @@ def parse_args():
         type=int,
         default=None,
         help="Stimulus shape: color_channels, time_dim, height, width. "
-             "If not provided will be inferred from the filename",
+        "If not provided will be inferred from the filename",
     )
 
     return parser.parse_args()
