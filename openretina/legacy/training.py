@@ -14,7 +14,7 @@ from tqdm.auto import tqdm
 
 from openretina.data_io.cyclers import LongCycler
 from openretina.data_io.hoefling_2024.dataloaders import extract_data_info_from_dataloaders
-from openretina.legacy import metrics
+from openretina.eval import metrics
 from openretina.legacy.early_stopping import early_stopping
 from openretina.legacy.tracking import MultipleObjectiveTracker
 from openretina.modules import measures
