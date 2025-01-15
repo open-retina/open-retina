@@ -1,7 +1,7 @@
 IPython
 jaxtyping
 matplotlib
-numpy<2.0  # h5py loading does not work with 2.0
+numpy
 pandas
 seaborn
 scipy
