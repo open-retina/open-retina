@@ -46,7 +46,7 @@ def save_stimulus_to_mp4_video(
     apply_undo_video_normalization: bool = False,
 ) -> None:
     assert len(stimulus.shape) == 4
-    assert stimulus.shape[0] == 2  # color channels
+    color_channels = stimulus.shape[0]
 
     assert filepath.endswith(".mp4")
     # Create a VideoWriter object
@@ -55,6 +55,7 @@ def save_stimulus_to_mp4_video(
 
     # Normalize to uint8
     if apply_undo_video_normalization:
+        assert color_channels == 2, "Normalization is only supported for 2 color channels, but {color_channels=}"
         stimulus[0] = stimulus[0] * MEAN_STD_DICT_74x64["channel_0_mean"] + MEAN_STD_DICT_74x64["channel_0_std"]
         stimulus[1] = stimulus[1] * MEAN_STD_DICT_74x64["channel_1_mean"] + MEAN_STD_DICT_74x64["channel_1_std"]
         # Clip to the range of uint8, otherwise there'll be an overflow (-1 will get converted to 255)
@@ -67,8 +68,16 @@ def save_stimulus_to_mp4_video(
     for i in range(start_at_frame, stimulus_uint8.shape[1]):
         # Create an empty 3D array and assign the data from the 4D array
         frame = np.zeros((stimulus_uint8.shape[2], stimulus_uint8.shape[3], 3), dtype=np.uint8)
-        frame[:, :, 1] = stimulus_uint8[0, i, :, :]  # Green channel
-        frame[:, :, 2] = stimulus_uint8[1, i, :, :]  # Red channel
+        if color_channels == 1:
+            for c_id in range(3):
+                frame[:, :, c_id] = stimulus_uint8[0, i, :, :]
+        elif color_channels == 2:
+            frame[:, :, 1] = stimulus_uint8[0, i, :, :]  # Green channel
+            frame[:, :, 2] = stimulus_uint8[1, i, :, :]  # Red channel
+        else:
+            frame[:, :, 0] = stimulus_uint8[0, i, :, :]  # Red
+            frame[:, :, 1] = stimulus_uint8[1, i, :, :]  # Green
+            frame[:, :, 2] = stimulus_uint8[2, i, :, :]  # Blue
         video.write(frame)
 
     video.release()
@@ -157,25 +166,43 @@ def plot_stimulus_composition(
     lowpass_cutoff: float = 10.0,
     highlight_x_list: list[tuple[int, int]] | None = None,
 ) -> None:
-    color_array = ["darkgreen", "darkviolet"]
-    color_channel_names_array = ("Green", "UV")
-
     assert len(stimulus.shape) == 4
-    num_color_channels, dim_t, dim_y, dim_x = stimulus.shape
+    num_color_channels, time_steps, dim_y, dim_x = stimulus.shape
 
-    time_steps = stimulus.shape[1]
+    # guess color channels
+    color_array_map = {
+        1: ["black"],
+        2: ["darkgreen", "darkviolet"],
+        3: ["red", "green", "blue"],
+    }
+    color_channel_names_map = {
+        1: ("Grey",),
+        2: ("Green", "UV"),
+        3: ("Red", "Green", "Blue"),
+    }
+    color_array = color_array_map[num_color_channels]
+    color_channel_names_array = color_channel_names_map[num_color_channels]
+
     stimulus_time = np.linspace(0, time_steps / FRAME_RATE_MODEL, time_steps)
-    weighted_main_freqs = [0.0, 0.0]
+    weighted_main_freqs = [0.0] * num_color_channels
     temporal_traces_max = 0.0
-    temp_green, spat_green, _ = decompose_kernel(stimulus[0])
-    temp_uv, spat_uv, _ = decompose_kernel(stimulus[1])
-    temporal_kernels = [temp_green, temp_uv]
+
+    temporal_kernels = []
+    spatial_kernels_with_padding = []
+    for color_idx in range(num_color_channels):
+        temporal, spatial, _ = decompose_kernel(stimulus[color_idx])
+        temporal_kernels.append(temporal)
+        spatial_kernels_with_padding.append(spatial)
+
+        if color_idx < (num_color_channels - 1):
+            padding = np.ones((spatial.shape[0], 8))
+            spatial_kernels_with_padding.append(padding)
 
     # Spatial structure
-    spatial_ax.set_title(f"Spatial Component {color_channel_names_array}")
-    padding = np.ones((spat_green.shape[0], 8))
-    spat = np.concatenate([spat_green, padding, spat_uv], axis=1)
+    spatial_ax.set_title(f"Spatial Component ({'/'.join(color_channel_names_array)})")
+    # Create spatial kernel with interleave
 
+    spat = np.concatenate(spatial_kernels_with_padding, axis=1)
     abs_max = np.max([abs(spat.max()), abs(spat.min())])
     norm = Normalize(vmin=-abs_max, vmax=abs_max)
     spatial_ax.imshow(spat, cmap="RdBu_r", norm=norm)
@@ -208,10 +235,8 @@ def plot_stimulus_composition(
     if freq_ax is not None:
         freq_ax.set_xlim(0.0, lowpass_cutoff + 1)
         freq_ax.set_xlabel("Frequency [Hz]")
-        freq_ax.set_title(
-            f"Weighted Frequency: {weighted_main_freqs[0]:.1f}/{weighted_main_freqs[1]:.1f} Hz"
-            f" ({color_channel_names_array[0]}/{color_channel_names_array[1]})"
-        )
+        frequencies_str = "/".join([f"{x:.1f}" for x in weighted_main_freqs])
+        freq_ax.set_title(f"Weighted Frequency: {frequencies_str} Hz ({'/'.join(color_channel_names_array)})")
 
     if highlight_x_list is not None:
         for x_0_idx, x_1_idx in highlight_x_list:

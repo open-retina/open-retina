@@ -35,6 +35,9 @@ class Core(nn.Module):
             ret.append(f"{attr} = {getattr(self, attr)}")
         return s + "|".join(ret) + "]\n"
 
+    def save_weight_visualizations(self, folder_path: str) -> None:
+        print(f"Save weight visualization of {self.__class__.__name__} not implemented.")
+
 
 class Core3d(Core):
     def initialize(self) -> None:

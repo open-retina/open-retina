@@ -3,6 +3,7 @@
 import argparse
 import os
 from functools import partial
+from pathlib import PurePath
 from typing import Any
 
 import matplotlib.pyplot as plt
@@ -21,35 +22,41 @@ from openretina.insilico.stimulus_optimization.regularizer import (
     RangeRegularizationLoss,
 )
 from openretina.legacy.hoefling_configs import STIMULUS_RANGE_CONSTRAINTS
-from openretina.models.core_readout import CoreReadout
+from openretina.models.core_readout import CoreReadout, GRUCoreReadout
 from openretina.utils.nnfabrik_model_loading import Center, load_ensemble_retina_model_from_directory
 from openretina.utils.plotting import plot_stimulus_composition, save_stimulus_to_mp4_video
 
-DEFAULT_BASE_PATH = "/gpfs01/euler/data/SharedFiles/projects/Hoefling2024/"
-DEFAULT_ENSEMBLE_MODEL_PATH = os.path.join(DEFAULT_BASE_PATH, "models/nonlinear/9d574ab9fcb85e8251639080c8d402b7")
-
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="")
+    parser = argparse.ArgumentParser(
+        description="Visualize most exciting stimuli for each neuron in the model "
+        "and visualize the weights of the model"
+    )
 
-    parser.add_argument("--save_folder", type=str, help="Path were to save outputs", default=".")
+    parser.add_argument("--model_path", required=True)
+    parser.add_argument(
+        "--save_folder",
+        type=str,
+        required=True,
+        help="Path were to save outputs",
+    )
     parser.add_argument(
         "--device", type=str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu"
     )
-    parser.add_argument("--model_path", default=DEFAULT_ENSEMBLE_MODEL_PATH)
     parser.add_argument(
         "--model_id",
         type=int,
         default=-1,
         help="If >= 0 load the ensemble model with that model_id, else use torch.load to load the model",
     )
-    parser.add_argument("--core_readout_lightning", action="store_true")
+    parser.add_argument("--is_hoefling_ensemble_model", action="store_true")
     parser.add_argument(
         "--stimulus_shape",
         nargs="+",
         type=int,
-        default=[2, 50, 72, 64],
-        help="Stimulus shape: [color_channels, time_dim, height, width",
+        default=None,
+        help="Stimulus shape: color_channels, time_dim, height, width. "
+        "If not provided will be inferred from the filename",
     )
 
     return parser.parse_args()
@@ -60,23 +67,41 @@ def load_model(
     device: str = "cuda",
     model_id: int = 0,
     do_center_readout: bool = False,
-    core_readout_lightning: bool = True,
+    is_hoefling_ensemble_model: bool = False,
 ):
-    if core_readout_lightning:
-        model = CoreReadout.load_from_checkpoint(path).to(device)  # type: ignore
-        print(f"Initialized lightning model from {path} to {device=}")
+    map_location = torch.device(device)
+    if not is_hoefling_ensemble_model:
+        # check if the filename contains gru to decide whether to load from the gru name
+        if "gru" in PurePath(path).name.lower():
+            print(f"Initializing lightning GRU model from {path} to {device=}")
+            model: CoreReadout = GRUCoreReadout.load_from_checkpoint(path, map_location=map_location)  # type: ignore
+        else:
+            print(f"Initializing lightning base model from {path} to {device=}")
+            model = CoreReadout.load_from_checkpoint(path, map_location=map_location)  # type: ignore
     elif model_id < 0:
-        model = torch.load(path, map_location=torch.device(device))
-        print(f"Initialized model from {path}")
+        model = torch.load(path, map_location=map_location)
+        print(f"Initialized model using torch.load() from {path}")
     else:
         _, ensemble_model = load_ensemble_retina_model_from_directory(path, device)
         print(f"Initialized ensemble model from {path}")
         model = ensemble_model.members[model_id]
 
-    if do_center_readout and not core_readout_lightning:
+    if do_center_readout and is_hoefling_ensemble_model:
         center_readout = Center(target_mean=(0.0, 0.0))
         center_readout(model)
     return model
+
+
+def get_min_max_values_and_norm(num_channels: int) -> tuple[list[tuple], float | None]:
+    if num_channels == 2:
+        min_max_values = [
+            (STIMULUS_RANGE_CONSTRAINTS["x_min_green"], STIMULUS_RANGE_CONSTRAINTS["x_max_green"]),
+            (STIMULUS_RANGE_CONSTRAINTS["x_min_uv"], STIMULUS_RANGE_CONSTRAINTS["x_max_uv"]),
+        ]
+        norm = float(STIMULUS_RANGE_CONSTRAINTS["norm"])
+        return min_max_values, norm
+    else:
+        return [(None, None)], None
 
 
 def main(
@@ -84,36 +109,33 @@ def main(
     save_folder: str,
     device: str,
     model_id: int,
-    core_readout_lightning: bool,
-    stimulus_shape: tuple[int, ...],
+    is_hoefling_ensemble_model: bool,
+    stimulus_shape: tuple[int, ...] | None,
 ) -> None:
-    if len(stimulus_shape) != 4:
-        raise ValueError(f"Invalid stimulus shape, needs to contain 4 integers, but was {stimulus_shape=}")
-    stimulus_shape = (1,) + tuple(stimulus_shape)
-
     model = load_model(
         model_path,
         device=device,
         model_id=model_id,
         do_center_readout=True,
-        core_readout_lightning=core_readout_lightning,
+        is_hoefling_ensemble_model=is_hoefling_ensemble_model,
     )
     model.eval()
 
+    if stimulus_shape is None:
+        stimulus_shape = model.stimulus_shape(PurePath(model_path).name)
+    if len(stimulus_shape) != 4:
+        raise ValueError(f"Invalid stimulus shape, needs to contain 4 integers, but was {stimulus_shape=}")
+    stimulus_shape = (1,) + tuple(stimulus_shape)
+
     response_reducer = SliceMeanReducer(axis=0, start=10, length=10)
+    min_max_values, norm = get_min_max_values_and_norm(stimulus_shape[1])
     stimulus_postprocessor = ChangeNormJointlyClipRangeSeparately(
-        min_max_values=(
-            (STIMULUS_RANGE_CONSTRAINTS["x_min_green"], STIMULUS_RANGE_CONSTRAINTS["x_max_green"]),
-            (STIMULUS_RANGE_CONSTRAINTS["x_min_uv"], STIMULUS_RANGE_CONSTRAINTS["x_max_uv"]),
-        ),
-        norm=STIMULUS_RANGE_CONSTRAINTS["norm"],
+        min_max_values=min_max_values,
+        norm=norm,
     )
     stimulus_regularizing_loss = RangeRegularizationLoss(
-        min_max_values=(
-            (STIMULUS_RANGE_CONSTRAINTS["x_min_green"], STIMULUS_RANGE_CONSTRAINTS["x_max_green"]),
-            (STIMULUS_RANGE_CONSTRAINTS["x_min_uv"], STIMULUS_RANGE_CONSTRAINTS["x_max_uv"]),
-        ),
-        max_norm=STIMULUS_RANGE_CONSTRAINTS["norm"],
+        min_max_values=min_max_values,
+        max_norm=norm,
         factor=0.1,
     )
     optimizer_init_fn = partial(torch.optim.SGD, lr=100.0)
@@ -158,12 +180,14 @@ def main(
             fig_axes_tuple = plt.subplots(2, 2, figsize=(7 * 3, 12))
             axes: np.ndarray[Any, plt.Axes] = fig_axes_tuple[1]  # type: ignore
 
+            highlight_stim_start = stimulus_shape[2] - num_timesteps + response_reducer.start
+            highlight_stim_end = highlight_stim_start + response_reducer.length - 1
             plot_stimulus_composition(
                 stimulus=stimulus_np,
                 temporal_trace_ax=axes[0, 0],
                 freq_ax=axes[0, 1],
                 spatial_ax=axes[1, 0],
-                highlight_x_list=[(40, 49)],
+                highlight_x_list=[(highlight_stim_start, highlight_stim_end)],
             )
             output_folder = f"{save_folder}/{layer_name}"
             os.makedirs(output_folder, exist_ok=True)
@@ -220,7 +244,7 @@ def main(
             del stimulus_np
 
     # Reload model without centered readouts
-    if core_readout_lightning:
+    if not is_hoefling_ensemble_model:
         model.save_weight_visualizations(save_folder)
     else:
         model = load_model(
@@ -228,7 +252,7 @@ def main(
             device=device,
             model_id=model_id,
             do_center_readout=False,
-            core_readout_lightning=core_readout_lightning,
+            is_hoefling_ensemble_model=is_hoefling_ensemble_model,
         )
         model.to(device).eval()
         for session_key in model_readout_keys:
