@@ -118,9 +118,9 @@ class BaseCoreReadout(LightningModule):
             },
         }
 
-    def save_weight_visualizations(self, folder_path: str) -> None:
-        self.core.save_weight_visualizations(os.path.join(folder_path, "weights_core"))
-        self.readout.save_weight_visualizations(os.path.join(folder_path, "weights_readout"))
+    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg") -> None:
+        self.core.save_weight_visualizations(os.path.join(folder_path, "weights_core"), file_format)
+        self.readout.save_weight_visualizations(os.path.join(folder_path, "weights_readout"), file_format)
 
     def compute_readout_input_shape(
         self, core_in_shape: tuple[int, int, int, int], core: Core

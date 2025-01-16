@@ -1,6 +1,7 @@
-import io
 import contextlib
+import io
 import warnings
+
 from IPython.core.interactiveshell import InteractiveShell
 
 

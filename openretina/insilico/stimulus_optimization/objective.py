@@ -165,13 +165,15 @@ class ContrastiveNeuronObjective(AbstractObjective):
     def __init__(
         self,
         model,
-        neuron_idx: int,
+        on_cluster_idc: list[int],
+        off_cluster_idc_list: list[list[int]],
         data_key: str | None,
         response_reducer: ResponseReducer,
         temperature: float = 1.6,
     ):
         super().__init__(model, data_key)
-        self._neuron_idx = neuron_idx
+        self._on_cluster_idc = on_cluster_idc
+        self._off_cluster_idc_list = off_cluster_idc_list
         self._response_reducer = response_reducer
         self._temperature = temperature
 
@@ -188,9 +190,12 @@ class ContrastiveNeuronObjective(AbstractObjective):
     def forward(self, stimulus: torch.Tensor) -> torch.Tensor:
         responses = self.model_forward(stimulus)
         score_per_neuron = self._response_reducer.forward(responses)
+
+        on_score = score_per_neuron[self._on_cluster_idc].mean()
+        off_scores = [score_per_neuron[idc].mean() for idc in self._off_cluster_idc_list]
         obj = self.contrastive_objective(
-            score_per_neuron[self._neuron_idx],
-            score_per_neuron,
+            on_score,
+            torch.stack([on_score] + off_scores),
             self._temperature,
         )
         return obj
