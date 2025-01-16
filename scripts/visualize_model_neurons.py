@@ -161,7 +161,7 @@ def main(
         for channel_id in range(num_channels):
             print(f"Optimizing {layer_name=} {channel_id=}")
             stimulus = torch.randn(stimulus_shape, requires_grad=True, device=device)
-            stimulus.data = stimulus_postprocessor.process(stimulus.data)
+            stimulus.data = stimulus_postprocessor.process(stimulus.data * 0.1)
             inner_neuron_objective.set_layer_channel(layer_name, channel_id)
 
             try:
@@ -211,7 +211,7 @@ def main(
                 model, neuron_indices=neuron_id, data_key=session_key, response_reducer=response_reducer
             )
             stimulus = torch.randn(stimulus_shape, requires_grad=True, device=device)
-            stimulus.data = stimulus_postprocessor.process(stimulus.data)
+            stimulus.data = stimulus_postprocessor.process(stimulus.data * 0.1)
 
             try:
                 optimize_stimulus(
