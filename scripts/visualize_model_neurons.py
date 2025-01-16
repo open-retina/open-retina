@@ -11,8 +11,8 @@ import numpy as np
 import torch
 
 from openretina.insilico.stimulus_optimization.objective import (
+    IncreaseObjective,
     InnerNeuronVisualizationObjective,
-    SingleNeuronObjective,
     SliceMeanReducer,
 )
 from openretina.insilico.stimulus_optimization.optimization_stopper import OptimizationStopper
@@ -207,8 +207,8 @@ def main(
         print(f"Optimizing output neurons for {session_key} in folder {output_folder}")
 
         for neuron_id in range(model.readout[session_key].outdims):
-            objective = SingleNeuronObjective(
-                model, neuron_idx=neuron_id, data_key=session_key, response_reducer=response_reducer
+            objective = IncreaseObjective(
+                model, neuron_indices=neuron_id, data_key=session_key, response_reducer=response_reducer
             )
             stimulus = torch.randn(stimulus_shape, requires_grad=True, device=device)
             stimulus.data = stimulus_postprocessor.process(stimulus.data)

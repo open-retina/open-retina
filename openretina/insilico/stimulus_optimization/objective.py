@@ -54,18 +54,19 @@ class AbstractObjective(ABC):
         pass
 
 
-class SingleNeuronObjective(AbstractObjective):
-    def __init__(self, model, neuron_idx: int, data_key: str | None, response_reducer: ResponseReducer):
+class IncreaseObjective(AbstractObjective):
+    def __init__(self, model, neuron_indices: list[int] | int, data_key: str | None, response_reducer: ResponseReducer):
         super().__init__(model, data_key)
-        self._neuron_idx = neuron_idx
+        self._neuron_indices = [neuron_indices] if isinstance(neuron_indices, int) else neuron_indices
         self._response_reducer = response_reducer
 
     def forward(self, stimulus: torch.Tensor) -> torch.Tensor:
         responses = self.model_forward(stimulus)
         # responses.shape = (time, neuron)
-        single_response = responses[:, self._neuron_idx]
+        selected_responses = responses[:, self._neuron_indices]
+        mean_response = selected_responses.mean(dim=-1)
         # average over time dimension
-        single_score = self._response_reducer.forward(single_response)
+        single_score = self._response_reducer.forward(mean_response)
         return single_score
 
 
