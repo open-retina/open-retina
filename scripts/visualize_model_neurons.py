@@ -55,8 +55,14 @@ def parse_args():
         nargs="+",
         type=int,
         default=None,
-        help="Stimulus shape: color_channels, time_dim, height, width. "
+        help="Stimulus shape: color_channels, time_dim, height, width"
         "If not provided will be inferred from the filename",
+    )
+    parser.add_argument(
+        "--image_file_format",
+        type=str,
+        default="jpg",
+        help="File format to save the visualization plots in"
     )
 
     return parser.parse_args()
@@ -111,6 +117,7 @@ def main(
     model_id: int,
     is_hoefling_ensemble_model: bool,
     stimulus_shape: tuple[int, ...] | None,
+    image_file_format: str,
 ) -> None:
     model = load_model(
         model_path,
@@ -191,7 +198,7 @@ def main(
             )
             output_folder = f"{save_folder}/{layer_name}"
             os.makedirs(output_folder, exist_ok=True)
-            fig_path = f"{output_folder}/{channel_id}.jpg"
+            fig_path = f"{output_folder}/{channel_id}.{image_file_format}"
             fig_axes_tuple[0].savefig(fig_path, bbox_inches="tight", facecolor="w", dpi=300)
             print(f"Saved figure at {fig_path=}")
             fig_axes_tuple[0].clf()
@@ -236,7 +243,7 @@ def main(
                 spatial_ax=axes[1, 0],
                 highlight_x_list=[(40, 49)],
             )
-            fig_path = f"{output_folder}/{neuron_id}.jpg"
+            fig_path = f"{output_folder}/{neuron_id}.{image_file_format}"
             fig_axes_tuple[0].savefig(fig_path, bbox_inches="tight", facecolor="w", dpi=300)
             fig_axes_tuple[0].clf()
             save_stimulus_to_mp4_video(stimulus_np, f"{output_folder}/{neuron_id}.mp4")
