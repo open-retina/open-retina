@@ -124,7 +124,7 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         res_array.append(children_string)
         return "\n".join(res_array)
 
-    def save_weight_visualizations(self, folder_path: str) -> None:
+    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg") -> None:
         masks = self.get_mask().detach().cpu().numpy()
         mask_abs_max = np.abs(masks).max()
         features = self.features.detach().cpu().numpy()
@@ -145,7 +145,7 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
             axes[1].bar(range(features_neuron.shape[0]), features_neuron)
             axes[1].set_ylim((features_min, features_max))
 
-            plot_path = f"{folder_path}/neuron_{neuron_id}.pdf"
+            plot_path = f"{folder_path}/neuron_{neuron_id}.{file_format}"
             fig_axes_tuple[0].savefig(plot_path, bbox_inches="tight", facecolor="w", dpi=300)
             fig_axes_tuple[0].clf()
             plt.close()

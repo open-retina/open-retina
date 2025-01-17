@@ -12,7 +12,7 @@ import torch
 from openretina.insilico.stimulus_optimization.objective import (
     AbstractObjective,
     ContrastiveNeuronObjective,
-    SingleNeuronObjective,
+    IncreaseObjective,
     SliceMeanReducer,
 )
 from openretina.insilico.stimulus_optimization.optimization_stopper import OptimizationStopper
@@ -66,7 +66,7 @@ def main(
     if use_contrastive_objective:
         objective_class: Type[AbstractObjective] = ContrastiveNeuronObjective
     else:
-        objective_class = SingleNeuronObjective
+        objective_class = IncreaseObjective
 
     # from controversial stimuli: (2, 50, 18, 16): (channels, time, height, width)
     stimulus_shape = (1, 2, 50, 18, 16)

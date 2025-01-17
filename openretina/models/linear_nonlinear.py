@@ -94,7 +94,7 @@ class MultipleLNP(BaseCoreReadout):
             learning_rate=learning_rate,
         )
 
-    def forward(self, x: Float[torch.Tensor, "batch channels t h w"], data_key: str) -> torch.Tensor:
+    def forward(self, x: Float[torch.Tensor, "batch channels t h w"], data_key: str | None = None) -> torch.Tensor:
         output_lnp = self.readout(x, data_key=data_key)
 
         return output_lnp

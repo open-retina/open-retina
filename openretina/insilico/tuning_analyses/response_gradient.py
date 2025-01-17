@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from torch import nn, optim
 
-from openretina.insilico.stimulus_optimization.objective import SingleNeuronObjective
+from openretina.insilico.stimulus_optimization.objective import IncreaseObjective
 
 
 class MeiAcrossContrasts(nn.Module):
@@ -42,7 +42,7 @@ class MeiAcrossContrasts(nn.Module):
 
 def trainer_fn(
     mei_contrast_gen: MeiAcrossContrasts,
-    model_neuron: SingleNeuronObjective,
+    model_neuron: IncreaseObjective,
     optimizer_class=optim.Adam,
     lr: float = 1.0,
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -59,7 +59,7 @@ def trainer_fn(
 
 def get_gradient_grid(
     stim: torch.Tensor,
-    model_neuron: SingleNeuronObjective,
+    model_neuron: IncreaseObjective,
     n_channels: int = 2,
     start: float = -1,
     stop: float = 1,
@@ -70,7 +70,7 @@ def get_gradient_grid(
 
     Args:
         stim (torchTensor, 1 x n_channels x time x height x width): The MEI stimulus.
-        model_neuron (SingleNeuronObjective): The model neuron objective.
+        model_neuron (IncreaseObjective): The model neuron objective.
         n_channels (int, optional): The number of channels. Defaults to 2.
         start (float, optional): The starting value for the contrast range. Defaults to -1.
         stop (float, optional): The ending value for the contrast range. Defaults to 1.

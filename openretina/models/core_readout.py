@@ -4,7 +4,7 @@ from typing import Iterable, Optional
 
 import torch
 import torch.nn as nn
-from jaxtyping import Int
+from jaxtyping import Float, Int
 from lightning import LightningModule
 from lightning.pytorch.utilities import grad_norm
 
@@ -41,7 +41,7 @@ class BaseCoreReadout(LightningModule):
         readout_norms = grad_norm(self.readout, norm_type=2)
         self.log_dict(readout_norms, on_step=False, on_epoch=True)
 
-    def forward(self, x: torch.Tensor, data_key: str) -> torch.Tensor:
+    def forward(self, x: Float[torch.Tensor, "batch channels t h w"], data_key: str | None = None) -> torch.Tensor:
         output_core = self.core(x)
         output_readout = self.readout(output_core, data_key=data_key)
         return output_readout
@@ -118,9 +118,9 @@ class BaseCoreReadout(LightningModule):
             },
         }
 
-    def save_weight_visualizations(self, folder_path: str) -> None:
-        self.core.save_weight_visualizations(os.path.join(folder_path, "weights_core"))
-        self.readout.save_weight_visualizations(os.path.join(folder_path, "weights_readout"))
+    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg") -> None:
+        self.core.save_weight_visualizations(os.path.join(folder_path, "weights_core"), file_format)
+        self.readout.save_weight_visualizations(os.path.join(folder_path, "weights_readout"), file_format)
 
     def compute_readout_input_shape(
         self, core_in_shape: tuple[int, int, int, int], core: Core

@@ -55,7 +55,7 @@ class MultiGaussianReadoutWrapper(nn.ModuleDict):
             for readout_key in self.readout_keys():
                 resp = self[readout_key](*args, **kwargs)
                 readout_responses.append(resp)
-            response = torch.concatenate(readout_responses, dim=0)
+            response = torch.concatenate(readout_responses, dim=-1)
         else:
             response = self[data_key](*args, **kwargs)
         return response
