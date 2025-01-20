@@ -15,6 +15,10 @@ log = logging.getLogger(__name__)
 
 @hydra.main(version_base="1.3", config_path="../configs", config_name="hoefling_2024_core_readout_high_res")
 def main(cfg: DictConfig) -> None:
+    train_model(cfg)
+
+
+def train_model(cfg: DictConfig) -> None:
     log.info("Logging full config:")
     log.info(OmegaConf.to_yaml(cfg))
 

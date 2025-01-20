@@ -19,14 +19,22 @@ readme = "README.md"
 Homepage = "https://github.com/open-retina/open-retina"
 Issues = "https://github.com/open-retina/open-retina/issues"
 
+[tool.setuptools]
+package-dir = { "" = "." }
+include-package-data=true
+
 [tool.setuptools.packages]
-find = {exclude = ["tests", "scripts"]}
+find = {exclude = ["tests"]}
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
 
 [tool.setuptools.package-data]
-"openretina" = ["py.typed"]
+"openretina" = ["py.typed", "configs/*.yaml", "configs/**/*.yaml"]
+
+[project.scripts]
+openretina = "openretina.cli:main"
+openretina-train = "openretina_scripts.train:main"
 
 [project.optional-dependencies]
 dev = [
