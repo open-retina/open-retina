@@ -34,7 +34,6 @@ dependencies = {file = ["requirements.txt"]}
 
 [project.scripts]
 openretina = "openretina.cli:main"
-openretina-train = "openretina_scripts.train:main"
 
 [project.optional-dependencies]
 dev = [

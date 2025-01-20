@@ -26,7 +26,7 @@ class HydraRunner:
             version_base="1.3", config_path=get_config_path(), config_name="hoefling_2024_core_readout_high_res"
         )
         def _train(cfg: DictConfig) -> None:
-            from scripts.train import train_model  # Import actual training function
+            from openretina_scripts.train import train_model  # Import actual training function
 
             train_model(cfg)
 
