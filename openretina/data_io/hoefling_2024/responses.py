@@ -590,7 +590,7 @@ def filter_responses(
         dropped_n_cell_types = original_neuron_count - get_n_neurons(all_rgcs_responses_ct_filtered)
         print_verbose(
             f"Overall, dropped {dropped_n_cell_types} neurons of non-target cell types "
-            f"(-{(dropped_n_cell_types) / original_neuron_count :.2%})."
+            f"(-{(dropped_n_cell_types) / original_neuron_count:.2%})."
         )
         print_verbose(" ------------------------------------ ")
     else:
@@ -658,7 +658,7 @@ def filter_responses(
         f"Final dataset contains {get_n_neurons(all_rgcs_responses)} neurons over {len(all_rgcs_responses)} fields"
     )
     final_n_dropped = original_neuron_count - get_n_neurons(all_rgcs_responses)
-    print(f"Total number of cells dropped: {final_n_dropped} " f"(-{(final_n_dropped) / original_neuron_count :.2%})")
+    print(f"Total number of cells dropped: {final_n_dropped} (-{(final_n_dropped) / original_neuron_count:.2%})")
 
     # Clean up RAM
     del all_rgcs_responses_ct_filtered

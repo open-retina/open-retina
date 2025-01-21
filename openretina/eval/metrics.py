@@ -212,9 +212,9 @@ def fev(
     if predictions.shape[1] != targets.shape[1] and predictions.ndim == 2:
         predictions = np.repeat(predictions[:, np.newaxis, :], targets.shape[1], axis=1)
 
-    assert (
-        targets.shape == predictions.shape
-    ), f"Targets and predictions must have the same shape, got {targets.shape} and {predictions.shape}"
+    assert targets.shape == predictions.shape, (
+        f"Targets and predictions must have the same shape, got {targets.shape} and {predictions.shape}"
+    )
 
     sum_square_res = [(target - prediction) ** 2 for target, prediction in zip(targets, predictions)]
     sum_square_res = np.concatenate(sum_square_res, axis=0)
