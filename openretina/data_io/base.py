@@ -53,9 +53,9 @@ class ResponsesTrainTestSplit:
     session_kwargs: dict[str, Any] = field(default_factory=lambda: {})
 
     def __post_init__(self):
-        assert (
-            self.train.shape[0] == self.test.shape[0]
-        ), "Train and test responses should have the same number of neurons."
+        assert self.train.shape[0] == self.test.shape[0], (
+            "Train and test responses should have the same number of neurons."
+        )
         if self.train.shape[0] > self.train.shape[1]:
             warnings.warn(
                 "The number of neurons is greater than the number of timebins in the train responses. "
@@ -115,17 +115,18 @@ def normalize_train_test_movies(
 def compute_data_info(
     neuron_data_dictionary: dict[str, ResponsesTrainTestSplit],
     movies_dictionary: dict[str, MoviesTrainTestSplit] | MoviesTrainTestSplit,
-):
+) -> dict[str, Any]:
     """
-    Compute the number of neurons and the shape of the movies for each session in the data.
+    Computes information related to the data used to train a model, including the number of neurons, the shape of the
+    movies, and the normalization statistics. This information can be fed to and saved with the models.
 
     Parameters:
     - neuron_data_dictionary: dictionary of responses for each session
     - movies_dictionary: dictionary of movies for each session
 
     Returns:
-    - n_neurons_dict: dictionary of the number of neurons for each session
-    - in_shape_dict: dictionary of the shape of the movies for each session
+    - data_info: dictionary containing the number of neurons, the shape of the movies, the movie normalization
+        statistics, and any extra session kwargs related to the data.
     """
     n_neurons_dict = get_n_neurons_per_session(neuron_data_dictionary)
     if isinstance(movies_dictionary, MoviesTrainTestSplit):
