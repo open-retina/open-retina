@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader, default_collate
 from tqdm.auto import tqdm
 
 from openretina.data_io.artificial_stimuli import load_chirp, load_moving_bar
-from openretina.data_io.base import MoviesTrainTestSplit, ResponsesTrainTestSplit, compute_data_info
+from openretina.data_io.base import MoviesTrainTestSplit, ResponsesTrainTestSplit
 from openretina.data_io.base_dataloader import get_movie_dataloader
 from openretina.data_io.hoefling_2024.constants import CLIP_LENGTH, NUM_CLIPS
 from openretina.data_io.hoefling_2024.responses import NeuronDataSplitHoefling

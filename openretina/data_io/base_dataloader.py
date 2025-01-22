@@ -8,7 +8,7 @@ from jaxtyping import Float
 from torch.utils.data import DataLoader, Dataset, Sampler
 from tqdm.auto import tqdm
 
-from openretina.data_io.base import MoviesTrainTestSplit, ResponsesTrainTestSplit, compute_data_info
+from openretina.data_io.base import MoviesTrainTestSplit, ResponsesTrainTestSplit
 
 DataPoint = namedtuple("DataPoint", ["inputs", "targets"])
 

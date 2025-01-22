@@ -53,9 +53,9 @@ class ResponsesTrainTestSplit:
     session_kwargs: dict[str, Any] = field(default_factory=lambda: {})
 
     def __post_init__(self):
-        assert self.train.shape[0] == self.test.shape[0], (
-            "Train and test responses should have the same number of neurons."
-        )
+        assert (
+            self.train.shape[0] == self.test.shape[0]
+        ), "Train and test responses should have the same number of neurons."
         if self.train.shape[0] > self.train.shape[1]:
             warnings.warn(
                 "The number of neurons is greater than the number of timebins in the train responses. "
@@ -91,7 +91,7 @@ def normalize_train_test_movies(
 ) -> tuple[
     Float[np.ndarray, "channels train_time height width"],
     Float[np.ndarray, "channels test_time height width"],
-    dict[str, float],
+    dict[str, float | None],
 ]:
     """
     z-score normalization of train and test movies using the mean and standard deviation of the train movie.
