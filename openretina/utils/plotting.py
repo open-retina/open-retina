@@ -1,21 +1,27 @@
 import datetime
 import os
+import tempfile
 from functools import partial
-from typing import Any
+from typing import Any, Literal
 
 import cv2
 import matplotlib
 import matplotlib as mpl
+import matplotlib.patheffects as path_effects
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import torch
-from IPython.display import HTML
-from jaxtyping import Float
+from einops import rearrange, repeat
+from IPython.display import HTML, Video, display
+from jaxtyping import Float, Int
 from matplotlib import animation
 from matplotlib.colors import Normalize
 from matplotlib.patches import Rectangle
 from matplotlib.ticker import FixedLocator, FormatStrFormatter
+from moviepy import ImageSequenceClip
+from scipy.ndimage import center_of_mass
+from tqdm.auto import tqdm
 
 from openretina.data_io.hoefling_2024.constants import FRAME_RATE_MODEL
 from openretina.legacy.hoefling_configs import MEAN_STD_DICT_74x64, pre_normalisation_values_18x16
@@ -383,3 +389,241 @@ def legend_without_duplicate_labels(ax=None) -> None:
     handles, labels = ax.get_legend_handles_labels()
     unique = [(handle, label) for i, (handle, label) in enumerate(zip(handles, labels)) if label not in labels[:i]]
     ax.legend(*zip(*unique))
+
+
+def display_numpy_as_video(
+    video_array: Float[np.ndarray, "time height width 3"],
+    fps: int = 30,
+    display_width: int = 640,
+    display_height: int = 360,
+    save_path: str | None = None,
+) -> None:
+    """
+    Display a NumPy array as a video in a Jupyter Notebook.
+
+    Parameters:
+        video_array (np.ndarray): An array of video frames of shape (time, height, width, channels),
+                                    where channels must be exactly 3.
+        fps (int): Frames per second for the video.
+        display_width (int): Width of the video iframe in the notebook.
+        dispaly_height (int): Height of the video iframe in the notebook.
+        save_path (str): Path to save the video to. If None, the video is just displayed in the notebook.
+    """
+    assert video_array.ndim == 4, "video_array must have 4 dimensions"
+
+    video_array = prepare_video_for_display(video_array)
+
+    if save_path is not None:
+        assert save_path.endswith(".mp4"), "save_path must end with '.mp4'"
+        file_path = save_path
+    else:
+        # Create a temporary file
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as temp_file:
+            file_path = temp_file.name
+
+    try:
+        # Convert NumPy array to a moviepy ImageSequenceClip
+        clip = ImageSequenceClip(list(video_array), fps=fps)
+
+        # Write the video to the temporary file
+        clip.write_videofile(file_path, codec="libx264", audio=False, logger=None)
+
+        # Display the video with specified iframe dimensions
+        display(Video(file_path, embed=True, width=display_width, height=display_height))
+    finally:
+        # Ensure the file is deleted after use if it was temporary
+        if os.path.exists(file_path) and save_path is None:
+            os.remove(file_path)
+
+
+def stitch_videos(
+    video1: Float[np.ndarray, "time height width channels"],
+    video2: Float[np.ndarray, "time height width channels"],
+    separator_width: int = 50,
+    resize_method: Literal["linear", "nearest", "cubic"] = "linear",
+) -> np.ndarray:
+    """
+    Stitch two video arrays side by side with a white band in between.
+
+    Parameters:
+        video1 (np.ndarray): Video array of shape (time, height, width, channels).
+        video2 (np.ndarray): Video array of shape (time, height, width, channels).
+        separator_width (int): Width of the white band separating the videos.
+        resize_method (str): Interpolation method for resizing ("linear", "nearest", etc.).
+
+    Returns:
+        np.ndarray: Stitched video array of shape (time, max_height, width1 + width2 + band_width, channels).
+    """
+    assert video1.shape[0] == video2.shape[0], "Videos must have the same number of frames (time)."
+    assert video1.shape[3] == video2.shape[3] == 3, "Videos must have 3 color channels (RGB)."
+    time, _, _, channels = video1.shape
+
+    max_height = max(video1.shape[1], video2.shape[1])
+    bigger_index = 0 if video1.shape == video2.shape else 1 if video1.shape[1] > video2.shape[1] else 2
+
+    interpolation = {
+        "nearest": cv2.INTER_NEAREST,
+        "linear": cv2.INTER_LINEAR,
+        "cubic": cv2.INTER_CUBIC,
+    }.get(resize_method, cv2.INTER_LINEAR)
+
+    def resize_video(video, target_height):
+        """Resize video frames to the target height while maintaining aspect ratio."""
+        scale = target_height / video.shape[1]
+        target_width = int(video.shape[2] * scale)
+        return np.stack(
+            [cv2.resize(frame, (target_width, target_height), interpolation=interpolation) for frame in video], axis=0
+        )
+
+    # Resize the videos if necessary
+    video1_resized = resize_video(video1, max_height) if bigger_index == 2 else video1
+    video2_resized = resize_video(video2, max_height) if bigger_index == 1 else video2
+
+    # Create a white band of the desired width
+    band = 255 * np.ones((time, max_height, separator_width, channels), dtype=np.uint8)
+
+    # Concatenate the videos with the band in between
+    stitched_video = np.concatenate((video1_resized, band, video2_resized), axis=2)
+    return stitched_video
+
+
+def create_roi_animation_array(
+    roi_mask: Int[np.ndarray, "roi_height roi_width"],
+    activity: Float[np.ndarray, "n_neurons time"],
+    roi_ids: Int[np.ndarray, " n_neurons"] | None = None,
+    max_activity: int = 10,
+    visualize_ids: bool = False,
+    figsize: tuple[int, int] = (8, 8),
+) -> Float[np.ndarray, "time fig_height fig_width 3"]:
+    """
+    Create an animation of neuronal activity and return a numpy tensor of video frames.
+
+    Parameters:
+    -----------
+    roi_mask : np.ndarray
+        2D array where background is 1 and neurons are -n (n being neuron index)
+    activity : np.ndarray
+        n x time array of neuronal activity
+    roi_ids : np.ndarray
+        1D array indicating the neuron ID for each row in activity (default None)
+    max_activity : float
+        Maximum activity value for scaling (default 10)
+    visualize_ids : bool
+        If True, displays neuron IDs on their ROIs
+    figsize : tuple
+        Figure size in inches (width, height), default (8, 8)
+
+    Returns:
+    --------
+    np.ndarray
+        Numpy array with shape (time, height, width, channels) containing video frames.
+    """
+
+    # Get number of neurons and normalize activity
+    n_neurons = np.min(roi_mask) * -1
+    activity_normalized = np.clip(activity / max_activity, 0, 1)
+
+    # Pre-compute centroids for each ROI if we're visualizing IDs
+    centroids = {}
+    if visualize_ids:
+        for i in range(n_neurons):
+            if roi_ids is not None and (i + 1) not in roi_ids:
+                continue
+            neuron_mask = roi_mask == -(i + 1)
+            if np.any(neuron_mask):
+                centroids[i] = center_of_mass(neuron_mask)
+
+    def render_frame(frame_idx):
+        """Render a single frame using matplotlib"""
+        # Create figure and axis
+        fig, ax = plt.subplots(figsize=figsize)
+        plt.close()  # Prevents display of empty figure
+
+        # Create frame image
+        frame_image = np.zeros_like(roi_mask, dtype=float)
+
+        # Update each neuron's brightness based on activity
+        if roi_ids is not None:
+            for i, roi_id in enumerate(roi_ids):
+                neuron_mask = roi_mask == -roi_id
+                frame_image[neuron_mask] = activity_normalized[i, frame_idx]
+        else:
+            for i in range(n_neurons):
+                neuron_mask = roi_mask == -(i + 1)
+                frame_image[neuron_mask] = activity_normalized[i, frame_idx]
+
+        # Display frame
+        ax.imshow(frame_image, cmap="gray", vmin=0, vmax=1)
+        ax.axis("off")
+
+        # Add neuron ID labels if requested
+        if visualize_ids:
+            for i in range(n_neurons):
+                if i in centroids:
+                    y, x = centroids[i]
+                    ax.text(
+                        x,
+                        y,
+                        str(i + 1),
+                        color="white",
+                        fontsize=8,
+                        ha="center",
+                        va="center",
+                        path_effects=[path_effects.withStroke(linewidth=2, foreground="black")],
+                    )
+
+        # Redraw canvas to reflect updates
+        fig.canvas.draw()
+
+        # Convert matplotlib figure to RGB numpy array using the buffer_rgba method
+        buffer = fig.canvas.buffer_rgba()
+        data = np.asarray(buffer)
+        # Convert RGBA to RGB
+        data = data[:, :, :3]
+        return data
+
+    # Generate all frames
+    n_frames = activity.shape[1]
+    video_frames = []
+    for frame_idx in tqdm(range(n_frames), desc="Generating frames"):
+        frame = render_frame(frame_idx)
+        video_frames.append(frame)
+
+    # Stack frames into a single numpy array
+    video_tensor = np.stack(video_frames, axis=0)
+    return video_tensor
+
+
+def prepare_video_for_display(
+    video_array: Float[np.ndarray, "time height width channels"] | Float[np.ndarray, "channels time height width"],
+) -> Float[np.ndarray, "time height width 3"]:
+    """
+    Prepare a video array for display by converting it to uint8 and clipping values to [0, 255].
+
+    Parameters:
+    -----------
+    video_array : np.ndarray
+        Video array of shape (time, height, width, channels) or (channels, time, height, width).
+
+    Returns:
+    --------
+    np.ndarray
+        Video array of shape (time, height, width, channels) with values clipped to [0, 255] and converted to uint8,
+        ready for display.
+    """
+    if np.argmin(video_array.shape) == 0:
+        video_array = rearrange(video_array, "channels time height width -> time height width channels")
+
+    if video_array.shape[-1] == 1:
+        # Black and white video
+        video_array = repeat(video_array, "time height width channel -> time height width (n channel)", n=3)
+    if video_array.shape[-1] == 2:
+        # Green and UV video
+        video_array = np.concatenate((video_array[..., 1][..., None], video_array), axis=-1)
+
+    if video_array.dtype == np.float32 or video_array.dtype == np.float64:
+        video_min = video_array.min()
+        video_max = video_array.max()
+        video_array_normalized = (video_array - video_min) / (video_max - video_min) * 255
+        video_array = video_array_normalized.astype(np.uint8)
+    return video_array
