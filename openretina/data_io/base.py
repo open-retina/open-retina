@@ -49,9 +49,9 @@ class ResponsesTrainTestSplit:
     session_kwargs: dict[str, Any] = field(default_factory=lambda: {})
 
     def __post_init__(self):
-        assert self.train.shape[0] == self.test.shape[0], (
-            "Train and test responses should have the same number of neurons."
-        )
+        assert (
+            self.train.shape[0] == self.test.shape[0]
+        ), "Train and test responses should have the same number of neurons."
         if self.train.shape[0] > self.train.shape[1]:
             warnings.warn(
                 "The number of neurons is greater than the number of timebins in the train responses. "
@@ -97,4 +97,4 @@ def normalize_train_test_movies(
     train_std = train_tensor.std()
     train_video_preproc = (train_tensor - train_mean) / train_std
     test_video = (test_tensor - train_mean) / train_std
-    return train_video_preproc.cpu().numpy(), test_video.cpu().numpy()
+    return train_video_preproc.cpu().detach().numpy(), test_video.cpu().detach().numpy()
