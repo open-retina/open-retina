@@ -15,6 +15,8 @@ class MoviesTrainTestSplit:
     test: Float[np.ndarray, "channels test_time height width"]
     stim_id: Optional[str] = None
     random_sequences: Optional[np.ndarray] = None
+    norm_mean: Optional[float] = None
+    norm_std: Optional[float] = None
 
     def __post_init__(self):
         assert self.train.ndim == 4, "Train movie should have 4 dimensions."
@@ -37,6 +39,8 @@ class MoviesTrainTestSplit:
             train=movies_dict["train"],
             test=movies_dict["test"],
             random_sequences=movies_dict.get("random_sequences", None),
+            norm_mean=movies_dict.get("movie_stats", {}).get("dichromatic", {}).get("mean", None),
+            norm_std=movies_dict.get("movie_stats", {}).get("dichromatic", {}).get("sd", None),
         )
 
 
@@ -49,9 +53,9 @@ class ResponsesTrainTestSplit:
     session_kwargs: dict[str, Any] = field(default_factory=lambda: {})
 
     def __post_init__(self):
-        assert self.train.shape[0] == self.test.shape[0], (
-            "Train and test responses should have the same number of neurons."
-        )
+        assert (
+            self.train.shape[0] == self.test.shape[0]
+        ), "Train and test responses should have the same number of neurons."
         if self.train.shape[0] > self.train.shape[1]:
             warnings.warn(
                 "The number of neurons is greater than the number of timebins in the train responses. "
@@ -84,7 +88,11 @@ def get_n_neurons_per_session(responses_dict: dict[str, ResponsesTrainTestSplit]
 def normalize_train_test_movies(
     train: Float[np.ndarray, "channels train_time height width"],
     test: Float[np.ndarray, "channels test_time height width"],
-) -> tuple[Float[np.ndarray, "channels train_time height width"], Float[np.ndarray, "channels test_time height width"]]:
+) -> tuple[
+    Float[np.ndarray, "channels train_time height width"],
+    Float[np.ndarray, "channels test_time height width"],
+    dict[str, float],
+]:
     """
     z-score normalization of train and test movies using the mean and standard deviation of the train movie.
 
@@ -97,4 +105,42 @@ def normalize_train_test_movies(
     train_std = train_tensor.std()
     train_video_preproc = (train_tensor - train_mean) / train_std
     test_video = (test_tensor - train_mean) / train_std
-    return train_video_preproc.cpu().detach().numpy(), test_video.cpu().detach().numpy()
+    return (
+        train_video_preproc.cpu().detach().numpy(),
+        test_video.cpu().detach().numpy(),
+        {"norm_mean": train_mean.item(), "norm_std": train_std.item()},
+    )
+
+
+def compute_data_info(
+    neuron_data_dictionary: dict[str, ResponsesTrainTestSplit],
+    movies_dictionary: dict[str, MoviesTrainTestSplit] | MoviesTrainTestSplit,
+):
+    """
+    Compute the number of neurons and the shape of the movies for each session in the data.
+
+    Parameters:
+    - neuron_data_dictionary: dictionary of responses for each session
+    - movies_dictionary: dictionary of movies for each session
+
+    Returns:
+    - n_neurons_dict: dictionary of the number of neurons for each session
+    - in_shape_dict: dictionary of the shape of the movies for each session
+    """
+    n_neurons_dict = get_n_neurons_per_session(neuron_data_dictionary)
+    if isinstance(movies_dictionary, MoviesTrainTestSplit):
+        movies_dictionary = {"default": movies_dictionary}
+    input_shape = tuple((movie.train.shape[0], *movie.train.shape[2:]) for movie in movies_dictionary.values())[0]
+    sessions_kwargs = {
+        session_name: responses.session_kwargs for session_name, responses in neuron_data_dictionary.items()
+    }
+
+    return {
+        "n_neurons_dict": n_neurons_dict,
+        "input_shape": input_shape,
+        "sessions_kwargs": sessions_kwargs,
+        "movie_norm_dict": {
+            name: {"norm_mean": movie.norm_mean, "norm_std": movie.norm_std}
+            for name, movie in movies_dictionary.items()
+        },
+    }

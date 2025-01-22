@@ -74,6 +74,10 @@ class MultiGaussianReadoutWrapper(nn.ModuleDict):
             os.makedirs(readout_folder, exist_ok=True)
             self._modules[key].save_weight_visualizations(readout_folder)
 
+    @property
+    def sessions(self) -> list[str]:
+        return self.readout_keys()
+
 
 class MultiReadoutBase(nn.ModuleDict):
     """
