@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import numpy as np
+import torch
 from jaxtyping import Float
 
 
@@ -84,6 +85,16 @@ def normalize_train_test_movies(
     train: Float[np.ndarray, "channels train_time height width"],
     test: Float[np.ndarray, "channels test_time height width"],
 ) -> tuple[Float[np.ndarray, "channels train_time height width"], Float[np.ndarray, "channels test_time height width"]]:
-    train_video_preproc = (train - train.mean()) / train.std()
-    test_video = (test - train.mean()) / train.std()
-    return train_video_preproc, test_video
+    """
+    z-score normalization of train and test movies using the mean and standard deviation of the train movie.
+
+    Note: The functions casts the input to torch tensors to calculate the mean and standard deviation of large
+    inputs more efficiently.
+    """
+    train_tensor = torch.tensor(train, dtype=torch.float32)
+    test_tensor = torch.tensor(test, dtype=torch.float32)
+    train_mean = train_tensor.mean()
+    train_std = train_tensor.std()
+    train_video_preproc = (train_tensor - train_mean) / train_std
+    test_video = (test_tensor - train_mean) / train_std
+    return train_video_preproc.cpu().detach().numpy(), test_video.cpu().detach().numpy()
