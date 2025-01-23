@@ -3,3 +3,4 @@ wandb:
   offline: False
   project: ??? # Needs to be set!
   version: ${now:%Y-%m-%d_%H-%M-%S}
+  log_model: "all" # Checkpoints get uploaded to wandb
