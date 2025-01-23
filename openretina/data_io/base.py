@@ -96,6 +96,15 @@ def normalize_train_test_movies(
     """
     z-score normalization of train and test movies using the mean and standard deviation of the train movie.
 
+    Parameters:
+    - train: train movie with shape (channels, time, height, width)
+    - test: test movie with shape (channels, time, height, width)
+
+    Returns:
+    - train_video_preproc: normalized train movie
+    - test_video_preproc: normalized test movie
+    - norm_stats: dictionary containing the mean and standard deviation of the train movie
+
     Note: The functions casts the input to torch tensors to calculate the mean and standard deviation of large
     inputs more efficiently.
     """

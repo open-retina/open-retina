@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Iterable, Optional
+from typing import Any, Iterable, Optional
 
 import torch
 import torch.nn as nn
@@ -25,7 +25,7 @@ class BaseCoreReadout(LightningModule):
         learning_rate: float,
         loss: nn.Module | None = None,
         correlation_loss: nn.Module | None = None,
-        data_info: dict[str, int] | None = None,
+        data_info: dict[str, Any] | None = None,
     ):
         super().__init__()
 
@@ -183,7 +183,7 @@ class CoreReadout(BaseCoreReadout):
         dropout_rate: float = 0.0,
         maxpool_every_n_layers: Optional[int] = None,
         downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
-        data_info: dict[str, int] | None = None,
+        data_info: dict[str, Any] | None = None,
     ):
         core = SimpleCoreWrapper(
             channels=(in_shape[0], *hidden_channels),
@@ -251,7 +251,7 @@ class GRUCoreReadout(BaseCoreReadout):
         readout_reg_avg: bool = False,
         learning_rate: float = 0.01,
         core_gru_kwargs: Optional[dict] = None,
-        data_info: dict[str, int] | None = None,
+        data_info: dict[str, Any] | None = None,
     ):
         core = ConvGRUCore(  # type: ignore
             input_channels=in_shape[0],
