@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Iterable, Optional
+from typing import Any, Iterable, Optional
 
 import torch
 import torch.nn as nn
@@ -25,6 +25,7 @@ class BaseCoreReadout(LightningModule):
         learning_rate: float,
         loss: nn.Module | None = None,
         correlation_loss: nn.Module | None = None,
+        data_info: dict[str, Any] | None = None,
     ):
         super().__init__()
 
@@ -33,6 +34,7 @@ class BaseCoreReadout(LightningModule):
         self.learning_rate = learning_rate
         self.loss = loss if loss is not None else PoissonLoss3d()
         self.correlation_loss = correlation_loss if correlation_loss is not None else CorrelationLoss3d(avg=True)
+        self.data_info = data_info
 
     def on_train_epoch_end(self):
         # Compute the 2-norm for each layer at the end of the epoch
@@ -181,6 +183,7 @@ class CoreReadout(BaseCoreReadout):
         dropout_rate: float = 0.0,
         maxpool_every_n_layers: Optional[int] = None,
         downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
+        data_info: dict[str, Any] | None = None,
     ):
         core = SimpleCoreWrapper(
             channels=(in_shape[0], *hidden_channels),
@@ -216,7 +219,7 @@ class CoreReadout(BaseCoreReadout):
             readout_reg_avg,
         )
 
-        super().__init__(core=core, readout=readout, learning_rate=learning_rate)
+        super().__init__(core=core, readout=readout, learning_rate=learning_rate, data_info=data_info)
         self.save_hyperparameters()
 
 
@@ -248,6 +251,7 @@ class GRUCoreReadout(BaseCoreReadout):
         readout_reg_avg: bool = False,
         learning_rate: float = 0.01,
         core_gru_kwargs: Optional[dict] = None,
+        data_info: dict[str, Any] | None = None,
     ):
         core = ConvGRUCore(  # type: ignore
             input_channels=in_shape[0],
@@ -293,5 +297,5 @@ class GRUCoreReadout(BaseCoreReadout):
             readout_reg_avg,
         )
 
-        super().__init__(core=core, readout=readout, learning_rate=learning_rate)
+        super().__init__(core=core, readout=readout, learning_rate=learning_rate, data_info=data_info)
         self.save_hyperparameters()

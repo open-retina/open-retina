@@ -90,12 +90,16 @@ def load_stimuli_for_session(
         return None
 
     if normalize_stimuli:
-        train_video, test_video = normalize_train_test_movies(train_video, test_video)
+        train_video, test_video, norm_dict = normalize_train_test_movies(train_video, test_video)
+    else:
+        norm_dict = {"norm_mean": None, "norm_std": None}
 
     return MoviesTrainTestSplit(
         train=train_video,
         test=test_video,
         stim_id=stim_type,
+        random_sequences=None,
+        **norm_dict,
     )
 
 
