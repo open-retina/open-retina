@@ -59,7 +59,7 @@ class LNP(nn.Module):
         """Returns l1 regularization across all weight dimensions
 
         Args:
-            average (bool, optional): use mean of weights instad of sum. Defaults to True.
+            average (bool, optional): use mean of weights instead of sum. Defaults to True.
         """
         if average:
             return self.inner_product_kernel.weight.abs().mean()
