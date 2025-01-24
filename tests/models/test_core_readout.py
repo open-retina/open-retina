@@ -1,6 +1,7 @@
 import pytest
 import torch
-from openretina.models.core_readout import load_core_readout_from_remote, _MODEL_NAME_TO_REMOTE_LOCATION
+
+from openretina.models.core_readout import _MODEL_NAME_TO_REMOTE_LOCATION, load_core_readout_from_remote
 
 
 @pytest.mark.parametrize("model_name", sorted(_MODEL_NAME_TO_REMOTE_LOCATION.keys()))
