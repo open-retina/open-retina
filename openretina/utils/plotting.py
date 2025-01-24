@@ -39,12 +39,14 @@ def undo_video_normalization(
 
 
 def save_stimulus_to_mp4_video(
-    stimulus: np.ndarray,
+    stimulus: Float[torch.Tensor | np.ndarray, "channels time height width"],
     filepath: str,
     fps: int = 5,
     start_at_frame: int = 0,
     apply_undo_video_normalization: bool = False,
 ) -> None:
+    if isinstance(stimulus, torch.Tensor):
+        stimulus = stimulus.detach().cpu().numpy()
     assert len(stimulus.shape) == 4
     color_channels = stimulus.shape[0]
 

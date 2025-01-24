@@ -41,11 +41,6 @@ class LNP(nn.Module):
 
         nn.init.xavier_normal_(self.inner_product_kernel.weight.data)
 
-        if smooth_regularizer == "GaussianLaplaceL2":
-            regularizer_config = dict(padding=laplace_padding, kernel=self.kernel_size)
-        else:
-            regularizer_config = dict(padding=laplace_padding)
-
         regularizer_config = (
             dict(padding=laplace_padding, kernel=self.kernel_size)
             if smooth_regularizer == "GaussianLaplaceL2"
