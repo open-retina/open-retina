@@ -17,8 +17,16 @@ For normal usage:
 pip install openretina
 ```
 
-For development:
+Test openretina by downloading a model and running a forward pass:
+```python
+import torch
+from openretina.models import *
 
+model = load_core_readout_from_remote("hoefling_2024_base_low_res", "cpu")
+responses = model.forward(torch.rand(model.stimulus_shape(time_steps=50)))
+```
+
+For development and to have access to Jupyter notebooks:
 ```
 git clone git@github.com:open-retina/open-retina.git
 cd open-retina
