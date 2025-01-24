@@ -1,7 +1,7 @@
 from openretina.insilico.stimulus_optimization.objective import (
     ContrastiveNeuronObjective,
-    MeanReducer,
     IncreaseObjective,
+    MeanReducer,
     SliceMeanReducer,
 )
 from openretina.insilico.stimulus_optimization.optimization_stopper import OptimizationStopper
