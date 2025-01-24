@@ -20,14 +20,10 @@ pip install openretina
 Test openretina by downloading a model and running a forward path
 ```python
 import torch
-from openretina.utils import get_local_file_path
-from openretina.models import CoreReadout
+from openretina.models import *
 
-# Todo: change this to a remote path pointing to e.g. gin
-model_path = get_local_file_path("models/hoefling_2024_GRU_low_res_model.ckpt",
-                                  cache_folder="./openretina_cache")
-model = CoreReadout.load_from_checkpoint(model_path, map_location="cpu")
-responses = model.forward(torch.rand((1, 2, 50, 18, 16)))
+model = load_core_readout_from_remote("hoefling_2024_base_low_res", "cpu")
+responses = model.forward(torch.rand(model.stimulus_shape(time_steps=50)))
 ```
 
 For development and to have download Jupyter notebooks:

@@ -121,11 +121,7 @@ def main(
     )
     model.eval()
 
-    if stimulus_shape is None:
-        stimulus_shape = model.stimulus_shape(PurePath(model_path).name)
-    if len(stimulus_shape) != 4:
-        raise ValueError(f"Invalid stimulus shape, needs to contain 4 integers, but was {stimulus_shape=}")
-    stimulus_shape = (1,) + tuple(stimulus_shape)
+    stimulus_shape = model.stimulus_shape(time_steps=50, num_batches=1)
 
     response_reducer = SliceMeanReducer(axis=0, start=10, length=10)
     min_max_values, norm = get_min_max_values_and_norm(stimulus_shape[1])

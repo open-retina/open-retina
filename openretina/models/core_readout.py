@@ -53,7 +53,7 @@ class BaseCoreReadout(LightningModule):
         readout_norms = grad_norm(self.readout, norm_type=2)
         self.log_dict(readout_norms, on_step=False, on_epoch=True)
 
-    def forward(self, x: torch.Tensor, data_key: str) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, data_key: str | None = None) -> torch.Tensor:
         output_core = self.core(x)
         output_readout = self.readout(output_core, data_key=data_key)
         return output_readout
@@ -145,24 +145,9 @@ class BaseCoreReadout(LightningModule):
 
         return core_test_output.shape[1:]  # type: ignore
 
-    @staticmethod
-    def stimulus_shape(file_name: str) -> tuple[int, int, int, int]:
-        """Function to infer the stimulus shape from the file name
-        Note: this is a hack, in the future we can e.g. store the stimulus shape directly.
-        """
-
-        default_time_dim = 80
-        if "hoefling" in file_name:
-            if "high_res" in file_name:
-                return 2, default_time_dim, 72, 64
-            else:
-                return 2, default_time_dim, 18, 16
-        elif "maheswaranathan" in file_name:
-            return 1, default_time_dim, 50, 50
-        elif "karamanlis" in file_name:
-            return 1, default_time_dim, 60, 80
-        else:
-            raise ValueError(f"Could not infer stimulus shape from {file_name=}")
+    def stimulus_shape(self, time_steps: int, num_batches: int = 1) -> tuple[int, int, int, int, int]:
+        channels, width, height = self.data_info["input_shape"]
+        return num_batches, channels, time_steps, width, height
 
 
 class CoreReadout(BaseCoreReadout):
