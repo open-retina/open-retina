@@ -27,7 +27,7 @@ def load_all_stimuli(
     """
     stimuli_all_sessions = {}
     for session in [x.name for x in os.scandir(os.fspath(base_data_path)) if x.is_dir()]:
-        session_path = os.path.join(base_data_path, session)
+        session_path = os.path.normpath(os.path.join(base_data_path, session))
         for recording_file in os.listdir(session_path):
             if str(recording_file).endswith(f"{stim_type}.h5"):
                 recording_file = os.path.join(session_path, recording_file)
@@ -43,11 +43,15 @@ def load_all_stimuli(
                 test_video = test_video[None, ...]
 
                 if normalize_stimuli:
-                    train_video, test_video = normalize_train_test_movies(train_video, test_video)
+                    train_video, test_video, norm_dict = normalize_train_test_movies(train_video, test_video)
+                else:
+                    norm_dict = {"norm_mean": None, "norm_std": None}
 
                 stimuli_all_sessions[str(session)] = MoviesTrainTestSplit(
                     train=train_video,
                     test=test_video,
                     stim_id=stim_type,
+                    random_sequences=None,
+                    **norm_dict,
                 )
     return stimuli_all_sessions

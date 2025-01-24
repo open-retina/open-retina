@@ -51,12 +51,10 @@ def parse_args():
     )
     parser.add_argument("--is_hoefling_ensemble_model", action="store_true")
     parser.add_argument(
-        "--stimulus_shape",
-        nargs="+",
+        "--time_steps_stimulus",
         type=int,
-        default=None,
-        help="Stimulus shape: color_channels, time_dim, height, width"
-        "If not provided will be inferred from the filename",
+        default=50,
+        help="The time steps used in the stimulus to optimize",
     )
     parser.add_argument(
         "--image_file_format", type=str, default="jpg", help="File format to save the visualization plots in"
@@ -113,8 +111,8 @@ def main(
     device: str,
     model_id: int,
     is_hoefling_ensemble_model: bool,
-    stimulus_shape: tuple[int, ...] | None,
     image_file_format: str,
+    time_steps_stimulus: int,
 ) -> None:
     model = load_model(
         model_path,
@@ -125,12 +123,7 @@ def main(
     )
     model.eval()
 
-    if stimulus_shape is None:
-        stimulus_shape = model.stimulus_shape(PurePath(model_path).name)
-    if len(stimulus_shape) != 4:
-        raise ValueError(f"Invalid stimulus shape, needs to contain 4 integers, but was {stimulus_shape=}")
-    stimulus_shape = (1,) + tuple(stimulus_shape)
-
+    stimulus_shape = model.stimulus_shape(time_steps=time_steps_stimulus, num_batches=1)
     response_reducer = SliceMeanReducer(axis=0, start=10, length=10)
     min_max_values, norm = get_min_max_values_and_norm(stimulus_shape[1])
     stimulus_postprocessor = ChangeNormJointlyClipRangeSeparately(
@@ -166,6 +159,7 @@ def main(
             print(f"Optimizing {layer_name=} {channel_id=}")
             stimulus = torch.randn(stimulus_shape, requires_grad=True, device=device)
             stimulus.data = stimulus_postprocessor.process(stimulus.data * 0.1)
+
             inner_neuron_objective.set_layer_channel(layer_name, channel_id)
 
             try:
@@ -180,14 +174,13 @@ def main(
             except Exception as e:
                 print(f"Skipping {layer_name=} {channel_id=} because of Exception: {e}")
                 continue
-            stimulus_np = stimulus[0].detach().cpu().numpy()
             fig_axes_tuple = plt.subplots(2, 2, figsize=(7 * 3, 12))
             axes: np.ndarray[Any, plt.Axes] = fig_axes_tuple[1]  # type: ignore
 
             highlight_stim_start = stimulus_shape[2] - num_timesteps + response_reducer.start
             highlight_stim_end = highlight_stim_start + response_reducer.length - 1
             plot_stimulus_composition(
-                stimulus=stimulus_np,
+                stimulus=stimulus[0],
                 temporal_trace_ax=axes[0, 0],
                 freq_ax=axes[0, 1],
                 spatial_ax=axes[1, 0],
@@ -200,8 +193,7 @@ def main(
             print(f"Saved figure at {fig_path=}")
             fig_axes_tuple[0].clf()
             plt.close()
-            save_stimulus_to_mp4_video(stimulus_np, f"{output_folder}/{channel_id}.mp4")
-            del stimulus_np
+            save_stimulus_to_mp4_video(stimulus[0], f"{output_folder}/{channel_id}.mp4")
 
     response_reducer = SliceMeanReducer(axis=0, start=10, length=10)
     print(f"Reset response reducer for optimizing output neurons: {response_reducer}")
@@ -229,12 +221,11 @@ def main(
             except Exception as e:
                 print(f"Skipping neuron {neuron_id} in session {session_key} because of exception {e}")
                 continue
-            stimulus_np = stimulus[0].cpu().numpy()
             fig_axes_tuple = plt.subplots(2, 2, figsize=(7 * 3, 12))
             axes: np.ndarray[Any, plt.Axes] = fig_axes_tuple[1]  # type: ignore
 
             plot_stimulus_composition(
-                stimulus=stimulus_np,
+                stimulus=stimulus[0],
                 temporal_trace_ax=axes[0, 0],
                 freq_ax=axes[0, 1],
                 spatial_ax=axes[1, 0],
@@ -243,9 +234,8 @@ def main(
             fig_path = f"{output_folder}/{neuron_id}.{image_file_format}"
             fig_axes_tuple[0].savefig(fig_path, bbox_inches="tight", facecolor="w", dpi=300)
             fig_axes_tuple[0].clf()
-            save_stimulus_to_mp4_video(stimulus_np, f"{output_folder}/{neuron_id}.mp4")
+            save_stimulus_to_mp4_video(stimulus[0], f"{output_folder}/{neuron_id}.mp4")
             plt.close()
-            del stimulus_np
 
     # Reload model without centered readouts
     if not is_hoefling_ensemble_model:

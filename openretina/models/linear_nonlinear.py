@@ -41,11 +41,6 @@ class LNP(nn.Module):
 
         nn.init.xavier_normal_(self.inner_product_kernel.weight.data)
 
-        if smooth_regularizer == "GaussianLaplaceL2":
-            regularizer_config = dict(padding=laplace_padding, kernel=self.kernel_size)
-        else:
-            regularizer_config = dict(padding=laplace_padding)
-
         regularizer_config = (
             dict(padding=laplace_padding, kernel=self.kernel_size)
             if smooth_regularizer == "GaussianLaplaceL2"
@@ -64,7 +59,7 @@ class LNP(nn.Module):
         """Returns l1 regularization across all weight dimensions
 
         Args:
-            average (bool, optional): use mean of weights instad of sum. Defaults to True.
+            average (bool, optional): use mean of weights instead of sum. Defaults to True.
         """
         if average:
             return self.inner_product_kernel.weight.abs().mean()

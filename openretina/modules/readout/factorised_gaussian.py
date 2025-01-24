@@ -124,26 +124,33 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         res_array.append(children_string)
         return "\n".join(res_array)
 
-    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg") -> None:
-        masks = self.get_mask().detach().cpu().numpy()
-        mask_abs_max = np.abs(masks).max()
-        features = self.features.detach().cpu().numpy()
-        features_min = float(features.min())
-        features_max = float(features.max())
-        for neuron_id in range(masks.shape[0]):
-            mask_neuron = masks[neuron_id, :, :]
+    def plot_weight_for_neuron(self, neuron_id: int, axes: tuple[plt.Axes, plt.Axes] | None = None):
+        if axes is None:
             fig_axes_tuple = plt.subplots(ncols=2, figsize=(2 * 6, 6))
-            axes: list[plt.Axes] = fig_axes_tuple[1]  # type: ignore
+            ax_readout, ax_features = fig_axes_tuple[1]  # type: ignore
+        else:
+            ax_readout, ax_features = axes
 
-            axes[0].set_title("Readout Mask")
-            axes[0].imshow(
-                mask_neuron, interpolation="none", cmap="RdBu_r", norm=Normalize(-mask_abs_max, mask_abs_max)
-            )
+        masks = self.get_mask().detach().cpu().numpy()
+        features = self.features.detach().cpu().numpy()
+        mask_abs_max = np.absolute(masks).max()
+        mask_neuron = masks[neuron_id, :, :]
 
-            features_neuron = features[0, :, 0, neuron_id]
-            axes[1].set_title("Readout feature weights")
-            axes[1].bar(range(features_neuron.shape[0]), features_neuron)
-            axes[1].set_ylim((features_min, features_max))
+        ax_readout.set_title("Readout Mask")
+        ax_readout.imshow(mask_neuron, interpolation="none", cmap="RdBu_r", norm=Normalize(-mask_abs_max, mask_abs_max))
+
+        features_neuron = features[0, :, 0, neuron_id]
+        ax_features.set_title("Readout Feature Weights")
+        ax_features.bar(range(features_neuron.shape[0]), features_neuron)
+        ax_features.set_ylim((features.min(), features.max()))
+
+        return plt.gcf()
+
+    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg") -> None:
+        for neuron_id in range(self.outdims):
+            fig_axes_tuple = plt.subplots(ncols=2, figsize=(2 * 6, 6))
+            axes: tuple[plt.Axes, plt.Axes] = fig_axes_tuple[1]  # type: ignore
+            self.plot_weight_for_neuron(neuron_id, axes)
 
             plot_path = f"{folder_path}/neuron_{neuron_id}.{file_format}"
             fig_axes_tuple[0].savefig(plot_path, bbox_inches="tight", facecolor="w", dpi=300)

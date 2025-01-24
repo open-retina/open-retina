@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Iterable, Optional
+from typing import Any, Iterable, Optional
 
 import torch
 import torch.nn as nn
@@ -13,8 +13,18 @@ from openretina.modules.core.base_core import Core, SimpleCoreWrapper
 from openretina.modules.core.gru_core import ConvGRUCore
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
 from openretina.modules.readout.multi_readout import MultiGaussianReadoutWrapper
+from openretina.utils.file_utils import get_local_file_path
 
 LOGGER = logging.getLogger(__name__)
+
+_GIN_MODEL_CHECKPOINTS_BASE_PATH = "https://gin.g-node.org/teulerlab/open-retina/raw/checkpoints/model_checkpoints"
+_MODEL_NAME_TO_REMOTE_LOCATION = {
+    "hoefling_2024_base_low_res": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/hoefling_2024_base_low_res.ckpt",
+    "karamanlis_2024_gru": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/karamanlis_2024_GRU.ckpt",
+    "karamanlis_2024_base": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/karamanlis_2024_base.ckpt",
+    "maheswaranathan_2023_gru": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/maheswaranathan_2023_GRU.ckpt",
+    "maheswaranathan_2023_base": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/maheswaranathan_2023_base.ckpt",
+}
 
 
 class BaseCoreReadout(LightningModule):
@@ -25,6 +35,7 @@ class BaseCoreReadout(LightningModule):
         learning_rate: float,
         loss: nn.Module | None = None,
         correlation_loss: nn.Module | None = None,
+        data_info: dict[str, Any] | None = None,
     ):
         super().__init__()
 
@@ -33,6 +44,7 @@ class BaseCoreReadout(LightningModule):
         self.learning_rate = learning_rate
         self.loss = loss if loss is not None else PoissonLoss3d()
         self.correlation_loss = correlation_loss if correlation_loss is not None else CorrelationLoss3d(avg=True)
+        self.data_info = data_info
 
     def on_train_epoch_end(self):
         # Compute the 2-norm for each layer at the end of the epoch
@@ -133,24 +145,9 @@ class BaseCoreReadout(LightningModule):
 
         return core_test_output.shape[1:]  # type: ignore
 
-    @staticmethod
-    def stimulus_shape(file_name: str) -> tuple[int, int, int, int]:
-        """Function to infer the stimulus shape from the file name
-        Note: this is a hack, in the future we can e.g. store the stimulus shape directly.
-        """
-
-        default_time_dim = 80
-        if "hoefling" in file_name:
-            if "high_res" in file_name:
-                return 2, default_time_dim, 72, 64
-            else:
-                return 2, default_time_dim, 18, 16
-        elif "maheswaranathan" in file_name:
-            return 1, default_time_dim, 50, 50
-        elif "karamanlis" in file_name:
-            return 1, default_time_dim, 60, 80
-        else:
-            raise ValueError(f"Could not infer stimulus shape from {file_name=}")
+    def stimulus_shape(self, time_steps: int, num_batches: int = 1) -> tuple[int, int, int, int, int]:
+        channels, width, height = self.data_info["input_shape"]  # type: ignore
+        return num_batches, channels, time_steps, width, height
 
 
 class CoreReadout(BaseCoreReadout):
@@ -181,6 +178,7 @@ class CoreReadout(BaseCoreReadout):
         dropout_rate: float = 0.0,
         maxpool_every_n_layers: Optional[int] = None,
         downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
+        data_info: dict[str, Any] | None = None,
     ):
         core = SimpleCoreWrapper(
             channels=(in_shape[0], *hidden_channels),
@@ -216,7 +214,7 @@ class CoreReadout(BaseCoreReadout):
             readout_reg_avg,
         )
 
-        super().__init__(core=core, readout=readout, learning_rate=learning_rate)
+        super().__init__(core=core, readout=readout, learning_rate=learning_rate, data_info=data_info)
         self.save_hyperparameters()
 
 
@@ -248,6 +246,7 @@ class GRUCoreReadout(BaseCoreReadout):
         readout_reg_avg: bool = False,
         learning_rate: float = 0.01,
         core_gru_kwargs: Optional[dict] = None,
+        data_info: dict[str, Any] | None = None,
     ):
         core = ConvGRUCore(  # type: ignore
             input_channels=in_shape[0],
@@ -293,5 +292,22 @@ class GRUCoreReadout(BaseCoreReadout):
             readout_reg_avg,
         )
 
-        super().__init__(core=core, readout=readout, learning_rate=learning_rate)
+        super().__init__(core=core, readout=readout, learning_rate=learning_rate, data_info=data_info)
         self.save_hyperparameters()
+
+
+def load_core_readout_from_remote(
+    model_name: str, device: str, cache_directory_path: str = "./openretina_cache"
+) -> BaseCoreReadout:
+    if model_name not in _MODEL_NAME_TO_REMOTE_LOCATION:
+        raise ValueError(
+            f"Model name {model_name} not supported for download yet."
+            f"The following names are supported: {sorted(_MODEL_NAME_TO_REMOTE_LOCATION.keys())}"
+        )
+
+    remote_path = _MODEL_NAME_TO_REMOTE_LOCATION[model_name]
+    local_path = get_local_file_path(remote_path, cache_directory_path)
+    if "gru" in model_name.lower():
+        return GRUCoreReadout.load_from_checkpoint(local_path, map_location=device)
+    else:
+        return CoreReadout.load_from_checkpoint(local_path, map_location=device)
