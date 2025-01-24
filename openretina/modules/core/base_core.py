@@ -4,6 +4,7 @@ from collections import OrderedDict
 
 import torch
 import torch.nn as nn
+from matplotlib import pyplot as plt
 
 from openretina.modules.layers import FlatLaplaceL23dnorm
 from openretina.modules.layers.convolutions import STSeparableBatchConv3d
@@ -171,6 +172,13 @@ class SimpleCoreWrapper(Core):
             if weight != 0.0:
                 res += weight * reg_fn()
         return res
+
+    def plot_weight_visualization(self, layer: int, in_channel: int, out_channel: int) -> plt.Figure:
+        if layer >= len(self.features):
+            raise ValueError(f"Requested layer {layer}, but only {len(self.core.features)} layers present.")
+        conv_obj = self.features[layer].conv
+        fig = conv_obj.plot_weights(in_channel, out_channel)
+        return fig
 
     def save_weight_visualizations(self, folder_path: str) -> None:
         for i, layer in enumerate(self.features):

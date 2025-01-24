@@ -150,7 +150,7 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         ax_readout.imshow(mask_neuron, interpolation="none", cmap="RdBu_r", norm=Normalize(-mask_abs_max, mask_abs_max))
 
         features_neuron = features[0, :, 0, neuron_id]
-        ax_features.set_title("Readout feature weights")
+        ax_features.set_title("Readout Feature Weights")
         ax_features.bar(range(features_neuron.shape[0]), features_neuron)
         ax_features.set_ylim((features.min(), features.max()))
 
