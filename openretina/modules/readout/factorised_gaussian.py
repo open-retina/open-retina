@@ -126,14 +126,6 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         res_array.append(children_string)
         return "\n".join(res_array)
 
-    @functools.lru_cache(1)
-    def _get_mask_np(self) -> np.ndarray:
-        return self.get_mask().detach().cpu().numpy()
-
-    @functools.lru_cache(1)
-    def _get_features_np(self) -> np.ndarray:
-        return self.features.detach().cpu().numpy()
-
     def plot_weight_for_neuron(self, neuron_id: int, axes: tuple[plt.Axes, plt.Axes] | None = None):
         if axes is None:
             fig_axes_tuple = plt.subplots(ncols=2, figsize=(2 * 6, 6))
@@ -141,8 +133,8 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         else:
             ax_readout, ax_features = axes
 
-        masks = self._get_mask_np()
-        features = self._get_features_np()
+        masks = self.get_mask().detach().cpu().numpy()
+        features = self.features.detach().cpu().numpy()
         mask_abs_max = np.absolute(masks).max()
         mask_neuron = masks[neuron_id, :, :]
 
