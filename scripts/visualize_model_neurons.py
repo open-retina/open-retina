@@ -51,12 +51,10 @@ def parse_args():
     )
     parser.add_argument("--is_hoefling_ensemble_model", action="store_true")
     parser.add_argument(
-        "--stimulus_shape",
-        nargs="+",
+        "--time_steps_stimulus",
         type=int,
-        default=None,
-        help="Stimulus shape: color_channels, time_dim, height, width. "
-        "If not provided will be inferred from the filename",
+        default=50,
+        help="The time steps used in the stimulus to optimize",
     )
 
     return parser.parse_args()
@@ -110,7 +108,7 @@ def main(
     device: str,
     model_id: int,
     is_hoefling_ensemble_model: bool,
-    stimulus_shape: tuple[int, ...] | None,
+    time_steps_stimulus: int,
 ) -> None:
     model = load_model(
         model_path,
@@ -121,8 +119,7 @@ def main(
     )
     model.eval()
 
-    stimulus_shape = model.stimulus_shape(time_steps=50, num_batches=1)
-
+    stimulus_shape = model.stimulus_shape(time_steps=time_steps_stimulus, num_batches=1)
     response_reducer = SliceMeanReducer(axis=0, start=10, length=10)
     min_max_values, norm = get_min_max_values_and_norm(stimulus_shape[1])
     stimulus_postprocessor = ChangeNormJointlyClipRangeSeparately(
@@ -156,7 +153,7 @@ def main(
         print(f"Reset response reduce for layer {layer_name} to: {response_reducer}")
         for channel_id in range(num_channels):
             print(f"Optimizing {layer_name=} {channel_id=}")
-            stimulus = torch.randn(stimulus_shape, requires_grad=True, device=device)
+            stimulus = torch.randn(stimulus_shape, requires_grad=True, device=device)  # type: ignore
             stimulus.data = stimulus_postprocessor.process(stimulus.data)
             inner_neuron_objective.set_layer_channel(layer_name, channel_id)
 

@@ -146,7 +146,7 @@ class BaseCoreReadout(LightningModule):
         return core_test_output.shape[1:]  # type: ignore
 
     def stimulus_shape(self, time_steps: int, num_batches: int = 1) -> tuple[int, int, int, int, int]:
-        channels, width, height = self.data_info["input_shape"]
+        channels, width, height = self.data_info["input_shape"]  # type: ignore
         return num_batches, channels, time_steps, width, height
 
 
