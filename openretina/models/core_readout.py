@@ -13,8 +13,13 @@ from openretina.modules.core.base_core import Core, SimpleCoreWrapper
 from openretina.modules.core.gru_core import ConvGRUCore
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
 from openretina.modules.readout.multi_readout import MultiGaussianReadoutWrapper
+from openretina.utils.file_utils import get_local_file_path
 
 LOGGER = logging.getLogger(__name__)
+_MODEL_NAME_TO_REMOTE_LOCATION = {
+    "hoefling_2024_base_low_res": "https://...",
+    # ...
+}
 
 
 class BaseCoreReadout(LightningModule):
@@ -299,3 +304,20 @@ class GRUCoreReadout(BaseCoreReadout):
 
         super().__init__(core=core, readout=readout, learning_rate=learning_rate, data_info=data_info)
         self.save_hyperparameters()
+
+
+def load_core_readout_from_remote(
+    model_name: str, device: str, cache_directory_path: str = "./openretina_cache"
+) -> BaseCoreReadout:
+    if model_name not in _MODEL_NAME_TO_REMOTE_LOCATION:
+        raise ValueError(
+            f"Model name {model_name} not supported for download yet."
+            f"The following names are supported: {sorted(_MODEL_NAME_TO_REMOTE_LOCATION.keys())}"
+        )
+
+    remote_path = _MODEL_NAME_TO_REMOTE_LOCATION[model_name]
+    local_path = get_local_file_path(remote_path, cache_directory_path)
+    if "gru" in model_name.lower():
+        return GRUCoreReadout.load_from_checkpoint(local_path, map_location=device)
+    else:
+        return CoreReadout.load_from_checkpoint(local_path, map_location=device)
