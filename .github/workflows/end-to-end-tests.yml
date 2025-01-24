@@ -25,6 +25,6 @@ jobs:
           pip install --upgrade pip
           pip install .
 
-      - name: Run Unit Tests
-        run: make test-unittests
+      - name: Run end to end Tests
+        run: make test-corereadout
 
