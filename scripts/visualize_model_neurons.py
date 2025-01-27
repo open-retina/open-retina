@@ -11,8 +11,8 @@ import numpy as np
 import torch
 
 from openretina.insilico.stimulus_optimization.objective import (
+    IncreaseObjective,
     InnerNeuronVisualizationObjective,
-    SingleNeuronObjective,
     SliceMeanReducer,
 )
 from openretina.insilico.stimulus_optimization.optimization_stopper import OptimizationStopper
@@ -55,6 +55,9 @@ def parse_args():
         type=int,
         default=50,
         help="The time steps used in the stimulus to optimize",
+    )
+    parser.add_argument(
+        "--image_file_format", type=str, default="jpg", help="File format to save the visualization plots in"
     )
 
     return parser.parse_args()
@@ -108,6 +111,7 @@ def main(
     device: str,
     model_id: int,
     is_hoefling_ensemble_model: bool,
+    image_file_format: str,
     time_steps_stimulus: int,
 ) -> None:
     model = load_model(
@@ -153,8 +157,9 @@ def main(
         print(f"Reset response reduce for layer {layer_name} to: {response_reducer}")
         for channel_id in range(num_channels):
             print(f"Optimizing {layer_name=} {channel_id=}")
-            stimulus = torch.randn(stimulus_shape, requires_grad=True, device=device)  # type: ignore
-            stimulus.data = stimulus_postprocessor.process(stimulus.data)
+            stimulus = torch.randn(stimulus_shape, requires_grad=True, device=device)
+            stimulus.data = stimulus_postprocessor.process(stimulus.data * 0.1)
+
             inner_neuron_objective.set_layer_channel(layer_name, channel_id)
 
             try:
@@ -183,7 +188,7 @@ def main(
             )
             output_folder = f"{save_folder}/{layer_name}"
             os.makedirs(output_folder, exist_ok=True)
-            fig_path = f"{output_folder}/{channel_id}.jpg"
+            fig_path = f"{output_folder}/{channel_id}.{image_file_format}"
             fig_axes_tuple[0].savefig(fig_path, bbox_inches="tight", facecolor="w", dpi=300)
             print(f"Saved figure at {fig_path=}")
             fig_axes_tuple[0].clf()
@@ -198,11 +203,11 @@ def main(
         print(f"Optimizing output neurons for {session_key} in folder {output_folder}")
 
         for neuron_id in range(model.readout[session_key].outdims):
-            objective = SingleNeuronObjective(
-                model, neuron_idx=neuron_id, data_key=session_key, response_reducer=response_reducer
+            objective = IncreaseObjective(
+                model, neuron_indices=neuron_id, data_key=session_key, response_reducer=response_reducer
             )
             stimulus = torch.randn(stimulus_shape, requires_grad=True, device=device)
-            stimulus.data = stimulus_postprocessor.process(stimulus.data)
+            stimulus.data = stimulus_postprocessor.process(stimulus.data * 0.1)
 
             try:
                 optimize_stimulus(
@@ -226,7 +231,7 @@ def main(
                 spatial_ax=axes[1, 0],
                 highlight_x_list=[(40, 49)],
             )
-            fig_path = f"{output_folder}/{neuron_id}.jpg"
+            fig_path = f"{output_folder}/{neuron_id}.{image_file_format}"
             fig_axes_tuple[0].savefig(fig_path, bbox_inches="tight", facecolor="w", dpi=300)
             fig_axes_tuple[0].clf()
             save_stimulus_to_mp4_video(stimulus[0], f"{output_folder}/{neuron_id}.mp4")
@@ -247,14 +252,14 @@ def main(
         for session_key in model_readout_keys:
             folder_path = f"{save_folder}/weights_readout/{session_key}"
             os.makedirs(folder_path, exist_ok=True)
-            model.readout[session_key].save_weight_visualizations(folder_path)
+            model.readout[session_key].save_weight_visualizations(folder_path, image_file_format)
             print(f"Plotted visualizations for {session_key}")
 
         # Visualize weights
         for i, layer in enumerate(model.core.features):
             output_dir = f"{save_folder}/weights_layer_{i}"
             os.makedirs(output_dir, exist_ok=True)
-            layer.conv.save_weight_visualizations(output_dir)
+            layer.conv.save_weight_visualizations(output_dir, image_file_format)
             print(f"Saved weight visualization at path {output_dir}")
 
 
