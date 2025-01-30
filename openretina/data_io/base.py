@@ -39,8 +39,8 @@ class MoviesTrainTestSplit:
             train=movies_dict["train"],
             test=movies_dict["test"],
             random_sequences=movies_dict.get("random_sequences", None),
-            norm_mean=movies_dict.get("movie_stats", {}).get("dichromatic", {}).get("mean", None),
-            norm_std=movies_dict.get("movie_stats", {}).get("dichromatic", {}).get("sd", None),
+            norm_mean=movies_dict.get("movie_stats", {}).get("dichromatic", {}).get("mean", np.array([np.nan])).item(),
+            norm_std=movies_dict.get("movie_stats", {}).get("dichromatic", {}).get("sd", np.array([np.nan])).item(),
         )
 
 
@@ -53,9 +53,9 @@ class ResponsesTrainTestSplit:
     session_kwargs: dict[str, Any] = field(default_factory=lambda: {})
 
     def __post_init__(self):
-        assert self.train.shape[0] == self.test.shape[0], (
-            "Train and test responses should have the same number of neurons."
-        )
+        assert (
+            self.train.shape[0] == self.test.shape[0]
+        ), "Train and test responses should have the same number of neurons."
         if self.train.shape[0] > self.train.shape[1]:
             warnings.warn(
                 "The number of neurons is greater than the number of timebins in the train responses. "

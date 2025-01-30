@@ -34,6 +34,8 @@ class BaseCoreReadout(LightningModule):
         self.learning_rate = learning_rate
         self.loss = loss if loss is not None else PoissonLoss3d()
         self.correlation_loss = correlation_loss if correlation_loss is not None else CorrelationLoss3d(avg=True)
+        if data_info is None:
+            data_info = {}
         self.data_info = data_info
 
     def on_train_epoch_end(self):

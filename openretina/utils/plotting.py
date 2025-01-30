@@ -7,6 +7,7 @@ from typing import Any, Literal
 import cv2
 import matplotlib
 import matplotlib as mpl
+import matplotlib.colors as mcolors
 import matplotlib.patheffects as path_effects
 import matplotlib.pyplot as plt
 import numpy as np
@@ -25,10 +26,15 @@ from tqdm.auto import tqdm
 
 from openretina.data_io.hoefling_2024.constants import FRAME_RATE_MODEL
 from openretina.legacy.hoefling_configs import MEAN_STD_DICT_74x64, pre_normalisation_values_18x16
+from openretina.utils.constants import BADEN_TYPE_BOUNDARIES
 from openretina.utils.video_analysis import calculate_fft, decompose_kernel, weighted_main_frequency
 
 # Longer animations
 matplotlib.rcParams["animation.embed_limit"] = 2**128
+
+# Editable text in PDFs
+matplotlib.rcParams["pdf.fonttype"] = 42
+matplotlib.rcParams["ps.fonttype"] = 42
 
 
 def undo_video_normalization(
@@ -391,30 +397,34 @@ def legend_without_duplicate_labels(ax=None) -> None:
     ax.legend(*zip(*unique))
 
 
-def display_numpy_as_video(
+def numpy_to_mp4_video(
     video_array: Float[np.ndarray, "time height width 3"],
+    save_path: str | os.PathLike | None = None,
     fps: int = 30,
+    display_video=True,
     display_width: int = 640,
     display_height: int = 360,
-    save_path: str | None = None,
 ) -> None:
     """
-    Display a NumPy array as a video in a Jupyter Notebook.
+    Convert a NumPy array to mp4 video and optionally display it in a Jupyter Notebook.
 
     Parameters:
         video_array (np.ndarray): An array of video frames of shape (time, height, width, channels),
                                     where channels must be exactly 3.
         fps (int): Frames per second for the video.
+        save_path (str): Path to save the video to. If None, the video is written to a temporary file and
+                        just displayed in the notebook.
+        display_video (bool): Whether to display the video in the notebook.
         display_width (int): Width of the video iframe in the notebook.
         dispaly_height (int): Height of the video iframe in the notebook.
-        save_path (str): Path to save the video to. If None, the video is just displayed in the notebook.
     """
     assert video_array.ndim == 4, "video_array must have 4 dimensions"
+    assert display_video or save_path is not None, "Either display_video or save_path must be provided"
 
     video_array = prepare_video_for_display(video_array)
 
     if save_path is not None:
-        assert save_path.endswith(".mp4"), "save_path must end with '.mp4'"
+        assert str(save_path).endswith(".mp4"), "save_path must end with '.mp4'"
         file_path = save_path
     else:
         # Create a temporary file
@@ -425,11 +435,12 @@ def display_numpy_as_video(
         # Convert NumPy array to a moviepy ImageSequenceClip
         clip = ImageSequenceClip(list(video_array), fps=fps)
 
-        # Write the video to the temporary file
+        # Write the video to the file
         clip.write_videofile(file_path, codec="libx264", audio=False, logger=None)
 
         # Display the video with specified iframe dimensions
-        display(Video(file_path, embed=True, width=display_width, height=display_height))
+        if display_video:
+            display(Video(file_path, embed=True, width=display_width, height=display_height))
     finally:
         # Ensure the file is deleted after use if it was temporary
         if os.path.exists(file_path) and save_path is None:
@@ -454,8 +465,12 @@ def stitch_videos(
     Returns:
         np.ndarray: Stitched video array of shape (time, max_height, width1 + width2 + band_width, channels).
     """
-    assert video1.shape[0] == video2.shape[0], "Videos must have the same number of frames (time)."
-    assert video1.shape[3] == video2.shape[3] == 3, "Videos must have 3 color channels (RGB)."
+    assert (
+        video1.shape[0] == video2.shape[0]
+    ), f"Videos must have the same number of frames (time). Got {video1.shape[0]} and {video2.shape[0]}."
+    assert (
+        video1.shape[3] == video2.shape[3] == 3
+    ), f"Videos must have 3 color channels (RGB). Got {video1.shape[3]} and {video2.shape[3]}."
     time, _, _, channels = video1.shape
 
     max_height = max(video1.shape[1], video2.shape[1])
@@ -487,10 +502,14 @@ def stitch_videos(
     return stitched_video
 
 
-def create_roi_animation_array(
+def create_roi_animation(
     roi_mask: Int[np.ndarray, "roi_height roi_width"],
     activity: Float[np.ndarray, "n_neurons time"],
     roi_ids: Int[np.ndarray, " n_neurons"] | None = None,
+    cell_types: Int[np.ndarray, " n_neurons"] | None = None,
+    min_cell_type: int | None = 1,
+    max_cell_type: int | None = 46,
+    type_boundaries: list[int] | None = None,
     max_activity: int = 10,
     visualize_ids: bool = False,
     figsize: tuple[int, int] = (8, 8),
@@ -498,14 +517,18 @@ def create_roi_animation_array(
     """
     Create an animation of neuronal activity and return a numpy tensor of video frames.
 
+    ---
     Parameters:
-    -----------
     roi_mask : np.ndarray
         2D array where background is 1 and neurons are -n (n being neuron index)
     activity : np.ndarray
         n x time array of neuronal activity
     roi_ids : np.ndarray
         1D array indicating the neuron ID for each row in activity (default None)
+    cell_types : np.ndarray
+        1D array indicating the cell type for each neuron (default None)
+    type_boundaries : list[int]
+        List of integers indicating boundaries between broad cell types
     max_activity : float
         Maximum activity value for scaling (default 10)
     visualize_ids : bool
@@ -513,8 +536,8 @@ def create_roi_animation_array(
     figsize : tuple
         Figure size in inches (width, height), default (8, 8)
 
+    ---
     Returns:
-    --------
     np.ndarray
         Numpy array with shape (time, height, width, channels) containing video frames.
     """
@@ -522,6 +545,33 @@ def create_roi_animation_array(
     # Get number of neurons and normalize activity
     n_neurons = np.min(roi_mask) * -1
     activity_normalized = np.clip(activity / max_activity, 0, 1)
+
+    # Pre-compute color mapping if cell types are provided
+    color_map = {}
+    if cell_types is not None:
+        max_type = np.max(cell_types) if max_cell_type is None else max_cell_type
+        min_type = np.min(cell_types) if min_cell_type is None else min_cell_type
+
+        # Create broad type ranges
+        if type_boundaries is None:
+            type_boundaries = []
+        type_boundaries = sorted([min_type] + type_boundaries + [max_type])
+
+        # For each broad type range, assign a base saturation
+        saturations = {}
+        for i in range(len(type_boundaries) - 1):
+            start, end = type_boundaries[i], type_boundaries[i + 1]
+            types_in_range = np.where((cell_types >= start) & (cell_types <= end))[0]
+            base_saturation = 0.6 + (i * (0.3 / len(type_boundaries)))  # Vary saturation slightly for each broad type
+            for type_idx in types_in_range:
+                saturations[cell_types[type_idx]] = base_saturation
+
+        # Assign hues based on cell type numbers
+        for cell_type in np.unique(cell_types):
+            # Map cell type to hue (0-1)
+            hue = (cell_type - min_type) / (max_type - min_type)
+            saturation = saturations[cell_type]
+            color_map[cell_type] = (hue, saturation)
 
     # Pre-compute centroids for each ROI if we're visualizing IDs
     centroids = {}
@@ -537,23 +587,40 @@ def create_roi_animation_array(
         """Render a single frame using matplotlib"""
         # Create figure and axis
         fig, ax = plt.subplots(figsize=figsize)
-        plt.close()  # Prevents display of empty figure
+        plt.close()
 
-        # Create frame image
-        frame_image = np.zeros_like(roi_mask, dtype=float)
+        # Create frame image (now in RGB)
+        frame_image = np.zeros((*roi_mask.shape, 3))
 
-        # Update each neuron's brightness based on activity
+        # Update each neuron's color based on type and brightness based on activity
         if roi_ids is not None:
             for i, roi_id in enumerate(roi_ids):
                 neuron_mask = roi_mask == -roi_id
-                frame_image[neuron_mask] = activity_normalized[i, frame_idx]
+                activity_val = activity_normalized[i, frame_idx]
+
+                if cell_types is not None:
+                    # Get pre-computed hue and saturation for this cell type
+                    hue, saturation = color_map[cell_types[i]]
+                    # Convert HSV to RGB
+                    rgb = mcolors.hsv_to_rgb([hue, saturation, activity_val])
+                    frame_image[neuron_mask] = rgb
+                else:
+                    # If no cell types provided, use grayscale
+                    frame_image[neuron_mask] = [activity_val] * 3
         else:
             for i in range(n_neurons):
                 neuron_mask = roi_mask == -(i + 1)
-                frame_image[neuron_mask] = activity_normalized[i, frame_idx]
+                activity_val = activity_normalized[i, frame_idx]
+
+                if cell_types is not None:
+                    hue, saturation = color_map[cell_types[i]]
+                    rgb = mcolors.hsv_to_rgb([hue, saturation, activity_val])
+                    frame_image[neuron_mask] = rgb
+                else:
+                    frame_image[neuron_mask] = [activity_val] * 3
 
         # Display frame
-        ax.imshow(frame_image, cmap="gray", vmin=0, vmax=1)
+        ax.imshow(frame_image)
         ax.axis("off")
 
         # Add neuron ID labels if requested
@@ -575,7 +642,7 @@ def create_roi_animation_array(
         # Redraw canvas to reflect updates
         fig.canvas.draw()
 
-        # Convert matplotlib figure to RGB numpy array using the buffer_rgba method
+        # Convert matplotlib figure to RGB numpy array
         buffer = fig.canvas.buffer_rgba()
         data = np.asarray(buffer)
         # Convert RGBA to RGB
@@ -585,7 +652,7 @@ def create_roi_animation_array(
     # Generate all frames
     n_frames = activity.shape[1]
     video_frames = []
-    for frame_idx in tqdm(range(n_frames), desc="Generating frames"):
+    for frame_idx in tqdm(range(n_frames), desc="Generating frames for ROI animation"):
         frame = render_frame(frame_idx)
         video_frames.append(frame)
 
@@ -627,3 +694,71 @@ def prepare_video_for_display(
         video_array_normalized = (video_array - video_min) / (video_max - video_min) * 255
         video_array = video_array_normalized.astype(np.uint8)
     return video_array
+
+
+def display_video(
+    video_array: Float[np.ndarray, "time height width channels"] | None,
+    video_save_path: str | os.PathLike | None = None,
+    fps: int = 30,
+    display_width: int = 640,
+    display_height: int = 360,
+):
+    """
+    Display a video array or a saved video file.
+    This function can either display a video from a numpy array or from a saved video file.
+    If a path to an existing video is provided, it will be displayed directly.
+    Otherwise, the function will create and display a video from the provided numpy array.
+
+    Args:
+        video_array (np.ndarray | None): A 4D numpy array with dimensions (time, height, width, channels)
+            representing the video to display. Can be None if video_save_path points to an existing video.
+        video_save_path (str | os.PathLike | None): Path to a saved video file. If the file exists,
+            it will be displayed directly. If None, video_array must be provided.
+        fps (int, optional): Frames per second for video playback. Defaults to 30.
+        display_width (int, optional): Width of the displayed video in pixels. Defaults to 640.
+        display_height (int, optional): Height of the displayed video in pixels. Defaults to 360.
+
+    Raises:
+        AssertionError: If neither a valid video_save_path nor a video_array is provided.
+
+    Examples:
+        >>> # Display from numpy array
+        >>> video = np.random.rand(100, 480, 640, 3)
+        >>> display_video(video, None)
+        >>> # Display from saved file
+        >>> display_video(None, "path/to/video.mp4")
+    """
+    if video_save_path is not None and os.path.exists(video_save_path):
+        # If save_path already exist, simply display that.
+        display(Video(video_save_path, embed=True, width=display_width, height=display_height))
+    else:
+        assert (
+            video_array is not None
+        ), "Video array to display must be provided without an already existing saved rendering."
+        numpy_to_mp4_video(
+            video_array=video_array,
+            save_path=video_save_path,
+            fps=fps,
+            display_video=True,
+            display_height=display_height,
+            display_width=display_width,
+        )
+
+
+def extract_baden_group(value):
+    """
+    Given a cell type value, return the Baden group it belongs to,
+    according to the classification in the Baden et al. 2016 paper.
+    """
+    if value <= BADEN_TYPE_BOUNDARIES[0]:
+        return "OFF"
+    elif value > BADEN_TYPE_BOUNDARIES[0] and value <= BADEN_TYPE_BOUNDARIES[1]:
+        return "ON-OFF"
+    elif value > BADEN_TYPE_BOUNDARIES[1] and value <= BADEN_TYPE_BOUNDARIES[2]:
+        return "fast ON"
+    elif value > BADEN_TYPE_BOUNDARIES[2] and value <= BADEN_TYPE_BOUNDARIES[3]:
+        return "slow ON"
+    elif value > BADEN_TYPE_BOUNDARIES[3] and value <= BADEN_TYPE_BOUNDARIES[4]:
+        return "uncertain RGC"
+    else:
+        return "AC"
