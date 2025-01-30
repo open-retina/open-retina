@@ -51,12 +51,14 @@ def undo_video_normalization(
 
 
 def save_stimulus_to_mp4_video(
-    stimulus: np.ndarray,
+    stimulus: Float[torch.Tensor | np.ndarray, "channels time height width"],
     filepath: str,
     fps: int = 5,
     start_at_frame: int = 0,
     apply_undo_video_normalization: bool = False,
 ) -> None:
+    if isinstance(stimulus, torch.Tensor):
+        stimulus = stimulus.detach().cpu().numpy()
     assert len(stimulus.shape) == 4
     color_channels = stimulus.shape[0]
 
@@ -130,6 +132,7 @@ def update_video(video, ax, frame):
 
 
 def play_stimulus(video: Float[torch.Tensor, "channels time height width"], normalise: bool = True) -> HTML:
+    video = video.detach().cpu()
     if normalise:
         min_val = torch.min(video)
         max_val = torch.max(video)
@@ -171,13 +174,15 @@ def play_sample_batch(
 
 
 def plot_stimulus_composition(
-    stimulus: np.ndarray,
+    stimulus: Float[torch.Tensor | np.ndarray, "channels time height width"],
     temporal_trace_ax,
     freq_ax: Any | None,
     spatial_ax,
     lowpass_cutoff: float = 10.0,
     highlight_x_list: list[tuple[int, int]] | None = None,
 ) -> None:
+    if isinstance(stimulus, torch.Tensor):
+        stimulus = stimulus.detach().cpu().numpy()
     assert len(stimulus.shape) == 4
     num_color_channels, time_steps, dim_y, dim_x = stimulus.shape
 
@@ -401,7 +406,7 @@ def numpy_to_mp4_video(
     video_array: Float[np.ndarray, "time height width 3"],
     save_path: str | os.PathLike | None = None,
     fps: int = 30,
-    display_video=True,
+    display_video: bool = True,
     display_width: int = 640,
     display_height: int = 360,
 ) -> None:
@@ -416,7 +421,7 @@ def numpy_to_mp4_video(
                         just displayed in the notebook.
         display_video (bool): Whether to display the video in the notebook.
         display_width (int): Width of the video iframe in the notebook.
-        dispaly_height (int): Height of the video iframe in the notebook.
+        display_height (int): Height of the video iframe in the notebook.
     """
     assert video_array.ndim == 4, "video_array must have 4 dimensions"
     assert display_video or save_path is not None, "Either display_video or save_path must be provided"
@@ -443,7 +448,7 @@ def numpy_to_mp4_video(
             display(Video(file_path, embed=True, width=display_width, height=display_height))
     finally:
         # Ensure the file is deleted after use if it was temporary
-        if os.path.exists(file_path) and save_path is None:
+        if save_path is None and os.path.exists(file_path):
             os.remove(file_path)
 
 
@@ -465,12 +470,12 @@ def stitch_videos(
     Returns:
         np.ndarray: Stitched video array of shape (time, max_height, width1 + width2 + band_width, channels).
     """
-    assert (
-        video1.shape[0] == video2.shape[0]
-    ), f"Videos must have the same number of frames (time). Got {video1.shape[0]} and {video2.shape[0]}."
-    assert (
-        video1.shape[3] == video2.shape[3] == 3
-    ), f"Videos must have 3 color channels (RGB). Got {video1.shape[3]} and {video2.shape[3]}."
+    assert video1.shape[0] == video2.shape[0], (
+        f"Videos must have the same number of frames (time). Got {video1.shape[0]} and {video2.shape[0]}."
+    )
+    assert video1.shape[3] == video2.shape[3] == 3, (
+        f"Videos must have 3 color channels (RGB). Got {video1.shape[3]} and {video2.shape[3]}."
+    )
     time, _, _, channels = video1.shape
 
     max_height = max(video1.shape[1], video2.shape[1])
@@ -732,9 +737,9 @@ def display_video(
         # If save_path already exist, simply display that.
         display(Video(video_save_path, embed=True, width=display_width, height=display_height))
     else:
-        assert (
-            video_array is not None
-        ), "Video array to display must be provided without an already existing saved rendering."
+        assert video_array is not None, (
+            "Video array to display must be provided without an already existing saved rendering."
+        )
         numpy_to_mp4_video(
             video_array=video_array,
             save_path=video_save_path,

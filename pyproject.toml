@@ -55,10 +55,11 @@ exclude = [
 module = [
     "neuralpredictors.*",
     "h5py",
-    "scipy",
+    "scipy.*",
     "wandb",
     "seaborn",
     "torchvision.*",
+    "moviepy",
 ]
 ignore_missing_imports = true
 

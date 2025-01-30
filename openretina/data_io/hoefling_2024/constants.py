@@ -49,6 +49,16 @@ RGC_GROUP_NAMES_DICT = {
     46: "ON local 2 AC",
 }
 
+# According to the classification in the Baden et al. 2016 paper
+RGC_GROUP_GROUP_ID_TO_CLASS_NAME = (
+    {i: "OFF" for i in range(1, 10)}
+    | {i: "ON-OFF" for i in range(10, 15)}
+    | {i: "Fast On" for i in range(15, 21)}
+    | {i: "SLOW ON" for i in range(21, 29)}
+    | {i: "Uncertain RGC" for i in range(29, 33)}
+    | {i: "AC" for i in range(33, 47)}
+)
+
 SCENE_LENGTH = 150  # Frames
 NUM_CLIPS = 108
 CLIP_LENGTH = 150  # Frames
