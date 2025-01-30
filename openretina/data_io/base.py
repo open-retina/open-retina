@@ -1,3 +1,4 @@
+import os
 import pickle
 import warnings
 from dataclasses import dataclass, field
@@ -32,7 +33,7 @@ class MoviesTrainTestSplit:
             )
 
     @classmethod
-    def from_pickle(cls, file_path: str | Path):
+    def from_pickle(cls, file_path: str | os.PathLike):
         with open(file_path, "rb") as f:
             movies_dict = pickle.load(f)
         return cls(
