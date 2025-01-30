@@ -401,7 +401,7 @@ def numpy_to_mp4_video(
     video_array: Float[np.ndarray, "time height width 3"],
     save_path: str | os.PathLike | None = None,
     fps: int = 30,
-    display_video=True,
+    display_video: bool = True,
     display_width: int = 640,
     display_height: int = 360,
 ) -> None:
@@ -416,7 +416,7 @@ def numpy_to_mp4_video(
                         just displayed in the notebook.
         display_video (bool): Whether to display the video in the notebook.
         display_width (int): Width of the video iframe in the notebook.
-        dispaly_height (int): Height of the video iframe in the notebook.
+        display_height (int): Height of the video iframe in the notebook.
     """
     assert video_array.ndim == 4, "video_array must have 4 dimensions"
     assert display_video or save_path is not None, "Either display_video or save_path must be provided"
@@ -443,7 +443,7 @@ def numpy_to_mp4_video(
             display(Video(file_path, embed=True, width=display_width, height=display_height))
     finally:
         # Ensure the file is deleted after use if it was temporary
-        if os.path.exists(file_path) and save_path is None:
+        if save_path is None and os.path.exists(file_path):
             os.remove(file_path)
 
 
