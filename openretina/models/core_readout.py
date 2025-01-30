@@ -20,6 +20,7 @@ LOGGER = logging.getLogger(__name__)
 _GIN_MODEL_CHECKPOINTS_BASE_PATH = "https://gin.g-node.org/teulerlab/open-retina/raw/checkpoints/model_checkpoints"
 _MODEL_NAME_TO_REMOTE_LOCATION = {
     "hoefling_2024_base_low_res": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/hoefling_2024_base_low_res.ckpt",
+    "hoefling_2024_base_high_res": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/hoefling_2024_base_high_res.ckpt",
     "karamanlis_2024_gru": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/karamanlis_2024_GRU.ckpt",
     "karamanlis_2024_base": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/karamanlis_2024_base.ckpt",
     "maheswaranathan_2023_gru": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/maheswaranathan_2023_GRU.ckpt",
