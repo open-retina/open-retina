@@ -4,7 +4,7 @@ from typing import Any, Iterable, Optional
 
 import torch
 import torch.nn as nn
-from jaxtyping import Int
+from jaxtyping import Float, Int
 from lightning import LightningModule
 from lightning.pytorch.utilities import grad_norm
 
@@ -13,8 +13,18 @@ from openretina.modules.core.base_core import Core, SimpleCoreWrapper
 from openretina.modules.core.gru_core import ConvGRUCore
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
 from openretina.modules.readout.multi_readout import MultiGaussianReadoutWrapper
+from openretina.utils.file_utils import get_local_file_path
 
 LOGGER = logging.getLogger(__name__)
+
+_GIN_MODEL_CHECKPOINTS_BASE_PATH = "https://gin.g-node.org/teulerlab/open-retina/raw/checkpoints/model_checkpoints"
+_MODEL_NAME_TO_REMOTE_LOCATION = {
+    "hoefling_2024_base_low_res": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/hoefling_2024_base_low_res.ckpt",
+    "karamanlis_2024_gru": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/karamanlis_2024_GRU.ckpt",
+    "karamanlis_2024_base": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/karamanlis_2024_base.ckpt",
+    "maheswaranathan_2023_gru": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/maheswaranathan_2023_GRU.ckpt",
+    "maheswaranathan_2023_base": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/maheswaranathan_2023_base.ckpt",
+}
 
 
 class BaseCoreReadout(LightningModule):
@@ -45,7 +55,7 @@ class BaseCoreReadout(LightningModule):
         readout_norms = grad_norm(self.readout, norm_type=2)
         self.log_dict(readout_norms, on_step=False, on_epoch=True)
 
-    def forward(self, x: torch.Tensor, data_key: str) -> torch.Tensor:
+    def forward(self, x: Float[torch.Tensor, "batch channels t h w"], data_key: str | None = None) -> torch.Tensor:
         output_core = self.core(x)
         output_readout = self.readout(output_core, data_key=data_key)
         return output_readout
@@ -122,9 +132,9 @@ class BaseCoreReadout(LightningModule):
             },
         }
 
-    def save_weight_visualizations(self, folder_path: str) -> None:
-        self.core.save_weight_visualizations(os.path.join(folder_path, "weights_core"))
-        self.readout.save_weight_visualizations(os.path.join(folder_path, "weights_readout"))
+    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg") -> None:
+        self.core.save_weight_visualizations(os.path.join(folder_path, "weights_core"), file_format)
+        self.readout.save_weight_visualizations(os.path.join(folder_path, "weights_readout"), file_format)
 
     def compute_readout_input_shape(
         self, core_in_shape: tuple[int, int, int, int], core: Core
@@ -137,24 +147,9 @@ class BaseCoreReadout(LightningModule):
 
         return core_test_output.shape[1:]  # type: ignore
 
-    @staticmethod
-    def stimulus_shape(file_name: str) -> tuple[int, int, int, int]:
-        """Function to infer the stimulus shape from the file name
-        Note: this is a hack, in the future we can e.g. store the stimulus shape directly.
-        """
-
-        default_time_dim = 80
-        if "hoefling" in file_name:
-            if "high_res" in file_name:
-                return 2, default_time_dim, 72, 64
-            else:
-                return 2, default_time_dim, 18, 16
-        elif "maheswaranathan" in file_name:
-            return 1, default_time_dim, 50, 50
-        elif "karamanlis" in file_name:
-            return 1, default_time_dim, 60, 80
-        else:
-            raise ValueError(f"Could not infer stimulus shape from {file_name=}")
+    def stimulus_shape(self, time_steps: int, num_batches: int = 1) -> tuple[int, int, int, int, int]:
+        channels, width, height = self.data_info["input_shape"]  # type: ignore
+        return num_batches, channels, time_steps, width, height
 
 
 class CoreReadout(BaseCoreReadout):
@@ -301,3 +296,20 @@ class GRUCoreReadout(BaseCoreReadout):
 
         super().__init__(core=core, readout=readout, learning_rate=learning_rate, data_info=data_info)
         self.save_hyperparameters()
+
+
+def load_core_readout_from_remote(
+    model_name: str, device: str, cache_directory_path: str = "./openretina_cache"
+) -> BaseCoreReadout:
+    if model_name not in _MODEL_NAME_TO_REMOTE_LOCATION:
+        raise ValueError(
+            f"Model name {model_name} not supported for download yet."
+            f"The following names are supported: {sorted(_MODEL_NAME_TO_REMOTE_LOCATION.keys())}"
+        )
+
+    remote_path = _MODEL_NAME_TO_REMOTE_LOCATION[model_name]
+    local_path = get_local_file_path(remote_path, cache_directory_path)
+    if "gru" in model_name.lower():
+        return GRUCoreReadout.load_from_checkpoint(local_path, map_location=device)
+    else:
+        return CoreReadout.load_from_checkpoint(local_path, map_location=device)
