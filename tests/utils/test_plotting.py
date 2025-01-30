@@ -1,9 +1,10 @@
-import pytest
-
 import os.path
 import tempfile
+
 import numpy as np
-from openretina.utils.plotting import save_stimulus_to_mp4_video, numpy_to_mp4_video
+import pytest
+
+from openretina.utils.plotting import numpy_to_mp4_video, save_stimulus_to_mp4_video
 
 
 @pytest.mark.parametrize(

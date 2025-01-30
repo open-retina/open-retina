@@ -465,12 +465,12 @@ def stitch_videos(
     Returns:
         np.ndarray: Stitched video array of shape (time, max_height, width1 + width2 + band_width, channels).
     """
-    assert (
-        video1.shape[0] == video2.shape[0]
-    ), f"Videos must have the same number of frames (time). Got {video1.shape[0]} and {video2.shape[0]}."
-    assert (
-        video1.shape[3] == video2.shape[3] == 3
-    ), f"Videos must have 3 color channels (RGB). Got {video1.shape[3]} and {video2.shape[3]}."
+    assert video1.shape[0] == video2.shape[0], (
+        f"Videos must have the same number of frames (time). Got {video1.shape[0]} and {video2.shape[0]}."
+    )
+    assert video1.shape[3] == video2.shape[3] == 3, (
+        f"Videos must have 3 color channels (RGB). Got {video1.shape[3]} and {video2.shape[3]}."
+    )
     time, _, _, channels = video1.shape
 
     max_height = max(video1.shape[1], video2.shape[1])
@@ -732,9 +732,9 @@ def display_video(
         # If save_path already exist, simply display that.
         display(Video(video_save_path, embed=True, width=display_width, height=display_height))
     else:
-        assert (
-            video_array is not None
-        ), "Video array to display must be provided without an already existing saved rendering."
+        assert video_array is not None, (
+            "Video array to display must be provided without an already existing saved rendering."
+        )
         numpy_to_mp4_video(
             video_array=video_array,
             save_path=video_save_path,
