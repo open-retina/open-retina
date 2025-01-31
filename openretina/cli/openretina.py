@@ -28,9 +28,8 @@ class HydraRunner:
     @staticmethod
     def train(config_path, args):
         # Modify sys.argv to work with Hydra
-        sys.argv = [Path(os.getcwd()) / "run.py"] + args
+        sys.argv = [sys.argv[0]] + args
 
-        # print("Config path: " + get_config_path())
         @hydra.main(
             version_base="1.3",
             config_path=get_config_path(config_path),
@@ -39,7 +38,6 @@ class HydraRunner:
         def _train(cfg: DictConfig) -> None:
             from openretina.cli.train import train_model  # Import actual training function
 
-            print(cfg)
             train_model(cfg)
 
         _train()
