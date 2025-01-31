@@ -8,17 +8,16 @@ test-codestyle:
 test-formatting:
 	ruff format --check --diff openretina/ scripts/ tests/
 
-
 test-unittests:
 	pytest tests/
 
 test-all: test-types test-codestyle test-formatting test-unittests
 
 fix-codestyle:
-	ruff check openretina/ scripts/ tests/ --fix
+	ruff check openretina/ tests/ --fix
 
 fix-formatting:
-	ruff format openretina/ scripts/ tests/
+	ruff format openretina/ tests/
 
 fix-all: fix-codestyle fix-formatting
 
