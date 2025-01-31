@@ -22,14 +22,15 @@ class HydraRunner:
     @staticmethod
     def train(args):
         # Modify sys.argv to work with Hydra
-        sys.argv = [sys.argv[0]] + args
+        sys.argv = [Path(os.getcwd(), "openretina").name] + args
+        print(Path(sys.argv[0]).parent.name)
 
         @hydra.main(
-            version_base="1.3", config_path=get_config_path(), config_name="hoefling_2024_core_readout_high_res"
+            version_base="1.3", config_path="configs", config_name="hoefling_2024_core_readout_high_res"
         )
         def _train(cfg: DictConfig) -> None:
             from openretina.cli.train import train_model  # Import actual training function
-
+            print(cfg)
             train_model(cfg)
 
         _train()
@@ -41,17 +42,17 @@ def main():
 
     # Train command
     train_parser = subparsers.add_parser("train", help="Train a model")
-    train_parser.add_argument("hydra_args", nargs="*", help="Hydra arguments")
+    # train_parser.add_argument("hydra_args", nargs="*", help="Hydra arguments")
 
     # Visualize command
     visualize_parser = subparsers.add_parser("visualize", help="Visualize a model")
     visualize_model_neurons.add_parser_arguments(visualize_parser)
 
-    args = parser.parse_args()
+    args, unknown_args = parser.parse_known_args()  # this is an 'internal' method
     command = args.__dict__.pop("command")
 
     if command == "train":
-        HydraRunner.train(args.hydra_args)
+        HydraRunner.train(unknown_args)
     elif command == "visualize":
         visualize_model_neurons.visualize_model_neurons(**vars(args))
     elif command is None:

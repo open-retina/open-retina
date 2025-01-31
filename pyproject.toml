@@ -33,7 +33,7 @@ dependencies = {file = ["requirements.txt"]}
 "openretina" = ["py.typed", "configs/*.yaml", "configs/**/*.yaml"]
 
 [project.scripts]
-openretina = "openretina.cli.openretina:main"
+openretina = "openretina.cli.run:main"
 
 [project.optional-dependencies]
 dev = [
