@@ -9,27 +9,36 @@ from omegaconf import DictConfig
 from openretina.cli import visualize_model_neurons
 
 
-def get_config_path():
+def get_config_path(config_path: str | None):
     """Get the absolute path to the configs directory"""
-    import openretina
-
-    return os.path.join(Path(openretina.__file__).parent.parent, "configs")
+    if config_path is None:
+        path = str(Path(__file__).parent.parent.parent / "configs")
+        if not os.path.isdir(path):
+            raise ValueError(
+                f"Config directory not found at {path}. Please specify a config directory using '--config-path'"
+            )
+    else:
+        path = str(Path(config_path).absolute())
+    return path
 
 
 class HydraRunner:
     """Wrapper class to run Hydra commands"""
 
     @staticmethod
-    def train(args):
+    def train(config_path, args):
         # Modify sys.argv to work with Hydra
-        sys.argv = [Path(os.getcwd(), "openretina").name] + args
-        print(Path(sys.argv[0]).parent.name)
+        sys.argv = [Path(os.getcwd()) / "run.py"] + args
 
+        # print("Config path: " + get_config_path())
         @hydra.main(
-            version_base="1.3", config_path="configs", config_name="hoefling_2024_core_readout_high_res"
+            version_base="1.3",
+            config_path=get_config_path(config_path),
+            config_name="hoefling_2024_core_readout_high_res",
         )
         def _train(cfg: DictConfig) -> None:
             from openretina.cli.train import train_model  # Import actual training function
+
             print(cfg)
             train_model(cfg)
 
@@ -42,7 +51,7 @@ def main():
 
     # Train command
     train_parser = subparsers.add_parser("train", help="Train a model")
-    # train_parser.add_argument("hydra_args", nargs="*", help="Hydra arguments")
+    train_parser.add_argument("--config-path", default=None, help="Path to config directory")
 
     # Visualize command
     visualize_parser = subparsers.add_parser("visualize", help="Visualize a model")
@@ -52,8 +61,10 @@ def main():
     command = args.__dict__.pop("command")
 
     if command == "train":
-        HydraRunner.train(unknown_args)
+        HydraRunner.train(args.config_path, unknown_args)
     elif command == "visualize":
+        if len(unknown_args) > 0:
+            print(f"Warn: found the following unknown args: {unknown_args}")
         visualize_model_neurons.visualize_model_neurons(**vars(args))
     elif command is None:
         parser.print_help()
