@@ -55,7 +55,7 @@ class MultiGaussianReadoutWrapper(nn.ModuleDict):
             for readout_key in self.readout_keys():
                 resp = self[readout_key](*args, **kwargs)
                 readout_responses.append(resp)
-            response = torch.concatenate(readout_responses, dim=0)
+            response = torch.concatenate(readout_responses, dim=-1)
         else:
             response = self[data_key](*args, **kwargs)
         return response
@@ -72,7 +72,11 @@ class MultiGaussianReadoutWrapper(nn.ModuleDict):
         for key in self.readout_keys():
             readout_folder = os.path.join(folder_path, key)
             os.makedirs(readout_folder, exist_ok=True)
-            self._modules[key].save_weight_visualizations(readout_folder)
+            self._modules[key].save_weight_visualizations(readout_folder)  # type: ignore
+
+    @property
+    def sessions(self) -> list[str]:
+        return self.readout_keys()
 
 
 class MultiReadoutBase(nn.ModuleDict):

@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from openretina.insilico.stimulus_optimization.objective import MeanReducer, SingleNeuronObjective
+from openretina.insilico.stimulus_optimization.objective import IncreaseObjective, MeanReducer
 from openretina.insilico.stimulus_optimization.optimization_stopper import OptimizationStopper
 from openretina.insilico.stimulus_optimization.optimizer import optimize_stimulus
 from openretina.insilico.stimulus_optimization.regularizer import (
@@ -42,8 +42,8 @@ def main(model_path: str, save_folder: str, device: str) -> None:
     for session_id in model.readout.keys():
         for neuron_id in range(model.readout[session_id].outdims):
             print(f"Generating MEI for {session_id=} {neuron_id=}")
-            objective = SingleNeuronObjective(
-                model, neuron_idx=neuron_id, data_key=session_id, response_reducer=mean_response_reducer
+            objective = IncreaseObjective(
+                model, neuron_indices=neuron_id, data_key=session_id, response_reducer=mean_response_reducer
             )
             stimulus = torch.randn(stimulus_shape, requires_grad=True, device=device)
             stimulus_postprocessor = ChangeNormJointlyClipRangeSeparately(

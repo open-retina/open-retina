@@ -8,6 +8,7 @@ import lightning.pytorch
 import torch.utils.data as data
 from omegaconf import DictConfig, OmegaConf
 
+from openretina.data_io.base import compute_data_info
 from openretina.data_io.cyclers import LongCycler, ShortCycler
 
 log = logging.getLogger(__name__)
@@ -36,6 +37,8 @@ def train_model(cfg: DictConfig) -> None:
         movies_dictionary=movies_dict,
     )
 
+    data_info = compute_data_info(neuron_data_dict, movies_dict)
+
     train_loader = data.DataLoader(
         LongCycler(dataloaders["train"], shuffle=True), batch_size=None, num_workers=0, pin_memory=True
     )
@@ -46,10 +49,10 @@ def train_model(cfg: DictConfig) -> None:
 
     ### Model init
     # Assign missing n_neurons_dict to the model
-    cfg.model.n_neurons_dict = {name: data_point.targets.shape[-1] for name, data_point in iter(train_loader)}
+    cfg.model.n_neurons_dict = data_info["n_neurons_dict"]
 
     log.info(f"Instantiating model <{cfg.model._target_}>")
-    model = hydra.utils.instantiate(cfg.model)
+    model = hydra.utils.instantiate(cfg.model, data_info=data_info)
 
     ### Logging
     log.info("Instantiating loggers...")

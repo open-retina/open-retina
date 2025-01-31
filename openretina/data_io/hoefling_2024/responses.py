@@ -433,6 +433,9 @@ def make_final_responses(
             session_kwargs={
                 "eye": upsampled_data_dict[field]["eye"],
                 "scan_sequence_idx": upsampled_data_dict[field]["scan_sequence_idx"],
+                "group_assignment": upsampled_data_dict[field]["group_assignment"],
+                "roi_ids": upsampled_data_dict[field]["roi_ids"],
+                "roi_mask": upsampled_data_dict[field]["roi_mask"],
             },
         )
 

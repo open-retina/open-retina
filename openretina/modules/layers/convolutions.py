@@ -102,8 +102,8 @@ class TorchSTSeparableConv3D(nn.Module):
             log_speed = getattr(self, "_".join(["log_speed", data_key]))
 
         space_conv = self.space_conv(x)
-
-        return torch.exp(log_speed) * self.time_conv(space_conv)
+        exp_log_speed = torch.exp(log_speed)  # type: ignore
+        return exp_log_speed * self.time_conv(space_conv)
 
 
 class TimeIndependentConv3D(nn.Module):
@@ -331,10 +331,10 @@ class STSeparableBatchConv3d(nn.Module):
 
         return fig
 
-    def save_weight_visualizations(self, folder_path: str) -> None:
+    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg") -> None:
         for in_channel in range(self.in_channels):
             for out_channel in range(self.out_channels):
-                plot_path = f"{folder_path}/{in_channel}_{out_channel}.jpg"
+                plot_path = f"{folder_path}/{in_channel}_{out_channel}.{file_format}"
                 fig = self.plot_weights(in_channel, out_channel)
                 fig.savefig(plot_path, bbox_inches="tight", facecolor="w", dpi=300)
                 fig.clf()

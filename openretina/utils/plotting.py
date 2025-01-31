@@ -39,12 +39,14 @@ def undo_video_normalization(
 
 
 def save_stimulus_to_mp4_video(
-    stimulus: np.ndarray,
+    stimulus: Float[torch.Tensor | np.ndarray, "channels time height width"],
     filepath: str,
     fps: int = 5,
     start_at_frame: int = 0,
     apply_undo_video_normalization: bool = False,
 ) -> None:
+    if isinstance(stimulus, torch.Tensor):
+        stimulus = stimulus.detach().cpu().numpy()
     assert len(stimulus.shape) == 4
     color_channels = stimulus.shape[0]
 
@@ -118,6 +120,7 @@ def update_video(video, ax, frame):
 
 
 def play_stimulus(video: Float[torch.Tensor, "channels time height width"], normalise: bool = True) -> HTML:
+    video = video.detach().cpu()
     if normalise:
         min_val = torch.min(video)
         max_val = torch.max(video)
@@ -159,13 +162,15 @@ def play_sample_batch(
 
 
 def plot_stimulus_composition(
-    stimulus: np.ndarray,
+    stimulus: Float[torch.Tensor | np.ndarray, "channels time height width"],
     temporal_trace_ax,
     freq_ax: Any | None,
     spatial_ax,
     lowpass_cutoff: float = 10.0,
     highlight_x_list: list[tuple[int, int]] | None = None,
 ) -> None:
+    if isinstance(stimulus, torch.Tensor):
+        stimulus = stimulus.detach().cpu().numpy()
     assert len(stimulus.shape) == 4
     num_color_channels, time_steps, dim_y, dim_x = stimulus.shape
 
