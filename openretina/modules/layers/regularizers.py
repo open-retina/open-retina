@@ -108,7 +108,7 @@ class Laplace(nn.Module):
             raise ValueError(f"Unsupported filter size {filter_size}")
 
         self.register_buffer("filter", torch.from_numpy(kernel))
-        self.padding_size = self.filter.shape[-1] // 2 if padding is None else padding
+        self.padding_size = kernel.shape[-1] // 2 if padding is None else padding
 
     def forward(self, x):
         return F.conv2d(x, self.filter, bias=None, padding=self.padding_size)
@@ -118,10 +118,10 @@ class Laplace1d(torch.nn.Module):
     def __init__(self, padding: int | None):
         super().__init__()
         self.register_buffer("filter", torch.from_numpy(LAPLACE_1D))
-        self.padding_size = self.filter.shape[-1] // 2 if padding is None else padding
+        self.padding_size = LAPLACE_1D.shape[-1] // 2 if padding is None else padding
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return F.conv1d(x, self.filter, bias=None, padding=self.padding_size)
+        return F.conv1d(x, self.filter, bias=None, padding=self.padding_size)  # type: ignore
 
 
 class TimeLaplaceL23dnorm(nn.Module):

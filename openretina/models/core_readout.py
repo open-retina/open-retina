@@ -66,7 +66,7 @@ class BaseCoreReadout(LightningModule):
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets)
         regularization_loss_core = self.core.regularizer()
-        regularization_loss_readout = self.readout.regularizer(session_id)
+        regularization_loss_readout = self.readout.regularizer(session_id)  # type: ignore
         total_loss = loss + regularization_loss_core + regularization_loss_readout
         correlation = -self.correlation_loss.forward(model_output, data_point.targets)
 
@@ -83,7 +83,7 @@ class BaseCoreReadout(LightningModule):
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
         regularization_loss_core = self.core.regularizer()
-        regularization_loss_readout = self.readout.regularizer(session_id)
+        regularization_loss_readout = self.readout.regularizer(session_id)  # type: ignore
         total_loss = loss + regularization_loss_core + regularization_loss_readout
         correlation = -self.correlation_loss.forward(model_output, data_point.targets)
 
@@ -135,7 +135,7 @@ class BaseCoreReadout(LightningModule):
 
     def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg") -> None:
         self.core.save_weight_visualizations(os.path.join(folder_path, "weights_core"), file_format)
-        self.readout.save_weight_visualizations(os.path.join(folder_path, "weights_readout"), file_format)
+        self.readout.save_weight_visualizations(os.path.join(folder_path, "weights_readout"), file_format)  # type: ignore
 
     def compute_readout_input_shape(
         self, core_in_shape: tuple[int, int, int, int], core: Core
