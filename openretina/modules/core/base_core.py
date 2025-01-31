@@ -175,7 +175,7 @@ class SimpleCoreWrapper(Core):
 
     def plot_weight_visualization(self, layer: int, in_channel: int, out_channel: int) -> plt.Figure:
         if layer >= len(self.features):
-            raise ValueError(f"Requested layer {layer}, but only {len(self.core.features)} layers present.")
+            raise ValueError(f"Requested layer {layer}, but only {len(self.features)} layers present.")
         conv_obj = self.features[layer].conv
         fig = conv_obj.plot_weights(in_channel, out_channel)
         return fig

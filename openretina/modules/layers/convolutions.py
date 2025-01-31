@@ -102,8 +102,8 @@ class TorchSTSeparableConv3D(nn.Module):
             log_speed = getattr(self, "_".join(["log_speed", data_key]))
 
         space_conv = self.space_conv(x)
-
-        return torch.exp(log_speed) * self.time_conv(space_conv)
+        exp_log_speed = torch.exp(log_speed)  # type: ignore
+        return exp_log_speed * self.time_conv(space_conv)
 
 
 class TimeIndependentConv3D(nn.Module):
