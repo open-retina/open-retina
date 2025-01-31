@@ -8,7 +8,8 @@ import tenacity
 from tqdm.auto import tqdm
 
 LOGGER = logging.getLogger(__name__)
-_DEFAULT_CACHE_DIRECTORY = "openretina_cache_folder"
+HOME_DIR = str(Path.home())
+OPENRETINA_CACHE_DIRECTORY = os.getenv("OPENRETINA_CACHE_DIRECTORY", os.path.join(HOME_DIR, "openretina_cache"))
 GIN_BASE_URL = "https://gin.g-node.org/"
 
 
@@ -16,10 +17,11 @@ GIN_BASE_URL = "https://gin.g-node.org/"
 def optionally_download_from_url(
     base_url: str,
     path: str,
-    cache_folder: str = _DEFAULT_CACHE_DIRECTORY,
+    cache_folder: str = OPENRETINA_CACHE_DIRECTORY,
+    max_num_directories_in_cache_folder: int = 2,
 ) -> Path:
-    download_file_name = path.split("/")[-1]
-    target_download_path = Path(cache_folder) / Path(download_file_name)
+    download_file_name = Path(*Path(path).parts[-max_num_directories_in_cache_folder:])
+    target_download_path = Path(cache_folder) / download_file_name
     os.makedirs(Path(target_download_path).parent, exist_ok=True)
     if not os.path.exists(target_download_path):
         full_url = urljoin(base_url, path)
@@ -62,5 +64,7 @@ def get_local_file_path(file_path: str, cache_folder: str) -> Path:
     elif file_path.startswith("https://"):
         raise NotImplementedError(f"Only {GIN_BASE_URL} data storage is supported for now.")
     else:
-        # assuming this is a local file
-        return Path(os.path.expanduser(file_path))
+        local_path = Path(os.path.expanduser(file_path))
+        if not local_path.exists():
+            raise ValueError(f"Local file path {local_path} does not exists")
+        return local_path

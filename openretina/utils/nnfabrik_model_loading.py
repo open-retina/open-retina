@@ -267,7 +267,6 @@ def load_ensemble_retina_model_from_directory(
         model_fn = config["model_fn"]
         repo, _, _, model_type = model_fn.split(".")
         if repo == "nnfabrik_euler":  # convert model_fn from nnfabrik to openretina
-            # ToDo check robustness across model types
             model_fn = ".".join(["openretina", "hoefling_2024", "models", model_type])
         elif repo == "openretina":
             pass  # nothing to change
