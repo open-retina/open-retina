@@ -7,6 +7,7 @@ import hydra
 from omegaconf import DictConfig
 
 from openretina.cli import visualize_model_neurons
+from openretina.utils.file_utils import OPENRETINA_CACHE_DIRECTORY
 
 
 def get_config_path(config_path: str | None):
@@ -27,6 +28,9 @@ class HydraRunner:
 
     @staticmethod
     def train(config_path, args):
+        # check if data.root if in argument, otherwise set it to openretina cache dir
+        if not any("data.root_dir" in x for x in args):
+            args.append(f"data.root_dir='{OPENRETINA_CACHE_DIRECTORY}'")
         # Modify sys.argv to work with Hydra
         sys.argv = [sys.argv[0]] + args
 
