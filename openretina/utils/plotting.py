@@ -564,8 +564,7 @@ def create_roi_animation(
 
         # For each broad type range, assign a base saturation
         saturations = {}
-        for i in range(len(type_boundaries) - 1):
-            start, end = type_boundaries[i], type_boundaries[i + 1]
+        for i, (start, end) in enumerate(zip(type_boundaries, type_boundaries[1:])):
             types_in_range = np.where((cell_types >= start) & (cell_types <= end))[0]
             base_saturation = 0.6 + (i * (0.3 / len(type_boundaries)))  # Vary saturation slightly for each broad type
             for type_idx in types_in_range:
@@ -597,32 +596,25 @@ def create_roi_animation(
         # Create frame image (now in RGB)
         frame_image = np.zeros((*roi_mask.shape, 3))
 
+        # Get the indices to iterate over - either selected ROIs or all neurons
+        indices = range(len(roi_ids)) if roi_ids is not None else range(n_neurons)
+
         # Update each neuron's color based on type and brightness based on activity
-        if roi_ids is not None:
-            for i, roi_id in enumerate(roi_ids):
-                neuron_mask = roi_mask == -roi_id
-                activity_val = activity_normalized[i, frame_idx]
+        for i in indices:
+            # Use roi_ids[i] if provided, otherwise use (i+1) as the ROI ID
+            roi_id = roi_ids[i] if roi_ids is not None else (i + 1)
+            neuron_mask = roi_mask == -roi_id
+            activity_val = activity_normalized[i, frame_idx]
 
-                if cell_types is not None:
-                    # Get pre-computed hue and saturation for this cell type
-                    hue, saturation = color_map[cell_types[i]]
-                    # Convert HSV to RGB
-                    rgb = mcolors.hsv_to_rgb([hue, saturation, activity_val])
-                    frame_image[neuron_mask] = rgb
-                else:
-                    # If no cell types provided, use grayscale
-                    frame_image[neuron_mask] = [activity_val] * 3
-        else:
-            for i in range(n_neurons):
-                neuron_mask = roi_mask == -(i + 1)
-                activity_val = activity_normalized[i, frame_idx]
-
-                if cell_types is not None:
-                    hue, saturation = color_map[cell_types[i]]
-                    rgb = mcolors.hsv_to_rgb([hue, saturation, activity_val])
-                    frame_image[neuron_mask] = rgb
-                else:
-                    frame_image[neuron_mask] = [activity_val] * 3
+            if cell_types is not None:
+                # Get pre-computed hue and saturation for this cell type
+                hue, saturation = color_map[cell_types[i]]
+                # Convert HSV to RGB
+                rgb = mcolors.hsv_to_rgb([hue, saturation, activity_val])
+                frame_image[neuron_mask] = rgb
+            else:
+                # If no cell types provided, use grayscale
+                frame_image[neuron_mask] = [activity_val] * 3
 
         # Display frame
         ax.imshow(frame_image)
@@ -630,19 +622,18 @@ def create_roi_animation(
 
         # Add neuron ID labels if requested
         if visualize_ids:
-            for i in range(n_neurons):
-                if i in centroids:
-                    y, x = centroids[i]
-                    ax.text(
-                        x,
-                        y,
-                        str(i + 1),
-                        color="white",
-                        fontsize=8,
-                        ha="center",
-                        va="center",
-                        path_effects=[path_effects.withStroke(linewidth=2, foreground="black")],
-                    )
+            for i in [x for x in range(n_neurons) if x in centroids]:
+                y, x = centroids[i]
+                ax.text(
+                    x,
+                    y,
+                    str(i + 1),
+                    color="white",
+                    fontsize=8,
+                    ha="center",
+                    va="center",
+                    path_effects=[path_effects.withStroke(linewidth=2, foreground="black")],
+                )
 
         # Redraw canvas to reflect updates
         fig.canvas.draw()

@@ -41,7 +41,7 @@ def optionally_download_from_url(
                         total=total_size // chunk_size,
                         unit="MB",
                         unit_scale=True,
-                        desc=f"Downloading {download_file_name}",
+                        desc=f"Downloading {download_file_name} to {target_download_path}",
                     ) as progress_bar,
                 ):
                     for chunk in response.iter_content(chunk_size=chunk_size):
