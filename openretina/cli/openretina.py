@@ -10,7 +10,7 @@ from openretina.cli import visualize_model_neurons
 from openretina.utils.file_utils import OPENRETINA_CACHE_DIRECTORY
 
 
-def get_config_path(config_path: str | None):
+def get_config_path(config_path: str | None) -> str:
     """Get the absolute path to the configs directory"""
     if config_path is None:
         path = str(Path(__file__).parent.parent.parent / "configs")
@@ -27,7 +27,7 @@ class HydraRunner:
     """Wrapper class to run Hydra commands"""
 
     @staticmethod
-    def train(config_path, args):
+    def train(config_path: str, args: list[str]) -> None:
         # check if data.root if in argument, otherwise set it to openretina cache dir
         if not any("data.root_dir" in x for x in args):
             args.append(f"data.root_dir='{OPENRETINA_CACHE_DIRECTORY}'")
@@ -47,7 +47,7 @@ class HydraRunner:
         _train()
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="OpenRetina CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
