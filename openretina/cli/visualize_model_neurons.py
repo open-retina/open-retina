@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import argparse
 import os
 from functools import partial
@@ -22,20 +20,22 @@ from openretina.insilico.stimulus_optimization.regularizer import (
     RangeRegularizationLoss,
 )
 from openretina.legacy.hoefling_configs import STIMULUS_RANGE_CONSTRAINTS
-from openretina.models.core_readout import CoreReadout, GRUCoreReadout
-from openretina.utils.nnfabrik_model_loading import Center, load_ensemble_retina_model_from_directory
+from openretina.models.core_readout import load_core_readout_model
+from openretina.utils.nnfabrik_model_loading import Center, load_ensemble_model_from_remote
 from openretina.utils.plotting import plot_stimulus_composition, save_stimulus_to_mp4_video
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Visualize most exciting stimuli for each neuron in the model "
-        "and visualize the weights of the model"
+def add_parser_arguments(parser: argparse.ArgumentParser):
+    parser.description = (
+        "Visualize most exciting stimuli for each neuron in the model and visualize the weights of the model."
     )
 
-    parser.add_argument("--model_path", required=True)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--model-path", type=str)
+    group.add_argument("--is-hoefling-ensemble-model", action="store_true")
+
     parser.add_argument(
-        "--save_folder",
+        "--save-folder",
         type=str,
         required=True,
         help="Path were to save outputs",
@@ -44,56 +44,49 @@ def parse_args():
         "--device", type=str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu"
     )
     parser.add_argument(
-        "--model_id",
+        "--model-id",
         type=int,
         default=-1,
         help="If >= 0 load the ensemble model with that model_id, else use torch.load to load the model",
     )
-    parser.add_argument("--is_hoefling_ensemble_model", action="store_true")
     parser.add_argument(
-        "--time_steps_stimulus",
+        "--time-steps-stimulus",
         type=int,
         default=50,
         help="The time steps used in the stimulus to optimize",
     )
     parser.add_argument(
-        "--image_file_format", type=str, default="jpg", help="File format to save the visualization plots in"
+        "--image-file-format", type=str, default="jpg", help="File format to save the visualization plots in"
     )
-
-    return parser.parse_args()
 
 
 def load_model(
-    path: str,
+    path: str | None,
     device: str = "cuda",
     model_id: int = 0,
     do_center_readout: bool = False,
     is_hoefling_ensemble_model: bool = False,
 ):
-    map_location = torch.device(device)
-    if not is_hoefling_ensemble_model:
+    if path is not None:
         # check if the filename contains gru to decide whether to load from the gru name
-        if "gru" in PurePath(path).name.lower():
-            print(f"Initializing lightning GRU model from {path} to {device=}")
-            model: CoreReadout = GRUCoreReadout.load_from_checkpoint(path, map_location=map_location)  # type: ignore
-        else:
-            print(f"Initializing lightning base model from {path} to {device=}")
-            model = CoreReadout.load_from_checkpoint(path, map_location=map_location)  # type: ignore
-    elif model_id < 0:
-        model = torch.load(path, map_location=map_location)
-        print(f"Initialized model using torch.load() from {path}")
-    else:
-        _, ensemble_model = load_ensemble_retina_model_from_directory(path, device)
-        print(f"Initialized ensemble model from {path}")
+        is_gru_model = "gru" in PurePath(path).name.lower()
+        model = load_core_readout_model(path, device, is_gru_model)
+        print(f"Initializing lightning model from {path} to {device=} ({is_gru_model=}")
+    elif is_hoefling_ensemble_model:
+        center_readout = Center(target_mean=(0.0, 0.0)) if do_center_readout else None
+        _, ensemble_model = load_ensemble_model_from_remote(device=device, center_readout=center_readout)
+        print("Initialized ensemble model from remote.")
         model = ensemble_model.members[model_id]
+    else:
+        raise ValueError(
+            f"Either path must be set or is_hoefling_ensemble_model must be True "
+            f"({path=}, {is_hoefling_ensemble_model=})"
+        )
 
-    if do_center_readout and is_hoefling_ensemble_model:
-        center_readout = Center(target_mean=(0.0, 0.0))
-        center_readout(model)
     return model
 
 
-def get_min_max_values_and_norm(num_channels: int) -> tuple[list[tuple], float | None]:
+def _get_min_max_values_and_norm(num_channels: int) -> tuple[list[tuple], float | None]:
     if num_channels == 2:
         min_max_values = [
             (STIMULUS_RANGE_CONSTRAINTS["x_min_green"], STIMULUS_RANGE_CONSTRAINTS["x_max_green"]),
@@ -105,7 +98,7 @@ def get_min_max_values_and_norm(num_channels: int) -> tuple[list[tuple], float |
         return [(None, None)], None
 
 
-def main(
+def visualize_model_neurons(
     model_path: str,
     save_folder: str,
     device: str,
@@ -125,7 +118,7 @@ def main(
 
     stimulus_shape = model.stimulus_shape(time_steps=time_steps_stimulus, num_batches=1)
     response_reducer = SliceMeanReducer(axis=0, start=10, length=10)
-    min_max_values, norm = get_min_max_values_and_norm(stimulus_shape[1])
+    min_max_values, norm = _get_min_max_values_and_norm(stimulus_shape[1])
     stimulus_postprocessor = ChangeNormJointlyClipRangeSeparately(
         min_max_values=min_max_values,
         norm=norm,
@@ -261,8 +254,3 @@ def main(
             os.makedirs(output_dir, exist_ok=True)
             layer.conv.save_weight_visualizations(output_dir, image_file_format)
             print(f"Saved weight visualization at path {output_dir}")
-
-
-if __name__ == "__main__":
-    args = parse_args()
-    main(**vars(args))

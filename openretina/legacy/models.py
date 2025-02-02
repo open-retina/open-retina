@@ -554,6 +554,11 @@ class LocalEncoder(Encoder):
         x = self.readout(x, data_key=data_key)
         return x
 
+    @staticmethod
+    def stimulus_shape(time_steps: int, num_batches: int = 1) -> tuple[int, int, int, int, int]:
+        channels, width, height = 2, 18, 16
+        return num_batches, channels, time_steps, width, height
+
 
 # Batch adaption model
 def SFB3d_core_SxF3d_readout(
