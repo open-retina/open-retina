@@ -16,7 +16,7 @@ GIN_BASE_URL = "https://gin.g-node.org/"
 def optionally_download_from_url(
     base_url: str,
     path: str,
-    cache_folder: str = _DEFAULT_CACHE_DIRECTORY,
+    cache_folder: str | os.PathLike = _DEFAULT_CACHE_DIRECTORY,
 ) -> Path:
     download_file_name = path.split("/")[-1]
     target_download_path = Path(cache_folder) / Path(download_file_name)
