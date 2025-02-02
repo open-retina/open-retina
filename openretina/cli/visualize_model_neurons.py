@@ -31,11 +31,11 @@ def add_parser_arguments(parser: argparse.ArgumentParser):
     )
 
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--model_path", type=str)
-    group.add_argument("--is_hoefling_ensemble_model", action="store_true")
+    group.add_argument("--model-path", type=str)
+    group.add_argument("--is-hoefling-ensemble-model", action="store_true")
 
     parser.add_argument(
-        "--save_folder",
+        "--save-folder",
         type=str,
         required=True,
         help="Path were to save outputs",
@@ -44,19 +44,19 @@ def add_parser_arguments(parser: argparse.ArgumentParser):
         "--device", type=str, choices=["cuda", "cpu"], default="cuda" if torch.cuda.is_available() else "cpu"
     )
     parser.add_argument(
-        "--model_id",
+        "--model-id",
         type=int,
         default=-1,
         help="If >= 0 load the ensemble model with that model_id, else use torch.load to load the model",
     )
     parser.add_argument(
-        "--time_steps_stimulus",
+        "--time-steps-stimulus",
         type=int,
         default=50,
         help="The time steps used in the stimulus to optimize",
     )
     parser.add_argument(
-        "--image_file_format", type=str, default="jpg", help="File format to save the visualization plots in"
+        "--image-file-format", type=str, default="jpg", help="File format to save the visualization plots in"
     )
 
 
