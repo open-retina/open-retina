@@ -9,17 +9,23 @@ from tqdm.auto import tqdm
 
 LOGGER = logging.getLogger(__name__)
 HOME_DIR = str(Path.home())
-OPENRETINA_CACHE_DIRECTORY = os.getenv("OPENRETINA_CACHE_DIRECTORY", os.path.join(HOME_DIR, "openretina_cache"))
 GIN_BASE_URL = "https://gin.g-node.org/"
+
+
+def get_cache_directory() -> str:
+    home_dir = os.path.expanduser("~")
+    return os.getenv("OPENRETINA_CACHE_DIRECTORY", os.path.join(home_dir, "openretina_cache"))
 
 
 @tenacity.retry(stop=tenacity.stop_after_attempt(3), wait=tenacity.wait_exponential(min=10), reraise=True)
 def optionally_download_from_url(
     base_url: str,
     path: str,
-    cache_folder: str | os.PathLike = OPENRETINA_CACHE_DIRECTORY,
+    cache_folder: str | os.PathLike | None = None,
     max_num_directories_in_cache_folder: int = 2,
 ) -> Path:
+    if cache_folder is None:
+        cache_folder = get_cache_directory()
     download_file_name = Path(*Path(path).parts[-max_num_directories_in_cache_folder:])
     target_download_path = Path(cache_folder) / download_file_name
     os.makedirs(Path(target_download_path).parent, exist_ok=True)
@@ -65,7 +71,9 @@ def optionally_download_from_url(
     return target_download_path
 
 
-def get_local_file_path(file_path: str, cache_folder: str | os.PathLike) -> Path:
+def get_local_file_path(file_path: str, cache_folder: str | os.PathLike | None = None) -> Path:
+    if cache_folder is None:
+        cache_folder = get_cache_directory()
     if file_path.startswith(GIN_BASE_URL):
         # gin node
         return optionally_download_from_url(

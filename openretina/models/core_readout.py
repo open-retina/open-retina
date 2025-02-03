@@ -13,7 +13,7 @@ from openretina.modules.core.base_core import Core, SimpleCoreWrapper
 from openretina.modules.core.gru_core import ConvGRUCore
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
 from openretina.modules.readout.multi_readout import MultiGaussianReadoutWrapper
-from openretina.utils.file_utils import OPENRETINA_CACHE_DIRECTORY, get_local_file_path
+from openretina.utils.file_utils import get_cache_directory, get_local_file_path
 
 LOGGER = logging.getLogger(__name__)
 
@@ -302,8 +302,10 @@ class GRUCoreReadout(BaseCoreReadout):
 def load_core_readout_from_remote(
     model_name: str,
     device: str,
-    cache_directory_path: str = OPENRETINA_CACHE_DIRECTORY,
+    cache_directory_path: str | os.PathLike | None = None,
 ) -> BaseCoreReadout:
+    if cache_directory_path is None:
+        cache_directory_path = get_cache_directory()
     if model_name not in _MODEL_NAME_TO_REMOTE_LOCATION:
         raise ValueError(
             f"Model name {model_name} not supported for download yet."
@@ -318,8 +320,13 @@ def load_core_readout_from_remote(
 
 
 def load_core_readout_model(
-    model_path_or_name: str, device: str, is_gru_model: bool, cache_directory_path: str = OPENRETINA_CACHE_DIRECTORY
+    model_path_or_name: str,
+    device: str,
+    is_gru_model: bool,
+    cache_directory_path: str | os.PathLike | None = None,
 ) -> BaseCoreReadout:
+    if cache_directory_path is None:
+        cache_directory_path = get_cache_directory()
     if model_path_or_name in _MODEL_NAME_TO_REMOTE_LOCATION:
         return load_core_readout_from_remote(model_path_or_name, device)
 
