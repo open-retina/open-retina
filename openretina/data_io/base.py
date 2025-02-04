@@ -1,7 +1,7 @@
+import os
 import pickle
 import warnings
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Optional
 
 import numpy as np
@@ -32,15 +32,15 @@ class MoviesTrainTestSplit:
             )
 
     @classmethod
-    def from_pickle(cls, file_path: str | Path):
+    def from_pickle(cls, file_path: str | os.PathLike):
         with open(file_path, "rb") as f:
             movies_dict = pickle.load(f)
         return cls(
             train=movies_dict["train"],
             test=movies_dict["test"],
             random_sequences=movies_dict.get("random_sequences", None),
-            norm_mean=movies_dict.get("movie_stats", {}).get("dichromatic", {}).get("mean", None),
-            norm_std=movies_dict.get("movie_stats", {}).get("dichromatic", {}).get("sd", None),
+            norm_mean=movies_dict.get("movie_stats", {}).get("dichromatic", {}).get("mean", np.array([np.nan])).item(),
+            norm_std=movies_dict.get("movie_stats", {}).get("dichromatic", {}).get("sd", np.array([np.nan])).item(),
         )
 
 

@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import torch
 
@@ -6,7 +8,7 @@ from openretina.data_io.base_dataloader import generate_movie_splits
 from openretina.data_io.hoefling_2024.constants import CLIP_LENGTH, NUM_CLIPS
 
 
-def movies_from_pickle(file_path: str):
+def movies_from_pickle(file_path: str | os.PathLike) -> MoviesTrainTestSplit:
     """
     Load movie data from a pickle file and return it as a MoviesTrainTestSplit object.
     """

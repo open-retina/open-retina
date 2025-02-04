@@ -13,13 +13,14 @@ from openretina.modules.core.base_core import Core, SimpleCoreWrapper
 from openretina.modules.core.gru_core import ConvGRUCore
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
 from openretina.modules.readout.multi_readout import MultiGaussianReadoutWrapper
-from openretina.utils.file_utils import OPENRETINA_CACHE_DIRECTORY, get_local_file_path
+from openretina.utils.file_utils import get_cache_directory, get_local_file_path
 
 LOGGER = logging.getLogger(__name__)
 
 _GIN_MODEL_CHECKPOINTS_BASE_PATH = "https://gin.g-node.org/teulerlab/open-retina/raw/checkpoints/model_checkpoints"
 _MODEL_NAME_TO_REMOTE_LOCATION = {
     "hoefling_2024_base_low_res": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/hoefling_2024_base_low_res.ckpt",
+    "hoefling_2024_base_high_res": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/hoefling_2024_base_high_res.ckpt",
     "karamanlis_2024_gru": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/karamanlis_2024_GRU.ckpt",
     "karamanlis_2024_base": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/karamanlis_2024_base.ckpt",
     "maheswaranathan_2023_gru": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/maheswaranathan_2023_GRU.ckpt",
@@ -44,6 +45,8 @@ class BaseCoreReadout(LightningModule):
         self.learning_rate = learning_rate
         self.loss = loss if loss is not None else PoissonLoss3d()
         self.correlation_loss = correlation_loss if correlation_loss is not None else CorrelationLoss3d(avg=True)
+        if data_info is None:
+            data_info = {}
         self.data_info = data_info
 
     def on_train_epoch_end(self):
@@ -299,8 +302,10 @@ class GRUCoreReadout(BaseCoreReadout):
 def load_core_readout_from_remote(
     model_name: str,
     device: str,
-    cache_directory_path: str = OPENRETINA_CACHE_DIRECTORY,
+    cache_directory_path: str | os.PathLike | None = None,
 ) -> BaseCoreReadout:
+    if cache_directory_path is None:
+        cache_directory_path = get_cache_directory()
     if model_name not in _MODEL_NAME_TO_REMOTE_LOCATION:
         raise ValueError(
             f"Model name {model_name} not supported for download yet."
@@ -315,8 +320,13 @@ def load_core_readout_from_remote(
 
 
 def load_core_readout_model(
-    model_path_or_name: str, device: str, is_gru_model: bool, cache_directory_path: str = OPENRETINA_CACHE_DIRECTORY
+    model_path_or_name: str,
+    device: str,
+    is_gru_model: bool,
+    cache_directory_path: str | os.PathLike | None = None,
 ) -> BaseCoreReadout:
+    if cache_directory_path is None:
+        cache_directory_path = get_cache_directory()
     if model_path_or_name in _MODEL_NAME_TO_REMOTE_LOCATION:
         return load_core_readout_from_remote(model_path_or_name, device)
 
