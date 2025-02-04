@@ -26,7 +26,6 @@ from tqdm.auto import tqdm
 
 from openretina.data_io.hoefling_2024.constants import FRAME_RATE_MODEL
 from openretina.legacy.hoefling_configs import MEAN_STD_DICT_74x64, pre_normalisation_values_18x16
-from openretina.utils.constants import BADEN_TYPE_BOUNDARIES
 from openretina.utils.video_analysis import calculate_fft, decompose_kernel, weighted_main_frequency
 
 # Longer animations
@@ -739,22 +738,3 @@ def display_video(
             display_height=display_height,
             display_width=display_width,
         )
-
-
-def extract_baden_group(value):
-    """
-    Given a cell type value, return the Baden group it belongs to,
-    according to the classification in the Baden et al. 2016 paper.
-    """
-    if value <= BADEN_TYPE_BOUNDARIES[0]:
-        return "OFF"
-    elif value > BADEN_TYPE_BOUNDARIES[0] and value <= BADEN_TYPE_BOUNDARIES[1]:
-        return "ON-OFF"
-    elif value > BADEN_TYPE_BOUNDARIES[1] and value <= BADEN_TYPE_BOUNDARIES[2]:
-        return "fast ON"
-    elif value > BADEN_TYPE_BOUNDARIES[2] and value <= BADEN_TYPE_BOUNDARIES[3]:
-        return "slow ON"
-    elif value > BADEN_TYPE_BOUNDARIES[3] and value <= BADEN_TYPE_BOUNDARIES[4]:
-        return "uncertain RGC"
-    else:
-        return "AC"
