@@ -3,6 +3,7 @@ from copy import deepcopy
 from typing import Literal, Optional, no_type_check
 
 import numpy as np
+import omegaconf
 import torch
 from jaxtyping import Float
 from tqdm.auto import tqdm
@@ -382,7 +383,7 @@ def _clean_up_empty_fields(data_dict, check_field="group_assignment"):
 
 
 def _mask_by_cell_type(data_dict, cell_types: list[int] | int):
-    if not isinstance(cell_types, list):
+    if not (isinstance(cell_types, list) or isinstance(cell_types, omegaconf.listconfig.ListConfig)):
         if isinstance(cell_types, int):
             cell_types = [cell_types]
         else:
