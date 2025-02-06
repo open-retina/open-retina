@@ -16,7 +16,7 @@ wandb
 hydra-core
 omegaconf
 h5py
-opencv-python
+opencv-python-headless
 # Type Checks
 ruff>=0.9
 mypy>=1.0
