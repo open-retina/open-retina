@@ -16,7 +16,7 @@ wandb
 hydra-core
 omegaconf
 h5py
-opencv-python
+opencv-python-headless
 imageio>=2.36
 moviepy>=2.0.0
 # Type Checks
