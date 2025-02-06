@@ -17,6 +17,8 @@ hydra-core
 omegaconf
 h5py
 opencv-python
+imageio>=2.36
+moviepy>=2.0.0
 # Type Checks
 ruff>=0.9
 mypy>=1.0
@@ -25,5 +27,4 @@ types-psutil
 types-tqdm
 types-PyYAML
 types-requests
-imageio>=2.36
-moviepy>=2.0.0
+nbmake
