@@ -34,3 +34,6 @@ jobs:
       - name: Run end to end Tests
         run: make test-corereadout
 
+      - name: Run notebook Tests
+        run: make test-notebooks
+
