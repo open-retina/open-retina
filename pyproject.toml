@@ -12,7 +12,7 @@ authors = [
 ]
 description = "Open source retina model architectures and training setups"
 requires-python = ">=3.10"
-dynamic = ["dependencies"]
+dynamic = ["dependencies", "optional-dependencies"]
 readme = "README.md"
 
 [project.urls]
@@ -28,7 +28,12 @@ find = {exclude = ["tests"]}
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
-optional-dependencies = {dev = { file = ["requirements-dev.txt"] }}
+[tool.setuptools.dynamic.optional-dependencies]
+dev = {file = ["requirements-dev.txt"]}
+# [project.optional-dependencies]
+#dev = [
+#    "neuralpredictors",
+#]
 
 [tool.setuptools.package-data]
 "openretina" = ["py.typed", "configs/*.yaml", "configs/**/*.yaml"]
@@ -36,10 +41,6 @@ optional-dependencies = {dev = { file = ["requirements-dev.txt"] }}
 [project.scripts]
 openretina = "openretina.cli.openretina:main"
 
-[project.optional-dependencies]
-dev = [
-    "neuralpredictors",
-]
 
 [tool.ruff]
 line-length = 120
