@@ -23,7 +23,7 @@ jobs:
       - name: Install openretina with dependencies
         run: |
           pip install --upgrade pip
-          pip install .
+          pip install ".[dev]"
 
       - name: Run unittests
         run: make test-types

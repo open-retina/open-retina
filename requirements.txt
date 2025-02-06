@@ -19,12 +19,3 @@ h5py
 opencv-python-headless
 imageio>=2.36
 moviepy>=2.0.0
-# Type Checks
-ruff>=0.9
-mypy>=1.0
-pytest
-types-psutil
-types-tqdm
-types-PyYAML
-types-requests
-nbmake

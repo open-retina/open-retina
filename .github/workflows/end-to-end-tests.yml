@@ -34,6 +34,11 @@ jobs:
       - name: Run end to end Tests
         run: make test-corereadout
 
+      - name: Install dev dependencies
+        run: |
+          pip install --upgrade pip
+          pip install ".[dev]"
+
       - name: Run notebook Tests
         run: make test-notebooks
 
