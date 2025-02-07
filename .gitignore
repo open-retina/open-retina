@@ -171,6 +171,7 @@ data
 random.ipynb
 *.jpg
 *.pdf
+*.mp4
 figures/
 /models
 reports/
