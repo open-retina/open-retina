@@ -688,7 +688,17 @@ def prepare_video_for_display(
         video_max = video_array.max()
         video_array_normalized = (video_array - video_min) / (video_max - video_min) * 255
         video_array = video_array_normalized.astype(np.uint8)
-    return video_array
+
+    # Ensure width and height are even, cannot display in Safari and Firefox otherwise
+    height, width = video_array.shape[1:3]
+    new_height = height if height % 2 == 0 else height - 1
+    new_width = width if width % 2 == 0 else width - 1
+
+    # Crop if necessary
+    if (height, width) != (new_height, new_width):
+        video_array = video_array[:, :new_height, :new_width, :]
+
+    return video_array.astype(np.uint8)
 
 
 def display_video(
@@ -725,7 +735,7 @@ def display_video(
     """
     if video_save_path is not None and os.path.exists(video_save_path):
         # If save_path already exist, simply display that.
-        display(Video(video_save_path, embed=True, width=display_width, height=display_height))
+        display(Video(video_save_path, embed=True, width=display_width, height=display_height, mimetype="video/mp4"))
     else:
         assert video_array is not None, (
             "Video array to display must be provided without an already existing saved rendering."

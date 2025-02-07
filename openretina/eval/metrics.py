@@ -192,7 +192,7 @@ def explainable_vs_total_var(
     return var_ratio, explainable_var
 
 
-def fev(
+def feve(
     targets: Float[np.ndarray, "frames repeats neurons"],
     predictions: Float[np.ndarray, "frames repeats neurons"] | Float[np.ndarray, "frames neurons"],
 ) -> Float[np.ndarray, " neurons"]:
