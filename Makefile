@@ -28,5 +28,5 @@ test-corereadout:
 	+trainer.limit_train_batches=1 trainer.max_epochs=1 +trainer.limit_val_batches=1 +trainer.limit_test_batches=1 dataloader.batch_size=2
 
 test-notebooks:
-	pytest --nbmake notebooks/mei_example.ipynb notebooks/most_discriminative_stimulus.ipynb
+	pytest --nbmake notebooks/mei_example.ipynb notebooks/most_discriminative_stimulus.ipynb notebooks/hoefling_gradient_analysis.ipynb
 
