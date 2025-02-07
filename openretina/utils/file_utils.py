@@ -32,7 +32,7 @@ def optionally_download_from_url(
 
     # Search for the file in any subdirectory of cache_folder
     existing_files = list(cache_folder.rglob(download_file_name.name))
-    if existing_files:
+    if len(existing_files) > 0:
         existing_file_path = existing_files[0]  # Return the first match
         LOGGER.info(f"Target file for {base_url}/{path} already exists at {existing_file_path.resolve()}.")
         return existing_file_path
@@ -69,11 +69,11 @@ def optionally_download_from_url(
     except KeyboardInterrupt:
         if target_download_path.exists():
             target_download_path.unlink()
-            LOGGER.info(f"Partially downloaded file removed: {target_download_path}")
+            LOGGER.info(f"Partially downloaded file removed due to KeyboardInterrupt: {target_download_path}")
         raise
 
     except Exception as e:
-        LOGGER.error(f"Download failed for {full_url}. Error: {e}")
+        LOGGER.exception(f"Download failed for {full_url}: {e}")
         raise
 
     return target_download_path
