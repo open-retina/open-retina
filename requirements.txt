@@ -19,3 +19,5 @@ h5py
 opencv-python-headless
 imageio>=2.36
 moviepy>=2.0.0
+jupyter
+ipywidgets
