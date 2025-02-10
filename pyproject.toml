@@ -30,10 +30,7 @@ find = {exclude = ["tests"]}
 dependencies = {file = ["requirements.txt"]}
 [tool.setuptools.dynamic.optional-dependencies]
 dev = {file = ["requirements-dev.txt"]}
-# [project.optional-dependencies]
-#dev = [
-#    "neuralpredictors",
-#]
+devmodels = {file = ["requirements-devmodels.txt"]}
 
 [tool.setuptools.package-data]
 "openretina" = ["py.typed", "configs/*.yaml", "configs/**/*.yaml"]
