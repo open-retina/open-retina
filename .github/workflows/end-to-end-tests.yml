@@ -24,7 +24,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/openretina_cache
-          key: openretina_cache_v1
+          key: openretina_cache_v2
 
       - name: Install openretina with dependencies
         run: |
