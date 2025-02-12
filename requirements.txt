@@ -27,3 +27,4 @@ types-PyYAML
 types-requests
 imageio>=2.36
 moviepy>=2.0.0
+huggingface_hub
