@@ -1,0 +1,8 @@
+ruff>=0.9
+mypy>=1.0
+pytest
+types-psutil
+types-tqdm
+types-PyYAML
+types-requests
+nbmake
