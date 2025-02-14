@@ -19,14 +19,14 @@ seed: 42
 check_stimuli_responses_match: false
 
 dataloader:
-  batch_size: 64
+  batch_size: 128
 
 
 model:
   in_shape: [2, 150, 72, 64]
   hidden_channels: [16, 16, 16, 16]
-  temporal_kernel_sizes: [15, 15, 7, 7]
-  spatial_kernel_sizes: [15, 15, 7, 7]
+  temporal_kernel_sizes: [16, 16, 8, 8]
+  spatial_kernel_sizes: [16, 16, 8, 8]
   core_hidden_padding: true
   core_input_padding: true
   cut_first_n_frames_in_core: 30
@@ -34,12 +34,11 @@ model:
   # downsample_input_kernel_size: [1, 4, 4]  # to reproduce 18x16px lowres input
 
 data:
-  data:
-  root_dir: ??? # Choose the location of the root directory for the project  
-  data_dir: ${data.root_dir}/euler_data/ # Modify according to preferred data location  
-  output_dir: ${data.root_dir}/openretina_assets/runs 
-  movies_path: "https://gin.g-node.org/teulerlab/open-retina/raw/master/stimuli/eulerlab/rgc_natstim_72x64_joint_normalized_2024-10-11.pkl"
-  responses_path: "https://gin.g-node.org/teulerlab/open-retina/raw/master/responses/eulerlab/rgc_natstim_2024-08-14.h5"
+  root_dir: null # Choose the location of the root directory for the project  
+  data_dir: ${data.root_dir}/data/ # Modify according to preferred data location  
+  output_dir: ${data.root_dir}/runs/ 
+  movies_path: "https://huggingface.co/datasets/open-retina/open-retina/resolve/main/euler_lab/hoefling_2024/stimuli/rgc_natstim_72x64_joint_normalized_2024-10-11.zip"
+  responses_path: "https://huggingface.co/datasets/open-retina/open-retina/resolve/main/euler_lab/hoefling_2024/responses/rgc_natstim_2024-08-14.zip"
 
 matmul_precision:
   _target_: torch.set_float32_matmul_precision
@@ -52,3 +51,6 @@ trainer:
   gradient_clip_val: 1
   precision: 16-mixed
 
+training_callbacks:
+  early_stopping:
+    patience: 15

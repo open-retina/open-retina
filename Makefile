@@ -23,7 +23,7 @@ fix-all: fix-codestyle fix-formatting
 
 test-corereadout:
 	openretina train --config-path configs --config-name hoefling_2024_core_readout_low_res \
-	data.responses_path=https://gin.g-node.org/teulerlab/open-retina/raw/master/responses/eulerlab/rgc_natsim_subset_only_naturalspikes_2024-08-14.h5 \
+	data.responses_path=https://huggingface.co/datasets/open-retina/open-retina/blob/main/euler_lab/hoefling_2024/responses/rgc_natsim_subset_only_naturalspikes_2024-08-14.h5 \
 	data.output_dir=exp exp_name=test_hoefling_2024_low_res \
 	+trainer.limit_train_batches=1 trainer.max_epochs=1 +trainer.limit_val_batches=1 +trainer.limit_test_batches=1 dataloader.batch_size=2
 

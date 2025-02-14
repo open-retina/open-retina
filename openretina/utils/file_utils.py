@@ -28,6 +28,7 @@ def unzip_and_cleanup(zip_path: Path) -> Path:
     Unzips a file and removes the zip archive.
 
     - If the ZIP contains only one file, extracts directly to the same directory.
+    - If the ZIP contains a single top-level folder named after the ZIP, extracts without duplicating the folder.
     - If it contains multiple files, extracts into a folder named after the ZIP.
     """
     extract_to = zip_path.with_suffix("")
@@ -44,7 +45,11 @@ def unzip_and_cleanup(zip_path: Path) -> Path:
             zip_path.unlink()
             return extracted_file  # Return extracted file path
 
-        # Otherwise, extract into a folder
+        # Check if zip contains a single folder with the same name as the zip
+        top_level_items = {Path(item).parts[0] for item in zip_contents}  # Get unique top-level names
+        if len(top_level_items) == 1 and next(iter(top_level_items)) == extract_to.name:
+            extract_to = zip_path.parent  # Extract directly to parent folder
+
         shutil.unpack_archive(zip_path, extract_to)
         LOGGER.info(f"Extracted files to folder {extract_to.resolve()}.")
 
@@ -175,6 +180,11 @@ def download_file_from_huggingface(file_name: str, local_dir: str | Path | None 
     """Download a single file from the Hugging Face Hub."""
     if local_dir is None:
         local_dir = get_cache_directory()
+    # Check if file already exists, or its un-zipped version
+    existing_path = is_target_present(Path(local_dir), Path(file_name))
+    if existing_path is not None:
+        return existing_path
+
     LOGGER.info(f"Downloading {file_name}...")
     downloaded_file = hf_hub_download(
         repo_id=HUGGINGFACE_REPO_ID,
