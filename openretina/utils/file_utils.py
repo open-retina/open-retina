@@ -224,7 +224,7 @@ def huggingface_download(target_name: str, local_dir: str | Path | None = None, 
             Defaults to True.
 
     Returns:
-        Union[str, Path, None]: Path to the downloaded file or folder. Returns None if no files
+        Path: Path to the downloaded file or folder. Returns None if no files
         are found for the given target_name.
     """
     if local_dir is None:
