@@ -207,24 +207,42 @@ def plot_stimulus_composition(
     temporal_traces_max = 0.0
 
     temporal_kernels = []
-    spatial_kernels_with_padding = []
+    spatial_kernels = []
     for color_idx in range(num_color_channels):
         temporal, spatial, _ = decompose_kernel(stimulus[color_idx])
         temporal_kernels.append(temporal)
-        spatial_kernels_with_padding.append(spatial)
-
-        if color_idx < (num_color_channels - 1):
-            padding = np.ones((spatial.shape[0], 8))
-            spatial_kernels_with_padding.append(padding)
+        spatial_kernels.append(spatial)
 
     # Spatial structure
     spatial_ax.set_title(f"Spatial Component ({'/'.join(color_channel_names_array)})")
     # Create spatial kernel with interleave
 
-    spat = np.concatenate(spatial_kernels_with_padding, axis=1)
+    spat = np.concatenate(spatial_kernels, axis=1)
     abs_max = np.max([abs(spat.max()), abs(spat.min())])
     norm = Normalize(vmin=-abs_max, vmax=abs_max)
     spatial_ax.imshow(spat, cmap="RdBu_r", norm=norm)
+
+    # Loop through each kernel and add a black rectangle around it
+    x_offset = 0
+    for spatial in spatial_kernels:
+        kernel_height, kernel_width = spatial.shape
+        # kernel_width, kernel_height = spatial.shape
+
+        # Add a black box around the kernel
+        rect = Rectangle(
+            (x_offset - 0.5, -0.5),
+            kernel_width,
+            kernel_height,
+            linewidth=2,
+            edgecolor="black",
+            facecolor="none",
+            clip_on=False,  # Ensure the rectangle is not clipped by the axes
+        )
+        spatial_ax.add_patch(rect)
+
+        # Move the x_offset by the width of the current kernel
+        x_offset += kernel_width
+
     # In the low res model the stimulus shape was 18x16 (50 um pixels), for the high-res it is 72x64 (12.5um pixels)
     scale_bar_with = 4 if stimulus.shape[-1] > 20 else 1
     scale_bar = Rectangle(xy=(6, 15), width=scale_bar_with, height=1, color="k", transform=spatial_ax.transData)
