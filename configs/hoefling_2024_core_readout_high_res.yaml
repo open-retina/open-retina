@@ -50,7 +50,3 @@ trainer:
   accumulate_grad_batches: 10
   gradient_clip_val: 1
   precision: 16-mixed
-
-training_callbacks:
-  early_stopping:
-    patience: 15
