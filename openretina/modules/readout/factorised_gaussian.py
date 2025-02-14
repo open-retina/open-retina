@@ -124,7 +124,13 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         res_array.append(children_string)
         return "\n".join(res_array)
 
-    def plot_weight_for_neuron(self, neuron_id: int, axes: tuple[plt.Axes, plt.Axes] | None = None):
+    def plot_weight_for_neuron(
+        self,
+        neuron_id: int,
+        axes: tuple[plt.Axes, plt.Axes] | None = None,
+        add_titles: bool = True,
+        remove_readout_ticks: bool = False,
+    ) -> plt.Figure:
         if axes is None:
             fig_axes_tuple = plt.subplots(ncols=2, figsize=(2 * 6, 6))
             ax_readout, ax_features = fig_axes_tuple[1]  # type: ignore
@@ -136,13 +142,20 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         mask_abs_max = np.absolute(masks).max()
         mask_neuron = masks[neuron_id, :, :]
 
-        ax_readout.set_title("Readout Mask")
         ax_readout.imshow(mask_neuron, interpolation="none", cmap="RdBu_r", norm=Normalize(-mask_abs_max, mask_abs_max))
+        ax_readout.axes.get_xaxis().set_ticks([])
+        ax_readout.axes.get_yaxis().set_ticks([])
 
         features_neuron = features[0, :, 0, neuron_id]
-        ax_features.set_title("Readout Feature Weights")
         ax_features.bar(range(features_neuron.shape[0]), features_neuron)
         ax_features.set_ylim((features.min(), features.max()))
+        if remove_readout_ticks:
+            ax_features.axes.get_xaxis().set_ticks([])
+            ax_features.axes.get_yaxis().set_ticks([])
+
+        if add_titles:
+            ax_readout.set_title("Readout Mask")
+            ax_features.set_title("Readout Feature Weights")
 
         return plt.gcf()
 

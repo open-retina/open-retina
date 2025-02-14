@@ -443,7 +443,7 @@ class SpatialXFeature3d(nn.Module):
             y = F.softplus(y)
         return y
 
-    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg") -> None:
+    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg", add_titles: bool = True, remove_readout_ticks: bool = False) -> None:
         masks = self.get_masks().detach().cpu().numpy()
         mask_abs_max = np.abs(masks).max()
         features = self.features.detach().cpu().numpy()
@@ -453,16 +453,20 @@ class SpatialXFeature3d(nn.Module):
             mask_neuron = masks[:, :, neuron_id]
             fig_axes_tuple = plt.subplots(ncols=2, figsize=(2 * 6, 6))
             axes: list[plt.Axes] = fig_axes_tuple[1]  # type: ignore
-
-            axes[0].set_title("Readout Mask")
             axes[0].imshow(
                 mask_neuron, interpolation="none", cmap="RdBu_r", norm=Normalize(-mask_abs_max, mask_abs_max)
             )
 
             features_neuron = features[0, :, 0, neuron_id]
-            axes[1].set_title("Readout feature weights")
             axes[1].bar(range(features_neuron.shape[0]), features_neuron)
             axes[1].set_ylim((features_min, features_max))
+
+            if add_titles:
+                axes[0].set_title("Readout Mask")
+                axes[1].set_title("Readout feature weights")
+            if remove_readout_ticks:
+                axes[1].axes.get_xaxis().set_ticks([])
+                axes[1].axes.get_yaxis().set_ticks([])
 
             plot_path = f"{folder_path}/neuron_{neuron_id}.{file_format}"
             fig_axes_tuple[0].savefig(plot_path, bbox_inches="tight", facecolor="w", dpi=300)

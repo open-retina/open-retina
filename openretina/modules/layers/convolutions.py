@@ -290,31 +290,48 @@ class STSeparableBatchConv3d(nn.Module):
         cos_trace = self.cos_weights[out_channel, in_channel].detach().cpu().numpy()
         return sin_trace, cos_trace
 
-    def plot_weights(self, in_channel: int, out_channel: int, plot_log_speed: bool = False) -> plt.Figure:
+    def plot_weights(
+        self,
+        in_channel: int,
+        out_channel: int,
+        plot_log_speed: bool = False,
+        add_titles: bool = True,
+        remove_ticks: bool = False,
+        spatial_weight_center_positive: bool = True,
+    ) -> plt.Figure:
         ncols = 4 if plot_log_speed else 3
         fig_axes_tuple = plt.subplots(ncols=ncols, figsize=(ncols * 6, 6))
         fig: plt.Figure = fig_axes_tuple[0]
         axes: list[plt.Axes] = fig_axes_tuple[1]  # type: ignore
-        fig.suptitle(f"Weights for {in_channel=} {out_channel=}")
-        axes[0].set_title("Spatial Weight")
         spatial_weight = self.get_spatial_weight(in_channel, out_channel)
+        temporal_weight, temporal_abs_max = self.get_temporal_weight(in_channel, out_channel)
+        sin_trace, cos_trace = self.get_sin_cos_weights(in_channel, out_channel)
+
+        center_x, center_y = int(spatial_weight.shape[0] / 2), int(spatial_weight.shape[1] / 2)
+        # Optionally make sure the center of the weight matrix is positive
+        if (
+            spatial_weight_center_positive
+            and np.mean(spatial_weight[center_x - 3 : center_x + 2, center_y - 3 : center_y + 2]) < 0
+        ):
+            spatial_weight *= -1
+            temporal_weight *= -1
+            sin_trace *= -1
+            cos_trace *= -1
+
         abs_max = float(self.weight_spatial.detach().abs().max().item())
         im = axes[0].imshow(
             spatial_weight, interpolation="none", cmap="RdBu_r", norm=Normalize(vmin=-abs_max, vmax=abs_max)
         )
-        fig.colorbar(im, orientation="vertical")
-        axes[0].set_axis_off()
+        color_bar = fig.colorbar(im, orientation="vertical")
+        axes[0].axes.get_xaxis().set_ticks([])
+        axes[0].axes.get_yaxis().set_ticks([])
 
-        axes[1].set_title("Temporal Weight")
-        temporal_weight, temporal_abs_max = self.get_temporal_weight(in_channel, out_channel)
         axes[1].set_ylim(-temporal_abs_max, temporal_abs_max)
         axes[1].plot(temporal_weight)
-        sin_trace, cos_trace = self.get_sin_cos_weights(in_channel, out_channel)
         trace_max = max(self.sin_weights.detach().abs().max().item(), self.cos_weights.detach().abs().max().item())
         trace_max *= 1.1
 
         axes[2].set_ylim(-trace_max, trace_max)
-        axes[2].set_title("Sin/Cos Weights")
         axes[2].plot(sin_trace, label="sin")
         axes[2].plot(cos_trace, label="cos")
         axes[2].legend()
@@ -328,6 +345,18 @@ class STSeparableBatchConv3d(nn.Module):
             log_speeds_names = sorted(log_speeds.keys())
             axes[3].bar(log_speeds_names, [log_speeds[n] for n in log_speeds_names])
             axes[3].set_xticklabels(log_speeds_names, rotation=90)
+
+        if add_titles:
+            fig.suptitle(f"Weights for {in_channel=} {out_channel=}")
+            axes[0].set_title("Spatial Weight")
+            axes[1].set_title("Temporal Weight")
+            axes[2].set_title("Sin/Cos Weights")
+
+        if remove_ticks:
+            for ax in axes:
+                ax.axes.get_xaxis().set_ticks([])
+                ax.axes.get_yaxis().set_ticks([])
+            color_bar.set_ticks([])
 
         return fig
 
