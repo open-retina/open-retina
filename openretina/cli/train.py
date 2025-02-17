@@ -23,6 +23,9 @@ def train_model(cfg: DictConfig) -> None:
     log.info("Logging full config:")
     log.info(OmegaConf.to_yaml(cfg))
 
+    if cfg.data.root_dir is None:
+        raise ValueError("Please provide a root_dir for the data in the config file or as a command line argument.")
+
     ### Set cache folder
     os.environ["OPENRETINA_CACHE_FOLDER"] = cfg.data.root_dir
 

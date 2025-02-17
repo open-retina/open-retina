@@ -192,6 +192,8 @@ def download_file_from_huggingface(file_name: str, local_dir: str | Path | None 
     # Check if file already exists, or its un-zipped version
     existing_path = is_target_present(Path(local_dir), Path(file_name))
     if existing_path is not None:
+        if existing_path.suffix == ".zip":
+            return unzip_and_cleanup(existing_path)
         return existing_path
 
     LOGGER.info(f"Downloading {file_name}...")
