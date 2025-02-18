@@ -24,7 +24,7 @@ def train_model(cfg: DictConfig) -> None:
     log.info(OmegaConf.to_yaml(cfg))
 
     ### Set cache folder
-    os.environ["OPENRETINA_CACHE_FOLDER"] = cfg.data.root_dir
+    os.environ["OPENRETINA_CACHE_DIRECTORY"] = cfg.data.root_dir
 
     ### Import data
     movies_dict = hydra.utils.call(cfg.data_io.stimuli)
