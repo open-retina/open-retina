@@ -32,6 +32,7 @@ def unzip_and_cleanup(zip_path: Path) -> Path:
     - If it contains multiple files, extracts into a folder named after the ZIP.
     """
     extract_to = zip_path.with_suffix("")
+    target_path = extract_to
     with zipfile.ZipFile(zip_path, "r") as zf:
         LOGGER.info(f"Extracting {zip_path}...")
         zip_contents = zf.namelist()
@@ -48,13 +49,13 @@ def unzip_and_cleanup(zip_path: Path) -> Path:
         # Check if zip contains a single folder with the same name as the zip
         top_level_items = {Path(item).parts[0] for item in zip_contents}  # Get unique top-level names
         if len(top_level_items) == 1 and next(iter(top_level_items)) == extract_to.name:
-            extract_to = zip_path.parent  # Extract directly to parent folder
+            extract_to = zip_path.parent  # Extract directly to parent folder. Target path to return will stay the same.
 
         shutil.unpack_archive(zip_path, extract_to)
-        LOGGER.info(f"Extracted files to folder {extract_to.resolve()}.")
+        LOGGER.info(f"Extracted files to {target_path.resolve()}.")
 
     zip_path.unlink()
-    return extract_to  # Return extracted folder path
+    return target_path  # Return extracted files path
 
 
 def get_file_size(url: str, response: requests.Response | None = None) -> int:

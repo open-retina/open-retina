@@ -7,6 +7,7 @@ Data: https://doi.org/10.12751/g-node.ejk8kx
 
 import os
 import warnings
+from pathlib import Path
 from typing import Literal
 
 import numpy as np
@@ -14,11 +15,12 @@ from einops import rearrange
 from tqdm.auto import tqdm
 
 from openretina.data_io.base import ResponsesTrainTestSplit
+from openretina.utils.file_utils import get_local_file_path, unzip_and_cleanup
 from openretina.utils.h5_handling import load_dataset_from_h5
 
 
 def load_responses_for_session(
-    session_path: str,
+    session_path: str | os.PathLike,
     stim_type: Literal["fixationmovie", "frozencheckerflicker", "gratingflicker", "imagesequence"],
     fr_normalisation: float,
 ) -> ResponsesTrainTestSplit | None:
@@ -36,6 +38,8 @@ def load_responses_for_session(
     Raises:
         IOError: If multiple relevant files are found.
     """
+    if str(session_path).endswith(".zip"):
+        session_path = unzip_and_cleanup(Path(session_path))
     recording_file_names = [x for x in os.listdir(session_path) if x.endswith(f"{stim_type}_data.mat")]
 
     if len(recording_file_names) == 0:
@@ -79,6 +83,8 @@ def load_all_responses(
 
     Args:
         base_data_path (str | os.PathLike): Base directory containing session data.
+                                            Can also be the path to the "sessions" folder in the huggingface mirror.
+        "https://huggingface.co/datasets/open-retina/open-retina/tree/main/gollisch_lab/karamanlis_2024/sessions"
         stim_type (str): The stimulus type to filter files.
         specie (str): Animal species (e.g., "mouse", "marmoset").
         fr_normalisation (float): Normalization factor for firing rates.
@@ -86,11 +92,13 @@ def load_all_responses(
     Returns:
         dict[str, ResponsesTrainTestSplit]: Dictionary mapping session names to response data.
     """
+    base_data_path = get_local_file_path(str(base_data_path))
+
     responses_all_sessions = {}
     exp_sessions = [
         path
         for path in os.listdir(base_data_path)
-        if os.path.isdir(os.path.join(base_data_path, path)) and specie in path
+        if (os.path.isdir(os.path.join(base_data_path, path)) or path.endswith(".zip")) and specie in path
     ]
 
     assert len(exp_sessions) > 0, (
