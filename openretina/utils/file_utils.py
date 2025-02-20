@@ -128,7 +128,6 @@ def download_file(url: str, target_path: Path):
 def is_target_present(cache_folder: Path, file_name: Path) -> Path | None:
     """Checks if the requested file, an extracted folder, or a single extracted file exists."""
     existing_matches = list(cache_folder.rglob(file_name.stem + "*"))
-
     if len(existing_matches) > 0:
         # Prioritize an exact file match
         for match in existing_matches:
@@ -136,13 +135,16 @@ def is_target_present(cache_folder: Path, file_name: Path) -> Path | None:
                 LOGGER.info(f"Found target file at {match.resolve()}")
                 return match
 
-        # Otherwise, look for valid folders or zip files
+        # Otherwise, look for valid folders, zip files or target files
         for match in existing_matches:
             if match.is_dir():
                 LOGGER.info(f"Found extracted folder at {match.resolve()}")
                 return match
             if match.suffix == ".zip":
                 LOGGER.info(f"Found zip archive at {match.resolve()}")
+                return match
+            if match.is_file() and match.suffix not in [".metadata", ".lock"]:
+                LOGGER.info(f"Found target file at {match.resolve()}")
                 return match
 
     # No matches found, or temp files which are not folders or zip files

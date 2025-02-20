@@ -59,11 +59,9 @@ def train_model(cfg: DictConfig) -> None:
 
     ### Logging
     log.info("Instantiating loggers...")
-    log_folder = os.path.join(cfg.data.output_dir, cfg.exp_name)
-    os.makedirs(log_folder, exist_ok=True)
     logger_array = []
     for _, logger_params in cfg.logger.items():
-        logger = hydra.utils.instantiate(logger_params, save_dir=log_folder)
+        logger = hydra.utils.instantiate(logger_params)
         logger_array.append(logger)
 
     ### Callbacks
