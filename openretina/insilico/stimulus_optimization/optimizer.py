@@ -15,7 +15,7 @@ def optimize_stimulus(
     optimizer_init_fn: Callable[[list[torch.Tensor]], torch.optim.Optimizer],
     objective_object,
     optimization_stopper: OptimizationStopper,
-    stimulus_regularization_loss: StimulusRegularizationLoss | None = None,
+    stimulus_regularization_loss: list[StimulusRegularizationLoss] | StimulusRegularizationLoss | None = None,
     stimulus_postprocessor: StimulusPostprocessor | None = None,
 ) -> None:
     """
@@ -23,6 +23,12 @@ def optimize_stimulus(
     The stimulus is modified in place.
     """
     optimizer = optimizer_init_fn([stimulus])
+    if stimulus_postprocessor is None:
+        stimulus_postprocessor_list = []
+    elif isinstance(stimulus_postprocessor, StimulusPostprocessor):
+        stimulus_postprocessor_list = [stimulus_postprocessor]
+    else:
+        stimulus_postprocessor_list = stimulus_postprocessor
 
     for _ in range(optimization_stopper.max_iterations):
         objective = objective_object.forward(stimulus)
@@ -35,8 +41,8 @@ def optimize_stimulus(
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        if stimulus_postprocessor is not None:
-            stimulus.data = stimulus_postprocessor.process(stimulus.data)
+        for postprocessor in stimulus_postprocessor_list:
+            stimulus.data = postprocessor.process(stimulus.data)
         if optimization_stopper.early_stop(float(loss.item())):
             break
     stimulus.detach_()  # Detach the tensor from the computation graph
