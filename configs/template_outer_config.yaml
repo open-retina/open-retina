@@ -1,6 +1,6 @@
 defaults:
   - data_io: ??? # For new data, create data_io config and put its name here
-  - dataloader: # For new data, create dataloader config and put its name here
+  - dataloader: ??? # For new data, create dataloader config and put its name here
   - model: base_core_readout
   - training_callbacks:
     - early_stopping
@@ -27,6 +27,4 @@ model:
   in_shape: ???
   hidden_channels: ???
   spatial_kernel_sizes: ??? 
-  # Can over-ride further model defaults here. 
-
-
+  # Can over-ride further model defaults here.
