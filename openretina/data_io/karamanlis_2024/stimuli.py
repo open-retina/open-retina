@@ -7,6 +7,7 @@ Data: https://doi.org/10.12751/g-node.ejk8kx
 
 import os
 import warnings
+from pathlib import Path
 from typing import Literal
 
 import numpy as np
@@ -16,11 +17,12 @@ from torchvision.transforms import Resize
 from tqdm.auto import tqdm
 
 from openretina.data_io.base import MoviesTrainTestSplit, normalize_train_test_movies
+from openretina.utils.file_utils import get_local_file_path, unzip_and_cleanup
 from openretina.utils.h5_handling import load_dataset_from_h5
 
 
 def load_stimuli_for_session(
-    session_path: str,
+    session_path: str | os.PathLike,
     stim_type: Literal["fixationmovie", "frozencheckerflicker", "gratingflicker", "imagesequence"],
     downsampled_size: tuple[int, int],
     normalize_stimuli: bool,
@@ -37,6 +39,9 @@ def load_stimuli_for_session(
     Returns:
         MoviesTrainTestSplit | None: Loaded stimuli for the session or None if no relevant file found.
     """
+    if str(session_path).endswith(".zip"):
+        session_path = unzip_and_cleanup(Path(session_path))
+
     mat_file = None
     npz_file = None
     downsample = Resize(downsampled_size)
@@ -73,7 +78,7 @@ def load_stimuli_for_session(
         test_video = downsample(rearrange(test_video, "h w n -> 1 n h w")).cpu().numpy()
 
         train_videos = []
-        for trial in tqdm(running_fixations, desc=f"Composing training video for {mat_file}"):
+        for trial in tqdm(running_fixations, desc=f"Composing training video for {Path(mat_file).parent.name}"):
             train_snippet = return_fix_movie_torch((600, 800), rearrange(train_images, "n x y -> y x n"), trial.T)
             train_videos.append(downsample(rearrange(train_snippet, "h w n -> 1 n h w")))
         train_video = torch.cat(train_videos, dim=1).cpu().numpy()
@@ -115,6 +120,8 @@ def load_all_stimuli(
 
     Args:
         base_data_path (str | os.PathLike): Base directory containing session data.
+                                            Can also be the path to the "sessions" folder in the huggingface mirror.
+        "https://huggingface.co/datasets/open-retina/open-retina/tree/main/gollisch_lab/karamanlis_2024/sessions"
         stim_type (str): The stimulus type to filter files.
         normalize_stimuli (bool): Whether to normalize the stimuli.
         specie (str): Animal species (e.g., "mouse", "marmoset").
@@ -123,11 +130,13 @@ def load_all_stimuli(
     Returns:
         dict[str, MoviesTrainTestSplit]: Dictionary mapping session names to stimulus data.
     """
+    base_data_path = get_local_file_path(str(base_data_path))
+
     stimuli_all_sessions = {}
     exp_sessions = [
         path
         for path in os.listdir(base_data_path)
-        if os.path.isdir(os.path.join(base_data_path, path)) and specie in path
+        if (os.path.isdir(os.path.join(base_data_path, path)) or path.endswith(".zip")) and specie in path
     ]
 
     assert len(exp_sessions) > 0, (

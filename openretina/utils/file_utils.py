@@ -55,7 +55,7 @@ def unzip_and_cleanup(zip_path: Path) -> Path:
         LOGGER.info(f"Extracted files to {target_path.resolve()}.")
 
     zip_path.unlink()
-    return target_path  # Return extracted file path
+    return target_path  # Return extracted files path
 
 
 def get_file_size(url: str, response: requests.Response | None = None) -> int:

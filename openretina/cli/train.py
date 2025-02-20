@@ -27,7 +27,7 @@ def train_model(cfg: DictConfig) -> None:
         raise ValueError("Please provide a root_dir for the data in the config file or as a command line argument.")
 
     ### Set cache folder
-    os.environ["OPENRETINA_CACHE_FOLDER"] = cfg.data.root_dir
+    os.environ["OPENRETINA_CACHE_DIRECTORY"] = cfg.data.root_dir
 
     ### Import data
     movies_dict = hydra.utils.call(cfg.data_io.stimuli)
