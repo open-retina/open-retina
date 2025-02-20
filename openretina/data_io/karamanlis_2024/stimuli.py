@@ -136,11 +136,7 @@ def load_all_stimuli(
     exp_sessions = [
         path
         for path in os.listdir(base_data_path)
-        if (
-            os.path.isdir(os.path.join(base_data_path, path))
-            or str(os.path.join(base_data_path, path)).endswith(".zip")
-        )
-        and specie in path
+        if (os.path.isdir(os.path.join(base_data_path, path)) or path.endswith(".zip")) and specie in path
     ]
 
     assert len(exp_sessions) > 0, (
