@@ -1,6 +1,7 @@
 from collections.abc import Iterable
 from typing import Optional
 
+import einops
 import torch
 import torch.nn.functional as F
 from jaxtyping import Float
@@ -106,8 +107,7 @@ class TemporalGaussianLowPassFilterProcessor(StimulusPostprocessor):
         device: str = "cpu",
     ):
         kernel = _gaussian_1d_kernel(sigma, kernel_size)
-        self._kernel = kernel.unsqueeze(0).unsqueeze(0).unsqueeze(-1).unsqueeze(-1).to(device)
-        self._kernel_size = kernel_size
+        self._kernel = kernel.to(device)
 
     def process(self, x: Float[torch.Tensor, "batch_dim channels time height width"]) -> torch.Tensor:
         """
@@ -119,7 +119,7 @@ class TemporalGaussianLowPassFilterProcessor(StimulusPostprocessor):
             Tensor: The filtered stimulus tensor.
         """
         # Create the Gaussian kernel in the temporal dimension
-        kernel = self._kernel.repeat(x.shape[1], 1, 1, 1, 1).to(x.device)
+        kernel = einops.repeat(self._kernel.to(x.device), "s -> c 1 s 1 1", c=x.shape[1])
 
         # Apply convolution in the temporal dimension (axis 2)
         # We need to ensure that the kernel is convolved only along the time dimension.
