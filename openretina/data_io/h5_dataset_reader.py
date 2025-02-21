@@ -1,7 +1,8 @@
-from typing import Iterable
 import os.path
-import numpy as np
+from typing import Iterable
+
 import h5py
+import numpy as np
 
 from openretina.data_io.base import MoviesTrainTestSplit, normalize_train_test_movies
 
