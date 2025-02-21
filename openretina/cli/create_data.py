@@ -1,14 +1,13 @@
 import argparse
 import os
 import random
-import numpy as np
+
 import h5py
+import numpy as np
 
 
 def add_parser_arguments(parser: argparse.ArgumentParser):
-    parser.description = (
-        "Create artificial data to use for testing openretina and as an example to add new datasets"
-    )
+    parser.description = "Create artificial data to use for testing openretina and as an example to add new datasets"
 
     parser.add_argument(
         "directory",
@@ -39,13 +38,15 @@ def add_parser_arguments(parser: argparse.ArgumentParser):
 
 
 def _generate_response(stimulus: np.ndarray) -> np.ndarray:
-    """ Sum over the stimulus in an area and multiply this sum by a scale and add a bias """
+    """Sum over the stimulus in an area and multiply this sum by a scale and add a bias"""
     num_colors, time_steps, h, w = stimulus.shape
     color_idx = random.randrange(num_colors)
     receptive_field_width = random.randint(1, 5)
     h_loc = random.randrange(0, h)
     w_loc = random.randrange(0, w)
-    stim_rec_field = stimulus[color_idx, :, h_loc:h_loc+receptive_field_width, w_loc:w_loc+receptive_field_width]
+    stim_rec_field = stimulus[
+        color_idx, :, h_loc : h_loc + receptive_field_width, w_loc : w_loc + receptive_field_width
+    ]
     resp = np.sum(stim_rec_field, axis=-1).sum(axis=-1)
     scale = 0.5 + random.random()
     bias = random.random()

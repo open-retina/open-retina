@@ -6,7 +6,7 @@ from pathlib import Path
 import hydra
 from omegaconf import DictConfig
 
-from openretina.cli import visualize_model_neurons, create_data
+from openretina.cli import create_data, visualize_model_neurons
 from openretina.utils.file_utils import get_cache_directory
 
 
