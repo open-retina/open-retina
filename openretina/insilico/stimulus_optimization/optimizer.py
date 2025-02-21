@@ -9,7 +9,7 @@ from openretina.insilico.stimulus_optimization.regularizer import (
     StimulusRegularizationLoss,
 )
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 def convert_to_list(x: list[T] | T | None) -> list[T]:

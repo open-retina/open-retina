@@ -1,11 +1,11 @@
 from functools import partial
 
 import pytest
-
 import torch
+
+from openretina.insilico.stimulus_optimization.objective import AbstractObjective
 from openretina.insilico.stimulus_optimization.optimization_stopper import OptimizationStopper
 from openretina.insilico.stimulus_optimization.optimizer import optimize_stimulus
-from openretina.insilico.stimulus_optimization.objective import AbstractObjective
 
 
 class _SimpleIncreaseObjective(AbstractObjective):

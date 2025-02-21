@@ -1,15 +1,15 @@
 from collections.abc import Iterable
 from typing import Optional
 
-from jaxtyping import Float
 import torch
 import torch.nn.functional as F
+from jaxtyping import Float
 
 
 def _gaussian_1d_kernel(sigma: float, kernel_size: int) -> torch.Tensor:
     """Create a 1D Gaussian kernel."""
     x = torch.arange(kernel_size).float() - kernel_size // 2
-    kernel = torch.exp(-(x ** 2) / (2 * sigma ** 2))
+    kernel = torch.exp(-(x**2) / (2 * sigma**2))
     kernel = kernel / kernel.sum()  # Normalize to ensure the sum is 1
     return kernel
 
@@ -96,14 +96,14 @@ class ChangeNormJointlyClipRangeSeparately(StimulusPostprocessor):
 
 
 class TemporalGaussianLowPassFilterProcessor(StimulusPostprocessor):
-    """ Uses a 1d Gaussian filter to convolve the stimulus over the temporal dimension.
-        This acts as a low pass filter. """
+    """Uses a 1d Gaussian filter to convolve the stimulus over the temporal dimension.
+    This acts as a low pass filter."""
 
     def __init__(
-            self,
-            sigma: float,
-            kernel_size: int,
-            device: str = "cpu",
+        self,
+        sigma: float,
+        kernel_size: int,
+        device: str = "cpu",
     ):
         kernel = _gaussian_1d_kernel(sigma, kernel_size)
         self._kernel = kernel.unsqueeze(0).unsqueeze(0).unsqueeze(-1).unsqueeze(-1).to(device)
@@ -126,4 +126,3 @@ class TemporalGaussianLowPassFilterProcessor(StimulusPostprocessor):
         filtered_stimulus = F.conv3d(x, kernel, padding="same", groups=x.shape[1])
 
         return filtered_stimulus
-
