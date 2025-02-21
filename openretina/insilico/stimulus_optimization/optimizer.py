@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, TypeVar
 
 import torch
 from torch import Tensor
@@ -9,6 +9,17 @@ from openretina.insilico.stimulus_optimization.regularizer import (
     StimulusRegularizationLoss,
 )
 
+T = TypeVar('T')
+
+
+def convert_to_list(x: list[T] | T | None) -> list[T]:
+    if x is None:
+        return []
+    elif isinstance(x, list):
+        return x
+    else:
+        return [x]
+
 
 def optimize_stimulus(
     stimulus: Tensor,
@@ -16,32 +27,26 @@ def optimize_stimulus(
     objective_object,
     optimization_stopper: OptimizationStopper,
     stimulus_regularization_loss: list[StimulusRegularizationLoss] | StimulusRegularizationLoss | None = None,
-    stimulus_postprocessor: StimulusPostprocessor | None = None,
+    stimulus_postprocessor: list[StimulusPostprocessor] | StimulusPostprocessor | None = None,
 ) -> None:
     """
     Optimize a stimulus to maximize a given objective while minimizing a regularizing function.
     The stimulus is modified in place.
     """
     optimizer = optimizer_init_fn([stimulus])
-    if stimulus_postprocessor is None:
-        stimulus_postprocessor_list = []
-    elif isinstance(stimulus_postprocessor, StimulusPostprocessor):
-        stimulus_postprocessor_list = [stimulus_postprocessor]
-    else:
-        stimulus_postprocessor_list = stimulus_postprocessor
 
     for _ in range(optimization_stopper.max_iterations):
         objective = objective_object.forward(stimulus)
         # Maximizing the objective, minimizing the regularization loss
         loss = -objective
-        if stimulus_regularization_loss is not None:
-            regularization_loss = stimulus_regularization_loss.forward(stimulus)
+        for reg_loss_module in convert_to_list(stimulus_regularization_loss):
+            regularization_loss = reg_loss_module.forward(stimulus)
             loss += regularization_loss
 
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        for postprocessor in stimulus_postprocessor_list:
+        for postprocessor in convert_to_list(stimulus_postprocessor):
             stimulus.data = postprocessor.process(stimulus.data)
         if optimization_stopper.early_stop(float(loss.item())):
             break
