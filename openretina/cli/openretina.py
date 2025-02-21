@@ -6,7 +6,7 @@ from pathlib import Path
 import hydra
 from omegaconf import DictConfig
 
-from openretina.cli import visualize_model_neurons
+from openretina.cli import visualize_model_neurons, create_data
 from openretina.utils.file_utils import get_cache_directory
 
 
@@ -60,6 +60,10 @@ def main() -> None:
     visualize_parser = subparsers.add_parser("visualize", help="Visualize a model")
     visualize_model_neurons.add_parser_arguments(visualize_parser)
 
+    # Create data command
+    create_data_parser = subparsers.add_parser("create-data", help="Create artificial data")
+    create_data.add_parser_arguments(create_data_parser)
+
     args, unknown_args = parser.parse_known_args()  # this is an 'internal' method
     command = args.__dict__.pop("command")
 
@@ -69,6 +73,8 @@ def main() -> None:
         if len(unknown_args) > 0:
             print(f"Warn: found the following unknown args: {unknown_args}")
         visualize_model_neurons.visualize_model_neurons(**vars(args))
+    elif command == "create-data":
+        create_data.write_data_to_directory(**vars(args))
     elif command is None:
         parser.print_help()
     else:
