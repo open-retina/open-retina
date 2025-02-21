@@ -330,7 +330,9 @@ def plot_vector_field_resp_iso(
     resp_dict: np.ndarray,
     normalize_response: bool = False,
     rc_dict: dict[str, Any] = {},
-    cmap: str = "hsv",
+    cmap_lines: str = "hot_r",
+    cmap_fill: str = "Greys",
+    n_lines=10,
 ) -> plt.Figure:
     """
     Plots a vector field response with isoresponse lines.
@@ -356,7 +358,7 @@ def plot_vector_field_resp_iso(
     X, Y = np.meshgrid(x, x)
 
     # Define levels for isoresponse lines
-    levels = np.linspace(Z.min(), Z.max(), 25)
+    levels = np.linspace(Z.min(), Z.max(), n_lines)
     # cm = ColorMapper("cool", vmin=gradient_norm_grid.min(),
     #                  vmax=gradient_norm_grid.max())
 
@@ -365,14 +367,14 @@ def plot_vector_field_resp_iso(
 
         # Create a contour plot with isoresponse lines
 
-        plt.contourf(X, Y, Z, levels=levels, cmap=cmap, zorder=200)  # Change cmap to the desired colormap
-        cont_lines = plt.contour(X, Y, Z, levels=levels, cmap="jet_r", zorder=300)
+        plt.contourf(X, Y, Z, levels=levels, cmap=cmap_fill, zorder=200,)  # Change cmap to the desired colormap
+        cont_lines = plt.contour(X, Y, Z, levels=levels, cmap=cmap_lines, zorder=300)
         plt.gca().clabel(
             cont_lines,
             inline=True,
             fmt="%1.0f",
-            levels=list(cont_lines.levels)[::2],
-            colors="k",
+            levels=list(cont_lines.levels),
+            colors="r",
             fontsize=5,
             zorder=400,
         )
