@@ -367,7 +367,14 @@ def plot_vector_field_resp_iso(
 
         # Create a contour plot with isoresponse lines
 
-        plt.contourf(X, Y, Z, levels=levels, cmap=cmap_fill, zorder=200,)  # Change cmap to the desired colormap
+        plt.contourf(
+            X,
+            Y,
+            Z,
+            levels=levels,
+            cmap=cmap_fill,
+            zorder=200,
+        )  # Change cmap to the desired colormap
         cont_lines = plt.contour(X, Y, Z, levels=levels, cmap=cmap_lines, zorder=300)
         plt.gca().clabel(
             cont_lines,
