@@ -31,7 +31,10 @@ jobs:
           pip install --upgrade pip
           pip install .
 
-      - name: Run end to end Tests
+      - name: Run end to end Test: core readout
+        run: make test-corereadout
+
+      - name: Run end to end Test: h5 dataloader core readout
         run: make test-corereadout
 
       - name: Install dev dependencies
