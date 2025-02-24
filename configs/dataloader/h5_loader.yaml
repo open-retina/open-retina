@@ -1,0 +1,7 @@
+_target_: openretina.data_io.base_dataloader.multiple_movies_dataloaders
+_convert_: object # Keep python objects their class and does not convert to DictConfig
+batch_size: 64
+train_chunk_size: 50
+clip_length: 75
+num_val_clips: 20
+allow_over_boundaries: true
