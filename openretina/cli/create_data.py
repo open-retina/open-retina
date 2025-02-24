@@ -55,7 +55,7 @@ def _generate_response(stimulus: np.ndarray) -> np.ndarray:
 
 
 def write_data_to_directory(directory: str, num_colors: int, num_stimuli: int, num_sessions: int):
-    stimulus_shape = (num_colors, 40, 16, 16)
+    stimulus_shape = (num_colors, 50 * 30, 16, 8)
     neurons_per_session = np.random.choice(np.arange(20) + 10, size=num_sessions)
 
     os.makedirs(directory, exist_ok=True)
