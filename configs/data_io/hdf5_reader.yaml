@@ -1,5 +1,5 @@
 # Original videos are 600x800 and need to be downsampled to train models
-video_channels: 3
+color_channels: 3
 video_height: 16
 video_width: 8
 
@@ -18,7 +18,7 @@ stimuli:
   test_names: ${data_io.test_names}
   # Move into general section
   stimulus_size:
-    - ${data_io.video_channels}
+    - ${data_io.color_channels}
     - ${data_io.video_height}
     - ${data_io.video_width}
 

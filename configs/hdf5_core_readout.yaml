@@ -1,6 +1,6 @@
 defaults:
-  - data_io: h5_reader
-  - dataloader: h5_loader
+  - data_io: hdf5_reader
+  - dataloader: hdf5_loader
   - model: base_core_readout
   - training_callbacks:
     - early_stopping
@@ -22,10 +22,9 @@ data:
   data_dir: "test_data"
   output_dir: ${data.root_dir}/openretina_assets/runs
 
-# Overwrite model defaults with specifics for Karamanlis 2024 data format
 model:
   in_shape: 
-    - ${data_io.video_channels}
+    - ${data_io.color_channels}
     - 100
     - ${data_io.video_height} 
     - ${data_io.video_width}

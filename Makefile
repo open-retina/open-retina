@@ -28,8 +28,8 @@ test-corereadout:
 	+trainer.limit_train_batches=1 trainer.max_epochs=1 +trainer.limit_val_batches=1 +trainer.limit_test_batches=1 dataloader.batch_size=2
 
 test-h5train:
-	openretina create-data ./test_data; \
-	openretina train --config-path configs --config-name h5_core_readout \
+	openretina create-data ./test_data --num-colors 3 --num-stimuli 4 --num-sessions 2; \
+	openretina train --config-path configs --config-name hdf5_core_readout \
 	data.root_dir="." \
 	+trainer.limit_train_batches=1 trainer.max_epochs=1 +trainer.limit_val_batches=1 +trainer.limit_test_batches=1 dataloader.batch_size=2
 

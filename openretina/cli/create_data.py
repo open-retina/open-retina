@@ -16,21 +16,21 @@ def add_parser_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
-        "--num_colors",
+        "--num-colors",
         type=int,
         default=3,
         help="Color channels in stimulus",
     )
 
     parser.add_argument(
-        "--num_stimuli",
+        "--num-stimuli",
         type=int,
         default=4,
         help="Color channels in stimulus",
     )
 
     parser.add_argument(
-        "--num_sessions",
+        "--num-sessions",
         type=int,
         default=2,
         help="Number of sessions to generate",
@@ -55,7 +55,7 @@ def _generate_response(stimulus: np.ndarray) -> np.ndarray:
 
 
 def write_data_to_directory(directory: str, num_colors: int, num_stimuli: int, num_sessions: int):
-    stimulus_shape_array = [(num_colors, int(minutes * 30), 16, 8) for minutes in np.arange(30, 30 + num_stimuli)]
+    stimulus_shape_array = [(num_colors, int(t * 120), 16, 8) for t in np.arange(30, 30 + num_stimuli)]
     neurons_per_session = np.random.choice(np.arange(20) + 10, size=num_sessions)
 
     os.makedirs(directory, exist_ok=True)
@@ -70,6 +70,7 @@ def write_data_to_directory(directory: str, num_colors: int, num_stimuli: int, n
         rand_noise = np.random.randn(*stimulus_shape)
         stimuli_map[stim_name] = rand_noise
         np.save(stim_path, rand_noise, allow_pickle=False)
+    print(f"Wrote the following files to the folder {stimuli_folder}: {[x + '.npy' for x in stimuli_map.keys()]}")
 
     # generate responses
     for session_id, num_neurons in enumerate(neurons_per_session):
