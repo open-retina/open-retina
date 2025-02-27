@@ -55,7 +55,7 @@ def _generate_response(stimulus: np.ndarray) -> np.ndarray:
 
 
 def write_data_to_directory(directory: str, num_colors: int, num_stimuli: int, num_sessions: int):
-    stimulus_shape = [(num_colors, minutes * 30, 16, 8) for minutes in np.arange(30, 30+num_stimuli)]
+    stimulus_shape_array = [(num_colors, int(minutes * 30), 16, 8) for minutes in np.arange(30, 30 + num_stimuli)]
     neurons_per_session = np.random.choice(np.arange(20) + 10, size=num_sessions)
 
     os.makedirs(directory, exist_ok=True)
@@ -64,7 +64,7 @@ def write_data_to_directory(directory: str, num_colors: int, num_stimuli: int, n
     os.makedirs(stimuli_folder, exist_ok=True)
 
     stimuli_map = {}
-    for i in range(num_stimuli):
+    for i, stimulus_shape in enumerate(stimulus_shape_array):
         stim_name = f"random_noise_{i}"
         stim_path = os.path.join(stimuli_folder, stim_name)
         rand_noise = np.random.randn(*stimulus_shape)
