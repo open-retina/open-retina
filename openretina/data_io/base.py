@@ -14,7 +14,7 @@ class MoviesTrainTestSplit:
         self,
         train: Float[np.ndarray, "channels train_time height width"],
         test: Float[np.ndarray, "channels test_time height width"]
-        | dict[Float[np.ndarray, "channels train_time height width"]],
+        | dict[str, Float[np.ndarray, "channels train_time height width"]],
         stim_id: Optional[str] = None,
         random_sequences: Optional[np.ndarray] = None,
         norm_mean: Optional[float] = None,
@@ -40,6 +40,7 @@ class MoviesTrainTestSplit:
             if len(test_shapes) > 1:
                 raise ValueError(f"Inconsistent test shapes: {test_shapes=}")
             return next(iter(test_shapes))
+        raise ValueError("No test stimuli present.")
 
     def __post_init__(self):
         assert self.train.ndim == 4, "Train movie should have 4 dimensions."
@@ -83,9 +84,9 @@ class ResponsesTrainTestSplit:
         self,
         train: Float[np.ndarray, "neurons train_time"],
         test: Float[np.ndarray, "neurons test_time"] | dict[str, Float[np.ndarray, "neurons test_time"]],
-        test_by_trial: Optional[Float[np.ndarray, "trials neurons test_time"]] = None,
+        test_by_trial: Float[np.ndarray, "trials neurons test_time"] | None = None,
         stim_id: Optional[str] = None,
-        session_kwargs: dict[str, Any] = None,
+        session_kwargs: dict[str, Any] | None = None,
     ):
         self.train = train
         if isinstance(test, dict):

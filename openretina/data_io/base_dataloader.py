@@ -50,7 +50,7 @@ class MovieDataSet(Dataset):
     def __init__(
         self,
         movies: Float[np.ndarray | torch.Tensor, "n_channels n_frames h w"],
-        responses: Float[np.ndarray, "n_frames n_neurons"],
+        responses: Float[np.ndarray | torch.Tensor, "n_frames n_neurons"],
         roi_ids: Float[np.ndarray, " n_neurons"] | None,
         roi_coords: Float[np.ndarray, "n_neurons 2"] | None,
         group_assignment: Float[np.ndarray, " n_neurons"] | None,
@@ -342,7 +342,7 @@ def get_movie_dataloader(
     """
     if isinstance(responses, torch.Tensor) and bool(torch.isnan(responses).any()):
         print("Nans in responses, skipping this dataloader")
-        return
+        return  # type: ignore
 
     if not allow_over_boundaries and split == "train" and chunk_size > scene_length:
         raise ValueError("Clip chunk size must be smaller than scene length to not exceed clip bounds during training.")
@@ -457,14 +457,14 @@ def get_movie_splits(
     num_clips: int,
     clip_length: int,
 ) -> dict[str, Any]:
-    movie_train_subset, movie_val, movie_test = generate_movie_splits(
+    movie_train_subset, movie_val, movie_test_tensor = generate_movie_splits(
         movie_train, movie_test, val_clip_idx, num_clips, clip_length
     )
 
     movies = {
         "train": movie_train_subset,
         "validation": movie_val,
-        "test_dict": movie_test,
+        "test_dict": movie_test_tensor,
         "val_clip_idx": val_clip_idx,
     }
 
