@@ -18,6 +18,7 @@ RUN echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula sele
     libc6-dev \
     locales \
     make \
+    nasm \
     openssh-client \
     pkg-config \
     ttf-mscorefonts-installer \
