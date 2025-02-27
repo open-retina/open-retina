@@ -25,7 +25,7 @@ def add_parser_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num_stimuli",
         type=int,
-        default=3,
+        default=4,
         help="Color channels in stimulus",
     )
 
@@ -55,7 +55,7 @@ def _generate_response(stimulus: np.ndarray) -> np.ndarray:
 
 
 def write_data_to_directory(directory: str, num_colors: int, num_stimuli: int, num_sessions: int):
-    stimulus_shape = (num_colors, 50 * 30, 16, 8)
+    stimulus_shape = [(num_colors, minutes * 30, 16, 8) for minutes in np.arange(30, 30+num_stimuli)]
     neurons_per_session = np.random.choice(np.arange(20) + 10, size=num_sessions)
 
     os.makedirs(directory, exist_ok=True)

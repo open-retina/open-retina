@@ -3,6 +3,11 @@ video_channels: 3
 video_height: 16
 video_width: 8
 
+test_names: 
+  - "random_noise_2"
+  - "random_noise_3"
+
+
 stimuli:
   _target_: openretina.data_io.h5_dataset_reader.load_stimuli
   _convert_: object
@@ -10,9 +15,8 @@ stimuli:
   mean_std:
     - 0.0
     - 1.0
+  test_names: ${data_io.test_names}
   # Move into general section
-  test_names: 
-    - "random_noise_2"
   stimulus_size:
     - ${data_io.video_channels}
     - ${data_io.video_height}
@@ -23,5 +27,4 @@ responses:
   _target_: openretina.data_io.h5_dataset_reader.load_responses
   _convert_: object
   base_data_path: ${data.data_dir}
-  test_names: 
-    - "random_noise_2"
+  test_names: ${data_io.test_names}
