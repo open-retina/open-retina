@@ -6,3 +6,4 @@ types-tqdm
 types-PyYAML
 types-requests
 nbmake
+jupyterlab
