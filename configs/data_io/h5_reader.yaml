@@ -1,4 +1,5 @@
 # Original videos are 600x800 and need to be downsampled to train models
+video_channels: 3
 video_height: 16
 video_width: 8
 
@@ -6,10 +7,14 @@ stimuli:
   _target_: openretina.data_io.h5_dataset_reader.load_stimuli
   _convert_: object
   base_data_path: ${data.data_dir}
-  normalize_stimuli: true
+  mean_std:
+    - 0.0
+    - 1.0
+  # Move into general section
   test_names: 
     - "random_noise_2"
   stimulus_size:
+    - ${data_io.video_channels}
     - ${data_io.video_height}
     - ${data_io.video_width}
 
