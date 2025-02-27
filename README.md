@@ -1,4 +1,4 @@
-# OpenRetina <img src="assets/openretina_logo.png" align="right" width="120" />
+# OpenRetina <img src="docs/assets/openretina_logo.png" align="right" width="120" />
 
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![mypy](https://img.shields.io/badge/type%20checked-mypy-039dfc)](https://github.com/python/mypy)

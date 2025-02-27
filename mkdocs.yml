@@ -1,0 +1,55 @@
+site_name: OpenRetina Docs
+
+theme:
+  name: "material"
+  palette:
+    # Media queries for color scheme switch
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+
+    - media: "(prefers-color-scheme: light)"
+      scheme: default 
+      primary: white
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+
+  logo: assets/openretina_logo.png
+  favicon: assets/openretina_logo.png
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - search.suggest
+    - navigation.tabs
+    - navigation.path
+    - navigation.prune
+    - navigation.top
+    - navigation.indexes
+
+plugins:
+  - mkdocstrings
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - Package documentation:
+    - package_docs/index.md
+    - Data Input/Output:
+      - Hoefling et al., 2024: package_docs/data_io/hoefling_2024.md
+
+repo_url: https://github.com/open-retina/open-retina
+repo_name: open-retina
