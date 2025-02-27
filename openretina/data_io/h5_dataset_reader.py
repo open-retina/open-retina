@@ -44,20 +44,19 @@ class TrainTestStimuliProcessor:
         self, stimulus_names: Iterable[str], session_specific_stimuli: dict[str, np.ndarray]
     ) -> MoviesTrainTestSplit:
         # Todo: maybe add caching in the future to reduce memory consumption
-        train_stimulus_array, test_stimulus_array = [], []
+        train_stimulus_array, test_stimulus_dict = [], {}
 
         for name in stimulus_names:
             stimulus = session_specific_stimuli.get(name, self._name_to_stimulus[name])
             normalized_stimulus = self._normalize_stimulus(stimulus)
             if name in self._test_stimuli:
-                test_stimulus_array.append(normalized_stimulus)
+                test_stimulus_dict[name] = normalized_stimulus
             else:
                 train_stimulus_array.append(normalized_stimulus)
         # concatenate stimuli over time dimension
         train_stimuli = np.concatenate(train_stimulus_array, axis=1)
-        test_stimuli = np.concatenate(test_stimulus_array, axis=1)
 
-        return MoviesTrainTestSplit(train_stimuli, test_stimuli)
+        return MoviesTrainTestSplit(train_stimuli, test_stimulus_dict)
 
 
 def _check_stimulus_size(
@@ -146,18 +145,23 @@ def load_responses(base_data_path: str, test_names: Iterable[str]) -> dict[str, 
                 [f[x] for x in stimuli_with_responses if x.removeprefix(_RESPONSES_PREFIX) not in test_names_set],
                 axis=-1,
             )
-            test_responses = np.concatenate(
-                [f[x] for x in stimuli_with_responses if x.removeprefix(_RESPONSES_PREFIX) in test_names_set], axis=-1
-            )
+            test_responses_dict = {
+                x.removeprefix(_RESPONSES_PREFIX): np.array(f[x])
+                for x in stimuli_with_responses
+                if x.removeprefix(_RESPONSES_PREFIX) in test_names_set
+            }
 
-            if train_responses.shape[0] != test_responses.shape[0]:
+            test_responses_neurons = {x.shape[0] for x in test_responses_dict.values()}
+            if len(test_responses_neurons | {train_responses.shape[0]}) > 1:
                 raise ValueError(
                     f"Train responses and test responses have a different number of neurons: "
-                    f"{train_responses.shape[0]=} {test_responses.shape[0]=}"
+                    f"{train_responses.shape[0]=} {test_responses_neurons=}"
                 )
             # potentially improve: not sure if that fails for strings or other datatypes
             session_kwargs = {k: np.array(v) for k, v in f.get(_SESSION_INFO_KEY, {}).items()}
 
         session_name = Path(file_name).stem
-        result[session_name] = ResponsesTrainTestSplit(train_responses, test_responses, session_kwargs=session_kwargs)
+        result[session_name] = ResponsesTrainTestSplit(
+            train_responses, test_responses_dict, session_kwargs=session_kwargs
+        )
     return result

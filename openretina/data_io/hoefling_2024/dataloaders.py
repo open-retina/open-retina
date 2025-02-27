@@ -166,7 +166,6 @@ def natmov_dataloaders_v2(
         num_clips=num_clips,
         clip_length=clip_length,
     )
-
     start_indices = gen_start_indices(
         random_sequences, validation_clip_indices, clip_length, train_chunk_size, num_clips
     )

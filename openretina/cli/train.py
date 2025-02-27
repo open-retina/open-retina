@@ -74,13 +74,14 @@ def train_model(cfg: DictConfig) -> None:
 
     ### Trainer init
     log.info(f"Instantiating trainer <{cfg.trainer._target_}>")
-    trainer = hydra.utils.instantiate(cfg.trainer, logger=logger_array, callbacks=callbacks)
+    trainer: lightning.Trainer = hydra.utils.instantiate(cfg.trainer, logger=logger_array, callbacks=callbacks)
     trainer.fit(model=model, train_dataloaders=train_loader, val_dataloaders=valid_loader)
 
     ### Testing
     log.info("Starting testing!")
-    test_loader = ShortCycler(dataloaders["test"])
-    trainer.test(model, dataloaders=[train_loader, valid_loader, test_loader], ckpt_path="best")
+    short_cyclers = [(n, ShortCycler(dl)) for n, dl in dataloaders.items()]
+    log.info(f"Dataloader names: {[x[0] for x in short_cyclers]}")
+    trainer.test(model, dataloaders=[c for _, c in short_cyclers], ckpt_path="best")
 
 
 if __name__ == "__main__":
