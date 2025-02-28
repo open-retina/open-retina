@@ -178,3 +178,5 @@ reports/
 model-cache/
 /exp
 openretina_cache_folder/
+openretina_assets/
+test_data/
