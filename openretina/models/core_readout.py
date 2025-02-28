@@ -250,11 +250,13 @@ class GRUCoreReadout(BaseCoreReadout):
         readout_gamma: float,
         readout_gamma_masks: float = 0.0,
         readout_reg_avg: bool = False,
+        batch_adaptation: bool = False,
         learning_rate: float = 0.01,
         core_gru_kwargs: Optional[dict] = None,
         data_info: dict[str, Any] | None = None,
     ):
         core = ConvGRUCore(  # type: ignore
+            n_neurons_dict=n_neurons_dict,
             input_channels=in_shape[0],
             hidden_channels=hidden_channels,
             temporal_kernel_size=temporal_kernel_sizes,
@@ -271,7 +273,7 @@ class GRUCoreReadout(BaseCoreReadout):
             batch_norm=True,
             batch_norm_scale=True,
             batch_norm_momentum=0.1,
-            batch_adaptation=False,
+            batch_adaptation=batch_adaptation,
             use_avg_reg=False,
             nonlinearity="ELU",
             conv_type="custom_separable",
