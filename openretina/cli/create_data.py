@@ -48,9 +48,10 @@ def _generate_response(stimuli: list[np.ndarray], num_neurons: int) -> list[np.n
     scale = np.random.random(num_neurons) + 0.5
     bias = np.random.random(num_neurons)
     color_idc = np.random.randint(0, num_colors, size=num_neurons)
-    receptive_field_widths = np.random.randint(1, 6, size=num_neurons)
-    h_locations = np.random.randint(0, h, size=num_neurons)
-    w_locations = np.random.randint(0, w, size=num_neurons)
+    receptive_field_widths = np.random.randint(2, 6, size=num_neurons)
+    h_locations = np.random.randint(0, h - 1, size=num_neurons)
+    w_locations = np.random.randint(0, w - 1, size=num_neurons)
+    receptive_field_temporal_widths = np.random.randint(3, 7, size=num_neurons)
 
     responses = []
     for stim in stimuli:
@@ -63,6 +64,7 @@ def _generate_response(stimuli: list[np.ndarray], num_neurons: int) -> list[np.n
                 w_locations[i] : w_locations[i] + receptive_field_widths[i],
             ]
             resp = np.sum(stim_rec_field, axis=-1).sum(axis=-1)
+            resp = np.convolve(resp, np.ones(receptive_field_temporal_widths[i]), mode="same")
             resp_neurons.append(resp)
         resp_neurons_np = np.stack(resp_neurons)
         resp_neurons_np = resp_neurons_np * scale[:, np.newaxis] + bias[:, np.newaxis]
