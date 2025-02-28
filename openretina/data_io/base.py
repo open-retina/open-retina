@@ -79,7 +79,6 @@ class MoviesTrainTestSplit:
         )
 
 
-# @dataclass
 class ResponsesTrainTestSplit:
     def __init__(
         self,
