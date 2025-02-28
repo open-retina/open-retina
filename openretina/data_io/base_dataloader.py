@@ -265,22 +265,17 @@ def handle_missing_start_indices(
     NotImplementedError: If start_indices is None and split is not one of "train", "validation", "val", or "test".
     """
 
-    def get_chunking_interval(split_name):
-        if split_name == "train":
-            assert chunk_size is not None, "Chunk size or start indices must be provided for training."
-            return chunk_size
-        elif split_name in {"validation", "val"}:
-            assert scene_length is not None, "Scene length or start indices must be provided for validation."
-            return scene_length
-        elif split_name == "test":
-            return None
-        else:
-            raise NotImplementedError("Start indices could not be recovered.")
+    if split == "train":
+        assert chunk_size is not None, "Chunk size or start indices must be provided for training."
+        interval = chunk_size
+    elif split in {"validation", "val"}:
+        assert scene_length is not None, "Scene length or start indices must be provided for validation."
+        interval = scene_length
+    elif split == "test":
+        interval = movie_length
+    else:
+        raise NotImplementedError("Start indices could not be recovered.")
 
-    if split == "test":
-        return [0]
-
-    interval = get_chunking_interval(split)
     return np.arange(0, movie_length, interval).tolist()  # type: ignore
 
 
@@ -570,10 +565,10 @@ def multiple_movies_dataloaders(
             dataloaders[name][session_key] = get_movie_dataloader(
                 movie=movie,
                 responses=neuron_data.response_dict_test[name],
-                split=fold,
-                chunk_size=clip_chunk_sizes[fold],
+                split="test",
+                chunk_size=movie.shape[1],
                 batch_size=batch_size,
-                scene_length=movie.shape[0],
+                scene_length=clip_length,
                 allow_over_boundaries=allow_over_boundaries,
             )
 

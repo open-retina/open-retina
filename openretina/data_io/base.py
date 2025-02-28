@@ -29,6 +29,7 @@ class MoviesTrainTestSplit:
         self.random_sequences = random_sequences
         self.norm_mean = norm_mean
         self.norm_std = norm_std
+        self.__post_init__()
 
     @cached_property
     def test_shape(self) -> tuple[int, int, int, int]:
@@ -96,6 +97,7 @@ class ResponsesTrainTestSplit:
         self.test_by_trial = test_by_trial
         self.stim_id = stim_id
         self.session_kwargs = {} if session_kwargs is None else session_kwargs
+        self.__post_init__()
 
     @cached_property
     def test_neurons(self) -> int:

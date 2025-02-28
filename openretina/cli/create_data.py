@@ -35,6 +35,13 @@ def add_parser_arguments(parser: argparse.ArgumentParser):
         help="Number of sessions to generate",
     )
 
+    parser.add_argument(
+        "--clip-length",
+        type=int,
+        default=75,
+        help="The number of frames in each clip",
+    )
+
 
 def _generate_response(stimuli: list[np.ndarray], num_neurons: int) -> list[np.ndarray]:
     """Sum over the stimulus in a different area for each neuron and multiply this sum by a scale and add a bias"""
@@ -73,8 +80,8 @@ def _generate_response(stimuli: list[np.ndarray], num_neurons: int) -> list[np.n
     return responses
 
 
-def write_data_to_directory(directory: str, num_colors: int, num_stimuli: int, num_sessions: int):
-    stimulus_shape_array = [(num_colors, int(t * 120), 16, 8) for t in np.arange(30, 30 + num_stimuli)]
+def write_data_to_directory(directory: str, num_colors: int, num_stimuli: int, num_sessions: int, clip_length: int):
+    stimulus_shape_array = [(num_colors, int(t * clip_length), 16, 8) for t in np.arange(70, 70 + num_stimuli)]
     neurons_per_session = np.random.choice(np.arange(20) + 10, size=num_sessions)
 
     os.makedirs(directory, exist_ok=True)
