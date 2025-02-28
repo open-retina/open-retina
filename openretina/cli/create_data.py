@@ -71,7 +71,8 @@ def _generate_response(stimuli: list[np.ndarray], num_neurons: int) -> list[np.n
                 w_locations[i] : w_locations[i] + receptive_field_widths[i],
             ]
             resp = np.sum(stim_rec_field, axis=-1).sum(axis=-1)
-            resp = np.convolve(resp, np.ones(receptive_field_temporal_widths[i]), mode="same")
+            kernel = np.ones(receptive_field_temporal_widths[i]) / receptive_field_temporal_widths[i]
+            resp = np.convolve(resp, kernel, mode="same")
             resp_neurons.append(resp)
         resp_neurons_np = np.stack(resp_neurons)
         resp_neurons_np = resp_neurons_np * scale[:, np.newaxis] + bias[:, np.newaxis]
