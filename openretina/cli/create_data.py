@@ -1,6 +1,5 @@
 import argparse
 import os
-import random
 
 import h5py
 import numpy as np
@@ -37,21 +36,39 @@ def add_parser_arguments(parser: argparse.ArgumentParser):
     )
 
 
-def _generate_response(stimulus: np.ndarray) -> np.ndarray:
-    """Sum over the stimulus in an area and multiply this sum by a scale and add a bias"""
-    num_colors, time_steps, h, w = stimulus.shape
-    color_idx = random.randrange(num_colors)
-    receptive_field_width = random.randint(1, 5)
-    h_loc = random.randrange(0, h)
-    w_loc = random.randrange(0, w)
-    stim_rec_field = stimulus[
-        color_idx, :, h_loc : h_loc + receptive_field_width, w_loc : w_loc + receptive_field_width
-    ]
-    resp = np.sum(stim_rec_field, axis=-1).sum(axis=-1)
-    scale = 0.5 + random.random()
-    bias = random.random()
-    resp_scaled = resp * scale + bias
-    return resp_scaled
+def _generate_response(stimuli: list[np.ndarray], num_neurons: int) -> list[np.ndarray]:
+    """Sum over the stimulus in a different area for each neuron and multiply this sum by a scale and add a bias"""
+    stimulus_shapes = set((s.shape[0], s.shape[2], s.shape[3]) for s in stimuli)
+    assert len(stimulus_shapes) == 1
+    stimulus_shape = next(iter(stimulus_shapes))
+
+    num_colors, h, w = stimulus_shape
+
+    # first generate neuron scale, bias and receptive field locations
+    scale = np.random.random(num_neurons) + 0.5
+    bias = np.random.random(num_neurons)
+    color_idc = np.random.randint(0, num_colors, size=num_neurons)
+    receptive_field_widths = np.random.randint(1, 6, size=num_neurons)
+    h_locations = np.random.randint(0, h, size=num_neurons)
+    w_locations = np.random.randint(0, w, size=num_neurons)
+
+    responses = []
+    for stim in stimuli:
+        resp_neurons = []
+        for i in range(num_neurons):
+            stim_rec_field = stim[
+                color_idc[i],
+                :,
+                h_locations[i] : h_locations[i] + receptive_field_widths[i],
+                w_locations[i] : w_locations[i] + receptive_field_widths[i],
+            ]
+            resp = np.sum(stim_rec_field, axis=-1).sum(axis=-1)
+            resp_neurons.append(resp)
+        resp_neurons_np = np.stack(resp_neurons)
+        resp_neurons_np = resp_neurons_np * scale[:, np.newaxis] + bias[:, np.newaxis]
+        responses.append(resp_neurons_np)
+
+    return responses
 
 
 def write_data_to_directory(directory: str, num_colors: int, num_stimuli: int, num_sessions: int):
@@ -63,22 +80,23 @@ def write_data_to_directory(directory: str, num_colors: int, num_stimuli: int, n
     stimuli_folder = os.path.join(directory, "stimuli")
     os.makedirs(stimuli_folder, exist_ok=True)
 
-    stimuli_map = {}
+    name_stimulus_list: list[tuple[str, np.ndarray]] = []
     for i, stimulus_shape in enumerate(stimulus_shape_array):
         stim_name = f"random_noise_{i}"
         stim_path = os.path.join(stimuli_folder, stim_name)
         rand_noise = np.random.randn(*stimulus_shape)
-        stimuli_map[stim_name] = rand_noise
+        name_stimulus_list.append((stim_name, rand_noise))
         np.save(stim_path, rand_noise, allow_pickle=False)
-    print(f"Wrote the following files to the folder {stimuli_folder}: {[x + '.npy' for x in stimuli_map.keys()]}")
+    print(f"Wrote the following files to the folder {stimuli_folder}: {[x[0] + '.npy' for x in name_stimulus_list]}")
 
     # generate responses
     for session_id, num_neurons in enumerate(neurons_per_session):
         session_path = os.path.join(directory, f"session_{session_id}.hdf5")
+        stimuli = [x[1] for x in name_stimulus_list]
+        responses = _generate_response(stimuli, num_neurons)
         with h5py.File(session_path, "w") as f:
-            for stim_name, stim in stimuli_map.items():
-                responses = np.stack([_generate_response(stim) for _ in range(num_neurons)])
+            for (stim_name, stim), resp in zip(name_stimulus_list, responses, strict=True):
                 resp_name = f"responses_{stim_name}"
-                f[resp_name] = responses
+                f[resp_name] = resp
             f["session_info/celltypes"] = np.random.choice(40, size=num_neurons)
             print(f"Wrote the following entries to the file {session_path}: {list(f.keys())}")
