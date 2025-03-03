@@ -13,7 +13,7 @@ defaults:
   - hydra: default
   - _self_ # values in this config will overwrite the defaults
 
-exp_name: ??? # Required 
+exp_name: example_experiment_new_data
 seed: 42
 check_stimuli_responses_match: false
 
