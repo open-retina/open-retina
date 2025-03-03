@@ -19,7 +19,7 @@ check_stimuli_responses_match: false
 
 data:
   root_dir: null # Choose the location of the root directory for the project
-  data_dir: ${data.root_dir}/baccus_data/neural_code_data/ganglion_cell_data/
+  data_dir: https://huggingface.co/datasets/open-retina/open-retina/resolve/main/baccus_lab/maheswaranathan_2023/neural_code_data.zip
   output_dir: ${data.root_dir}/openretina_assets/runs
 
 # Overwrite model defaults with specifics for Maheswaranathan 2023 input data format.
