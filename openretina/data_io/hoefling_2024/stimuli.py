@@ -75,8 +75,8 @@ def get_all_movie_combinations(
     """
 
     # Generate train, validation, and test datasets
-    movie_train_subset, movie_val, movie_test = generate_movie_splits(
-        movie_train, movie_test, validation_clip_indices, num_clips, clip_length
+    movie_train_subset, movie_val, movie_test_dict = generate_movie_splits(
+        movie_train, {"test": movie_test}, validation_clip_indices, num_clips, clip_length
     )
 
     # Assemble datasets into the final movies structure using the random sequences
@@ -84,7 +84,7 @@ def get_all_movie_combinations(
         torch.tensor(movie_train, dtype=torch.float),
         movie_train_subset,
         movie_val,
-        movie_test,
+        movie_test_dict["test"],
         random_sequences,
         validation_clip_indices,
         clip_length,
