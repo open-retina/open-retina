@@ -9,3 +9,4 @@ nbmake
 mkdocs
 mkdocstrings[python]
 mkdocs-material
+cairosvg

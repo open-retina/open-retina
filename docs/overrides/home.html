@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <div class="md-content">
+    <article class="md-content__inner md-typeset">
+      <div class="landing-container" style="display: flex; align-items: center; margin-bottom: 2rem;">
+        <img src="assets/openretina_logo.png" width="200" alt="openretina logo" style="margin-right: 2rem;">
+        <h1>Welcome to OpenRetina</h1>
+      </div>
+      
+      <p>Work in progress docs / website.</p>
+      
+      <!-- Additional custom HTML content -->
+
+      <!-- Markdown content from index.md will be rendered here -->
+      {{ page.content }}
+    </article>
+  </div>
+{% endblock %}

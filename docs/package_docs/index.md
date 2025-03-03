@@ -1,2 +1,6 @@
+---
+title: Package documentation
+---
 # Package documentation
-Overview of package documentation tab
+
+In this section of the website you can browse the documentation for function and classes within `openretina`.

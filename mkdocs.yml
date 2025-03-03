@@ -1,7 +1,8 @@
 site_name: OpenRetina Docs
 
 theme:
-  name: "material"
+  name: material
+  custom_dir: docs/overrides
   palette:
     # Media queries for color scheme switch
     - media: "(prefers-color-scheme)"
@@ -38,6 +39,9 @@ theme:
 plugins:
   - mkdocstrings
   - search
+  - social
+
+site_url: https://open-retina.org
 
 markdown_extensions:
   - admonition
@@ -53,3 +57,6 @@ nav:
 
 repo_url: https://github.com/open-retina/open-retina
 repo_name: open-retina
+
+extra_css:
+  - assets/stylesheets/extra.css
