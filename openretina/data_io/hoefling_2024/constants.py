@@ -64,3 +64,30 @@ NUM_CLIPS = 108
 CLIP_LENGTH = 150  # Frames
 
 STIMULI_IDS = {"natural": 5, "chirp": 1, "mb": 2}
+BADEN_TYPE_BOUNDARIES = [9, 14, 20, 28, 32]
+
+
+STIMULUS_RANGE_CONSTRAINTS = {
+    "norm": 30.0,
+    "x_min_green": -0.654,
+    "x_max_green": 6.269,
+    "x_min_uv": -0.913,
+    "x_max_uv": 6.269,
+}
+
+pre_normalisation_values_18x16 = {
+    "channel_0_mean": 37.417128327480455,
+    "channel_0_std": 28.904812895781816,
+    "channel_1_mean": 36.13151406772875,
+    "channel_1_std": 39.84109959857139,
+}
+
+
+MEAN_STD_DICT_74x64 = {
+    "channel_0_mean": 37.19756061097937,
+    "channel_0_std": 30.26892576088715,
+    "channel_1_mean": 36.76101593081903,
+    "channel_1_std": 42.65469417011324,
+    "joint_mean": 36.979288270899204,
+    "joint_std": 36.98463253226166,
+}

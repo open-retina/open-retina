@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
+from openretina.data_io.hoefling_2024.constants import STIMULUS_RANGE_CONSTRAINTS
 from openretina.insilico.stimulus_optimization.objective import (
     IncreaseObjective,
     InnerNeuronVisualizationObjective,
@@ -19,7 +20,6 @@ from openretina.insilico.stimulus_optimization.regularizer import (
     ChangeNormJointlyClipRangeSeparately,
     RangeRegularizationLoss,
 )
-from openretina.legacy.hoefling_configs import STIMULUS_RANGE_CONSTRAINTS
 from openretina.models.core_readout import load_core_readout_model
 from openretina.utils.nnfabrik_model_loading import Center, load_ensemble_model_from_remote
 from openretina.utils.plotting import plot_stimulus_composition, save_stimulus_to_mp4_video

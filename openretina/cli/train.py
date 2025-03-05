@@ -23,6 +23,12 @@ def train_model(cfg: DictConfig) -> None:
     log.info("Logging full config:")
     log.info(OmegaConf.to_yaml(cfg))
 
+    if cfg.data.root_dir is None:
+        raise ValueError("Please provide a root_dir for the data in the config file or as a command line argument.")
+
+    ### Set cache folder
+    os.environ["OPENRETINA_CACHE_DIRECTORY"] = cfg.data.root_dir
+
     ### Import data
     movies_dict = hydra.utils.call(cfg.data_io.stimuli)
     neuron_data_dict = hydra.utils.call(cfg.data_io.responses)
@@ -56,11 +62,9 @@ def train_model(cfg: DictConfig) -> None:
 
     ### Logging
     log.info("Instantiating loggers...")
-    log_folder = os.path.join(cfg.data.output_dir, cfg.exp_name)
-    os.makedirs(log_folder, exist_ok=True)
     logger_array = []
     for _, logger_params in cfg.logger.items():
-        logger = hydra.utils.instantiate(logger_params, save_dir=log_folder)
+        logger = hydra.utils.instantiate(logger_params)
         logger_array.append(logger)
 
     ### Callbacks

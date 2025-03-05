@@ -15,6 +15,7 @@ core_input_padding: false
 core_hidden_padding: true
 core_use_gru: false
 core_use_projections: true
+batch_adaptation: false
 
 # GRU-specific arguments. GRU is applied before the readout.
 core_gru_kwargs:

@@ -28,9 +28,6 @@ class HydraRunner:
 
     @staticmethod
     def train(config_path: str, args: list[str]) -> None:
-        # check if data.root if in argument, otherwise set it to openretina cache dir
-        if not any("data.root_dir" in x for x in args):
-            args.append(f"data.root_dir='{get_cache_directory()}'")
         # Modify sys.argv to work with Hydra
         sys.argv = [sys.argv[0]] + args
 
@@ -41,6 +38,10 @@ class HydraRunner:
         )
         def _train(cfg: DictConfig) -> None:
             from openretina.cli.train import train_model  # Import actual training function
+
+            # Check if root_dir is set or left as none, in which case we set it to the cache directory
+            if cfg.data.root_dir is None:
+                cfg.data.root_dir = get_cache_directory()
 
             train_model(cfg)
 
