@@ -2,6 +2,9 @@
 template: home.html
 title: OpenRetina
 homepage: true
+hide:
+  - navigation
+  - toc
 ---
 
 !!! example
@@ -18,4 +21,48 @@ Quisque lobortis magna enim, id vehicula eros tempus non. Mauris tempor iaculis 
 
 Ut cursus scelerisque fringilla. Praesent id fermentum nisi, quis tempus sapien. Pellentesque tempor risus eu posuere aliquam. Vestibulum mi metus, bibendum eget auctor mollis, commodo ut dui. Ut ultricies lobortis nulla, sed feugiat magna ultrices vitae. Mauris dignissim, dolor at efficitur finibus, ex neque auctor velit, vitae convallis mauris est quis velit. Sed et venenatis justo, sit amet facilisis dui. Phasellus enim tortor, tempor at accumsan sed, sagittis nec nulla.
 
-Duis sit amet lacus ac ex sagittis dapibus. Integer tincidunt in tortor id ornare. Pellentesque vitae purus sed dui vehicula laoreet at quis elit. Praesent congue mi in molestie suscipit. Aenean nec nunc sed lectus egestas vehicula. Phasellus fringilla eros malesuada neque faucibus, sit amet feugiat orci porta. Sed interdum eu diam sit amet imperdiet. Morbi quis arcu quis mauris blandit semper vel ut ligula. 
+Duis sit amet lacus ac ex sagittis dapibus. Integer tincidunt in tortor id ornare. Pellentesque vitae purus sed dui vehicula laoreet at quis elit. Praesent congue mi in molestie suscipit. Aenean nec nunc sed lectus egestas vehicula. Phasellus fringilla eros malesuada neque faucibus, sit amet feugiat orci porta. Sed interdum eu diam sit amet imperdiet. Morbi quis arcu quis mauris blandit semper vel ut ligula.
+
+<div class="grid cards" markdown>
+
+-   :material-clock-fast:{ .lg .middle } __Set up in 5 minutes__
+
+    ---
+
+    Installation instructions here.
+
+    [:octicons-arrow-right-24: Getting started](#)
+
+-   :simple-animalplanet:{ .lg .middle } __Cross species__
+
+    ---
+
+    Some philosophy explanation here.
+
+    [:octicons-arrow-right-24: Reference](#)
+
+-   :fontawesome-solid-people-group:{ .lg .middle } __Collaborative__
+
+    ---
+
+    Call to collab here.
+
+    [:octicons-arrow-right-24: Customization](#)
+
+-   :material-scale-balance:{ .lg .middle } __Open Source__
+
+    ---
+
+    Something about open-source philosophy here.
+
+    [:octicons-arrow-right-24: License](#)
+
+-   :material-view-module:{ .lg .middle} __Modular__
+  
+    ---
+
+    Something about keeping it modular and going hybrid here.
+    
+    [:octicons-arrow-right-24: Something](#)
+
+</div>

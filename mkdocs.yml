@@ -43,10 +43,17 @@ plugins:
 
 site_url: https://open-retina.org
 
+site_description: "todo fallback site description"
+
 markdown_extensions:
   - admonition
   - pymdownx.details
   - pymdownx.superfences
+  - attr_list
+  - md_in_html
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
 
 nav:
   - Home: index.md
@@ -54,6 +61,7 @@ nav:
     - package_docs/index.md
     - Data Input/Output:
       - Hoefling et al., 2024: package_docs/data_io/hoefling_2024.md
+  - FAQs: faq.md
 
 repo_url: https://github.com/open-retina/open-retina
 repo_name: open-retina
