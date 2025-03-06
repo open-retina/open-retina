@@ -1,0 +1,40 @@
+defaults:
+  - data_io: hdf5_reader
+  - dataloader: hdf5_loader
+  - model: base_core_readout
+  - training_callbacks:
+    - early_stopping
+    - lr_monitor
+    - model_checkpoint
+  - logger:
+    - tensorboard
+    - csv
+  - trainer: default_deterministic
+  - hydra: default
+  - _self_ # values in this config will overwrite the defaults
+
+exp_name: h5_core_readout
+seed: 42
+check_stimuli_responses_match: true
+
+data:
+  root_dir: null # Choose the location of the root directory for the project
+  data_dir: "test_data"
+  output_dir: ${hydra:runtime.output_dir} # Modify in the "hydra/default.yaml" config
+
+model:
+  in_shape: 
+    - ${data_io.color_channels}
+    - 100
+    - ${data_io.video_height} 
+    - ${data_io.video_width}
+  hidden_channels: [8, 8, 8]
+  spatial_kernel_sizes: [8, 8, 8]
+  temporal_kernel_sizes: [8, 8, 8]
+  core_hidden_padding: true
+
+trainer:
+  max_epochs: 50
+  accumulate_grad_batches: 1
+  gradient_clip_val: 1
+  precision: 16-mixed
