@@ -52,6 +52,7 @@ class MoviesTrainTestSplit:
             return next(iter(test_shapes))
         raise ValueError("No test stimuli present.")
 
+    @property
     def test_movie(self) -> np.ndarray:
         if len(self.test_dict) > 1:
             raise ValueError(f"Multiple test responses present: {list(self.test_dict.keys())}")
@@ -128,6 +129,7 @@ class ResponsesTrainTestSplit:
     def n_neurons(self) -> int:
         return self.train.shape[0]
 
+    @property
     def test_response(self) -> Float[np.ndarray, "neurons test_time"]:
         if len(self.test_dict) > 1:
             raise ValueError(f"Multiple test stimuli: {list(self.test_dict.keys())}")
