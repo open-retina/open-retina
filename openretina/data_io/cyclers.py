@@ -64,7 +64,6 @@ class ShortCycler(torch.utils.data.IterableDataset):
 
     def __init__(self, loaders: dict[str, DataLoader]):
         self.loaders = loaders
-        self.name = "Foobar"
 
     def _get_keys(self) -> list[str]:
         sorted_keys = sorted(self.loaders.keys())

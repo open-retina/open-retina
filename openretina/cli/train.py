@@ -79,6 +79,7 @@ def train_model(cfg: DictConfig) -> None:
     log.info("Starting testing!")
     short_cyclers = [(n, ShortCycler(dl)) for n, dl in dataloaders.items()]
     log.info(f"Dataloader names: {[x[0] for x in short_cyclers]}")
+    breakpoint()
     trainer.test(model, dataloaders=[c for _, c in short_cyclers], ckpt_path="best")
 
 

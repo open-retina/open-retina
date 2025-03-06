@@ -25,19 +25,20 @@ class TrainTestStimuliProcessor:
         self,
         test_stimuli: Iterable[str],
         name_to_stimulus: dict[str, np.ndarray],
-        mean_std: tuple[float, float] | None,
+        norm_mean: float | None,
+        norm_std: float | None,
         train_stimuli: Iterable[str] | None = None,
     ):
         self._test_stimuli = set(test_stimuli)
         self._name_to_stimulus = name_to_stimulus
-        self._mean_std = (0.0, 1.0) if mean_std is None else mean_std
+        self._norm_mean = 0.0 if norm_mean is None else norm_mean
+        self._norm_std = 1.0 if norm_std is None else norm_std
         self._train_stimuli = set(train_stimuli) if train_stimuli is not None else None
 
     def _normalize_stimulus(self, stimulus: np.ndarray) -> np.ndarray:
         # Using pytorch is faster than numpy
         stimulus_tensor = torch.tensor(stimulus, dtype=torch.float32)
-        mean, std = self._mean_std
-        normalized_tensor = (stimulus_tensor - mean) / std
+        normalized_tensor = (stimulus_tensor - self._norm_mean) / self._norm_std
         return normalized_tensor.detach().numpy()
 
     def process(
@@ -84,7 +85,8 @@ def load_stimuli(
     base_data_path: str,
     test_names: Iterable[str],
     stimulus_size: list[int],
-    mean_std: tuple[float, float] | None,
+    norm_mean: float | None,
+    norm_std: float | None,
 ) -> dict[str, MoviesTrainTestSplit]:
     if not os.path.isdir(base_data_path):
         raise ValueError(f"{base_data_path=} is not a directory.")
@@ -108,7 +110,7 @@ def load_stimuli(
         LOGGER.warning(f"Did not find {stimulus_folder=}")
 
     result = {}
-    stimulus_processor = TrainTestStimuliProcessor(test_stimuli_names, name_to_stimulus, mean_std)
+    stimulus_processor = TrainTestStimuliProcessor(test_stimuli_names, name_to_stimulus, norm_mean, norm_std)
     # build MoviesTrainTestSplit for each session
     for file_name in [x for x in os.listdir(base_data_path) if x.endswith(".h5") or x.endswith(".hdf5")]:
         h5_path = os.path.join(base_data_path, file_name)
