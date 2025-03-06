@@ -1,6 +1,7 @@
 import os
 import pickle
 import warnings
+from dataclasses import InitVar, dataclass, field
 from functools import cached_property
 from typing import Any, Optional
 
@@ -9,41 +10,24 @@ import torch
 from jaxtyping import Float
 
 
+@dataclass(frozen=True)
 class MoviesTrainTestSplit:
-    def __init__(
-        self,
-        train: Float[np.ndarray, "channels train_time height width"],
-        test: Float[np.ndarray, "channels test_time height width"]
-        | dict[str, Float[np.ndarray, "channels train_time height width"]],
-        stim_id: Optional[str] = None,
-        random_sequences: Optional[np.ndarray] = None,
-        norm_mean: Optional[float] = None,
-        norm_std: Optional[float] = None,
-    ):
-        self.train = train
-        if isinstance(test, dict):
-            self._test = test
-        else:
-            self._test = {"test": test}
-        self.stim_id = stim_id
-        self.random_sequences = random_sequences
-        self.norm_mean = norm_mean
-        self.norm_std = norm_std
-        self.__post_init__()
+    train: Float[np.ndarray, "channels train_time height width"]
+    # test_dict: dict[str, Float[np.ndarray, "channels train_time height width"]]
+    # (dataclass complains about unsupported value type when using full annotation)
+    test_dict: dict = field(default_factory=lambda: {})
+    test: InitVar[Float[np.ndarray, "channels test_time height width"] | None] = None
+    stim_id: Optional[str] = None
+    random_sequences: Optional[np.ndarray] = None
+    norm_mean: Optional[float] = None
+    norm_std: Optional[float] = None
 
-    @cached_property
-    def test_shape(self) -> tuple[int, int, int, int]:
-        for n, t in self._test.items():
-            if t.ndim != 4:
-                raise ValueError(f"Test stimulus {n} is not 4 dimensional: {t.shape}")
-            max_temp_dim = max(t.shape[1] for t in self._test.values())
-            test_shapes = {(t.shape[0], max_temp_dim, t.shape[2], t.shape[3]) for t in self._test.values()}
-            if len(test_shapes) > 1:
-                raise ValueError(f"Inconsistent test shapes: {test_shapes=}")
-            return next(iter(test_shapes))
-        raise ValueError("No test stimuli present.")
+    def __post_init__(self, test: Float[np.ndarray, "channels test_time height width"] | None):
+        if (len(self.test_dict) == 0) == (test is None):
+            raise ValueError(f"Exactly one of test_dict and test should be set, but {test=} {self.test_dict=}.")
+        if len(self.test_dict) == 0:
+            self.test_dict["test"] = test
 
-    def __post_init__(self):
         assert self.train.ndim == 4, "Train movie should have 4 dimensions."
         assert len(self.test_shape) == 4, "Test movie should have 4 dimensions."
         assert self.train.shape[0] == self.test_shape[0], "Channel dimension does not match in train and test movies."
@@ -56,15 +40,22 @@ class MoviesTrainTestSplit:
                 stacklevel=2,
             )
 
-    @property
-    def test(self) -> np.ndarray:
-        if len(self._test) > 1:
-            raise ValueError(f"Multiple test responses present: {list(self._test.keys())}")
-        return self._test[next(iter(self._test.keys()))]
+    @cached_property
+    def test_shape(self) -> tuple[int, int, int, int]:
+        for n, t in self.test_dict.items():
+            if t.ndim != 4:
+                raise ValueError(f"Test stimulus {n} is not 4 dimensional: {t.shape}")
+            max_temp_dim = max(t.shape[1] for t in self.test_dict.values())
+            test_shapes = {(t.shape[0], max_temp_dim, t.shape[2], t.shape[3]) for t in self.test_dict.values()}
+            if len(test_shapes) > 1:
+                raise ValueError(f"Inconsistent test shapes: {test_shapes=}")
+            return next(iter(test_shapes))
+        raise ValueError("No test stimuli present.")
 
-    @property
-    def test_dict(self) -> dict[str, np.ndarray]:
-        return self._test
+    def test_movie(self) -> np.ndarray:
+        if len(self.test_dict) > 1:
+            raise ValueError(f"Multiple test responses present: {list(self.test_dict.keys())}")
+        return self.test_dict[next(iter(self.test_dict.keys()))]
 
     @classmethod
     def from_pickle(cls, file_path: str | os.PathLike):
@@ -79,36 +70,23 @@ class MoviesTrainTestSplit:
         )
 
 
+@dataclass
 class ResponsesTrainTestSplit:
-    def __init__(
-        self,
-        train: Float[np.ndarray, "neurons train_time"],
-        test: Float[np.ndarray, "neurons test_time"] | dict[str, Float[np.ndarray, "neurons test_time"]],
-        test_by_trial: Float[np.ndarray, "trials neurons test_time"] | None = None,
-        stim_id: Optional[str] = None,
-        session_kwargs: dict[str, Any] | None = None,
-    ):
-        self.train = train
-        if isinstance(test, dict):
-            self._test = test
-        else:
-            self._test = {"test": test}
-        self.test_by_trial = test_by_trial
-        self.stim_id = stim_id
-        self.session_kwargs = {} if session_kwargs is None else session_kwargs
-        self.__post_init__()
+    train: Float[np.ndarray, "neurons train_time"]
+    # test_dict: dict[str, Float[np.ndarray, "neurons test_time"]]
+    # (dataclass complains about unsupported value type when using full annotation)
+    test_dict: dict = field(default_factory=lambda: {})
+    test: InitVar[Float[np.ndarray, "neurons test_time"] | None] = None
+    test_by_trial: Float[np.ndarray, "trials neurons test_time"] | None = None
+    stim_id: str | None = None
+    session_kwargs: dict[str, Any] = field(default_factory=lambda: {})
 
-    @cached_property
-    def test_neurons(self) -> int:
-        for name, t in self._test.items():
-            if t.ndim != 2:
-                raise ValueError(f"Test responses for {name=} are not two dimensions: {t.shape}")
-        test_neurons = set(x.shape[0] for x in self._test.values())
-        if len(test_neurons) > 1:
-            raise ValueError(f"Test responses have inconsistent number of neurons: {test_neurons=}")
-        return next(iter(test_neurons))
+    def __post_init__(self, test):
+        if (len(self.test_dict) == 0) == (test is None):
+            raise ValueError(f"Exactly one of test_dict and test should be set, but {test=} {self.test_dict=}.")
+        if len(self.test_dict) == 0:
+            self.test_dict["test"] = test
 
-    def __post_init__(self):
         assert self.train.shape[0] == self.test_neurons, (
             "Train and test responses should have the same number of neurons."
         )
@@ -119,6 +97,16 @@ class ResponsesTrainTestSplit:
                 category=UserWarning,
                 stacklevel=2,
             )
+
+    @cached_property
+    def test_neurons(self) -> int:
+        for name, t in self.test_dict.items():
+            if t.ndim != 2:
+                raise ValueError(f"Test responses for {name=} are not two dimensions: {t.shape}")
+        test_neurons = set(x.shape[0] for x in self.test_dict.values())
+        if len(test_neurons) > 1:
+            raise ValueError(f"Test responses have inconsistent number of neurons: {test_neurons=}")
+        return next(iter(test_neurons))
 
     def check_matching_stimulus(self, movies: MoviesTrainTestSplit):
         assert self.train.shape[1] == movies.train.shape[1], (
@@ -140,15 +128,10 @@ class ResponsesTrainTestSplit:
     def n_neurons(self) -> int:
         return self.train.shape[0]
 
-    @property
-    def test(self) -> np.ndarray:
-        if len(self._test) > 1:
-            raise ValueError(f"Multiple test stimuli: {list(self._test.keys())}")
-        return self._test[next(iter(self._test.keys()))]
-
-    @property
-    def test_dict(self) -> dict[str, np.ndarray]:
-        return self._test
+    def test_response(self) -> Float[np.ndarray, "neurons test_time"]:
+        if len(self.test_dict) > 1:
+            raise ValueError(f"Multiple test stimuli: {list(self.test_dict.keys())}")
+        return self.test_dict[next(iter(self.test_dict.keys()))]
 
 
 def get_n_neurons_per_session(responses_dict: dict[str, ResponsesTrainTestSplit]) -> dict[str, int]:
