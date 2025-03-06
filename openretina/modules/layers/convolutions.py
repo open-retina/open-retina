@@ -323,8 +323,6 @@ class STSeparableBatchConv3d(nn.Module):
             spatial_weight, interpolation="none", cmap="RdBu_r", norm=Normalize(vmin=-abs_max, vmax=abs_max)
         )
         color_bar = fig.colorbar(im, orientation="vertical")
-        axes[0].axes.get_xaxis().set_ticks([])
-        axes[0].axes.get_yaxis().set_ticks([])
 
         axes[1].set_ylim(-temporal_abs_max, temporal_abs_max)
         axes[1].plot(temporal_weight)
@@ -354,8 +352,8 @@ class STSeparableBatchConv3d(nn.Module):
 
         if remove_ticks:
             for ax in axes:
-                ax.axes.get_xaxis().set_ticks([])
-                ax.axes.get_yaxis().set_ticks([])
+                ax.get_xaxis().set_ticks([])
+                ax.get_yaxis().set_ticks([])
             color_bar.set_ticks([])
 
         return fig
