@@ -147,7 +147,7 @@ def natmov_dataloaders_v2(
     clip_chunk_sizes = {
         "train": train_chunk_size,
         "validation": clip_length,
-        "test": movies_dictionary.test.shape[1],
+        "test": movies_dictionary.test_movie.shape[1],
     }
     dataloaders: dict[str, dict[str, DataLoader]] = {"train": {}, "validation": {}, "test": {}}
 
@@ -160,13 +160,12 @@ def natmov_dataloaders_v2(
 
     movies = get_all_movie_combinations(
         movies_dictionary.train,
-        movies_dictionary.test,
+        movies_dictionary.test_movie,
         random_sequences,
         validation_clip_indices=validation_clip_indices,
         num_clips=num_clips,
         clip_length=clip_length,
     )
-
     start_indices = gen_start_indices(
         random_sequences, validation_clip_indices, clip_length, train_chunk_size, num_clips
     )

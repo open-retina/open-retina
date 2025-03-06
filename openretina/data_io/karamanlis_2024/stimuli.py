@@ -104,7 +104,8 @@ def load_stimuli_for_session(
         test=test_video,
         stim_id=stim_type,
         random_sequences=None,
-        **norm_dict,
+        norm_mean=norm_dict["norm_mean"],
+        norm_std=norm_dict["norm_std"],
     )
 
 

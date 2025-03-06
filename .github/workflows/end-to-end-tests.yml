@@ -31,8 +31,11 @@ jobs:
           pip install --upgrade pip
           pip install .
 
-      - name: Run end to end Tests
+      - name: Core readout hoefling subset
         run: make test-corereadout
+
+      - name: Core readout h5 dataloader
+        run: make test-h5train
 
       - name: Install dev dependencies
         run: |

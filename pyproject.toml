@@ -36,7 +36,7 @@ devmodels = {file = ["requirements-devmodels.txt"]}
 "openretina" = ["py.typed", "configs/*.yaml", "configs/**/*.yaml"]
 
 [project.scripts]
-openretina = "openretina.cli.openretina:main"
+openretina = "openretina.cli.openretina_main:main"
 
 
 [tool.ruff]

@@ -23,6 +23,9 @@ def train_model(cfg: DictConfig) -> None:
     log.info("Logging full config:")
     log.info(OmegaConf.to_yaml(cfg))
 
+    if cfg.data.root_dir is None:
+        raise ValueError("Please provide a root_dir for the data in the config file or as a command line argument.")
+
     ### Set cache folder
     os.environ["OPENRETINA_CACHE_DIRECTORY"] = cfg.data.root_dir
 
@@ -72,13 +75,15 @@ def train_model(cfg: DictConfig) -> None:
 
     ### Trainer init
     log.info(f"Instantiating trainer <{cfg.trainer._target_}>")
-    trainer = hydra.utils.instantiate(cfg.trainer, logger=logger_array, callbacks=callbacks)
+    trainer: lightning.Trainer = hydra.utils.instantiate(cfg.trainer, logger=logger_array, callbacks=callbacks)
     trainer.fit(model=model, train_dataloaders=train_loader, val_dataloaders=valid_loader)
 
     ### Testing
     log.info("Starting testing!")
-    test_loader = ShortCycler(dataloaders["test"])
-    trainer.test(model, dataloaders=[train_loader, valid_loader, test_loader], ckpt_path="best")
+    short_cyclers = [(n, ShortCycler(dl)) for n, dl in dataloaders.items()]
+    dataloader_mapping = {f"DataLoader {i}": x[0] for i, x in enumerate(short_cyclers)}
+    log.info(f"Dataloader mapping: {dataloader_mapping}")
+    trainer.test(model, dataloaders=[c for _, c in short_cyclers], ckpt_path="best")
 
 
 if __name__ == "__main__":

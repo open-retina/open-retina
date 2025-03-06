@@ -27,6 +27,12 @@ test-corereadout:
 	data.output_dir=exp exp_name=test_hoefling_2024_low_res \
 	+trainer.limit_train_batches=1 trainer.max_epochs=1 +trainer.limit_val_batches=1 +trainer.limit_test_batches=1 dataloader.batch_size=2
 
+test-h5train:
+	openretina create-data ./test_data --num-colors 3 --num-stimuli 4 --num-sessions 2; \
+	openretina train --config-path configs --config-name hdf5_core_readout \
+	data.root_dir="." \
+	+trainer.limit_train_batches=1 trainer.max_epochs=1 +trainer.limit_val_batches=1 +trainer.limit_test_batches=1 dataloader.batch_size=2
+
 test-notebooks:  # ignore demo notebook and training notebooks as they only run fast on GPU
 	pytest --nbmake --ignore-glob="notebooks/training*" notebooks/
 

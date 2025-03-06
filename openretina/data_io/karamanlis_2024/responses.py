@@ -87,7 +87,7 @@ def load_all_responses(
         "https://huggingface.co/datasets/open-retina/open-retina/tree/main/gollisch_lab/karamanlis_2024/sessions"
         stim_type (str): The stimulus type to filter files.
         specie (str): Animal species (e.g., "mouse", "marmoset").
-        fr_normalisation (float): Normalization factor for firing rates.
+        fr_normalization (float): Normalization factor for firing rates.
 
     Returns:
         dict[str, ResponsesTrainTestSplit]: Dictionary mapping session names to response data.

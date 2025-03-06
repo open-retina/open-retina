@@ -70,7 +70,7 @@ class NeuronDataSplitHoefling:
 
         self.responses_train_and_val, self.responses_test, self.test_responses_by_trial = (
             self.neural_responses.train.T,
-            self.neural_responses.test.T,
+            self.neural_responses.test_response.T,
             self.neural_responses.test_by_trial.transpose(0, 2, 1)
             if self.neural_responses.test_by_trial is not None
             else None,
