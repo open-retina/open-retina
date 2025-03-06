@@ -481,8 +481,8 @@ def multiple_movies_dataloaders(
     """
     Create multiple dataloaders for training, validation, and testing from given neuron and movie data.
     This function ensures that the neuron data and movie data are aligned and generates dataloaders for each session.
-    It does not make assumptions about the movies in different sessions to be the same, the same length,composed
-    from the same clips or in the same order.
+    It does not make assumptions about the movies in different sessions to be the same, the same length, composed
+    of the same clips or in the same order.
 
     Args:
         neuron_data_dictionary (dict[str, ResponsesTrainTestSplit]):

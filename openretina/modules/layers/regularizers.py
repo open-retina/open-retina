@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # Laplace filters
-LAPLACE_1D = np.array([-1, 4, -1]).astype(np.float32)[None, None, ...]
+LAPLACE_1D = np.array([-1, 2, -1]).astype(np.float32)[None, None, ...]
 LAPLACE_3x3 = np.array([[0, -1, 0], [-1, 4, -1], [0, -1, 0]]).astype(np.float32)[None, None, ...]
 LAPLACE_5x5 = np.array(
     [

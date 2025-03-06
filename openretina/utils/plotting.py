@@ -24,8 +24,11 @@ from moviepy import ImageSequenceClip
 from scipy.ndimage import center_of_mass
 from tqdm.auto import tqdm
 
-from openretina.data_io.hoefling_2024.constants import FRAME_RATE_MODEL
-from openretina.legacy.hoefling_configs import MEAN_STD_DICT_74x64, pre_normalisation_values_18x16
+from openretina.data_io.hoefling_2024.constants import (
+    FRAME_RATE_MODEL,
+    MEAN_STD_DICT_74x64,
+    pre_normalisation_values_18x16,
+)
 from openretina.utils.video_analysis import calculate_fft, decompose_kernel, weighted_main_frequency
 
 # Longer animations
@@ -204,24 +207,42 @@ def plot_stimulus_composition(
     temporal_traces_max = 0.0
 
     temporal_kernels = []
-    spatial_kernels_with_padding = []
+    spatial_kernels = []
     for color_idx in range(num_color_channels):
         temporal, spatial, _ = decompose_kernel(stimulus[color_idx])
         temporal_kernels.append(temporal)
-        spatial_kernels_with_padding.append(spatial)
-
-        if color_idx < (num_color_channels - 1):
-            padding = np.ones((spatial.shape[0], 8))
-            spatial_kernels_with_padding.append(padding)
+        spatial_kernels.append(spatial)
 
     # Spatial structure
     spatial_ax.set_title(f"Spatial Component ({'/'.join(color_channel_names_array)})")
     # Create spatial kernel with interleave
 
-    spat = np.concatenate(spatial_kernels_with_padding, axis=1)
+    spat = np.concatenate(spatial_kernels, axis=1)
     abs_max = np.max([abs(spat.max()), abs(spat.min())])
     norm = Normalize(vmin=-abs_max, vmax=abs_max)
     spatial_ax.imshow(spat, cmap="RdBu_r", norm=norm)
+
+    # Loop through each kernel and add a black rectangle around it
+    x_offset = 0
+    for spatial in spatial_kernels:
+        kernel_height, kernel_width = spatial.shape
+        # kernel_width, kernel_height = spatial.shape
+
+        # Add a black box around the kernel
+        rect = Rectangle(
+            (x_offset - 0.5, -0.5),
+            kernel_width,
+            kernel_height,
+            linewidth=2,
+            edgecolor="black",
+            facecolor="none",
+            clip_on=False,  # Ensure the rectangle is not clipped by the axes
+        )
+        spatial_ax.add_patch(rect)
+
+        # Move the x_offset by the width of the current kernel
+        x_offset += kernel_width
+
     # In the low res model the stimulus shape was 18x16 (50 um pixels), for the high-res it is 72x64 (12.5um pixels)
     scale_bar_with = 4 if stimulus.shape[-1] > 20 else 1
     scale_bar = Rectangle(xy=(6, 15), width=scale_bar_with, height=1, color="k", transform=spatial_ax.transData)
@@ -309,7 +330,9 @@ def plot_vector_field_resp_iso(
     resp_dict: np.ndarray,
     normalize_response: bool = False,
     rc_dict: dict[str, Any] = {},
-    cmap: str = "hsv",
+    cmap_lines: str = "hot_r",
+    cmap_fill: str = "Greys",
+    n_lines=10,
 ) -> plt.Figure:
     """
     Plots a vector field response with isoresponse lines.
@@ -335,7 +358,7 @@ def plot_vector_field_resp_iso(
     X, Y = np.meshgrid(x, x)
 
     # Define levels for isoresponse lines
-    levels = np.linspace(Z.min(), Z.max(), 25)
+    levels = np.linspace(Z.min(), Z.max(), n_lines)
     # cm = ColorMapper("cool", vmin=gradient_norm_grid.min(),
     #                  vmax=gradient_norm_grid.max())
 
@@ -344,14 +367,21 @@ def plot_vector_field_resp_iso(
 
         # Create a contour plot with isoresponse lines
 
-        plt.contourf(X, Y, Z, levels=levels, cmap=cmap, zorder=200)  # Change cmap to the desired colormap
-        cont_lines = plt.contour(X, Y, Z, levels=levels, cmap="jet_r", zorder=300)
+        plt.contourf(
+            X,
+            Y,
+            Z,
+            levels=levels,
+            cmap=cmap_fill,
+            zorder=200,
+        )  # Change cmap to the desired colormap
+        cont_lines = plt.contour(X, Y, Z, levels=levels, cmap=cmap_lines, zorder=300)
         plt.gca().clabel(
             cont_lines,
             inline=True,
             fmt="%1.0f",
-            levels=list(cont_lines.levels)[::2],
-            colors="k",
+            levels=list(cont_lines.levels),
+            colors="r",
             fontsize=5,
             zorder=400,
         )
@@ -688,7 +718,17 @@ def prepare_video_for_display(
         video_max = video_array.max()
         video_array_normalized = (video_array - video_min) / (video_max - video_min) * 255
         video_array = video_array_normalized.astype(np.uint8)
-    return video_array
+
+    # Ensure width and height are even, cannot display in Safari and Firefox otherwise
+    height, width = video_array.shape[1:3]
+    new_height = height if height % 2 == 0 else height - 1
+    new_width = width if width % 2 == 0 else width - 1
+
+    # Crop if necessary
+    if (height, width) != (new_height, new_width):
+        video_array = video_array[:, :new_height, :new_width, :]
+
+    return video_array.astype(np.uint8)
 
 
 def display_video(
@@ -725,7 +765,7 @@ def display_video(
     """
     if video_save_path is not None and os.path.exists(video_save_path):
         # If save_path already exist, simply display that.
-        display(Video(video_save_path, embed=True, width=display_width, height=display_height))
+        display(Video(video_save_path, embed=True, width=display_width, height=display_height, mimetype="video/mp4"))
     else:
         assert video_array is not None, (
             "Video array to display must be provided without an already existing saved rendering."

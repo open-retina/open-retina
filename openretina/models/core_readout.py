@@ -18,13 +18,16 @@ from openretina.utils.file_utils import get_cache_directory, get_local_file_path
 LOGGER = logging.getLogger(__name__)
 
 _GIN_MODEL_CHECKPOINTS_BASE_PATH = "https://gin.g-node.org/teulerlab/open-retina/raw/checkpoints/model_checkpoints"
+_HUGGINGFACE_CHECKPOINTS_BASE_PATH = (
+    "https://huggingface.co/datasets/open-retina/open-retina/tree/main/model_checkpoints"
+)
 _MODEL_NAME_TO_REMOTE_LOCATION = {
-    "hoefling_2024_base_low_res": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/hoefling_2024_base_low_res.ckpt",
-    "hoefling_2024_base_high_res": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/hoefling_2024_base_high_res.ckpt",
-    "karamanlis_2024_gru": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/karamanlis_2024_GRU.ckpt",
-    "karamanlis_2024_base": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/karamanlis_2024_base.ckpt",
-    "maheswaranathan_2023_gru": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/maheswaranathan_2023_GRU.ckpt",
-    "maheswaranathan_2023_base": f"{_GIN_MODEL_CHECKPOINTS_BASE_PATH}/24-01-2025/maheswaranathan_2023_base.ckpt",
+    "hoefling_2024_base_low_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/hoefling_2024_base_low_res.ckpt",
+    "hoefling_2024_base_high_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/hoefling_2024_base_high_res.ckpt",
+    "karamanlis_2024_gru": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/karamanlis_2024_GRU.ckpt",
+    "karamanlis_2024_base": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/karamanlis_2024_base.ckpt",
+    "maheswaranathan_2023_gru": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/maheswaranathan_2023_GRU.ckpt",
+    "maheswaranathan_2023_base": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/maheswaranathan_2023_base.ckpt",
 }
 
 
@@ -95,7 +98,7 @@ class BaseCoreReadout(LightningModule):
 
         return loss
 
-    def test_step(self, batch: tuple[str, DataPoint], batch_idx: int, dataloader_idx) -> torch.Tensor:
+    def test_step(self, batch: tuple[str, DataPoint], batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
         session_id, data_point = batch
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
@@ -161,19 +164,19 @@ class CoreReadout(BaseCoreReadout):
         temporal_kernel_sizes: Iterable[int],
         spatial_kernel_sizes: Iterable[int],
         n_neurons_dict: dict[str, int],
-        core_gamma_input: float,
-        core_gamma_hidden: float,
-        core_gamma_in_sparse: float,
-        core_gamma_temporal: float,
-        core_input_padding: bool,
-        core_hidden_padding: bool,
-        readout_scale: bool,
-        readout_bias: bool,
-        readout_gaussian_masks: bool,
-        readout_gaussian_mean_scale: float,
-        readout_gaussian_var_scale: float,
-        readout_positive: bool,
-        readout_gamma: float,
+        core_gamma_input: float = 0.0,
+        core_gamma_hidden: float = 0.0,
+        core_gamma_in_sparse: float = 0.0,
+        core_gamma_temporal: float = 40.0,
+        core_input_padding: bool = False,
+        core_hidden_padding: bool = True,
+        readout_scale: bool = True,
+        readout_bias: bool = True,
+        readout_gaussian_masks: bool = True,
+        readout_gaussian_mean_scale: float = 6.0,
+        readout_gaussian_var_scale: float = 4.0,
+        readout_positive: bool = True,
+        readout_gamma: float = 0.4,
         readout_gamma_masks: float = 0.0,
         readout_reg_avg: bool = False,
         learning_rate: float = 0.01,
@@ -247,11 +250,13 @@ class GRUCoreReadout(BaseCoreReadout):
         readout_gamma: float,
         readout_gamma_masks: float = 0.0,
         readout_reg_avg: bool = False,
+        batch_adaptation: bool = False,
         learning_rate: float = 0.01,
         core_gru_kwargs: Optional[dict] = None,
         data_info: dict[str, Any] | None = None,
     ):
         core = ConvGRUCore(  # type: ignore
+            n_neurons_dict=n_neurons_dict,
             input_channels=in_shape[0],
             hidden_channels=hidden_channels,
             temporal_kernel_size=temporal_kernel_sizes,
@@ -268,7 +273,7 @@ class GRUCoreReadout(BaseCoreReadout):
             batch_norm=True,
             batch_norm_scale=True,
             batch_norm_momentum=0.1,
-            batch_adaptation=False,
+            batch_adaptation=batch_adaptation,
             use_avg_reg=False,
             nonlinearity="ELU",
             conv_type="custom_separable",

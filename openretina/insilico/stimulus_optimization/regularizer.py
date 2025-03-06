@@ -1,7 +1,18 @@
 from collections.abc import Iterable
 from typing import Optional
 
+import einops
 import torch
+import torch.nn.functional as F
+from jaxtyping import Float
+
+
+def _gaussian_1d_kernel(sigma: float, kernel_size: int) -> torch.Tensor:
+    """Create a 1D Gaussian kernel."""
+    x = torch.arange(kernel_size).float() - kernel_size // 2
+    kernel = torch.exp(-(x**2) / (2 * sigma**2))
+    kernel = kernel / kernel.sum()  # Normalize to ensure the sum is 1
+    return kernel
 
 
 class StimulusRegularizationLoss:
@@ -83,3 +94,35 @@ class ChangeNormJointlyClipRangeSeparately(StimulusPostprocessor):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._norm=}, {self._min_max_values=})"
+
+
+class TemporalGaussianLowPassFilterProcessor(StimulusPostprocessor):
+    """Uses a 1d Gaussian filter to convolve the stimulus over the temporal dimension.
+    This acts as a low pass filter."""
+
+    def __init__(
+        self,
+        sigma: float,
+        kernel_size: int,
+        device: str = "cpu",
+    ):
+        kernel = _gaussian_1d_kernel(sigma, kernel_size)
+        self._kernel = kernel.to(device)
+
+    def process(self, x: Float[torch.Tensor, "batch_dim channels time height width"]) -> torch.Tensor:
+        """
+        Apply a Gaussian low-pass filter to the stimulus tensor along the temporal dimension.
+
+        Arguments:
+            x (Tensor): Tensor of shape (batch_dim, channels, time_dim, height, width)
+        Returns:
+            Tensor: The filtered stimulus tensor.
+        """
+        # Create the Gaussian kernel in the temporal dimension
+        kernel = einops.repeat(self._kernel.to(x.device), "s -> c 1 s 1 1", c=x.shape[1])
+
+        # Apply convolution in the temporal dimension (axis 2)
+        # We need to ensure that the kernel is convolved only along the time dimension.
+        filtered_stimulus = F.conv3d(x, kernel, padding="same", groups=x.shape[1])
+
+        return filtered_stimulus

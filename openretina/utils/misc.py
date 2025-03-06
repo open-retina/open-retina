@@ -10,6 +10,7 @@ import sys
 from typing import Iterable, Union
 
 import numpy as np
+import omegaconf
 import requests
 import torch
 import yaml
@@ -101,6 +102,9 @@ class CustomPrettyPrinter(pprint.PrettyPrinter):
             # Print the dataset name instead of the DataLoader object
             stream.write(f"torch.utils.data.DataLoader(Dataset: {object.dataset})")
             self.current_line += 1
+        elif isinstance(object, omegaconf.DictConfig):
+            # Convert the OmegaConf object to a dictionary and print it
+            self._format(omegaconf.OmegaConf.to_container(object), stream, indent, allowance, context, level)
         elif hasattr(object, "_fields"):
             # Namedtuple: print type and fields
             stream.write(f"{type(object).__name__}(")
