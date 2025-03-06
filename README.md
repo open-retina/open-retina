@@ -1,4 +1,4 @@
-# OpenRetina <img src="assets/openretina_logo.png" align="right" width="120" />
+# OpenRetina <img src="https://raw.githubusercontent.com/open-retina/open-retina/7aacfa64267930f787b16f24e4bc17047f285c25/assets/openretina_logo.png" align="right" width="120" />
 
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![mypy](https://img.shields.io/badge/type%20checked-mypy-039dfc)](https://github.com/python/mypy)
@@ -12,6 +12,13 @@ Open-source repository containing neural network models of the retina.
 The models in this repository are inspired by and partially contain adapted code of [sinzlab/neuralpredictors](https://github.com/sinzlab/neuralpredictors).
 
 ## Installation
+
+For development and to have access to Jupyter notebooks:
+```
+git clone git@github.com:open-retina/open-retina.git
+cd open-retina
+pip install -e .
+```
 
 For normal usage:
 
@@ -28,13 +35,7 @@ model = load_core_readout_from_remote("hoefling_2024_base_low_res", "cpu")
 responses = model.forward(torch.rand(model.stimulus_shape(time_steps=50)))
 ```
 
-For development and to have access to Jupyter notebooks:
-```
-git clone git@github.com:open-retina/open-retina.git
-cd open-retina
-pip install -e .
-```
-
+## Contributing
 Before raising a PR please run:
 ```
 # Fix formatting of python files
@@ -59,27 +60,12 @@ The openretina package is structured as follows:
 
 ## Related papers
 
-The model in `openretina/hoefling_2024` was developed in the paper [A chromatic feature detector in the retina signals visual context changes](https://elifesciences.org/articles/86860) and can be cited as:
+The Core + Readout model was developed in the paper [A chromatic feature detector in the retina signals visual context changes](https://elifesciences.org/articles/86860) and can be cited as.
 
-```
-@article {10.7554/eLife.86860,
-article_type = {journal},
-title = {A chromatic feature detector in the retina signals visual context changes},
-author = {Höfling, Larissa and Szatko, Klaudia P and Behrens, Christian and Deng, Yuyao and Qiu, Yongrong and Klindt, David Alexander and Jessen, Zachary and Schwartz, Gregory W and Bethge, Matthias and Berens, Philipp and Franke, Katrin and Ecker, Alexander S and Euler, Thomas},
-editor = {Rieke, Fred and Smith, Lois EH and Rieke, Fred and Baccus, Stephen A and Wei, Wei},
-volume = 13,
-year = 2024,
-month = {oct},
-pub_date = {2024-10-04},
-pages = {e86860},
-citation = {eLife 2024;13:e86860},
-doi = {10.7554/eLife.86860},
-url = {https://doi.org/10.7554/eLife.86860},
-keywords = {retina, computational modelling, visual ecology, convolutional neural networks, 2P imaging, natural stimuli},
-journal = {eLife},
-issn = {2050-084X},
-publisher = {eLife Sciences Publications, Ltd},
-}
-```
+All datasets are shared under a CC-BY Share-Alike license, and we acknowledge and credit the original sources below:
+- hoefling_2024: Originally published by Höfling et al. (2024), eLife: [A chromatic feature detector in the retina signals visual context changes](https://doi.org/10.7554/eLife.86860).
+- karamanlis_2024: Originally published by Karamanlis et al. (2024), Nature: [Nonlinear receptive fields evoke redundant retinal coding of natural scenes](https://doi.org/10.1038/s41586-024-08212-3)
+- maheswaranathan_2023: Originally published by Maheswaranathan et al. (2023), Neuron: [Interpreting the retinal neural code for natural scenes: From computations to neurons](https://doi.org/10.1016/j.neuron.2023.06.007)
 
-The paper [Most discriminative stimuli for functional cell type clustering](https://openreview.net/forum?id=9W6KaAcYlr) explains a method to automatically cluster and interpret the modeled neurons and was also used with above model (for code see [ecker-lab/most-discriminative-stimuli](https://github.com/ecker-lab/most-discriminative-stimuli)).
+
+The paper [Most discriminative stimuli for functional cell type clustering](https://openreview.net/forum?id=9W6KaAcYlr) explains the discriminatory stimulus objective we showcase in [notebooks/most_discriminative_stimulus](https://github.com/open-retina/open-retina/blob/main/notebooks/most_discriminative_stimulus.ipynb).
