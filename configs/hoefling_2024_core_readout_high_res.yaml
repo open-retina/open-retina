@@ -34,7 +34,7 @@ model:
   # downsample_input_kernel_size: [1, 4, 4]  # to reproduce 18x16px lowres input
 
 data:
-  root_dir: null # Choose the location of the root directory for the project  
+  root_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Choose the location of the root directory for the project  
   data_dir: ${data.root_dir}/data/ # Modify according to preferred data location  
   output_dir: ${hydra:runtime.output_dir} # Modify in the "hydra/default.yaml" config
   movies_path: "https://huggingface.co/datasets/open-retina/open-retina/resolve/main/euler_lab/hoefling_2024/stimuli/rgc_natstim_72x64_joint_normalized_2024-10-11.zip"

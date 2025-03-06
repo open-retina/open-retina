@@ -18,7 +18,7 @@ seed: 42
 check_stimuli_responses_match: true
 
 data:
-  root_dir: null # Choose the location of the root directory for the project
+  root_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Choose the location of the root directory for the project
   data_dir: "test_data"
   output_dir: ${hydra:runtime.output_dir} # Modify in the "hydra/default.yaml" config
 

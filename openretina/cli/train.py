@@ -29,6 +29,9 @@ def train_model(cfg: DictConfig) -> None:
     ### Set cache folder
     os.environ["OPENRETINA_CACHE_DIRECTORY"] = cfg.data.root_dir
 
+    ### Display log directory for ease of access
+    log.info(f"Saving run logs at: {cfg.data.output_dir}")
+
     ### Import data
     movies_dict = hydra.utils.call(cfg.data_io.stimuli)
     neuron_data_dict = hydra.utils.call(cfg.data_io.responses)
