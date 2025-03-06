@@ -60,12 +60,9 @@ The openretina package is structured as follows:
 
 ## Related papers
 
-The Core + Readout model was developed in the paper [A chromatic feature detector in the retina signals visual context changes](https://elifesciences.org/articles/86860) and can be cited as.
-
-All datasets are shared under a CC-BY Share-Alike license, and we acknowledge and credit the original sources below:
+The Core + Readout model was developed in the paper [A chromatic feature detector in the retina signals visual context changes](https://elifesciences.org/articles/86860). All datasets used in openretina are shared under a CC-BY Share-Alike license, and we acknowledge and credit the original sources below:
 - hoefling_2024: Originally published by Höfling et al. (2024), eLife: [A chromatic feature detector in the retina signals visual context changes](https://doi.org/10.7554/eLife.86860).
 - karamanlis_2024: Originally published by Karamanlis et al. (2024), Nature: [Nonlinear receptive fields evoke redundant retinal coding of natural scenes](https://doi.org/10.1038/s41586-024-08212-3)
 - maheswaranathan_2023: Originally published by Maheswaranathan et al. (2023), Neuron: [Interpreting the retinal neural code for natural scenes: From computations to neurons](https://doi.org/10.1016/j.neuron.2023.06.007)
-
 
 The paper [Most discriminative stimuli for functional cell type clustering](https://openreview.net/forum?id=9W6KaAcYlr) explains the discriminatory stimulus objective we showcase in [notebooks/most_discriminative_stimulus](https://github.com/open-retina/open-retina/blob/main/notebooks/most_discriminative_stimulus.ipynb).
