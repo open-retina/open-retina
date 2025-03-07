@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: "D'Agostino"
+    given-names: "Federico"
+    orcid: "https://orcid.org/0000-0003-2719-4370"
+  - family-names: "Thomas"
+    given-names: "Zenkel"
+    orcid: "https://orcid.org/0009-0002-2060-156X"
+  - family-names: "Larissa"
+    given-names: "Höfling"
+    orcid: "https://orcid.org/0000-0003-2459-0706"
+title: "openretina"
+version: 1.0.0
+date-released: 2025-03-07
+url: "https://open-retina.org"
+repository-code: "https://github.com/open-retina/open-retina"
+license: GNU GPLv3
