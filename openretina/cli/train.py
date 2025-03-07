@@ -23,14 +23,14 @@ def train_model(cfg: DictConfig) -> None:
     log.info("Logging full config:")
     log.info(OmegaConf.to_yaml(cfg))
 
-    if cfg.data.root_dir is None:
-        raise ValueError("Please provide a root_dir for the data in the config file or as a command line argument.")
+    if cfg.paths.cache_dir is None:
+        raise ValueError("Please provide a cache_dir for the data in the config file or as a command line argument.")
 
     ### Set cache folder
-    os.environ["OPENRETINA_CACHE_DIRECTORY"] = cfg.data.root_dir
+    os.environ["OPENRETINA_CACHE_DIRECTORY"] = cfg.paths.cache_dir
 
     ### Display log directory for ease of access
-    log.info(f"Saving run logs at: {cfg.data.output_dir}")
+    log.info(f"Saving run logs at: {cfg.paths.output_dir}")
 
     ### Import data
     movies_dict = hydra.utils.call(cfg.data_io.stimuli)

@@ -17,9 +17,11 @@ exp_name: GRU_core_readout_karamanlis_2024
 seed: 42
 check_stimuli_responses_match: true
 
-data:
-  root_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Choose the location of the root directory for the project
+paths:
+  cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Remote files are downloaded to this location
+  # If data_dir is a local path, data will be read from there. If a remote link, the target will be downloaded to cache_dir.
   data_dir: https://huggingface.co/datasets/open-retina/open-retina/tree/main/gollisch_lab/karamanlis_2024/sessions
+  log_dir: "." # Used as parent for output_dir. Will store train logs.
   output_dir: ${hydra:runtime.output_dir} # Modify in the "hydra/default.yaml" config
 
 # Overwrite model defaults with specifics for Karamanlis 2024 data format

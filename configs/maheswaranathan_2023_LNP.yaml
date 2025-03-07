@@ -18,12 +18,12 @@ exp_name: example_linear_nonlinear_poisson
 seed: 42
 check_stimuli_responses_match: false
 
-data:
-  root_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY}
-  data_dir: ${data.root_dir}/baccus_data/neural_code_data/ganglion_cell_data/
-  output_dir: ${data.root_dir}/openretina_assets/runs
-  stimuli: "2024-01-11_movies_dict_8c18928.pkl"
-  responses: "2024-08-14_neuron_data_responses_484c12d_djimaging.h5" 
+paths:
+  cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Remote files are downloaded to this location
+  # If data_dir is a local path, data will be read from there. If a remote link, the target will be downloaded to cache_dir.
+  data_dir: https://huggingface.co/datasets/open-retina/open-retina/resolve/main/baccus_lab/maheswaranathan_2023/neural_code_data.zip
+  log_dir: "." # Used as parent for output_dir. Will store train logs.
+  output_dir: ${hydra:runtime.output_dir} # Modify in the "hydra/default.yaml" config
 
 matmul_precision:
   _target_: torch.set_float32_matmul_precision
