@@ -25,6 +25,10 @@ paths:
   log_dir: "." # Used as parent for output_dir. Will store train logs.
   output_dir: ${hydra:runtime.output_dir} # Modify in the "hydra/default.yaml" config
 
+# Overwrite model defaults with specifics for Maheswaranathan 2023 input data format.
+model:
+  in_shape: [1, 100, 50, 50]
+
 matmul_precision:
   _target_: torch.set_float32_matmul_precision
   precision: highest
