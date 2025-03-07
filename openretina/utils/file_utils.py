@@ -11,16 +11,13 @@ from huggingface_hub import HfApi, hf_hub_download
 from huggingface_hub.errors import EntryNotFoundError
 from tqdm.auto import tqdm
 
+from openretina import get_cache_directory
+
 LOGGER = logging.getLogger(__name__)
 HOME_DIR = str(Path.home())
 GIN_BASE_URL = "https://gin.g-node.org/"
 HUGGINGFACE_BASE_URL = "https://huggingface.co/"
 HUGGINGFACE_REPO_ID = "open-retina/open-retina"
-
-
-def get_cache_directory() -> str:
-    home_dir = os.path.expanduser("~")
-    return os.getenv("OPENRETINA_CACHE_DIRECTORY", os.path.join(home_dir, "openretina_cache"))
 
 
 def unzip_and_cleanup(zip_path: Path) -> Path:

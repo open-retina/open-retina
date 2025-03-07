@@ -1,6 +1,6 @@
 model_checkpoint:
   _target_: lightning.pytorch.callbacks.ModelCheckpoint
-  dirpath: "${data.output_dir}/checkpoints"
+  dirpath: "${paths.output_dir}/checkpoints"
   filename: "{epoch:02d}_{val_correlation:.3f}" # checkpoint filename, it will be formatted by lightning
   monitor: "val_correlation" # name of the logged metric which determines when model is improving
   verbose: false 
