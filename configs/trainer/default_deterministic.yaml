@@ -1,5 +1,5 @@
 _target_: lightning.Trainer
-default_root_dir: ${data.output_dir}
+default_root_dir: ${paths.output_dir}
 deterministic: "warn"
 
 max_epochs: 50
