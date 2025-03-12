@@ -10,7 +10,7 @@
 [![huggingface](https://huggingface.co/datasets/huggingface/badges/resolve/main/dataset-on-hf-sm.svg)](https://huggingface.co/datasets/open-retina/open-retina)
 
 Open-source repository containing neural network models of the retina.
-The models in this repository are inspired by and partially contain adapted code of [sinzlab/neuralpredictors](https://github.com/sinzlab/neuralpredictors).
+The models in this repository are inspired by and partially contain adapted code of [sinzlab/neuralpredictors](https://github.com/sinzlab/neuralpredictors). Accompanying preprint: [openretina: Collaborative Retina Modelling Across Datasets and Species](https://www.biorxiv.org/content/10.1101/2025.03.07.642012v1).
 
 ## Installation
 
