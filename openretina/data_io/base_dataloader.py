@@ -445,27 +445,6 @@ class NeuronDataSplit:
         return {name: torch.tensor(responses.T) for name, responses in self.neural_responses.test_dict.items()}
 
 
-def get_movie_splits(
-    movie_train,
-    movie_test: dict[str, np.ndarray],
-    val_clip_idx: list[int],
-    num_clips: int,
-    clip_length: int,
-) -> dict[str, Any]:
-    movie_train_subset, movie_val, movie_test_tensor = generate_movie_splits(
-        movie_train, movie_test, val_clip_idx, num_clips, clip_length
-    )
-
-    movies = {
-        "train": movie_train_subset,
-        "validation": movie_val,
-        "test_dict": movie_test_tensor,
-        "val_clip_idx": val_clip_idx,
-    }
-
-    return movies
-
-
 def multiple_movies_dataloaders(
     neuron_data_dictionary: dict[str, ResponsesTrainTestSplit],
     movies_dictionary: dict[str, MoviesTrainTestSplit],
@@ -528,10 +507,10 @@ def multiple_movies_dataloaders(
             rnd = np.random.RandomState(seed)
             val_clip_idx = list(rnd.choice(num_clips, num_val_clips, replace=False))
 
-        all_movies = get_movie_splits(
+        movie_train_subset, movie_val, movie_test_dict = generate_movie_splits(
             movies_dictionary[session_key].train,
             movies_dictionary[session_key].test_dict,
-            val_clip_idx=val_clip_idx,
+            val_clip_idc=val_clip_idx,
             num_clips=num_clips,
             clip_length=clip_length,
         )
@@ -544,24 +523,22 @@ def multiple_movies_dataloaders(
             clip_length=clip_length,
         )
 
-        clip_chunk_sizes = {
-            "train": train_chunk_size,
-            "validation": clip_length,
-        }
         # Create dataloaders for each fold
-        for fold in ["train", "validation"]:
+        for fold, movie, chunk_size in [
+            ("train", movie_train_subset, train_chunk_size),
+            ("validation", movie_val, clip_length),
+        ]:
             dataloaders[fold][session_key] = get_movie_dataloader(
-                movie=all_movies[fold],
+                movie=movie,
                 responses=neuron_data.response_dict[fold],
                 split=fold,
-                chunk_size=clip_chunk_sizes[fold],
+                chunk_size=chunk_size,
                 batch_size=batch_size,
                 scene_length=clip_length,
                 allow_over_boundaries=allow_over_boundaries,
             )
         # test movies
-        for name in all_movies["test_dict"].keys():
-            movie = all_movies["test_dict"][name]
+        for name, movie in movie_test_dict.items():
             dataloaders[name][session_key] = get_movie_dataloader(
                 movie=movie,
                 responses=neuron_data.response_dict_test[name],
