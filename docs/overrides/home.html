@@ -1,19 +1,32 @@
 {% extends "base.html" %}
 
+{% block header %}
+
+{% endblock %}
+
+{% block sitenav %}
+
+{% endblock %}
+
+{% block tabs %}
+
+{% endblock %}
+
+
+
 {% block content %}
-  <div class="md-content">
+  <div class="md-content" style="max-width: 1000px; margin: 0 auto;">
     <article class="md-content__inner md-typeset">
-      <div class="landing-container" style="display: flex; align-items: center; margin-bottom: 2rem;">
-        <img src="assets/openretina_logo.png" width="200" alt="openretina logo" style="margin-right: 2rem;">
-        <h1>Welcome to OpenRetina</h1>
-      </div>
-      
-      <p>Work in progress docs / website.</p>
-      
+      <div class="landing-container" style="display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; flex-wrap: wrap;">
+      <img src="assets/openretina_logo.png" width="200px" alt="openretina logo" style="margin: 0 2rem 1rem 2rem;">
+      <h1 style="font-family: monospace; color: black; font-weight: bold; background-color: #f5f5f5; padding: 0.2rem 0.5rem 0 0.2rem; border-radius: 10px; text-align: center;">openretina</h1>
+      <hr style="width: 100%">
+      </div>      
       <!-- Additional custom HTML content -->
 
       <!-- Markdown content from index.md will be rendered here -->
       {{ page.content }}
+
     </article>
   </div>
 {% endblock %}
