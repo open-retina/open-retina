@@ -120,6 +120,7 @@ def visualize_group_meis(
             neuron_indices=neuron_indices,
             data_key=None,
             response_reducer=SliceMeanReducer(axis=0, start=10, length=10),
+            invert=mdi,
         )
         optimize_stimulus(
             stimulus,
