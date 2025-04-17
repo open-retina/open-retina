@@ -63,6 +63,12 @@ def add_parser_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--image-file-format", type=str, default="jpg", help="File format to save the visualization plots in"
     )
+    parser.add_argument(
+        "--optimization_frames",
+        type=int,
+        default=10,
+        help="Number of frames at the end of the response to maximize (or minimize)",
+    )
 
 
 def _get_min_max_values_and_norm(num_channels: int) -> tuple[list[tuple], float | None]:
@@ -87,6 +93,7 @@ def visualize_group_meis(
     mdi: bool,
     center_scale_and_bias: bool,
     seed: int,
+    optimization_frames: int,
 ) -> None:
     model = load_core_readout_from_remote(model_path, device=device)
 
@@ -107,6 +114,8 @@ def visualize_group_meis(
     }
 
     stimulus_shape = model.stimulus_shape(time_steps=time_steps_stimulus, num_batches=1)
+    output_timesteps = model.forward(torch.zeros(stimulus_shape)).shape[1]
+
     min_max_values, norm = _get_min_max_values_and_norm(stimulus_shape[1])
     stimulus_clipper = ChangeNormJointlyClipRangeSeparately(
         min_max_values=min_max_values,
@@ -114,6 +123,7 @@ def visualize_group_meis(
     )
 
     os.makedirs(save_folder, exist_ok=True)
+    reducer = SliceMeanReducer(axis=0, start=output_timesteps - optimization_frames, length=optimization_frames)
     for group, neuron_indices in group_to_neuron_ids.items():
         os.makedirs(save_folder, exist_ok=True)
         print(f"Optimizing group {'mdi' if mdi else 'mei'} for {group=}")
@@ -134,7 +144,7 @@ def visualize_group_meis(
             model,
             neuron_indices=neuron_indices,
             data_key=None,
-            response_reducer=SliceMeanReducer(axis=0, start=10, length=10),
+            response_reducer=reducer,
             invert=mdi,
         )
         optimize_stimulus(
@@ -147,28 +157,30 @@ def visualize_group_meis(
 
         fig_axes_tuple = plt.subplots(2, 2, figsize=(7 * 3, 12))
         axes: np.ndarray[Any, plt.Axes] = fig_axes_tuple[1]  # type: ignore
+        traces_start_frame = time_steps_stimulus - output_timesteps
+        traces_start_seconds = traces_start_frame / 30.0
 
         plot_stimulus_composition(
             stimulus=stimulus[0],
             temporal_trace_ax=axes[0, 0],
             spatial_ax=axes[0, 1],
             freq_ax=axes[1, 1],
-            highlight_x_list=[(40, 49)],
+            highlight_x_list=[(time_steps_stimulus - optimization_frames, time_steps_stimulus - 1)],
         )
-        axes[0, 0].axvline(1.0, ls="--", color="dimgray")  # type:ignore
+        axes[0, 0].axvline(traces_start_seconds, ls="--", color="dimgray")  # type:ignore
 
         # plot traces
         neuron_traces = model.forward(stimulus)[0, :, neuron_indices].detach().cpu().numpy()
         neuron_traces_avg = np.average(neuron_traces, axis=-1)
         ax: plt.Axes = axes[1, 0]  # type: ignore
         ax.set_title(f"Neuron Responses (n={len(neuron_indices)})")
-        time_axis = np.arange(30, 30 + neuron_traces.shape[0]) / 30.0
+        time_axis = (np.arange(neuron_traces.shape[0]) + traces_start_frame) / 30.0
         for trace in np.swapaxes(neuron_traces, 0, 1):
             ax.plot(time_axis, trace, alpha=0.4)
         ax.plot(time_axis, neuron_traces_avg, linewidth=4, color="black")
 
-        ax.fill_betweenx(ax.get_ylim(), time_axis[-10], time_axis[-1], color="k", alpha=0.1)
-        ax.axvline(1.0, ls="--", color="dimgray")
+        ax.fill_betweenx(ax.get_ylim(), time_axis[-optimization_frames], time_axis[-1], color="k", alpha=0.1)
+        ax.axvline(traces_start_seconds, ls="--", color="dimgray")
 
         input_name = "mdi" if mdi else "mei"
         path_prefix = f"{save_folder}/group_{input_name}_{group:02}"
