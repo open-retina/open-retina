@@ -114,7 +114,7 @@ def visualize_group_meis(
     }
 
     stimulus_shape = model.stimulus_shape(time_steps=time_steps_stimulus, num_batches=1)
-    output_timesteps = model.forward(torch.zeros(stimulus_shape)).shape[1]
+    output_timesteps = model.forward(torch.zeros(stimulus_shape).to(device)).shape[1]
 
     min_max_values, norm = _get_min_max_values_and_norm(stimulus_shape[1])
     stimulus_clipper = ChangeNormJointlyClipRangeSeparately(
