@@ -16,6 +16,7 @@ from openretina.insilico.stimulus_optimization.optimization_stopper import Optim
 from openretina.insilico.stimulus_optimization.optimizer import optimize_stimulus
 from openretina.insilico.stimulus_optimization.regularizer import (
     ChangeNormJointlyClipRangeSeparately,
+    StimulusPostprocessor,
     TemporalGaussianLowPassFilterProcessor,
 )
 from openretina.models.core_readout import load_core_readout_from_remote
@@ -99,7 +100,7 @@ def visualize_group_meis(
     for group, neuron_indices in group_to_neuron_ids.items():
         os.makedirs(save_folder, exist_ok=True)
         print(f"Optimizing group mei for {group=}")
-        stimulus_postprocessor_list = [stimulus_clipper]
+        stimulus_postprocessor_list: list[StimulusPostprocessor] = [stimulus_clipper]
         if use_smoothing:
             stimulus_lowpass_filter = TemporalGaussianLowPassFilterProcessor(sigma=0.5, kernel_size=5, device=device)
             stimulus_postprocessor_list.append(stimulus_lowpass_filter)
