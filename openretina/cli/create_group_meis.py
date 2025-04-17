@@ -44,6 +44,7 @@ def add_parser_arguments(parser: argparse.ArgumentParser):
         default=50,
         help="The time steps used in the stimulus to optimize",
     )
+    parser.add_argument("seed", type=int, default=42, help="Seed for generating the initial stimulus")
     parser.add_argument(
         "--use-smoothing",
         action="store_true",
@@ -79,6 +80,7 @@ def visualize_group_meis(
     time_steps_stimulus: int,
     use_smoothing: bool,
     mdi: bool,
+    seed: int,
 ) -> None:
     model = load_core_readout_from_remote(model_path, device=device)
 
@@ -105,7 +107,11 @@ def visualize_group_meis(
             stimulus_lowpass_filter = TemporalGaussianLowPassFilterProcessor(sigma=0.5, kernel_size=5, device=device)
             stimulus_postprocessor_list.append(stimulus_lowpass_filter)
 
-        # Create stimulus and clip it to the expected range
+        # Create stimulus and clip it to the expected range, make sure to always use the same initial stimulus
+        torch.manual_seed(seed)
+        if device == "cuda":
+            torch.cuda.manual_seed(seed)
+            torch.backends.cudnn.deterministic = True
         stimulus = torch.randn(stimulus_shape, requires_grad=True, device=device)
         stimulus.data = stimulus_clipper.process(stimulus.data * 0.1)
 
