@@ -3,6 +3,7 @@ jaxtyping
 matplotlib
 numpy
 pandas
+standard-imghdr
 seaborn
 scipy
 tenacity
