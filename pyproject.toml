@@ -68,9 +68,6 @@ include-package-data=true
 [tool.setuptools.packages]
 find = {exclude = ["tests"]}
 
-[tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt"]}
-
 [tool.setuptools.package-data]
 "openretina" = ["py.typed", "configs/*.yaml", "configs/**/*.yaml"]
 
