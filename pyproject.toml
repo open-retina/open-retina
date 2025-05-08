@@ -12,12 +12,54 @@ authors = [
 ]
 description = "Open source retina model architectures and training setups"
 requires-python = ">=3.10"
-dynamic = ["dependencies", "optional-dependencies"]
 readme = "README.md"
+dependencies = [
+    "IPython",
+    "jaxtyping",
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "standard-imghdr",
+    "seaborn",
+    "scipy",
+    "tenacity",
+    "tensorboard",
+    "torch",
+    "torchaudio",
+    "torchvision",
+    "einops",
+    "lightning",
+    "wandb",
+    "hydra-core",
+    "omegaconf",
+    "h5py",
+    "opencv-python-headless",
+    "imageio>=2.36",
+    "moviepy>=2.0.0",
+    "huggingface_hub>=0.25",  # due to EntryNotFound import
+    "jupyter",
+    "pywidgets",
+]
 
 [project.urls]
 Homepage = "https://github.com/open-retina/open-retina"
 Issues = "https://github.com/open-retina/open-retina/issues"
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.9",
+    "mypy>=1.0",
+    "pytest",
+    "types-psutil",
+    "types-tqdm",
+    "types-PyYAML",
+    "types-requests",
+    "nbmake",
+    "jupyterlab",
+]
+devmodels = [
+    "neuralpredictors"
+]
 
 [tool.setuptools]
 package-dir = { "" = "." }
@@ -28,9 +70,6 @@ find = {exclude = ["tests"]}
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
-[tool.setuptools.dynamic.optional-dependencies]
-dev = {file = ["requirements-dev.txt"]}
-devmodels = {file = ["requirements-devmodels.txt"]}
 
 [tool.setuptools.package-data]
 "openretina" = ["py.typed", "configs/*.yaml", "configs/**/*.yaml"]
