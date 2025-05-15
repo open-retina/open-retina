@@ -36,19 +36,19 @@ class HydraRunner:
             config_path=get_config_path(config_path),
             config_name="hoefling_2024_core_readout_high_res",
         )
-        def _train(cfg: DictConfig) -> None:
+        def _train(cfg: DictConfig) -> float:
             from openretina.cli.train import train_model  # Import actual training function
 
             # Check if cache_dir is set or left as none, in which case we set it to the cache directory
             if cfg.paths.cache_dir is None:
                 cfg.paths.cache_dir = get_cache_directory()
 
-            train_model(cfg)
+            return train_model(cfg)
 
         _train()
 
 
-def main() -> None:
+def main() -> float | None:
     parser = argparse.ArgumentParser(description="OpenRetina CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
@@ -68,7 +68,7 @@ def main() -> None:
     command = args.__dict__.pop("command")
 
     if command == "train":
-        HydraRunner.train(args.config_path, unknown_args)
+        return HydraRunner.train(args.config_path, unknown_args)
     elif command == "visualize":
         if len(unknown_args) > 0:
             print(f"Warn: found the following unknown args: {unknown_args}")
@@ -79,3 +79,4 @@ def main() -> None:
         parser.print_help()
     else:
         raise ValueError(f"Unknown command: {args.command}")
+    return None
