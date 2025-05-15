@@ -10,16 +10,29 @@ from omegaconf import DictConfig, OmegaConf
 
 from openretina.data_io.base import compute_data_info
 from openretina.data_io.cyclers import LongCycler, ShortCycler
+import platform
+import sys
+import mlflow
 
 log = logging.getLogger(__name__)
 
 
-@hydra.main(version_base="1.3", config_path="../../configs", config_name="hoefling_2024_core_readout_high_res")
-def main(cfg: DictConfig) -> None:
-    train_model(cfg)
+@hydra.main(
+    version_base="1.3",
+    config_path="../../configs",
+    config_name="hoefling_2024_core_readout_high_res",
+)
+def main(cfg: DictConfig) -> float | None:
+    score = train_model(cfg)
+    if cfg.objective_target is not None:
+        return score
+    return None
 
 
-def train_model(cfg: DictConfig) -> None:
+def train_model(cfg: DictConfig) -> float | None:  ## normally train_model
+    # Get the current trial number
+    # Update the trial number in the configuration
+
     log.info("Logging full config:")
     log.info(OmegaConf.to_yaml(cfg))
 
@@ -32,7 +45,6 @@ def train_model(cfg: DictConfig) -> None:
     ### Display log directory for ease of access
     log.info(f"Saving run logs at: {cfg.paths.output_dir}")
 
-    ### Import data
     movies_dict = hydra.utils.call(cfg.data_io.stimuli)
     neuron_data_dict = hydra.utils.call(cfg.data_io.responses)
 
@@ -49,7 +61,10 @@ def train_model(cfg: DictConfig) -> None:
     data_info = compute_data_info(neuron_data_dict, movies_dict)
 
     train_loader = data.DataLoader(
-        LongCycler(dataloaders["train"], shuffle=True), batch_size=None, num_workers=0, pin_memory=True
+        LongCycler(dataloaders["train"], shuffle=True),
+        batch_size=None,
+        num_workers=0,
+        pin_memory=True,
     )
     valid_loader = ShortCycler(dataloaders["validation"])
 
@@ -66,7 +81,7 @@ def train_model(cfg: DictConfig) -> None:
     ### Logging
     log.info("Instantiating loggers...")
     logger_array = []
-    for _, logger_params in cfg.logger.items():
+    for logger_name, logger_params in cfg.logger.items():
         logger = hydra.utils.instantiate(logger_params)
         logger_array.append(logger)
 
@@ -87,6 +102,50 @@ def train_model(cfg: DictConfig) -> None:
     dataloader_mapping = {f"DataLoader {i}": x[0] for i, x in enumerate(short_cyclers)}
     log.info(f"Dataloader mapping: {dataloader_mapping}")
     trainer.test(model, dataloaders=[c for _, c in short_cyclers], ckpt_path="best")
+    # Check if MLflow is one of the loggers and save model and datasets as artifacts
+    for logger in logger_array:
+        if "mlflow" in str(type(logger)).lower():
+            try:
+                # Get the existing run from the Lightning MLflow logger
+                run_id = logger.run_id
+
+                # Use the active run context
+                with mlflow.start_run(run_id=run_id, nested=True) as run:
+                    # Log the model as an artifact
+                    mlflow.pytorch.log_model(model, "model")
+                    log.info("Logged model to MLflow")
+
+                    # Log dataset information
+                    mlflow.log_dict(data_info, "data_info.json")
+                    log.info("Logged data information to MLflow")
+
+                    # Log the full configuration
+                    mlflow.log_dict(OmegaConf.to_container(cfg, resolve=True), "config.json")
+
+                    # Log system information
+                    sys_info = {
+                        "python_version": sys.version,
+                        "platform": platform.platform(),
+                        "lightning_version": lightning.__version__,
+                    }
+                    mlflow.log_dict(sys_info, "system_info.json")
+
+                    # Log model summary if available
+                    if hasattr(model, "summarize"):
+                        mlflow.log_text(str(model.summarize()), "model_summary.txt")
+            except Exception as e:
+                log.warning(f"Failed to log artifacts to MLflow: {str(e)}")
+            break
+
+    if cfg.objective_target is not None:
+        ### Final validation for optuna
+        log.info("Starting validation for Optuna")
+        target_score = trainer.validate(model, dataloaders=[valid_loader], ckpt_path="best")[0][cfg.objective_target]
+        if target_score is None:
+            log.error(f"Objective target '{cfg.objective_target}' is None!")
+        return target_score
+    else:
+        return None
 
 
 if __name__ == "__main__":
