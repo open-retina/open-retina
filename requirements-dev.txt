@@ -10,3 +10,4 @@ mkdocs
 mkdocstrings[python]
 mkdocs-material
 cairosvg
+jupyterlab

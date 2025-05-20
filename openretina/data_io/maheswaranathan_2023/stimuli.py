@@ -64,6 +64,7 @@ def load_all_stimuli(
                     test=test_video,
                     stim_id=stim_type,
                     random_sequences=None,
-                    **norm_dict,
+                    norm_mean=norm_dict["norm_mean"],
+                    norm_std=norm_dict["norm_std"],
                 )
     return stimuli_all_sessions

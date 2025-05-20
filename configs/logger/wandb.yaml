@@ -4,3 +4,4 @@ wandb:
   project: ??? # Needs to be set!
   version: ${now:%Y-%m-%d_%H-%M-%S}
   log_model: "all" # Checkpoints get uploaded to wandb
+  save_dir: "${data.output_dir}"

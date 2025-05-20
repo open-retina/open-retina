@@ -1,6 +1,6 @@
 defaults:
-  - data_io: karamanlis_2024
-  - dataloader: karamanlis_2024
+  - data_io: hdf5_reader
+  - dataloader: hdf5_loader
   - model: base_core_readout
   - training_callbacks:
     - early_stopping
@@ -13,25 +13,24 @@ defaults:
   - hydra: default
   - _self_ # values in this config will overwrite the defaults
 
-exp_name: GRU_core_readout_karamanlis_2024
+exp_name: h5_core_readout
 seed: 42
 check_stimuli_responses_match: true
 
 data:
   root_dir: null # Choose the location of the root directory for the project
-  data_dir: https://huggingface.co/datasets/open-retina/open-retina/tree/main/gollisch_lab/karamanlis_2024/sessions
+  data_dir: "test_data"
   output_dir: ${hydra:runtime.output_dir} # Modify in the "hydra/default.yaml" config
 
-# Overwrite model defaults with specifics for Karamanlis 2024 data format
 model:
   in_shape: 
-    - 1
+    - ${data_io.color_channels}
     - 100
     - ${data_io.video_height} 
     - ${data_io.video_width}
-  hidden_channels: [16, 32, 64]
-  spatial_kernel_sizes: [21, 15, 11]
-  temporal_kernel_sizes: [11, 11, 11]
+  hidden_channels: [8, 8, 8]
+  spatial_kernel_sizes: [8, 8, 8]
+  temporal_kernel_sizes: [8, 8, 8]
   core_hidden_padding: true
 
 trainer:

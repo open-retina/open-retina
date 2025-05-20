@@ -36,7 +36,7 @@ devmodels = {file = ["requirements-devmodels.txt"]}
 "openretina" = ["py.typed", "configs/*.yaml", "configs/**/*.yaml"]
 
 [project.scripts]
-openretina = "openretina.cli.openretina:main"
+openretina = "openretina.cli.openretina_main:main"
 
 
 [tool.ruff]
@@ -48,14 +48,14 @@ lint.extend-select = ["I"]
 lint.ignore = ["F722"]  # F722 prevents false positive for jaxtypes
 exclude = [
     "openretina/legacy/",
-    "scripts/legacy/",
+    "tests/paper_openretina_2025/",
 ]
 
 [tool.mypy]
 warn_return_any = false
 exclude = [
     "openretina/legacy/",
-    "scripts/legacy/",
+    "tests/paper_openretina_2025/",
 ]
 [[tool.mypy.overrides]]
 module = [
