@@ -43,7 +43,7 @@ plugins:
 
 site_url: https://open-retina.org
 
-site_description: "todo fallback site description"
+site_description: "OpenRetina: An open-source toolkit for modeling retinal responses to visual stimuli across multiple datasets."
 
 markdown_extensions:
   - admonition
@@ -54,7 +54,6 @@ markdown_extensions:
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
-  - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
       slugify: !!python/object/apply:pymdownx.slugs.slugify
@@ -65,8 +64,45 @@ nav:
   - Home: index.md
   - Package documentation:
     - package_docs/index.md
-    - Data Input/Output:
-      - Hoefling et al., 2024: package_docs/data_io/hoefling_2024.md
+    - Getting Started:
+      - Installation: package_docs/installation.md
+      - Quick Start: package_docs/quickstart.md
+      - Architecture: package_docs/architecture.md
+    - Core Functionality:
+      - Models:
+        - package_docs/models/index.md
+        - Core-Readout Models: package_docs/models/core_readout.md
+        - Linear-Nonlinear Models: package_docs/models/linear_nonlinear.md
+        - Sparse Autoencoders: package_docs/models/sparse_autoencoder.md
+      - Data Input/Output:
+        - package_docs/data_io/index.md
+        - Hoefling et al., 2024: package_docs/data_io/hoefling_2024.md
+        - Custom Data Formats: package_docs/data_io/custom_data.md
+      - In-silico Experiments:
+        - package_docs/insilico/index.md
+        - Stimulus Optimization: package_docs/insilico/stimulus_optimization.md
+        - Tuning Analysis: package_docs/insilico/tuning_analysis.md
+    - Tutorials:
+      - Loading Pre-trained Models: package_docs/tutorials/pretrained_models.md
+      - Training Custom Models: package_docs/tutorials/training.md
+      - Stimulus Optimization: package_docs/tutorials/stimulus_optimization.md
+    - API Reference:
+      - Overview: package_docs/api_reference/index.md
+      - Models:
+        - Core-Readout: package_docs/api_reference/models/core_readout.md
+        - Linear-Nonlinear: package_docs/api_reference/models/linear_nonlinear.md
+        - Sparse Autoencoder: package_docs/api_reference/models/sparse_autoencoder.md
+      - Data I/O:
+        - Base Dataloader: package_docs/api_reference/data_io/base_dataloader.md
+        - Artificial Stimuli: package_docs/api_reference/data_io/artificial_stimuli.md
+        - Cyclers: package_docs/api_reference/data_io/cyclers.md
+        - Höfling et al. 2024: package_docs/api_reference/data_io/hoefling_2024.md
+      - In-silico:
+        - Stimulus Optimization: package_docs/api_reference/insilico/stimulus_optimization.md
+    - Contributing:
+      - Contributing Guide: package_docs/contributing.md
+      - Development Setup: package_docs/development.md
+      - Code Style: package_docs/code_style.md
   - FAQs: faq.md
 
 repo_url: https://github.com/open-retina/open-retina
