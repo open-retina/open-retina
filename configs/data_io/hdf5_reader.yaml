@@ -10,7 +10,7 @@ test_names:
 stimuli:
   _target_: openretina.data_io.h5_dataset_reader.load_stimuli
   _convert_: object
-  base_data_path: ${data.data_dir}
+  base_data_path: ${paths.data_dir}
   norm_mean: 0.0
   norm_std: 1.0
   test_names: ${data_io.test_names}
@@ -24,5 +24,5 @@ stimuli:
 responses:
   _target_: openretina.data_io.h5_dataset_reader.load_responses
   _convert_: object
-  base_data_path: ${data.data_dir}
+  base_data_path: ${paths.data_dir}
   test_names: ${data_io.test_names}

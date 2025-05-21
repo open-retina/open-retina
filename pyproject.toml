@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools >= 77.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "openretina"
-version = "0.1.0"
+version = "1.0.0"
 authors = [
   { name="Federico D'Agostino"},
   { name="Thomas Zenkel"},
@@ -12,12 +12,31 @@ authors = [
 ]
 description = "Open source retina model architectures and training setups"
 requires-python = ">=3.10"
-dynamic = ["dependencies", "optional-dependencies"]
 readme = "README.md"
+dynamic = ["dependencies"]
 
 [project.urls]
 Homepage = "https://github.com/open-retina/open-retina"
 Issues = "https://github.com/open-retina/open-retina/issues"
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.9",
+    "mypy>=1.0",
+    "pytest",
+    "types-psutil",
+    "types-tqdm",
+    "types-PyYAML",
+    "types-requests",
+    "nbmake",
+    "jupyterlab",
+]
+devmodels = [
+    "neuralpredictors"
+]
 
 [tool.setuptools]
 package-dir = { "" = "." }
@@ -25,12 +44,6 @@ include-package-data=true
 
 [tool.setuptools.packages]
 find = {exclude = ["tests"]}
-
-[tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt"]}
-[tool.setuptools.dynamic.optional-dependencies]
-dev = {file = ["requirements-dev.txt"]}
-devmodels = {file = ["requirements-devmodels.txt"]}
 
 [tool.setuptools.package-data]
 "openretina" = ["py.typed", "configs/*.yaml", "configs/**/*.yaml"]

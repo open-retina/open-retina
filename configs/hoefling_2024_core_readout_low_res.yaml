@@ -21,20 +21,20 @@ check_stimuli_responses_match: false
 dataloader:
   batch_size: 128
 
-
 model:
   in_shape: [2, 150, 18, 16]
 
-data:
-  root_dir: null # Choose the location of the root directory for the project  
-  data_dir: ${data.root_dir}/data/ # Modify according to preferred data location  
-  output_dir: ${hydra:runtime.output_dir} # Modify in the "hydra/default.yaml" config
+paths:
+  cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Remote files are downloaded to this location
+  data_dir: ${paths.cache_dir}/data/ # Folder where local files are read from.
+  log_dir: "." # Used as parent for output_dir. Will store train logs.
+  output_dir: ${hydra:runtime.output_dir} # Modify subpaths in the "hydra/default.yaml" config
   movies_path: "https://huggingface.co/datasets/open-retina/open-retina/blob/main/euler_lab/hoefling_2024/stimuli/rgc_natstim_18x16_joint_normalized_2024-01-11.zip"
   responses_path: "https://huggingface.co/datasets/open-retina/open-retina/resolve/main/euler_lab/hoefling_2024/responses/rgc_natstim_2024-08-14.zip"
+
 matmul_precision:
   _target_: torch.set_float32_matmul_precision
   precision: highest
-
 
 trainer:
   max_epochs: 100
