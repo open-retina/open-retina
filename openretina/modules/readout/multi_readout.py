@@ -74,6 +74,32 @@ class MultiGaussianReadoutWrapper(nn.ModuleDict):
             os.makedirs(readout_folder, exist_ok=True)
             self._modules[key].save_weight_visualizations(readout_folder)  # type: ignore
 
+    def add_readout_session(self,session_key: str, n_neurons: int):
+        """ Can be used to add sessions to models that already have readout sessions. 
+        Adds another readout session with all initialization parameters (except n_neurons) from the first session. """
+        first_session_key = list(self.keys())[0]
+        first_readout = self[first_session_key]
+        param_names = [name for name, _ in first_readout.named_parameters()]
+        scale_is_trainable = "scale_param" in param_names
+        bias_is_trainable = "bias_param" in param_names
+        # session_kwargs = {arg: getattr(self[first_session_key],arg) for arg in ["gaussian_mean_scale","gaussian_var_scale","positive"]}
+        if session_key not in list(self.keys()):
+            self.add_module(
+                    session_key,
+                    SimpleSpatialXFeature3d(  # add a readout for each session
+                        self[first_session_key].in_shape,
+                        n_neurons,
+                        gaussian_mean_scale=self[first_session_key].gaussian_mean_scale,
+                        gaussian_var_scale=self[first_session_key].gaussian_var_scale,
+                        positive=self[first_session_key].positive,
+                        scale=scale_is_trainable,
+                        bias=bias_is_trainable,
+                    ),
+                )
+        else:
+            raise ValueError (f"Session {session_key} already has a readout-layer.")
+
+
     @property
     def sessions(self) -> list[str]:
         return self.readout_keys()
