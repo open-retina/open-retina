@@ -18,7 +18,7 @@ from openretina.models.core_readout import load_core_readout_model
 log = logging.getLogger(__name__)
 
 
-@hydra.main(version_base="1.3", config_path="../../configs", config_name="hoefling_2024_core_readout_low_res") # low res for fast testing
+@hydra.main(version_base="1.3", config_path="../../configs", config_name="hoefling_2024_core_readout_high_res") 
 def main(cfg: DictConfig) -> None:
     train_model(cfg)
 
@@ -61,28 +61,16 @@ def train_model(cfg: DictConfig) -> None:
         lightning.pytorch.seed_everything(cfg.seed)
 
     ### Model init
-    load_model_path = cfg.paths.get("load_model_path", None)
+    load_model_path = cfg.paths.get("load_model_path")
     if load_model_path:
         log.info(f"Loading model from <{load_model_path}>")
         device = "cuda" if torch.cuda.is_available() else "cpu"
         is_gru_model = 'gru' in cfg.model._target_.lower() if hasattr(cfg.model, '_target_') else False
         model = load_core_readout_model(load_model_path, device, is_gru_model=is_gru_model)
-        
-        for key in data_info.keys():
-            if key == 'input_shape':
-                assert all(model.data_info[key][dim] == data_info[key][dim] for dim in range(len(data_info[key]))), \
-                    f"Input shapes don't match: model has {model.data_info[key]}, new data has {data_info[key]}"
-            else:
-                model.data_info[key].update(data_info[key])
-        
-        
-        for session_key, n_neurons in data_info["n_neurons_dict"].items():
-            model.readout.add_readout_session(session_key, n_neurons)
-        
-        # update hyperparameters such that they are saved in the checkpoint
-        if hasattr(model, 'hparams'):
-            if 'n_neurons_dict' in model.hparams:
-                model.hparams["n_neurons_dict"].update(data_info["n_neurons_dict"]) #type: ignore
+
+        # add new readouts and modify stored data in model
+        model.readout.add_sessions(data_info["n_neurons_dict"])
+        model.update_model_data_info(data_info)
         
     else:
 
@@ -90,11 +78,10 @@ def train_model(cfg: DictConfig) -> None:
         log.info(f"Instantiating model <{cfg.model._target_}>")
         model = hydra.utils.instantiate(cfg.model, data_info=data_info)
 
-    if cfg.get("only_train_readout", False) == True:
-        model.only_train_readout = True
-        log.info(f"Only training readout.")
-    else:
-        model.only_train_readout = False
+
+    if cfg.get("only_train_readout") == True: 
+        log.info("Only training readout, core model parameters will be frozen.")
+        model.core.requires_grad_(False)
 
     ### Logging
     log.info("Instantiating loggers...")
@@ -108,12 +95,12 @@ def train_model(cfg: DictConfig) -> None:
     callbacks = [
         hydra.utils.instantiate(callback_params) for callback_params in cfg.get("training_callbacks", {}).values()
     ]
-    log_parameter_snapshot(model, prefix="Before training")
+    previous_snapshot = log_parameter_snapshot(model)
     ### Trainer init
     log.info(f"Instantiating trainer <{cfg.trainer._target_}>")
     trainer: lightning.Trainer = hydra.utils.instantiate(cfg.trainer, logger=logger_array, callbacks=callbacks)
     trainer.fit(model=model, train_dataloaders=train_loader, val_dataloaders=valid_loader)
-    log_parameter_snapshot(model, prefix="After training")
+    log_parameter_snapshot(model,previous_snapshot=previous_snapshot)
 
     ### Testing
     log.info("Starting testing!")
@@ -124,34 +111,37 @@ def train_model(cfg: DictConfig) -> None:
 
 
 
-def log_parameter_snapshot(model, prefix=""):
+def log_parameter_snapshot(model,previous_snapshot=None):
+    import numpy as np  
     """Take a compact snapshot of parameter values to check for changes"""
     snapshots = {}
     
-    # Core parameters (sample a few)
+    # core parameters 
     core_params = list(model.core.parameters())
     if core_params:
-        # Get first 3 parameters, first 5 values of each
-        core_samples = {}
-        for i, param in enumerate(core_params[:3]):
+
+        core_samples = []
+        for i, param in enumerate(core_params):
             values = param.flatten()[:5].detach().cpu().tolist()
-            core_samples[f"core_param_{i}"] = [f"{v:.6f}" for v in values]
-        snapshots["core"] = core_samples
+            core_samples.append(values)
+        snapshots["core"] = np.array(core_samples)
     
-    # Readout parameters (sample a few)
+    # Readout
     readout_params = list(model.readout.parameters())
     if readout_params:
-        readout_samples = {}
-        for i, param in enumerate(readout_params[:3]):
+        readout_samples = []
+        for i, param in enumerate(readout_params):
             values = param.flatten()[:5].detach().cpu().tolist()
-            readout_samples[f"readout_param_{i}"] = [f"{v:.6f}" for v in values]
-        snapshots["readout"] = readout_samples
-    
-    log.info(f"{prefix} Parameter snapshot:")
-    for module, params in snapshots.items():
-        log.info(f"  {module}:")
-        for name, values in params.items():
-            log.info(f"    {name}: {values}")
+            readout_samples.append(values)
+        snapshots["readout"] = np.array(readout_samples)
+    if previous_snapshot is not None:
+
+        log.info(f"Result of pre vs post parameter snapshot: \n\tCore parameters changed: {not np.array_equal(previous_snapshot['core'], snapshots['core'])}, \
+                 \n\tReadout parameters changed: {not np.array_equal(previous_snapshot['readout'], snapshots['readout'])}\
+                 \n\tMedian core parameter change: {np.median(np.abs(previous_snapshot['core'] - snapshots['core']))}, \
+                 \n\tMedian readout parameter change: {np.median(np.abs(previous_snapshot['readout'] - snapshots['readout']))}")
+    else:
+        return snapshots
     
 
 

@@ -28,26 +28,36 @@ class MultiGaussianReadoutWrapper(nn.ModuleDict):
         readout_reg_avg: bool = False,
     ):
         super().__init__()
-        for k in n_neurons_dict:  # iterate over sessions
-            n_neurons = n_neurons_dict[k]
-            assert len(in_shape) == 4
-            self.add_module(
-                k,
-                SimpleSpatialXFeature3d(  # add a readout for each session
-                    in_shape,
-                    n_neurons,
-                    gaussian_mean_scale=gaussian_mean_scale,
-                    gaussian_var_scale=gaussian_var_scale,
-                    positive=positive,
-                    scale=scale,
-                    bias=bias,
-                ),
-            )
+        self.session_init_args = {"in_shape": in_shape,
+                                  "gaussian_mean_scale": gaussian_mean_scale,
+                                  "gaussian_var_scale": gaussian_var_scale,
+                                  "positive": positive, 
+                                  "scale": scale,
+                                  "bias":bias,}
+        
+        self.add_sessions(n_neurons_dict) 
 
         self.gamma_readout = gamma_readout
         self.gamma_masks = gamma_masks
         self.gaussian_masks = gaussian_masks
         self.readout_reg_avg = readout_reg_avg
+
+    def add_sessions(self, n_neurons_dict: dict[str, int]) -> None:
+        """ Adds new sessions to the readout wrapper. 
+        Can be called to add new sessions to an existing readout wrapper."""
+        
+        assert all(key not in self.keys() for key in n_neurons_dict), \
+            "Found duplicate sessions in n_neurons_dict. Make sure to use different session names for each session." 
+        for k in n_neurons_dict:  # iterate over sessions
+            n_neurons = n_neurons_dict[k]
+            assert len(self.session_init_args["in_shape"]) == 4 
+            self.add_module(
+                k,
+                SimpleSpatialXFeature3d(  # add a readout for each session
+                    outdims=n_neurons,
+                   **self.session_init_args,  
+                ),
+            )
 
     def forward(self, *args, data_key: str | None, **kwargs) -> torch.Tensor:
         if data_key is None:
@@ -74,30 +84,6 @@ class MultiGaussianReadoutWrapper(nn.ModuleDict):
             os.makedirs(readout_folder, exist_ok=True)
             self._modules[key].save_weight_visualizations(readout_folder)  # type: ignore
 
-    def add_readout_session(self,session_key: str, n_neurons: int):
-        """ Can be used to add sessions to models that already have readout sessions. 
-        Adds another readout session with all initialization parameters (except n_neurons) from the first session. """
-        first_session_key = list(self.keys())[0]
-        first_readout = self[first_session_key]
-        param_names = [name for name, _ in first_readout.named_parameters()]
-        scale_is_trainable = "scale_param" in param_names
-        bias_is_trainable = "bias_param" in param_names
-        # session_kwargs = {arg: getattr(self[first_session_key],arg) for arg in ["gaussian_mean_scale","gaussian_var_scale","positive"]}
-        if session_key not in list(self.keys()):
-            self.add_module(
-                    session_key,
-                    SimpleSpatialXFeature3d(  # add a readout for each session
-                        self[first_session_key].in_shape,
-                        n_neurons,
-                        gaussian_mean_scale=self[first_session_key].gaussian_mean_scale,
-                        gaussian_var_scale=self[first_session_key].gaussian_var_scale,
-                        positive=self[first_session_key].positive,
-                        scale=scale_is_trainable,
-                        bias=bias_is_trainable,
-                    ),
-                )
-        else:
-            raise ValueError (f"Session {session_key} already has a readout-layer.")
 
 
     @property

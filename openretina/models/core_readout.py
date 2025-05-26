@@ -40,7 +40,6 @@ class BaseCoreReadout(LightningModule):
         loss: nn.Module | None = None,
         correlation_loss: nn.Module | None = None,
         data_info: dict[str, Any] | None = None,
-        only_train_readout: bool = False,
     ):
         super().__init__()
 
@@ -52,7 +51,6 @@ class BaseCoreReadout(LightningModule):
         if data_info is None:
             data_info = {}
         self.data_info = data_info
-        self.only_train_readout = only_train_readout
 
     def on_train_epoch_end(self):
         # Compute the 2-norm for each layer at the end of the epoch
@@ -115,9 +113,7 @@ class BaseCoreReadout(LightningModule):
         return loss
 
     def configure_optimizers(self):
-        parameters = self.readout.parameters() if self.only_train_readout else self.parameters()
-        self.core.requires_grad_(not self.only_train_readout)
-        optimizer = torch.optim.AdamW(parameters, lr=self.learning_rate)
+        optimizer = torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
         lr_decay_factor = 0.3
         patience = 5
         tolerance = 0.0005
@@ -158,6 +154,22 @@ class BaseCoreReadout(LightningModule):
     def stimulus_shape(self, time_steps: int, num_batches: int = 1) -> tuple[int, int, int, int, int]:
         channels, width, height = self.data_info["input_shape"]  # type: ignore
         return num_batches, channels, time_steps, width, height
+    
+    def update_model_data_info(self, data_info: dict[str, Any]) -> None:
+        """To update relevant model attributes when loading a (trained) model and training it with new data only."""
+        # update model.data_info and n_neurons_dict with the new data info
+        for key in data_info.keys():
+            if key == 'input_shape':
+                assert all(self.data_info[key][dim] == data_info[key][dim] for dim in range(len(data_info[key]))), \
+                    f"Input shapes don't match: model has {self.data_info[key]}, new data has {data_info[key]}"
+            else:
+                self.data_info[key].update(data_info[key])                
+
+        # update saved hyperparameters (so that the model can be loaded from checkpoint correctly) 
+        if hasattr(self,"hparams"):
+            self.hparams["n_neurons_dict"] = self.data_info ["n_neurons_dict"]  
+            self.hparams["data_info"] = self.data_info 
+
 
 
 class CoreReadout(BaseCoreReadout):
