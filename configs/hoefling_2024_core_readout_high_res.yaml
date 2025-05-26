@@ -40,7 +40,7 @@ paths:
   log_dir: "." # Used as parent for output_dir. Will store train logs.
   output_dir: ${hydra:runtime.output_dir} # Modify subpaths in the "hydra/default.yaml" config
   movies_path: "https://huggingface.co/datasets/open-retina/open-retina/resolve/main/euler_lab/hoefling_2024/stimuli/rgc_natstim_72x64_joint_normalized_2024-10-11.zip"
-  responses_path: https://huggingface.co/datasets/open-retina/open-retina/resolve/main/euler_lab/hoefling_2024/responses/rgc_natstim_2024-08-14.zip"
+  responses_path: "https://huggingface.co/datasets/open-retina/open-retina/resolve/main/euler_lab/hoefling_2024/responses/rgc_natstim_2024-08-14.zip"
 
 matmul_precision:
   _target_: torch.set_float32_matmul_precision

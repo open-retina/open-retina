@@ -13,8 +13,6 @@ from openretina.data_io.base import compute_data_info
 from openretina.data_io.cyclers import LongCycler, ShortCycler
 from openretina.models.core_readout import load_core_readout_model
 
-
-
 log = logging.getLogger(__name__)
 
 
@@ -73,7 +71,7 @@ def train_model(cfg: DictConfig) -> None:
         model.update_model_data_info(data_info)
         
     else:
-
+        # Assign missing n_neurons_dict to model
         cfg.model.n_neurons_dict = data_info["n_neurons_dict"]
         log.info(f"Instantiating model <{cfg.model._target_}>")
         model = hydra.utils.instantiate(cfg.model, data_info=data_info)
@@ -95,12 +93,11 @@ def train_model(cfg: DictConfig) -> None:
     callbacks = [
         hydra.utils.instantiate(callback_params) for callback_params in cfg.get("training_callbacks", {}).values()
     ]
-    previous_snapshot = log_parameter_snapshot(model)
+
     ### Trainer init
     log.info(f"Instantiating trainer <{cfg.trainer._target_}>")
     trainer: lightning.Trainer = hydra.utils.instantiate(cfg.trainer, logger=logger_array, callbacks=callbacks)
     trainer.fit(model=model, train_dataloaders=train_loader, val_dataloaders=valid_loader)
-    log_parameter_snapshot(model,previous_snapshot=previous_snapshot)
 
     ### Testing
     log.info("Starting testing!")
@@ -108,42 +105,6 @@ def train_model(cfg: DictConfig) -> None:
     dataloader_mapping = {f"DataLoader {i}": x[0] for i, x in enumerate(short_cyclers)}
     log.info(f"Dataloader mapping: {dataloader_mapping}")
     trainer.test(model, dataloaders=[c for _, c in short_cyclers], ckpt_path="best")
-
-
-
-def log_parameter_snapshot(model,previous_snapshot=None):
-    import numpy as np  
-    """Take a compact snapshot of parameter values to check for changes"""
-    snapshots = {}
-    
-    # core parameters 
-    core_params = list(model.core.parameters())
-    if core_params:
-
-        core_samples = []
-        for i, param in enumerate(core_params):
-            values = param.flatten()[:5].detach().cpu().tolist()
-            core_samples.append(values)
-        snapshots["core"] = np.array(core_samples)
-    
-    # Readout
-    readout_params = list(model.readout.parameters())
-    if readout_params:
-        readout_samples = []
-        for i, param in enumerate(readout_params):
-            values = param.flatten()[:5].detach().cpu().tolist()
-            readout_samples.append(values)
-        snapshots["readout"] = np.array(readout_samples)
-    if previous_snapshot is not None:
-
-        log.info(f"Result of pre vs post parameter snapshot: \n\tCore parameters changed: {not np.array_equal(previous_snapshot['core'], snapshots['core'])}, \
-                 \n\tReadout parameters changed: {not np.array_equal(previous_snapshot['readout'], snapshots['readout'])}\
-                 \n\tMedian core parameter change: {np.median(np.abs(previous_snapshot['core'] - snapshots['core']))}, \
-                 \n\tMedian readout parameter change: {np.median(np.abs(previous_snapshot['readout'] - snapshots['readout']))}")
-    else:
-        return snapshots
-    
-
 
 if __name__ == "__main__":
     main()
