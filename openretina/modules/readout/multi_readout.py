@@ -28,14 +28,16 @@ class MultiGaussianReadoutWrapper(nn.ModuleDict):
         readout_reg_avg: bool = False,
     ):
         super().__init__()
-        self.session_init_args = {"in_shape": in_shape,
-                                  "gaussian_mean_scale": gaussian_mean_scale,
-                                  "gaussian_var_scale": gaussian_var_scale,
-                                  "positive": positive, 
-                                  "scale": scale,
-                                  "bias":bias,}
-        
-        self.add_sessions(n_neurons_dict) 
+        self.session_init_args = {
+            "in_shape": in_shape,
+            "gaussian_mean_scale": gaussian_mean_scale,
+            "gaussian_var_scale": gaussian_var_scale,
+            "positive": positive,
+            "scale": scale,
+            "bias": bias,
+        }
+
+        self.add_sessions(n_neurons_dict)
 
         self.gamma_readout = gamma_readout
         self.gamma_masks = gamma_masks
@@ -43,19 +45,20 @@ class MultiGaussianReadoutWrapper(nn.ModuleDict):
         self.readout_reg_avg = readout_reg_avg
 
     def add_sessions(self, n_neurons_dict: dict[str, int]) -> None:
-        """ Adds new sessions to the readout wrapper. 
+        """Adds new sessions to the readout wrapper.
         Can be called to add new sessions to an existing readout wrapper."""
-        
-        assert all(key not in self.keys() for key in n_neurons_dict), \
-            "Found duplicate sessions in n_neurons_dict. Make sure to use different session names for each session." 
+
+        assert all(key not in self.keys() for key in n_neurons_dict), (
+            "Found duplicate sessions in n_neurons_dict. Make sure to use different session names for each session."
+        )
         for k in n_neurons_dict:  # iterate over sessions
             n_neurons = n_neurons_dict[k]
-            assert len(self.session_init_args["in_shape"]) == 4 
+            assert len(self.session_init_args["in_shape"]) == 4  # type: ignore
             self.add_module(
                 k,
                 SimpleSpatialXFeature3d(  # add a readout for each session
                     outdims=n_neurons,
-                   **self.session_init_args,  
+                    **self.session_init_args,  # type: ignore
                 ),
             )
 
@@ -83,8 +86,6 @@ class MultiGaussianReadoutWrapper(nn.ModuleDict):
             readout_folder = os.path.join(folder_path, key)
             os.makedirs(readout_folder, exist_ok=True)
             self._modules[key].save_weight_visualizations(readout_folder)  # type: ignore
-
-
 
     @property
     def sessions(self) -> list[str]:

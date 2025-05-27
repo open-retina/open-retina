@@ -16,7 +16,7 @@ from openretina.models.core_readout import load_core_readout_model
 log = logging.getLogger(__name__)
 
 
-@hydra.main(version_base="1.3", config_path="../../configs", config_name="hoefling_2024_core_readout_high_res") 
+@hydra.main(version_base="1.3", config_path="../../configs", config_name="hoefling_2024_core_readout_high_res")
 def main(cfg: DictConfig) -> None:
     train_model(cfg)
 
@@ -63,21 +63,20 @@ def train_model(cfg: DictConfig) -> None:
     if load_model_path:
         log.info(f"Loading model from <{load_model_path}>")
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        is_gru_model = 'gru' in cfg.model._target_.lower() if hasattr(cfg.model, '_target_') else False
+        is_gru_model = "gru" in cfg.model._target_.lower() if hasattr(cfg.model, "_target_") else False
         model = load_core_readout_model(load_model_path, device, is_gru_model=is_gru_model)
 
         # add new readouts and modify stored data in model
         model.readout.add_sessions(data_info["n_neurons_dict"])
         model.update_model_data_info(data_info)
-        
+
     else:
         # Assign missing n_neurons_dict to model
         cfg.model.n_neurons_dict = data_info["n_neurons_dict"]
         log.info(f"Instantiating model <{cfg.model._target_}>")
         model = hydra.utils.instantiate(cfg.model, data_info=data_info)
 
-
-    if cfg.get("only_train_readout") == True: 
+    if cfg.get("only_train_readout") is True:
         log.info("Only training readout, core model parameters will be frozen.")
         model.core.requires_grad_(False)
 
@@ -105,6 +104,7 @@ def train_model(cfg: DictConfig) -> None:
     dataloader_mapping = {f"DataLoader {i}": x[0] for i, x in enumerate(short_cyclers)}
     log.info(f"Dataloader mapping: {dataloader_mapping}")
     trainer.test(model, dataloaders=[c for _, c in short_cyclers], ckpt_path="best")
+
 
 if __name__ == "__main__":
     main()
