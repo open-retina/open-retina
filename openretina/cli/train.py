@@ -67,7 +67,7 @@ def train_model(cfg: DictConfig) -> None:
         model = load_core_readout_model(load_model_path, device, is_gru_model=is_gru_model)
 
         # add new readouts and modify stored data in model
-        model.readout.add_sessions(data_info["n_neurons_dict"])
+        model.readout.add_sessions(data_info["n_neurons_dict"]) # type: ignore
         model.update_model_data_info(data_info)
 
     else:
