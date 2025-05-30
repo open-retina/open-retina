@@ -1,9 +1,11 @@
 import logging
-import mlflow
 import platform
+import sys
+
 import lightning.pytorch
 from omegaconf import OmegaConf
-import sys
+
+import mlflow
 
 log = logging.getLogger(__name__)
 
@@ -14,7 +16,7 @@ def log_to_mlflow(logger, model, cfg, data_info, valid_loader):
         run_id = logger.run_id
 
         # Use the active run context
-        with mlflow.start_run(run_id=run_id, nested=True) as run:
+        with mlflow.start_run(run_id=run_id, nested=True):
             # Log the model as an artifact
             mlflow.pytorch.log_model(model, "model")
             log.info("Logged model to MLflow")
