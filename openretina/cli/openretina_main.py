@@ -43,7 +43,7 @@ class HydraRunner:
             if cfg.paths.cache_dir is None:
                 cfg.paths.cache_dir = get_cache_directory()
 
-            return train_model(cfg)
+            train_model(cfg)
 
         _train()
 

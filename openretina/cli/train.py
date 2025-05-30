@@ -103,7 +103,7 @@ def train_model(cfg: DictConfig) -> float | None:  ## normally train_model
     mlflow_logger_array = [logger for logger in logger_array if "mlflow" in str(type(logger)).lower()]
     if len(mlflow_logger_array) > 1:
         raise ValueError(f"Multiple mlflow loggers defined:  {[str(type(logger)) for logger in mlflow_logger_array]}")
-    elif len(mlflow_logger_array == 1):
+    elif len(mlflow_logger_array) == 1:
         logger = mlflow_logger_array[0]
         log_to_mlflow(logger, model, cfg, data_info, valid_loader)
 
