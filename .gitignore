@@ -185,3 +185,4 @@ multirun/
 notebooks/lightning_logs
 notebooks/notebook_example/tensorboard
 checkpoints/
+tensorboard/

@@ -10,6 +10,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from openretina.data_io.base import compute_data_info
 from openretina.data_io.cyclers import LongCycler, ShortCycler
+from openretina.utils.log_to_mlflow import log_to_mlflow
 import platform
 import sys
 import mlflow
@@ -24,15 +25,10 @@ log = logging.getLogger(__name__)
 )
 def main(cfg: DictConfig) -> float | None:
     score = train_model(cfg)
-    if cfg.objective_target is not None:
-        return score
-    return None
+    return score
 
 
 def train_model(cfg: DictConfig) -> float | None:  ## normally train_model
-    # Get the current trial number
-    # Update the trial number in the configuration
-
     log.info("Logging full config:")
     log.info(OmegaConf.to_yaml(cfg))
 
@@ -103,46 +99,20 @@ def train_model(cfg: DictConfig) -> float | None:  ## normally train_model
     log.info(f"Dataloader mapping: {dataloader_mapping}")
     trainer.test(model, dataloaders=[c for _, c in short_cyclers], ckpt_path="best")
     # Check if MLflow is one of the loggers and save model and datasets as artifacts
-    for logger in logger_array:
-        if "mlflow" in str(type(logger)).lower():
-            try:
-                # Get the existing run from the Lightning MLflow logger
-                run_id = logger.run_id
 
-                # Use the active run context
-                with mlflow.start_run(run_id=run_id, nested=True) as run:
-                    # Log the model as an artifact
-                    mlflow.pytorch.log_model(model, "model")
-                    log.info("Logged model to MLflow")
-
-                    # Log dataset information
-                    mlflow.log_dict(data_info, "data_info.json")
-                    log.info("Logged data information to MLflow")
-
-                    # Log the full configuration
-                    mlflow.log_dict(OmegaConf.to_container(cfg, resolve=True), "config.json")
-
-                    # Log system information
-                    sys_info = {
-                        "python_version": sys.version,
-                        "platform": platform.platform(),
-                        "lightning_version": lightning.__version__,
-                    }
-                    mlflow.log_dict(sys_info, "system_info.json")
-
-                    # Log model summary if available
-                    if hasattr(model, "summarize"):
-                        mlflow.log_text(str(model.summarize()), "model_summary.txt")
-            except Exception as e:
-                log.warning(f"Failed to log artifacts to MLflow: {str(e)}")
-            break
+    mlflow_logger_array = [logger for logger in logger_array if "mlflow" in str(type(logger)).lower()]
+    if len(mlflow_logger_array) > 1:
+        raise ValueError(f"Multiple mlflow loggers defined:  {[str(type(logger)) for logger in mlflow_logger_array]}")
+    elif len(mlflow_logger_array == 1): 
+        logger = mlflow_logger_array[0]
+        log_to_mlflow(logger, model, cfg, data_info, valid_loader)
 
     if cfg.objective_target is not None:
         ### Final validation for optuna
         log.info("Starting validation for Optuna")
         target_score = trainer.validate(model, dataloaders=[valid_loader], ckpt_path="best")[0][cfg.objective_target]
         if target_score is None:
-            log.error(f"Objective target '{cfg.objective_target}' is None!")
+            log.error(f"Score for objective target '{cfg.objective_target}' is None!")
         return target_score
     else:
         return None
