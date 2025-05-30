@@ -48,7 +48,7 @@ class HydraRunner:
         _train()
 
 
-def main() -> float | None:
+def main() -> None:
     parser = argparse.ArgumentParser(description="OpenRetina CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
@@ -79,4 +79,3 @@ def main() -> float | None:
         parser.print_help()
     else:
         raise ValueError(f"Unknown command: {args.command}")
-    return None
