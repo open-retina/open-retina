@@ -36,7 +36,7 @@ class HydraRunner:
             config_path=get_config_path(config_path),
             config_name="hoefling_2024_core_readout_high_res",
         )
-        def _train(cfg: DictConfig) -> float:
+        def _train(cfg: DictConfig) -> None:
             from openretina.cli.train import train_model  # Import actual training function
 
             # Check if cache_dir is set or left as none, in which case we set it to the cache directory
