@@ -38,7 +38,8 @@ dependencies = [
     "moviepy>=2.0.0",
     "huggingface_hub>=0.25",
     "jupyter",
-    "ipywidgets"
+    "ipywidgets",
+    "mlflow",
 ]
 
 [project.urls]
