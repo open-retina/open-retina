@@ -104,7 +104,7 @@ def train_model(cfg: DictConfig) -> float | None:  ## normally train_model
         logger = mlflow_logger_array[0]
         log_to_mlflow(logger, model, cfg, data_info, valid_loader)
 
-    if cfg.objective_target is not None:
+    if cfg.get("objective_target") is not None:
         ### Final validation for optuna
         log.info("Starting validation for Optuna")
         target_score = trainer.validate(model, dataloaders=[valid_loader], ckpt_path="best")[0][cfg.objective_target]
