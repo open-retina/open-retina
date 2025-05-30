@@ -1,11 +1,13 @@
 import logging
 import platform
 import sys
-import mlflow
+
 import lightning
+import mlflow
 from omegaconf import OmegaConf
 
 log = logging.getLogger(__name__)
+
 
 def log_to_mlflow(logger, model, cfg, data_info, valid_loader):
     try:

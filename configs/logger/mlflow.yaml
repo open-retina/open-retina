@@ -2,7 +2,7 @@
 mlflow:
   _target_: lightning.pytorch.loggers.MLFlowLogger
   experiment_name: ${exp_name}
-  tracking_uri: "file:${paths.log_dir}/mlflow"
+  tracking_uri: "${paths.log_dir}/openretina_assets/mlflow"
   log_model: false # Handled manually in the training script
   run_name: ${exp_name}_run_${now:%Y%m%d_%H%M%S}
   tags:

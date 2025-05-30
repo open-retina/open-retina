@@ -28,7 +28,9 @@ objective_target: val_correlation
 
 hydra:
   run:
-    dir: ${paths.log_dir}
+    dir: ${paths.log_dir}/openretina_assets/runs/${exp_name}/${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: ${paths.log_dir}/openretina_assets/runs/${exp_name}/${now:%Y-%m-%d_%H-%M-%S}
   sweeper:
     sampler:
       seed: 42
