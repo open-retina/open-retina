@@ -180,3 +180,9 @@ model-cache/
 openretina_cache_folder/
 openretina_assets/
 test_data/
+mlflow/
+multirun/
+notebooks/lightning_logs
+notebooks/notebook_example/tensorboard
+checkpoints/
+tensorboard/
