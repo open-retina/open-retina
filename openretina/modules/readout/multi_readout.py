@@ -48,8 +48,9 @@ class MultiGaussianReadoutWrapper(nn.ModuleDict):
         """Adds new sessions to the readout wrapper.
         Can be called to add new sessions to an existing readout wrapper."""
 
-        assert all(key not in self.keys() for key in n_neurons_dict), (
-            "Found duplicate sessions in n_neurons_dict. Make sure to use different session names for each session."
+        if any(key in self.keys() for key in n_neurons_dict):
+            duplicate_session_names = set(self.keys()).intersection(n_neuron_dict.keys())
+            raise ValueError(f"Found duplicate sessions in n_neurons_dict:  {duplicate_session_names=}. Make sure to use different session names for each session."
         )
         for k in n_neurons_dict:  # iterate over sessions
             n_neurons = n_neurons_dict[k]
