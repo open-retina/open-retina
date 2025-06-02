@@ -14,7 +14,6 @@ from openretina.data_io.cyclers import LongCycler, ShortCycler
 from openretina.models.core_readout import load_core_readout_model
 from openretina.utils.log_to_mlflow import log_to_mlflow
 
-
 log = logging.getLogger(__name__)
 
 
