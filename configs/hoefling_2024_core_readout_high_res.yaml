@@ -34,6 +34,7 @@ model:
   # downsample_input_kernel_size: [1, 4, 4]  # to reproduce 18x16px lowres input
 
 paths:
+  load_model_path: null  # e.g. hoefling_2024_base_high_res or path to a .ckpt model
   cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Remote files are downloaded to this location
   data_dir: ${paths.cache_dir}/data/ # Folder where local files are read from.
   log_dir: "." # Used as parent for output_dir. Will store train logs.
@@ -51,3 +52,5 @@ trainer:
   accumulate_grad_batches: 10
   gradient_clip_val: 1
   precision: 16-mixed
+
+only_train_readout: false # whether or not to freeze core parameters and only train readout (eg. when finetuning model to new data)

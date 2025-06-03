@@ -155,6 +155,22 @@ class BaseCoreReadout(LightningModule):
         channels, width, height = self.data_info["input_shape"]  # type: ignore
         return num_batches, channels, time_steps, width, height
 
+    def update_model_data_info(self, data_info: dict[str, Any]) -> None:
+        """To update relevant model attributes when loading a (trained) model and training it with new data only."""
+        # update model.data_info and n_neurons_dict with the new data info
+        for key in data_info.keys():
+            if key == "input_shape":
+                assert all(self.data_info[key][dim] == data_info[key][dim] for dim in range(len(data_info[key]))), (
+                    f"Input shapes don't match: model has {self.data_info[key]}, new data has {data_info[key]}"
+                )
+            else:
+                self.data_info[key].update(data_info[key])
+
+        # update saved hyperparameters (so that the model can be loaded from checkpoint correctly)
+        if hasattr(self, "hparams"):
+            self.hparams["n_neurons_dict"] = self.data_info["n_neurons_dict"]
+            self.hparams["data_info"] = self.data_info
+
 
 class CoreReadout(BaseCoreReadout):
     def __init__(
