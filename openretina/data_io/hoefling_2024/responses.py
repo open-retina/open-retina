@@ -70,7 +70,7 @@ class NeuronDataSplitHoefling:
 
         self.responses_train_and_val, self.responses_test, self.test_responses_by_trial = (
             self.neural_responses.train.T,
-            self.neural_responses.test.T,
+            self.neural_responses.test_response.T,
             self.neural_responses.test_by_trial.transpose(0, 2, 1)
             if self.neural_responses.test_by_trial is not None
             else None,
@@ -382,11 +382,9 @@ def _clean_up_empty_fields(data_dict, check_field="group_assignment"):
 
 
 def _mask_by_cell_type(data_dict, cell_types: list[int] | int):
-    if not isinstance(cell_types, list):
-        if isinstance(cell_types, int):
-            cell_types = [cell_types]
-        else:
-            raise ValueError("cell_types must be a list of integers")
+    if isinstance(cell_types, int):
+        cell_types = [cell_types]
+
     new_data_dict = deepcopy(data_dict)
     for field in new_data_dict.keys():
         mask = np.isin(new_data_dict[field]["group_assignment"], cell_types)
@@ -433,6 +431,9 @@ def make_final_responses(
             session_kwargs={
                 "eye": upsampled_data_dict[field]["eye"],
                 "scan_sequence_idx": upsampled_data_dict[field]["scan_sequence_idx"],
+                "group_assignment": upsampled_data_dict[field]["group_assignment"],
+                "roi_ids": upsampled_data_dict[field]["roi_ids"],
+                "roi_mask": upsampled_data_dict[field]["roi_mask"],
             },
         )
 
@@ -590,7 +591,7 @@ def filter_responses(
         dropped_n_cell_types = original_neuron_count - get_n_neurons(all_rgcs_responses_ct_filtered)
         print_verbose(
             f"Overall, dropped {dropped_n_cell_types} neurons of non-target cell types "
-            f"(-{(dropped_n_cell_types) / original_neuron_count :.2%})."
+            f"(-{(dropped_n_cell_types) / original_neuron_count:.2%})."
         )
         print_verbose(" ------------------------------------ ")
     else:
@@ -658,7 +659,7 @@ def filter_responses(
         f"Final dataset contains {get_n_neurons(all_rgcs_responses)} neurons over {len(all_rgcs_responses)} fields"
     )
     final_n_dropped = original_neuron_count - get_n_neurons(all_rgcs_responses)
-    print(f"Total number of cells dropped: {final_n_dropped} " f"(-{(final_n_dropped) / original_neuron_count :.2%})")
+    print(f"Total number of cells dropped: {final_n_dropped} (-{(final_n_dropped) / original_neuron_count:.2%})")
 
     # Clean up RAM
     del all_rgcs_responses_ct_filtered

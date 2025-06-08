@@ -33,13 +33,14 @@ model:
   maxpool_every_n_layers: 2
   # downsample_input_kernel_size: [1, 4, 4]  # to reproduce 18x16px lowres input
 
-data:
-  data:
-  root_dir: ??? # Choose the location of the root directory for the project  
-  data_dir: ${data.root_dir}/euler_data/ # Modify according to preferred data location  
-  output_dir: ${data.root_dir}/openretina_assets/runs 
-  movies_path: "https://gin.g-node.org/teulerlab/open-retina/raw/master/stimuli/eulerlab/rgc_natstim_72x64_joint_normalized_2024-10-11.pkl"
-  responses_path: "https://gin.g-node.org/teulerlab/open-retina/raw/master/responses/eulerlab/rgc_natstim_2024-08-14.h5"
+paths:
+  load_model_path: null  # e.g. hoefling_2024_base_high_res or path to a .ckpt model
+  cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Remote files are downloaded to this location
+  data_dir: ${paths.cache_dir}/data/ # Folder where local files are read from.
+  log_dir: "." # Used as parent for output_dir. Will store train logs.
+  output_dir: ${hydra:runtime.output_dir} # Modify subpaths in the "hydra/default.yaml" config
+  movies_path: "https://huggingface.co/datasets/open-retina/open-retina/resolve/main/euler_lab/hoefling_2024/stimuli/rgc_natstim_72x64_joint_normalized_2024-10-11.zip"
+  responses_path: "https://huggingface.co/datasets/open-retina/open-retina/resolve/main/euler_lab/hoefling_2024/responses/rgc_natstim_2024-08-14.zip"
 
 matmul_precision:
   _target_: torch.set_float32_matmul_precision
@@ -52,3 +53,4 @@ trainer:
   gradient_clip_val: 1
   precision: 16-mixed
 
+only_train_readout: false # whether or not to freeze core parameters and only train readout (eg. when finetuning model to new data)

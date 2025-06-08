@@ -1,7 +1,7 @@
 defaults:
   - data_io: maheswaranathan_2023
   - dataloader: maheswaranathan_2023
-  - model: GRU_core_readout
+  - model: base_core_readout
   - training_callbacks:
     - early_stopping
     - lr_monitor
@@ -17,10 +17,12 @@ exp_name: core_readout_maheswaranathan
 seed: 42
 check_stimuli_responses_match: false
 
-data:
-  root_dir: ???
-  data_dir: ${data.root_dir}/baccus_data/neural_code_data/ganglion_cell_data/
-  output_dir: ${data.root_dir}/openretina_assets/runs
+paths:
+  cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Remote files are downloaded to this location
+  # If data_dir is a local path, data will be read from there. If a remote link, the target will be downloaded to cache_dir.
+  data_dir: https://huggingface.co/datasets/open-retina/open-retina/resolve/main/baccus_lab/maheswaranathan_2023/neural_code_data.zip
+  log_dir: "." # Used as parent for output_dir. Will store train logs.
+  output_dir: ${hydra:runtime.output_dir} # Modify in the "hydra/default.yaml" config
 
 # Overwrite model defaults with specifics for Maheswaranathan 2023 input data format.
 model:

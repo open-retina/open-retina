@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools >= 77.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "openretina"
-version = "0.1.0"
+version = "1.0.0"
 authors = [
   { name="Federico D'Agostino"},
   { name="Thomas Zenkel"},
@@ -12,26 +12,69 @@ authors = [
 ]
 description = "Open source retina model architectures and training setups"
 requires-python = ">=3.10"
-dynamic = ["dependencies"]
 readme = "README.md"
+dependencies = [
+    "IPython",
+    "jaxtyping",
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "standard-imghdr",
+    "seaborn",
+    "scipy",
+    "tenacity",
+    "tensorboard",
+    "torch",
+    "torchaudio",
+    "torchvision",
+    "einops",
+    "lightning",
+    "wandb",
+    "hydra-core",
+    "omegaconf",
+    "h5py",
+    "opencv-python-headless",
+    "imageio>=2.36",
+    "moviepy>=2.0.0",
+    "huggingface_hub>=0.25",
+    "jupyter",
+    "ipywidgets",
+    "mlflow",
+]
 
 [project.urls]
 Homepage = "https://github.com/open-retina/open-retina"
 Issues = "https://github.com/open-retina/open-retina/issues"
 
-[tool.setuptools.packages]
-find = {exclude = ["tests", "scripts"]}
-
-[tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt"]}
-
-[tool.setuptools.package-data]
-"openretina" = ["py.typed"]
-
 [project.optional-dependencies]
 dev = [
-    "neuralpredictors",
+    "ruff>=0.9",
+    "mypy>=1.0",
+    "pytest",
+    "types-psutil",
+    "types-tqdm",
+    "types-PyYAML",
+    "types-requests",
+    "nbmake",
+    "jupyterlab",
 ]
+devmodels = [
+    "neuralpredictors"
+]
+
+[tool.setuptools]
+package-dir = { "" = "." }
+include-package-data=true
+
+[tool.setuptools.packages]
+find = {exclude = ["tests"]}
+
+[tool.setuptools.package-data]
+"openretina" = ["py.typed", "configs/*.yaml", "configs/**/*.yaml"]
+
+[project.scripts]
+openretina = "openretina.cli.openretina_main:main"
+
 
 [tool.ruff]
 line-length = 120
@@ -42,23 +85,24 @@ lint.extend-select = ["I"]
 lint.ignore = ["F722"]  # F722 prevents false positive for jaxtypes
 exclude = [
     "openretina/legacy/",
-    "scripts/legacy/",
+    "tests/paper_openretina_2025/",
 ]
 
 [tool.mypy]
 warn_return_any = false
 exclude = [
     "openretina/legacy/",
-    "scripts/legacy/",
+    "tests/paper_openretina_2025/",
 ]
 [[tool.mypy.overrides]]
 module = [
     "neuralpredictors.*",
     "h5py",
-    "scipy",
+    "scipy.*",
     "wandb",
     "seaborn",
     "torchvision.*",
+    "moviepy",
 ]
 ignore_missing_imports = true
 

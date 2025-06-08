@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import torch
 
@@ -6,7 +8,7 @@ from openretina.data_io.base_dataloader import generate_movie_splits
 from openretina.data_io.hoefling_2024.constants import CLIP_LENGTH, NUM_CLIPS
 
 
-def movies_from_pickle(file_path: str):
+def movies_from_pickle(file_path: str | os.PathLike) -> MoviesTrainTestSplit:
     """
     Load movie data from a pickle file and return it as a MoviesTrainTestSplit object.
     """
@@ -34,15 +36,13 @@ def apply_random_sequences(
     }
 
     for sequence_index in range(random_sequences.shape[1]):
-        k = 0
         reordered_movie = torch.zeros_like(movie_train_subset)
-        for clip_idx in random_sequences[:, sequence_index]:
-            if clip_idx in val_clip_idx:
-                continue
+        # explicitly cast to int, as random_sequences is a np.uint8 which is prone to overflow.
+        clip_indices = [int(idx) for idx in random_sequences[:, sequence_index] if idx not in val_clip_idx]
+        for k, clip_idx in enumerate(clip_indices):
             reordered_movie[:, k * clip_length : (k + 1) * clip_length, ...] = movie_train[
                 :, clip_idx * clip_length : (clip_idx + 1) * clip_length, ...
             ]
-            k += 1
         movies["right"]["train"][sequence_index] = reordered_movie  # type: ignore
         movies["left"]["train"][sequence_index] = torch.flip(reordered_movie, [-1])  # type: ignore
 
@@ -75,8 +75,8 @@ def get_all_movie_combinations(
     """
 
     # Generate train, validation, and test datasets
-    movie_train_subset, movie_val, movie_test = generate_movie_splits(
-        movie_train, movie_test, validation_clip_indices, num_clips, clip_length
+    movie_train_subset, movie_val, movie_test_dict = generate_movie_splits(
+        movie_train, {"test": movie_test}, validation_clip_indices, num_clips, clip_length
     )
 
     # Assemble datasets into the final movies structure using the random sequences
@@ -84,7 +84,7 @@ def get_all_movie_combinations(
         torch.tensor(movie_train, dtype=torch.float),
         movie_train_subset,
         movie_val,
-        movie_test,
+        movie_test_dict["test"],
         random_sequences,
         validation_clip_indices,
         clip_length,

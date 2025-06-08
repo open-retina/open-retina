@@ -4,6 +4,7 @@ from collections import OrderedDict
 
 import torch
 import torch.nn as nn
+from matplotlib import pyplot as plt
 
 from openretina.modules.layers import FlatLaplaceL23dnorm
 from openretina.modules.layers.convolutions import STSeparableBatchConv3d
@@ -34,6 +35,9 @@ class Core(nn.Module):
         for attr in filter(lambda x: "gamma" in x or "skip" in x, dir(self)):
             ret.append(f"{attr} = {getattr(self, attr)}")
         return s + "|".join(ret) + "]\n"
+
+    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg") -> None:
+        print(f"Save weight visualization of {self.__class__.__name__} not implemented.")
 
 
 class Core3d(Core):
@@ -169,11 +173,18 @@ class SimpleCoreWrapper(Core):
                 res += weight * reg_fn()
         return res
 
-    def save_weight_visualizations(self, folder_path: str) -> None:
+    def plot_weight_visualization(self, layer: int, in_channel: int, out_channel: int) -> plt.Figure:
+        if layer >= len(self.features):
+            raise ValueError(f"Requested layer {layer}, but only {len(self.features)} layers present.")
+        conv_obj = self.features[layer].conv
+        fig = conv_obj.plot_weights(in_channel, out_channel)
+        return fig
+
+    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg") -> None:
         for i, layer in enumerate(self.features):
             output_dir = os.path.join(folder_path, f"weights_layer_{i}")
             os.makedirs(output_dir, exist_ok=True)
-            layer.conv.save_weight_visualizations(output_dir)
+            layer.conv.save_weight_visualizations(output_dir, file_format)
             print(f"Saved weight visualization at path {output_dir}")
 
 

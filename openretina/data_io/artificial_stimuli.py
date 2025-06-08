@@ -27,7 +27,7 @@ def normalize_stimulus(stimulus: np.ndarray) -> np.ndarray:
 
 def discretize_triggers(trigger_times: np.ndarray, frame_rate: int = _DEFAULT_FRAME_RATE) -> list[int]:
     assert len(trigger_times.shape) == 1, "trigger_times should be one dimensional"
-    discrete_trigger_times = (trigger_times * frame_rate).astype(int).tolist()
+    discrete_trigger_times: list[int] = (trigger_times * frame_rate).astype(int).tolist()  # type: ignore
     return discrete_trigger_times
 
 
@@ -158,22 +158,23 @@ def load_moving_bar_30hz_72_64px(
 def load_moving_bar_stack(normalize: bool = True, number_of_moving_bars: int = 8) -> np.ndarray:
     moving_bar = load_moving_bar(normalize)
 
-    assert (
-        moving_bar.shape[0] % number_of_moving_bars == 0
-    ), "Moving bar timesteps are not divisible by number_of_moving_bars, something went wrong"
+    assert moving_bar.shape[0] % number_of_moving_bars == 0, (
+        "Moving bar timesteps are not divisible by number_of_moving_bars, something went wrong"
+    )
     return np.stack(np.split(moving_bar, number_of_moving_bars, axis=0), axis=0)
 
 
 def colored_stimulus(
     channel_idx: int,
-    pad_front: int,
     stimulus_length: int,
-    pad_end: int,
     size_x: int,
     size_y: int,
+    pad_front: int = 0,
+    pad_end: int = 0,
+    num_color_channels: int = 2,
 ) -> np.ndarray:
     total_length_time = pad_front + stimulus_length + pad_end
-    stimulus = np.zeros((2, total_length_time, size_x, size_y), dtype=np.float32)
+    stimulus = np.zeros((num_color_channels, total_length_time, size_x, size_y), dtype=np.float32)
     stimulus[channel_idx, pad_front : pad_front + stimulus_length] = 1.0
     stimulus_5d = np.expand_dims(stimulus, 0)
 

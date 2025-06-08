@@ -1,0 +1,32 @@
+defaults:
+  - data_io: ??? # For new data, create data_io config and put its name here
+  - dataloader: ??? # For new data, create dataloader config and put its name here
+  - model: base_core_readout
+  - training_callbacks:
+    - early_stopping
+    - lr_monitor
+    - model_checkpoint
+  - logger:
+    - tensorboard
+    - csv
+  - trainer: default_deterministic
+  - hydra: default
+  - _self_ # values in this config will overwrite the defaults
+
+exp_name: example_experiment_new_data
+seed: 42
+check_stimuli_responses_match: false
+
+paths:
+  cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Remote files are downloaded to this location
+  # If data_dir is a local path, data will be read from there. If a remote link, the target will be downloaded to cache_dir.
+  data_dir: ??? # Choose the location of the data. Should be used in data_io functions.
+  log_dir: "." # Used as parent for output_dir. Will store train logs.
+  output_dir: ${hydra:runtime.output_dir} # Modify in the "hydra/default.yaml" config
+
+# Overwrite model defaults with specifics for the current data input format
+model:
+  in_shape: ???
+  hidden_channels: ???
+  spatial_kernel_sizes: ??? 
+  # Can over-ride further model defaults here.

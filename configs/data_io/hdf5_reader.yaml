@@ -1,0 +1,28 @@
+color_channels: 3
+video_height: 16
+video_width: 8
+
+test_names: 
+  - "random_noise_2"
+  - "random_noise_3"
+
+
+stimuli:
+  _target_: openretina.data_io.h5_dataset_reader.load_stimuli
+  _convert_: object
+  base_data_path: ${paths.data_dir}
+  norm_mean: 0.0
+  norm_std: 1.0
+  test_names: ${data_io.test_names}
+  # Move into general section
+  stimulus_size:
+    - ${data_io.color_channels}
+    - ${data_io.video_height}
+    - ${data_io.video_width}
+
+
+responses:
+  _target_: openretina.data_io.h5_dataset_reader.load_responses
+  _convert_: object
+  base_data_path: ${paths.data_dir}
+  test_names: ${data_io.test_names}

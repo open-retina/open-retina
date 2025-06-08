@@ -147,7 +147,7 @@ def natmov_dataloaders_v2(
     clip_chunk_sizes = {
         "train": train_chunk_size,
         "validation": clip_length,
-        "test": movies_dictionary.test.shape[1],
+        "test": movies_dictionary.test_movie.shape[1],
     }
     dataloaders: dict[str, dict[str, DataLoader]] = {"train": {}, "validation": {}, "test": {}}
 
@@ -160,13 +160,12 @@ def natmov_dataloaders_v2(
 
     movies = get_all_movie_combinations(
         movies_dictionary.train,
-        movies_dictionary.test,
+        movies_dictionary.test_movie,
         random_sequences,
         validation_clip_indices=validation_clip_indices,
         num_clips=num_clips,
         clip_length=clip_length,
     )
-
     start_indices = gen_start_indices(
         random_sequences, validation_clip_indices, clip_length, train_chunk_size, num_clips
     )
@@ -214,9 +213,9 @@ def get_chirp_dataloaders(
     train_chunk_size: Optional[int] = None,
     batch_size: int = 32,
 ):
-    assert isinstance(
-        neuron_data_dictionary, dict
-    ), "neuron_data_dictionary should be a dictionary of sessions and their corresponding neuron data."
+    assert isinstance(neuron_data_dictionary, dict), (
+        "neuron_data_dictionary should be a dictionary of sessions and their corresponding neuron data."
+    )
     assert all(
         field in next(iter(neuron_data_dictionary.values()))
         for field in ["responses_final", "stim_id", "chirp_trigger_times"]
@@ -284,9 +283,9 @@ def get_mb_dataloaders(
     train_chunk_size: Optional[int] = None,
     batch_size: int = 32,
 ):
-    assert isinstance(
-        neuron_data_dictionary, dict
-    ), "neuron_data_dictionary should be a dictionary of sessions and their corresponding neuron data."
+    assert isinstance(neuron_data_dictionary, dict), (
+        "neuron_data_dictionary should be a dictionary of sessions and their corresponding neuron data."
+    )
     assert all(
         field in next(iter(neuron_data_dictionary.values()))
         for field in ["responses_final", "stim_id", "mb_trigger_times"]
@@ -295,9 +294,9 @@ def get_mb_dataloaders(
         "'responses_final', 'stim_id' and 'mb_trigger_times'."
     )
 
-    assert (
-        next(iter(neuron_data_dictionary.values()))["stim_id"] == 2
-    ), "This function only supports moving bar stimuli."
+    assert next(iter(neuron_data_dictionary.values()))["stim_id"] == 2, (
+        "This function only supports moving bar stimuli."
+    )
 
     dataloaders: dict[str, Any] = {"train": {}}
 
