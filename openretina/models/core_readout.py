@@ -73,11 +73,13 @@ class BaseCoreReadout(LightningModule):
         total_loss = loss + regularization_loss_core + regularization_loss_readout
         correlation = -self.correlation_loss.forward(model_output, data_point.targets)
 
-        self.log("regularization_loss_core", regularization_loss_core, on_step=False, on_epoch=True)
-        self.log("regularization_loss_readout", regularization_loss_readout, on_step=False, on_epoch=True)
-        self.log("train_total_loss", total_loss, on_step=False, on_epoch=True)
-        self.log("train_loss", loss, on_step=False, on_epoch=True)
-        self.log("train_correlation", correlation, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("regularization_loss_core", regularization_loss_core, on_step=False, on_epoch=True, sync_dist=True)
+        self.log(
+            "regularization_loss_readout", regularization_loss_readout, on_step=False, on_epoch=True, sync_dist=True
+        )
+        self.log("train_total_loss", total_loss, on_step=False, on_epoch=True, sync_dist=True)
+        self.log("train_loss", loss, on_step=False, on_epoch=True, sync_dist=True)
+        self.log("train_correlation", correlation, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
 
         return total_loss
 
@@ -90,11 +92,11 @@ class BaseCoreReadout(LightningModule):
         total_loss = loss + regularization_loss_core + regularization_loss_readout
         correlation = -self.correlation_loss.forward(model_output, data_point.targets)
 
-        self.log("val_loss", loss, logger=True, prog_bar=True)
-        self.log("val_regularization_loss_core", regularization_loss_core, logger=True)
-        self.log("val_regularization_loss_readout", regularization_loss_readout, logger=True)
-        self.log("val_total_loss", total_loss, logger=True)
-        self.log("val_correlation", correlation, logger=True, prog_bar=True)
+        self.log("val_loss", loss, logger=True, prog_bar=True, sync_dist=True)
+        self.log("val_regularization_loss_core", regularization_loss_core, logger=True, sync_dist=True)
+        self.log("val_regularization_loss_readout", regularization_loss_readout, logger=True, sync_dist=True)
+        self.log("val_total_loss", total_loss, logger=True, sync_dist=True)
+        self.log("val_correlation", correlation, logger=True, prog_bar=True, sync_dist=True)
 
         return loss
 
@@ -107,7 +109,8 @@ class BaseCoreReadout(LightningModule):
             {
                 "test_loss": loss,
                 "test_correlation": correlation,
-            }
+            },
+            sync_dist=True,
         )
 
         return loss
