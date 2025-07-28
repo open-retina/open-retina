@@ -66,8 +66,8 @@ class SimpleCoreWrapper(Core):
         cut_first_n_frames: int = 30,
         maxpool_every_n_layers: int | None = None,
         downsample_input_kernel_size: tuple[int, int, int] | None = None,
-        input_padding: bool | int | str | tuple[int, ...] = False,
-        hidden_padding: bool | int | str | tuple[int, ...] = True,
+        input_padding: bool | int | str | tuple[int, int, int] = False,
+        hidden_padding: bool | int | str | tuple[int, int, int] = True,
     ):
         # Input validation
         if len(channels) < 2:
@@ -110,7 +110,7 @@ class SimpleCoreWrapper(Core):
             padding_to_use = input_padding if layer_id == 0 else hidden_padding
             # explictily check against bools as the type can also be an int or a tuple
             if padding_to_use is True:
-                padding = "same"
+                padding: str | int | tuple[int, int, int] = "same"
             elif padding_to_use is False:
                 padding = 0
             else:
