@@ -10,8 +10,8 @@ core_gamma_input: 0.0
 core_gamma_in_sparse: 0.0
 core_gamma_hidden: 0.0
 core_gamma_temporal: 40.0
-core_input_padding: false
-core_hidden_padding: true
+core_input_padding: 0
+core_hidden_padding: [0, 2, 2]
 maxpool_every_n_layers: null
 downsample_input_kernel_size: null
 

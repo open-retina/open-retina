@@ -66,8 +66,8 @@ class SimpleCoreWrapper(Core):
         cut_first_n_frames: int = 30,
         maxpool_every_n_layers: int | None = None,
         downsample_input_kernel_size: tuple[int, int, int] | None = None,
-        input_padding: bool = False,
-        hidden_padding: bool = True,
+        input_padding: bool | int | str | tuple[int, int, int] = False,
+        hidden_padding: bool | int | str | tuple[int, int, int] = True,
     ):
         # Input validation
         if len(channels) < 2:
@@ -107,7 +107,15 @@ class SimpleCoreWrapper(Core):
         self.features = torch.nn.Sequential()
         for layer_id, (num_in_channels, num_out_channels) in enumerate(zip(channels[:-1], channels[1:], strict=True)):
             layer: dict[str, torch.nn.Module] = OrderedDict()
-            padding = "same" if input_padding and layer_id == 0 else ("same" if hidden_padding and layer_id != 0 else 0)
+            padding_to_use = input_padding if layer_id == 0 else hidden_padding
+            # explictily check against bools as the type can also be an int or a tuple
+            if padding_to_use is True:
+                padding: str | int | tuple[int, int, int] = "same"
+            elif padding_to_use is False:
+                padding = 0
+            else:
+                padding = padding_to_use
+
             layer["conv"] = STSeparableBatchConv3d(
                 num_in_channels,
                 num_out_channels,
