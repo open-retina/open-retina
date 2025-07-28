@@ -1,3 +1,5 @@
+from torch.utils.data import Sampler
+
 from openretina.data_io.sridhar_2025.constants import NM_DATASET, WN_DATASET
 from openretina.utils.misc import set_seed
 import numpy as np
@@ -54,3 +56,71 @@ def get_trial_wise_validation_split(
     print(f"train idx: {train_idx}")
     print(f"val idx: {val_idx}")
     return train_idx, val_idx
+
+def filter_trials(train_responses, all_train_ids, all_validation_ids, hard_coded=None,
+                  num_of_trials_to_use=None, starting_trial=0):
+
+    if num_of_trials_to_use is None:
+        num_of_trials_to_use = len(all_train_ids) + len(all_validation_ids)
+    if hard_coded is None:
+        train_ids = np.isin(
+            all_train_ids,
+            np.arange(starting_trial, min(train_responses.shape[2], num_of_trials_to_use + starting_trial)),
+        )
+        train_ids = np.asarray(all_train_ids)[train_ids]
+        valid_ids = np.isin(
+            all_validation_ids,
+            np.arange(starting_trial, min(train_responses.shape[2], num_of_trials_to_use + starting_trial)),
+        )
+        valid_ids = all_validation_ids[valid_ids]
+    else:
+        num_trials = train_responses.shape[-1]
+        train_ids = [int(x) for x in all_train_ids if
+                     int(x) < min(num_trials, num_of_trials_to_use + starting_trial)]
+        valid_ids = [int(x) for x in all_validation_ids if
+                     int(x) < min(num_trials, num_of_trials_to_use + starting_trial)]
+
+    return train_ids, valid_ids
+
+class ChunkedSampler(Sampler):
+    def __init__(self, dataset, seed=42):
+        """
+        Custom sampler that shuffles indices within n chunks and shuffles the chunk order.
+
+        Args:
+            dataset (Dataset): The dataset.
+            num_chunks (int): Number of chunks.
+            seed (int): Random seed for reproducibility.
+        """
+        self.dataset = dataset
+        self.num_of_imgs = dataset.num_of_imgs
+        self.num_of_frames = dataset.num_of_frames
+        self.len = len(dataset)
+        self.chunk_size = int(np.floor(dataset.num_of_imgs - dataset.frame_overhead) / (dataset.time_chunk_size - dataset.frame_overhead))
+        self.seed = seed
+        self.indices = np.arange(len(dataset))
+        self.num_chunks = int(np.ceil(self.len/self.chunk_size))
+        print(f'chunk size: {self.chunk_size}, frames in trial: {self.dataset.num_of_imgs}')# Size of each chunk
+
+    def _create_shuffled_chunks(self):
+        """Create shuffled chunks of indices for each epoch."""
+        np.random.seed()  # Use different random seed per epoch
+        chunks = [self.indices[i * self.chunk_size:(i + 1) * self.chunk_size] for i in range(self.num_chunks)]
+
+        # Shuffle within each chunk
+        for chunk in chunks:
+            np.random.shuffle(chunk)
+
+        # Shuffle the order of chunks
+        np.random.shuffle(chunks)
+
+        # Flatten shuffled chunks into a single ordered list
+        return np.concatenate(chunks)
+
+    def __iter__(self):
+        """Reshuffle chunks every epoch."""
+        self.final_indices = self._create_shuffled_chunks()
+        return iter(self.final_indices)
+
+    def __len__(self):
+        return len(self.dataset)

@@ -7,8 +7,9 @@ from collections import namedtuple
 from torch.utils.data import DataLoader, Dataset
 
 from openretina.data_io.sridhar_2025.constants import TEST_DATA_FRAMES
-from openretina.data_io.sridhar_2025.dataloader_utils import get_trial_wise_validation_split
-from openretina.data_io.sridhar_2025.responses import load_responses
+from openretina.data_io.sridhar_2025.dataloader_utils import get_trial_wise_validation_split, filter_trials, \
+    ChunkedSampler
+from openretina.data_io.sridhar_2025.responses import load_responses, average_repeated_stimuli_responses
 from openretina.data_io.sridhar_2025.stimuli import process_fixations, load_frames
 
 # from line_profiler_pycharm import profile
@@ -603,24 +604,13 @@ def frame_movie_loader(
             final_training=final_training,
             hard_coded=hard_coded
         )
-        # print("train responses shape: ", train_responses.shape)
-        if num_of_trials_to_use is None:
-            num_of_trials_to_use = len(all_train_ids)+len(all_validation_ids)
-        if hard_coded is None:
-            train_ids = np.isin(
-            all_train_ids,
-            np.arange(start_using_trial, min(train_responses.shape[2], num_of_trials_to_use+start_using_trial)),
-        )
-            train_ids = np.asarray(all_train_ids)[train_ids]
-            valid_ids = np.isin(
-            all_validation_ids,
-            np.arange(start_using_trial, min(train_responses.shape[2], num_of_trials_to_use + start_using_trial)),
-        )
-            valid_ids = all_validation_ids[valid_ids]
-        else:
-            num_trials = train_responses.shape[-1]
-            train_ids = [int(x) for x in all_train_ids if int(x) < min(num_trials, num_of_trials_to_use+start_using_trial)]
-            valid_ids = [int(x) for x in all_validation_ids if int(x) < min(num_trials, num_of_trials_to_use+start_using_trial)]
+
+        train_ids, valid_ids = filter_trials(train_responses=train_responses,
+                                             all_train_ids=all_train_ids,
+                                             all_validation_ids=all_validation_ids,
+                                             hard_coded=hard_coded,
+                                             num_of_trials_to_use=num_of_trials_to_use,
+                                             starting_trial=start_using_trial)
 
         print(f'Trial separation for {retina_index}')
         print("training trials: ", len(train_ids), train_ids)
@@ -708,3 +698,489 @@ def frame_movie_loader(
         dataloaders["test"][retina_index] = test_loader
 
     return dataloaders
+
+
+class NoiseDataset(Dataset):
+    def __init__(
+            self,
+            responses: dict,
+            dir,
+            *data_keys: list,
+            indices: list,
+            use_cache: bool = True,
+            trial_prefix: str = "trial",
+            test: bool = False,
+            cache_maxsize: int = 5,
+            crop: int or tuple = 20,
+            subsample: int = 1,
+            num_of_frames: int = None,
+            num_of_layers: int = None,
+            device: str = "cpu",
+            time_chunk_size: int = None,
+            temporal_dilation=1,
+            hidden_temporal_dilation=1,
+            num_of_hidden_frames: int = None,
+            extra_frame=0,
+    ):
+        """
+        Dataset for the following (example) file structure:
+         ├── data
+         │   ├── non-repeating stimuli [directory with as many files as trials]
+                   |     |-- trial_000
+                   |     |     |-- all_images.npy
+                   |     |-- trial 001
+                   |     |     |-- all_images.npy
+                   |     ...
+                   |     |-- trial 247
+                   |     |     |-- all_images.npy
+         │   ├── repeating stimuli [directory with 1 file for test]
+                         |-- all_images.npy
+         │   ├── responses [directory with as many files as retinas]
+
+        :param responses: dictionary containing train set responses under the key 'train_responses'
+                          and test responses under the key 'test_responses'
+                          :expected train set response shape: cells x num_of_images x num_of_trials
+                          expected test set response shape: cells x num_of_images (i.e. test trials averaged before)
+        :param dir: path to directory where images are stored.
+                    Expected format for image files is: f'{dir}/{trial_prefix}_{int representing trial number}.zfill(3)/all_images.npy'
+                    Expected shape of numpy array in all_images.npy is height x width x num_of_images in trial
+        :param data_keys: list of keys to be used for the datapoints, expected ['images', 'responses']
+        :param indices: Indices of the trials selected for the given dataset
+        :param transforms: List of transformations that are supposed to be performed on images
+        :param use_cache: Whether to use caching when loading image data
+        :param trial_prefix: prefix of trial file, followed by '_{trial number}'
+        :param test: Whether the data we are loading is test data
+        :param cache_maxsize: Maximum number of trials that can be in the cache at a given point
+                              Cache is NOT implemented as LRU. The last cached item is always kicked out first.
+                              This is because the trials are always iterated through in the same order.
+        :param crop: How much to crop the images - top, bottom, left, right
+        :param subsample: Whether/how much images should be sub-sampled (1 equals no subsampling)
+        :param num_of_frames: Indicates how many frames should be used to make one prediction
+        :param num_of_layers: Number of expected convolutional layers,
+                              used to calculate the shrink in dimensions or padding
+        :param device:
+        :param time_chunk_size: Indicates how many predictions should be made at once by the model.
+               The 'images' in datapoints are padded accordingly in the temporal dimension with respect to num_of_frames
+               and num_of_layers. Only valid if single_prediction is false.
+        """
+
+        self.use_cache = use_cache
+        self.data_keys = data_keys
+        if set(data_keys) == {"images", "responses"}:
+            # this version IS serializable in pickle
+            self.data_point = default_image_datapoint
+        if self.use_cache:
+            self.cache_maxsize = cache_maxsize
+        if isinstance(crop, int):
+            crop = (crop, crop, crop, crop)
+        self.crop = crop
+        self.extra_frame = extra_frame
+        self.num_of_layers = num_of_layers
+        self.temporal_dilation = temporal_dilation
+
+        self.num_of_frames = num_of_frames
+        if num_of_hidden_frames is None:
+            self.num_of_hidden_frames = num_of_frames
+        else:
+            self.num_of_hidden_frames = num_of_hidden_frames
+
+        if hidden_temporal_dilation is None:
+            hidden_temporal_dilation = 1
+
+        if isinstance(hidden_temporal_dilation, str):
+            hidden_temporal_dilation = int(hidden_temporal_dilation)
+
+        if isinstance(hidden_temporal_dilation, int):
+            hidden_temporal_dilation = (hidden_temporal_dilation,) * (
+                    self.num_of_layers - 1
+            )
+        if isinstance(self.num_of_hidden_frames, int):
+            self.num_of_hidden_frames = (self.num_of_hidden_frames,) * (self.num_of_layers - 1)
+
+        hidden_reach = sum(
+            (f - 1) * d for f, d in zip(self.num_of_hidden_frames, hidden_temporal_dilation)
+        )
+
+        self.frame_overhead = (
+                                      self.num_of_frames - 1
+                              ) * self.temporal_dilation + hidden_reach
+
+        if time_chunk_size is not None:
+            self.time_chunk_size = time_chunk_size + self.frame_overhead
+        self.subsample = subsample
+        self.device = device
+        self.trial_prefix = trial_prefix
+        self.data_keys = data_keys
+        self.basepath = dir
+        if indices is not None:
+            self.train_responses = torch.from_numpy(
+                responses["train_responses"]
+            ).float()
+
+        self.test_responses = torch.from_numpy(responses["test_responses"]).float()
+        self.indices = indices
+        self.random_indices = np.random.permutation(indices)
+        self.n_neurons = self.train_responses.shape[0]
+        self.num_of_trials = self.train_responses.shape[2]
+        self.num_of_imgs = int(self.train_responses.shape[1])
+
+        # Checks if trials are saved in evenly sized files
+        if test:
+            self.num_of_imgs = self.test_responses.shape[1]
+        self._test = test
+        if self._test:
+
+            self._len = (
+                    int(
+                        np.floor(
+                            (self.num_of_imgs - self.frame_overhead)
+                            / (self.time_chunk_size - self.frame_overhead)
+                        )
+                    )
+                    - self.extra_frame
+            )
+
+        else:
+            self._len = (
+                    int(
+                        len(self.indices)
+                        * np.floor(
+                            (self.num_of_imgs - self.frame_overhead)
+                            / (self.time_chunk_size - self.frame_overhead)
+                        )
+                    )
+                    - self.extra_frame
+            )
+
+        self._cache = {data_key: {} for data_key in data_keys}
+
+    def purge_cache(self):
+        self._cache = {data_key: {} for data_key in self.data_keys}
+
+    def transform_image(self, images):
+        """
+        applies transformations to the image: downsampling, cropping, rescaling, and dimension expansion.
+        """
+
+        if len(images.shape) == 3:
+            h, w, num_of_imgs = images.shape
+            images = images[
+                     self.crop[0]: h - self.crop[1]: self.subsample,
+                     self.crop[2]: w - self.crop[3]: self.subsample,
+                     :,
+                     ]
+            return images
+
+        elif len(images.shape) == 4:
+            h, w, num_of_imgs = images.shape[:2]
+            images = images[
+                     self.crop[0][0]: h - self.crop[0][1]: self.subsample,
+                     self.crop[1][0]: w - self.crop[1][1]: self.subsample,
+                     :,
+                     ]
+            images = images.permute(0, 3, 1, 2)
+        else:
+            raise ValueError(
+                f"Image shape has to be three dimensional (time as channels) or four dimensional "
+                f"(time, with w x h x c). got image shape {images.shape}"
+            )
+        return images
+
+    def __len__(self):
+        return self._len
+
+    def __getitem__(self, item):
+        x = self.get_whole_trials(item)
+        return x
+
+    def get_whole_trials(self, item):
+        trial_index = int(
+            np.floor(
+                item
+                / np.floor(
+                    (self.num_of_imgs - self.frame_overhead)
+                    / (self.time_chunk_size - self.frame_overhead)
+                )
+            )
+        )
+        trial_file_index = self.indices[trial_index]
+        trial_portion = int(
+            item
+            % np.floor(
+                (self.num_of_imgs - self.frame_overhead)
+                / (self.time_chunk_size - self.frame_overhead)
+            )
+        )
+        starting_img_index = int(trial_portion * self.time_chunk_size)
+        starting_img_index -= trial_portion * self.frame_overhead
+        ending_img_index = int(starting_img_index + self.time_chunk_size)
+        ret = []
+        # print(f'item: {item}')
+        # print(f'trial index: {trial_index}, trial file index: {trial_file_index}, trial portion: {trial_portion}')
+        # print(f'starting img: {starting_img_index}, ending img: {ending_img_index}')
+        # print(f'starting response: {starting_img_index+self.frame_overhead + self.extra_frame}, '
+        #       f'ending response: {ending_img_index+self.extra_frame}')
+        # print()
+        for data_key in self.data_keys:
+            if data_key == "images":
+                value = self.get_trial_portion(
+                    trial_file_index, data_key, starting_img_index, ending_img_index
+                )
+                value = torch.unsqueeze(value, 0)
+            else:
+                if not self._test:
+                    value = self.train_responses[
+                            :,
+                            starting_img_index
+                            + self.frame_overhead
+                            + self.extra_frame: ending_img_index
+                                                + self.extra_frame,
+                            trial_file_index,
+                            ]
+                else:
+                    value = self.test_responses[
+                            :,
+                            starting_img_index
+                            + self.frame_overhead
+                            + self.extra_frame: ending_img_index
+                                                + self.extra_frame,
+                            ]
+
+            ret.append(value)
+
+        x = self.data_point(*ret)
+        start_response_index = starting_img_index + self.frame_overhead
+        end_response_index = ending_img_index
+        # print('start', start_response_index,
+        #       'end', end_response_index)
+        return x  # , start_response_index, end_response_index, trial_file_index
+
+
+
+    def get_trial_file(self, trial_file_index, data_key):
+        if not self._test:
+            imgs = np.load(
+                os.path.join(
+                    self.basepath,
+                    f"{self.trial_prefix}_{str(trial_file_index).zfill(3)}/all_images.npy",
+                )
+            )
+            imgs = torch.from_numpy(imgs)
+            imgs = self.transform_image(imgs)
+            if self.use_cache:
+                if len(list(self._cache[data_key].keys())) >= self.cache_maxsize:
+                    last_key = list(self._cache[data_key].keys())[-1]
+                    del self._cache[data_key][last_key]
+                self._cache[data_key][trial_file_index] = imgs
+            return imgs
+        else:
+            imgs = np.load(os.path.join(self.basepath, f"all_images.npy"))
+            imgs = torch.from_numpy(imgs)
+            imgs = self.transform_image(imgs)
+            if self.use_cache:
+                self._cache[data_key] = imgs
+            return imgs
+
+    def get_trial_portion(
+            self, trial_file_index, data_key, starting_img_index, ending_img_index
+    ):
+        if not self._test:
+            if self.use_cache and trial_file_index in list(
+                    self._cache[data_key].keys()
+            ):
+                value = self._cache[data_key][trial_file_index][
+                        :, :, starting_img_index:ending_img_index
+                        ]
+            else:
+                imgs = self.get_trial_file(trial_file_index, data_key=data_key)
+                value = imgs[:, :, starting_img_index:ending_img_index]
+
+            value = value.permute(2, 0, 1)
+        else:
+            if self.use_cache and len(self._cache[data_key]) > 0:
+                value = self._cache[data_key][:, :, starting_img_index:ending_img_index]
+            else:
+                imgs = self.get_trial_file(trial_file_index, data_key=data_key)
+                value = imgs[:, :, starting_img_index:ending_img_index]
+            value = value.permute(2, 0, 1)
+        return value
+
+def get_noise_dataloader(
+    response_dict,
+    path,
+    indices,
+    test,
+    batch_size,
+    shuffle=True,
+    use_cache=True,
+    cache_maxsize=20,
+    num_of_frames=None,
+    device="cpu",
+    crop=50,
+    subsample=20,
+    time_chunk_size=1,
+    num_of_layers=None,
+    temporal_dilation=1,
+    hidden_temporal_dilation=1,
+    num_of_hidden_frames=None,
+    extra_frame=0,
+    chunked_sampling=True
+):
+    data = NoiseDataset(
+        response_dict,
+        path,
+        "images",
+        "responses",
+        indices=indices,
+        use_cache=use_cache,
+        test=test,
+        cache_maxsize=cache_maxsize,
+        crop=crop,
+        subsample=subsample,
+        num_of_frames=num_of_frames,
+        num_of_hidden_frames=num_of_hidden_frames,
+        num_of_layers=num_of_layers,
+        device=device,
+        time_chunk_size=time_chunk_size,
+        temporal_dilation=temporal_dilation,
+        hidden_temporal_dilation=hidden_temporal_dilation,
+        extra_frame=extra_frame,
+    )
+    if chunked_sampling:
+        chunked_sampler = ChunkedSampler(data, seed=8)
+        dataloader = DataLoader(data, batch_size=batch_size, sampler=chunked_sampler, shuffle=False)
+    else:
+        dataloader = DataLoader(data, batch_size=batch_size, shuffle=shuffle)
+    return dataloader
+
+def white_noise_loader(
+    basepath,
+    files,
+    big_crops,
+    train_image_path,
+    test_image_path,
+    excluded_cells=None,
+    batch_size=10,
+    seed=None,
+    train_frac=0.8,
+    subsample=1,
+    crop=20,
+    use_cache=True,
+    cache_maxsize=5,
+    num_of_trials_to_use=None,
+    start_using_trial=0,
+    num_of_frames=None,
+    num_of_hidden_frames=None,
+    temporal_dilation=1,
+    hidden_temporal_dilation=1,
+    cell_index=0,
+    device="cpu",
+    time_chunk_size=None,
+    num_of_layers=None,
+    retina_specific_crops=True,
+    extra_frame=0,
+    hard_coded=None,
+    chunked_sampling=False
+):
+    dataloaders = {"train": {}, "validation": {}, "test": {}}
+    retina_indices = list(files.keys())
+    responses = load_responses(basepath, files=files,
+                               excluded_cells=excluded_cells, cell_index=cell_index)
+
+    for retina_index in retina_indices:
+        train_responses = responses[retina_index]['train_responses']
+        test_responses = responses[retina_index]['test_responses']
+        all_train_ids, all_validation_ids = get_trial_wise_validation_split(
+            train_responses=train_responses, train_frac=train_frac,
+                seed=seed, hard_coded=hard_coded
+            )
+        train_ids, valid_ids = filter_trials(
+            train_responses=train_responses,
+            all_train_ids=all_train_ids,
+            all_validation_ids=all_validation_ids,
+            hard_coded=hard_coded,
+            num_of_trials_to_use=num_of_trials_to_use,
+            starting_trial=start_using_trial
+        )
+
+        if isinstance(train_image_path, dict):
+            dataset_train_image_path = os.path.join(basepath, train_image_path[retina_index])
+            dataset_test_image_path = os.path.join(basepath, test_image_path[retina_index])
+        else:
+            dataset_train_image_path = os.path.join(basepath, train_image_path)
+            dataset_test_image_path = os.path.join(basepath, test_image_path)
+
+        if retina_specific_crops:
+            crop = big_crops[retina_index]
+        train_loader = get_noise_dataloader(
+            {"train_responses": train_responses, "test_responses": test_responses},
+            path=dataset_train_image_path,
+            indices=train_ids,
+            test=False,
+            shuffle=True,
+            batch_size=batch_size,
+            use_cache=use_cache,
+            cache_maxsize=cache_maxsize,
+            num_of_frames=num_of_frames,
+            num_of_hidden_frames=num_of_hidden_frames,
+            device=device,
+            crop=crop,
+            subsample=subsample,
+            time_chunk_size=time_chunk_size,
+            num_of_layers=num_of_layers,
+            temporal_dilation=temporal_dilation,
+            hidden_temporal_dilation=hidden_temporal_dilation,
+            extra_frame=extra_frame,
+            chunked_sampling=chunked_sampling
+        )
+
+        valid_loader = get_noise_dataloader(
+            {"train_responses": train_responses, "test_responses": test_responses},
+            path=dataset_train_image_path,
+            indices=valid_ids,
+            test=False,
+            batch_size=batch_size,
+            use_cache=use_cache,
+            cache_maxsize=cache_maxsize,
+            shuffle=False,
+            num_of_frames=num_of_frames,
+            num_of_hidden_frames=num_of_hidden_frames,
+            device=device,
+            crop=crop,
+            subsample=subsample,
+            time_chunk_size=time_chunk_size,
+            num_of_layers=num_of_layers,
+            temporal_dilation=temporal_dilation,
+            hidden_temporal_dilation=hidden_temporal_dilation,
+            extra_frame=extra_frame,
+            chunked_sampling=False
+        )
+
+        test_loader = get_noise_dataloader(
+            {"train_responses": train_responses, "test_responses": test_responses},
+            path=dataset_test_image_path,
+            indices=train_ids,
+            test=True,
+            batch_size=batch_size,
+            use_cache=use_cache,
+            shuffle=False,
+            cache_maxsize=20,
+            num_of_frames=num_of_frames,
+            num_of_hidden_frames=num_of_hidden_frames,
+            device=device,
+            crop=crop,
+            subsample=subsample,
+            time_chunk_size=time_chunk_size,
+            num_of_layers=num_of_layers,
+            temporal_dilation=temporal_dilation,
+            hidden_temporal_dilation=hidden_temporal_dilation,
+            extra_frame=extra_frame,
+            chunked_sampling=False
+        )
+
+        dataloaders["train"][retina_index] = train_loader
+        dataloaders["validation"][retina_index] = valid_loader
+        dataloaders["test"][retina_index] = test_loader
+
+    return dataloaders
+
