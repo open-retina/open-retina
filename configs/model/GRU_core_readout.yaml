@@ -11,8 +11,8 @@ core_gamma_input: 0.3
 core_gamma_in_sparse: 1.0
 core_gamma_temporal: 40.0
 core_bias: true
-core_input_padding: false
-core_hidden_padding: true
+core_input_padding: 0
+core_hidden_padding: [0, 2, 2]
 core_use_gru: false
 core_use_projections: true
 batch_adaptation: false

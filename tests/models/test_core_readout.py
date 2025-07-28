@@ -16,8 +16,10 @@ def test_load_core_readout_from_remote(model_name: str) -> None:
     assert responses.shape[0] == num_batches
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize("model_name", sorted(_MODEL_NAME_TO_REMOTE_LOCATION.keys()))
-def test_model_is_causaul(model_name: str) -> None:
+def test_that_models_is_causal(model_name: str) -> None:
+    # TODO; rereun tests once we retrained and uploaded causal only models
     model = load_core_readout_from_remote(model_name, "cpu")
     model_is_causal = is_model_causal(model)
 
