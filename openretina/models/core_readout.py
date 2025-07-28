@@ -185,7 +185,7 @@ class CoreReadout(BaseCoreReadout):
         core_gamma_in_sparse: float = 0.0,
         core_gamma_temporal: float = 40.0,
         core_input_padding: bool | str | int | tuple[int, int, int] = False,
-        core_hidden_padding: bool | str | int | tuple[int, int, int] = (5, 0, 0),
+        core_hidden_padding: bool | str | int | tuple[int, int, int] = True,
         readout_scale: bool = True,
         readout_bias: bool = True,
         readout_gaussian_masks: bool = True,

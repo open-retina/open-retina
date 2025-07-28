@@ -109,7 +109,7 @@ class SimpleCoreWrapper(Core):
             layer: dict[str, torch.nn.Module] = OrderedDict()
             padding_to_use = input_padding if layer_id == 0 else hidden_padding
             # explictily check against bools as the type can also be an int or a tuple
-            if input_padding is True:
+            if padding_to_use is True:
                 padding = "same"
             elif padding_to_use is False:
                 padding = 0
