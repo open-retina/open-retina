@@ -175,7 +175,7 @@ class FullGaussian2d(Readout):
 
         return self._mu.squeeze().std(0).sum()
 
-    def feature_l1(self, reduction="sum", average=None):
+    def feature_l1(self, reduction="sum"):
         """
         Returns l1 regularization term for features.
         Args:
@@ -183,12 +183,12 @@ class FullGaussian2d(Readout):
             reduction(str): Specifies the reduction to apply to the output: 'none' | 'mean' | 'sum'
         """
         if self._original_features:
-            return self.apply_reduction(self.features.abs(), reduction=reduction, average=average)
+            return self.apply_reduction(self.features.abs(), reduction=reduction)
         else:
             return 0
 
     def regularizer(self, reduction="sum", average=None):
-        return self.feature_l1(reduction=reduction, average=average) * self.gamma_readout
+        return self.feature_l1(reduction=reduction) * self.gamma_readout
 
     @property
     def mu(self):
