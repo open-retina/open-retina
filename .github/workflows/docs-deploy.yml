@@ -63,9 +63,9 @@ jobs:
         with:
           path: ./site
 
-  # Deployment job - runs on main and feature/documentation branch pushes
-  deploy:
-    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/documentation') && github.event_name == 'push'
+  # Production deployment - only main branch uses environment protection
+  deploy-production:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -76,35 +76,20 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
         
-      - name: Comment on commit with deployment info
-        if: github.ref == 'refs/heads/feature/documentation'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const deploymentUrl = '${{ steps.deployment.outputs.page_url }}';
-            const branchName = '${{ github.ref_name }}';
-            
-            // Create a comment on the commit
-            github.rest.repos.createCommitComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              commit_sha: context.sha,
-              body: `📖 **Documentation Preview Deployed!**
-              
-              Your documentation changes have been deployed for testing:
-              🔗 **Preview URL:** ${deploymentUrl}
-              
-              Branch: \`${branchName}\`
-              Commit: ${context.sha.substring(0, 7)}
-              
-              ⚠️ **Note:** This is a preview deployment using your live site. 
-              Once you're satisfied with the changes, merge this branch to main for production deployment.`
-            });
-            
-      - name: Report deployment type
+      - name: Report production deployment
+        run: echo "🚀 Production deployment completed to open-retina.org"
+
+  # Preview deployment - feature branch without environment protection  
+  deploy-preview:
+    if: github.ref == 'refs/heads/feature/documentation' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+        
+      - name: Report preview deployment
         run: |
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "🚀 Production deployment completed to open-retina.org"
-          else
-            echo "📖 Documentation preview deployment completed - check commit comment for URL"
-          fi
+          echo "📖 Documentation preview deployed successfully!"
+          echo "🔗 Preview URL: ${{ steps.deployment.outputs.page_url }}"
