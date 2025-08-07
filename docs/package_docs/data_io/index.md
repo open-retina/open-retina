@@ -196,4 +196,3 @@ When working with large datasets:
 - Consider using PyTorch's DataLoader with multiple workers
 - Cache processed data when possible
 
-Learn more about [optimizing data loading](./optimization.md). 

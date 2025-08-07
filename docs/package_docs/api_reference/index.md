@@ -28,12 +28,7 @@ The `models` module provides complete model implementations:
 
 ### Modules
 
-The `modules` package contains building blocks for model construction:
-
-- [`openretina.modules.core`](./modules/core.md): Convolutional feature extractors
-- [`openretina.modules.readout`](./modules/readout.md): Components for mapping features to neural responses
-- [`openretina.modules.layers`](./modules/layers.md): Custom neural network layers
-- [`openretina.modules.losses`](./modules/losses.md): Loss functions for training
+The `modules` package contains building blocks for model construction. See the [modules overview](./modules.md) for complete documentation.
 
 ### Data I/O
 
@@ -41,14 +36,15 @@ The `data_io` package handles data loading and preprocessing:
 
 - [`openretina.data_io.base_dataloader`](./data_io/base_dataloader.md): Abstract interfaces for data handling
 - [`openretina.data_io.hoefling_2024`](./data_io/hoefling_2024.md): Dataloaders for Höfling et al. 2024 dataset
-- [`openretina.data_io.karamanlis_2024`](./data_io/karamanlis_2024.md): Dataloaders for Karamanlis et al. 2024 dataset
-- [`openretina.data_io.maheswaranathan_2023`](./data_io/maheswaranathan_2023.md): Dataloaders for Maheswaranathan et al. 2023 dataset
 - [`openretina.data_io.artificial_stimuli`](./data_io/artificial_stimuli.md): Utilities for generating artificial stimuli
 - [`openretina.data_io.cyclers`](./data_io/cyclers.md): Utilities for cycling through datasets
+
+See the [data I/O overview](./data_io.md) for complete documentation.
 
 ### In-silico
 
 The `insilico` package provides tools for analyzing models:
 
 - [`openretina.insilico.stimulus_optimization`](./insilico/stimulus_optimization.md): Tools for finding optimal stimuli
-- [`openretina.insilico.tuning_analyses`](./insilico/tuning_analyses.md): Tools for characterizing neural responses 
+
+See the [in-silico overview](./insilico.md) for complete documentation. 

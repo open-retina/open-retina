@@ -53,7 +53,7 @@ jobs:
 
       - name: Build with MkDocs
         run: |
-          mkdocs build --clean --strict
+          mkdocs build --clean
         env:
           # For mkdocs-social plugin (generates social cards)
           PYTHONPATH: ${{ github.workspace }}

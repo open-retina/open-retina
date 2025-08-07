@@ -72,33 +72,25 @@ nav:
           - Models:
               - package_docs/models/index.md
               - Core-Readout Models: package_docs/models/core_readout.md
-              - Linear-Nonlinear Models: package_docs/models/linear_nonlinear.md
-              - Sparse Autoencoders: package_docs/models/sparse_autoencoder.md
           - Data Input/Output:
               - package_docs/data_io/index.md
               - Hoefling et al., 2024: package_docs/data_io/hoefling_2024.md
-              - Custom Data Formats: package_docs/data_io/custom_data.md
           - In-silico Experiments:
               - package_docs/insilico/index.md
-              - Stimulus Optimization: package_docs/insilico/stimulus_optimization.md
-              - Tuning Analysis: package_docs/insilico/tuning_analysis.md
       - Tutorials:
           - Loading Pre-trained Models: package_docs/tutorials/pretrained_models.md
           - Training Custom Models: package_docs/tutorials/training.md
           - Stimulus Optimization: package_docs/tutorials/stimulus_optimization.md
+      - Reference:
+          - Model Zoo: package_docs/model_zoo.md
+          - Datasets: package_docs/datasets.md
       - API Reference:
           - Overview: package_docs/api_reference/index.md
-          - Models:
-              - Core-Readout: package_docs/api_reference/models/core_readout.md
-              - Linear-Nonlinear: package_docs/api_reference/models/linear_nonlinear.md
-              - Sparse Autoencoder: package_docs/api_reference/models/sparse_autoencoder.md
-          - Data I/O:
-              - Base Dataloader: package_docs/api_reference/data_io/base_dataloader.md
-              - Artificial Stimuli: package_docs/api_reference/data_io/artificial_stimuli.md
-              - Cyclers: package_docs/api_reference/data_io/cyclers.md
-              - Höfling et al. 2024: package_docs/api_reference/data_io/hoefling_2024.md
-          - In-silico:
-              - Stimulus Optimization: package_docs/api_reference/insilico/stimulus_optimization.md
+          - Models: package_docs/api_reference/models.md
+          - Data I/O: package_docs/api_reference/data_io.md
+          - In-silico: package_docs/api_reference/insilico.md
+          - Modules: package_docs/api_reference/modules.md
+          - Utils: package_docs/api_reference/utils.md
       - Contributing:
           - Contributing Guide: package_docs/contributing.md
           - Development Setup: package_docs/development.md

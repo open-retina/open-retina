@@ -28,7 +28,7 @@ hide:
     `openretina` has a biorxiv pre-print!
 
 
--   [:material-clock-fast:{ .lg .middle } __Install__](/package_docs/installation)
+-   [:material-clock-fast:{ .lg .middle } __Install__](package_docs/installation.md)
 
     ---
     === "git clone"
@@ -47,7 +47,7 @@ hide:
         ```
 
 
--   [:material-book-open:{ .lg .middle } __Read the documentation__](/package_docs)
+-   [:material-book-open:{ .lg .middle } __Read the documentation__](package_docs/index.md)
 
     ---
 

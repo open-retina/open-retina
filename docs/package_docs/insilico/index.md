@@ -66,33 +66,11 @@ optimize_stimulus(
 print(f"Optimized stimulus shape: {stimulus.shape}")
 ```
 
-Learn more about [Stimulus Optimization](./stimulus_optimization.md).
+The stimulus optimization module is documented in the [API reference](../api_reference/insilico/stimulus_optimization.md).
 
 ### Tuning Analysis
 
-The `insilico.tuning_analyses` module contains tools for characterizing neural tuning properties:
-
-```python
-from openretina.insilico.tuning_analyses import analyze_orientation_tuning
-
-# Analyze orientation tuning for all neurons in the model
-orientation_tuning = analyze_orientation_tuning(
-    model,
-    orientations=range(0, 180, 15)  # Test orientations from 0 to 165 degrees
-)
-
-# Plot tuning curves
-import matplotlib.pyplot as plt
-plt.figure(figsize=(10, 8))
-for neuron_idx in range(5):  # Plot first 5 neurons
-    plt.plot(range(0, 180, 15), orientation_tuning[neuron_idx], label=f"Neuron {neuron_idx}")
-plt.xlabel("Orientation (degrees)")
-plt.ylabel("Response")
-plt.legend()
-plt.show()
-```
-
-Learn more about [Tuning Analysis](./tuning_analysis.md).
+The `insilico.tuning_analyses` module contains tools for characterizing neural tuning properties (coming soon).
 
 ## Feature Visualization
 
