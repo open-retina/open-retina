@@ -14,36 +14,95 @@ The models in this repository are inspired by and partially contain adapted code
 
 ## Installation
 
+### For Development
+
 For development and to have access to Jupyter notebooks:
-```
+```bash
 git clone git@github.com:open-retina/open-retina.git
 cd open-retina
 pip install -e .
 ```
 
+To install with development dependencies:
+```bash
+pip install -e ".[dev]"
+```
+
+To install with additional model development dependencies:
+```bash
+pip install -e ".[dev,devmodels]"
+```
+
+### For Users
+
 For normal usage:
 
-```
+```bash
 pip install openretina
 ```
+
+### Quick Start
 
 Test openretina by downloading a model and running a forward pass:
 ```python
 import torch
 from openretina.models import *
 
+# Load a pre-trained model
 model = load_core_readout_from_remote("hoefling_2024_base_low_res", "cpu")
-responses = model.forward(torch.rand(model.stimulus_shape(time_steps=50)))
+
+# Create a random stimulus (batch_size=1, channels=3, height=50, width=50, time_steps=50)
+stimulus = torch.rand(model.stimulus_shape(time_steps=50))
+
+# Run a forward pass
+responses = model.forward(stimulus)
+print(f"Response shape: {responses.shape}")
 ```
 
+### Available Pre-trained Models
+
+The following pre-trained models are available:
+
+- `hoefling_2024_base_low_res`: Base model trained on low-resolution natural scenes
+- `hoefling_2024_base_high_res`: Base model trained on high-resolution natural scenes
+
+You can load any of these models using the `load_core_readout_from_remote` function.
+
 ## Contributing
-Before raising a PR please run:
-```
+
+We welcome contributions to OpenRetina! Here's how to get started:
+
+1. Fork the repository and create a feature branch
+2. Make your changes
+3. Ensure your code passes all tests and follows our coding standards
+4. Submit a pull request
+
+### Development Workflow
+
+Before raising a PR, please run:
+```bash
 # Fix formatting of python files
 make fix-formatting
+
 # Run type checks and unit tests
 make test-all
 ```
+
+### Code Style
+
+We use:
+- [Ruff](https://github.com/astral-sh/ruff) for linting and formatting
+- [mypy](https://github.com/python/mypy) for type checking
+
+Our code style follows the PEP 8 guidelines with a line length of 120 characters.
+
+### Adding New Models
+
+If you're adding a new model:
+1. Add your model implementation in the `openretina/models` directory
+2. Add appropriate tests in the `tests` directory
+3. Update the documentation to include your new model
+4. If applicable, add a notebook demonstrating the usage of your model
 
 ## Design decisions and structure
 With this repository we provide already pre-trained retina models that can be used for inference and intepretability out of the box, and dataloaders together with model architectures to train new models.
