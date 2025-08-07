@@ -28,7 +28,8 @@ pip install -e ".[dev]"
 
 First, you need to prepare your data or use one of the built-in datasets:
 
-# TODO wrong dataloading
+## TODO wrong dataloading!! Page was AI generated.
+
 ```python
 # Import data loading functions
 from openretina.data_io.hoefling_2024.dataloaders import natmov_dataloaders_v2

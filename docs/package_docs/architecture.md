@@ -2,8 +2,6 @@
 title: Architecture Overview
 ---
 
-# OpenRetina Architecture
-
 OpenRetina is designed with modularity in mind, allowing researchers to mix and match components while ensuring consistent interfaces between them.
 
 ## Core Components
@@ -24,7 +22,7 @@ openretina/
 
 The `modules` package contains the fundamental building blocks for constructing retina models:
 
-- **Core modules** (`modules/core/`): Convolutional feature extractors that learn spatio-temporal filters
+- **Core modules** (`modules/core/`): Feature extractors that learn spatio-temporal filters
 - **Readout modules** (`modules/readout/`): Components that map extracted features to neural responses
 - **Layers** (`modules/layers/`): Custom PyTorch layers for retina modeling
 - **Regularizers** (`modules/layers/regularizers.py`): Functions to enforce constraints during training
@@ -33,9 +31,8 @@ The `modules` package contains the fundamental building blocks for constructing 
 
 The `models` package provides complete, ready-to-use models:
 
-- **Core-readout models** (`models/core_readout.py`): End-to-end models with convolutional cores and readout mechanisms
+- **Core-readout models** (`models/core_readout.py`): End-to-end models with cores and readout mechanisms
 - **Linear-nonlinear models** (`models/linear_nonlinear.py`): Classical LN cascade models
-- **Sparse autoencoders** (`models/sparse_autoencoder.py`): For learning sparse representations
 
 ### Data I/O
 
@@ -78,4 +75,4 @@ OpenRetina can be extended by:
 1. **Adding new core modules**: Implementing new feature extractors
 2. **Creating new readout mechanisms**: For different neural response patterns
 3. **Supporting new datasets**: Adding data loaders for your own data
-4. **Implementing new analyses**: Adding custom in-silico experimental methods 
+4. **Implementing new analyses**: Adding custom in-silico experimental methods

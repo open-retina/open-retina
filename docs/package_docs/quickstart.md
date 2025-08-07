@@ -4,7 +4,7 @@ title: Quick Start
 
 # Quick Start Guide
 
-This guide will help you get started with OpenRetina quickly by:
+This guide will help you get started with `openretina` quickly by:
 1. Installing the package
 2. Loading a pre-trained model
 3. Running inference with the model
@@ -12,7 +12,7 @@ This guide will help you get started with OpenRetina quickly by:
 
 ## Installation
 
-Install OpenRetina using pip:
+Install `openretina` using pip:
 
 ```bash
 pip install openretina
@@ -28,7 +28,7 @@ pip install -e .
 
 ## Loading a Pre-trained Model
 
-OpenRetina provides several pre-trained models. Here's how to load one:
+`openretina` provides several pre-trained models. Here's how to load one:
 
 ```python
 import torch

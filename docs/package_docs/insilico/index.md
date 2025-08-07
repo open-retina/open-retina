@@ -18,7 +18,7 @@ In-silico experiments are computational studies that simulate experiments you mi
 ## Available Experimental Techniques
 
 ### Stimulus Optimization
-# TODO double check
+# TODO this page was written by AI, double check
 The `insilico.stimulus_optimization` module provides tools to find stimuli that optimally drive individual neurons or neuron groups:
 
 ```python

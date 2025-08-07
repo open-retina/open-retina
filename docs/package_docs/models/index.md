@@ -26,48 +26,21 @@ model = load_core_readout_from_remote("hoefling_2024_base_low_res", "cpu")
 
 Learn more about [Core-Readout Models](./core_readout.md).
 
-### Linear-Nonlinear Models
+### Single-cell models
 
-The classical approach to retinal modeling involves linear filters followed by nonlinear transformations:
+TODO write this section
 
-```python
-from openretina.models import LNP
-# TODO check
-# Create a linear-nonlinear-Poisson model (LNP)
-ln_model = LNP(
-    input_shape=(2, 30, 16, 18),  # (channels, time, height, width)
-    output_shape=(20,),           # Number of neurons (as a tuple)
-    filter_size=10                # Size of the linear filter
-)
-```
-
-Learn more about [Linear-Nonlinear Models](./linear_nonlinear.md).
-
-### Sparse Autoencoders
-
-For unsupervised learning of retinal response patterns:
-
-```python
-from openretina.models.sparse_autoencoder import SparseAutoencoder
-
-# Create a sparse autoencoder
-autoencoder = SparseAutoencoder(
-    input_dim=100,
-    encoding_dim=200,
-    sparsity_weight=0.1
-)
-```
-
-Learn more about [Sparse Autoencoders](./sparse_autoencoder.md).
 
 ## Pre-trained Models
 
 OpenRetina includes several pre-trained models from published studies:
 
-| Model Name | Paper | Description | Input Dimensions |
-|------------|-------|-------------|------------------|
-| `hoefling_2024_base_low_res` | Höfling et al., 2024 | Base model trained on mouse retina responses | (2, T, 16, 18) |
-| `hoefling_2024_base_high_res` | Höfling et al., 2024 | Higher resolution version | (2, T, 32, 36) |
+TODO extend table...
+
+| Model Name                    | Paper                | Description                                  | Input Dimensions |
+| ----------------------------- | -------------------- | -------------------------------------------- | ---------------- |
+| `hoefling_2024_base_low_res`  | Höfling et al., 2024 | Base model trained on mouse retina responses | (2, T, 16, 18)   |
+| `hoefling_2024_base_high_res` | Höfling et al., 2024 | Higher resolution version                    | (2, T, 32, 36)   |
 
 Where `T` is the number of time steps (typically 30-100).
 

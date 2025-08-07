@@ -4,11 +4,11 @@ title: Installation
 
 # Installation
 
-OpenRetina can be installed in several ways depending on your needs. Choose the installation method that best fits your use case.
+`openretina` can be installed in several ways depending on your needs. Choose the installation method that best fits your use case.
 
 ## Prerequisites
 
-OpenRetina requires:
+`openretina` requires:
 
 - Python 3.8 or higher
 - PyTorch 2.0 or higher
@@ -16,7 +16,7 @@ OpenRetina requires:
 
 ## Method 1: Install from PyPI (Recommended for Users)
 
-The simplest way to install OpenRetina is through pip:
+The simplest way to install `openretina` is through pip:
 
 ```bash
 pip install openretina
@@ -38,7 +38,7 @@ The `-e` flag installs the package in "editable" mode, so changes to the source 
 
 ## Method 3: Install with Development Dependencies
 
-If you want to contribute to OpenRetina, install with development dependencies:
+If you want to contribute to `openretina`, install with development dependencies:
 
 ```bash
 git clone git@github.com:open-retina/open-retina.git
@@ -60,7 +60,7 @@ pip install -e ".[devmodels]"
 
 ## Verifying Your Installation
 
-To verify that OpenRetina was installed correctly, run:
+To verify that `openretina` was installed correctly, run:
 
 ```python
 import openretina
@@ -97,4 +97,4 @@ pip install openretina
 
 ## Next Steps
 
-Once you've successfully installed OpenRetina, check out the [Quick Start Guide](./quickstart.md) to begin using the package. 
+Once you've successfully installed `openretina`, check out the [Quick Start Guide](./quickstart.md) to begin using the package. 

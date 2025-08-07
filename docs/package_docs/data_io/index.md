@@ -2,18 +2,20 @@
 title: Data Input/Output
 ---
 
-# Data Input and Output
+## TODO check:
 
-OpenRetina provides tools for loading, processing, and generating visual stimuli and neural responses for retina modeling.
+This page was partly written by AI. needs proofreading.
+
+`openretina` provides tools for loading, processing, and generating visual stimuli and neural responses for retina modeling.
 
 ## Supported Datasets
 
-OpenRetina includes loaders for several published datasets:
+`openretina` includes loaders for several published datasets:
 
 ### Höfling et al., 2024
 
 This dataset contains two-photon calcium imaging responses from mouse retinal ganglion cells to visual stimuli.
-# TODO check
+
 ```python
 # First, import the necessary modules
 from openretina.data_io.hoefling_2024.dataloaders import natmov_dataloaders_v2
@@ -70,7 +72,7 @@ dataloaders = get_maheswaranathan_dataloaders(
 
 ## Base Classes
 
-OpenRetina provides abstract base classes for creating custom data loaders:
+`openretina` provides abstract base classes for creating custom data loaders:
 
 ```python
 from openretina.data_io.base_dataloader import BaseDataLoader
@@ -122,7 +124,7 @@ bar = generate_moving_bar(
 
 ## Data Cyclers
 
-For training models, OpenRetina uses data cyclers that efficiently batch and preprocess data:
+For training models, `openretina` uses data cyclers that efficiently batch and preprocess data:
 
 ```python
 from torch.utils.data import DataLoader
@@ -155,7 +157,7 @@ for session_key, batch in long_cycler:
 
 ## Custom Data Formats
 
-To use your own data with OpenRetina, you need to:
+To use your own data with `openretina`, you need to:
 
 1. Prepare your stimuli as tensors of shape `(channels, time, height, width)`
 2. Prepare your responses as tensors of shape `(neurons, time)`

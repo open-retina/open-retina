@@ -10,8 +10,7 @@ hide:
 
 `openretina` is an open-source neural network toolkit for modeling retinal responses to visual stimuli. It provides pre-trained models for inference and interpretability, as well as components for training new retina models with your own data.
 
-!!! note "About OpenRetina"
-    OpenRetina enables computational neuroscientists to model, analyze, and interpret retinal neural responses to visual stimuli using deep learning approaches.
+---
 
 <div class="grid cards" markdown>
 
@@ -29,7 +28,7 @@ hide:
     `openretina` has a biorxiv pre-print!
 
 
--   :material-clock-fast:{ .lg .middle } __Easy installation__
+-   [:material-clock-fast:{ .lg .middle } __Install__](/package_docs/installation)
 
     ---
     === "git clone"
@@ -54,37 +53,9 @@ hide:
 
     Browse detailed documentation on models, data loading, and in-silico experiments
 
-
--   :fontawesome-solid-people-group:{ .lg .middle } __Collaborative__
-
-    ---
-
-    OpenRetina is developed by a growing community of computational and experimental neuroscientists.
-    Join us to contribute models, data formats, or analysis methods.
-
-    [:octicons-arrow-right-24: Contribute](/package_docs/contributing)
-
--   :material-scale-balance:{ .lg .middle } __Open Source__
-
-    ---
-
-    All code is freely available under an open-source license, promoting transparency and reproducibility in computational neuroscience.
-
-    [:octicons-arrow-right-24: License](/package_docs/license)
-
--   :material-view-module:{ .lg .middle} __Modular__
-  
-    ---
-
-    The architecture is modular by design, allowing you to mix and match components:
-    - Utilize different convolutional cores
-    - Swap readout mechanisms
-    - Combine with your own custom PyTorch modules
-    
-    [:octicons-arrow-right-24: Architecture](/package_docs/architecture)
-
 </div>
 
+---
 ## Quick Start
 
 ```python

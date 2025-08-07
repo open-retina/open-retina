@@ -1,0 +1,110 @@
+name: Deploy Documentation
+
+on:
+  push:
+    branches: [ main, 'feature/documentation' ]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - 'openretina/**'  # Include source code changes to regenerate API docs
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - 'openretina/**'
+  workflow_dispatch:  # Allow manual triggering
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  # Build job
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for proper git info in mkdocs
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install ".[dev]"
+
+      - name: Setup Pages
+        id: pages
+        uses: actions/configure-pages@v4
+
+      - name: Build with MkDocs
+        run: |
+          mkdocs build --clean --strict
+        env:
+          # For mkdocs-social plugin (generates social cards)
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./site
+
+  # Deployment job - runs on main and feature/documentation branch pushes
+  deploy:
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/documentation') && github.event_name == 'push'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+        
+      - name: Comment on commit with deployment info
+        if: github.ref == 'refs/heads/feature/documentation'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const deploymentUrl = '${{ steps.deployment.outputs.page_url }}';
+            const branchName = '${{ github.ref_name }}';
+            
+            // Create a comment on the commit
+            github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body: `📖 **Documentation Preview Deployed!**
+              
+              Your documentation changes have been deployed for testing:
+              🔗 **Preview URL:** ${deploymentUrl}
+              
+              Branch: \`${branchName}\`
+              Commit: ${context.sha.substring(0, 7)}
+              
+              ⚠️ **Note:** This is a preview deployment using your live site. 
+              Once you're satisfied with the changes, merge this branch to main for production deployment.`
+            });
+            
+      - name: Report deployment type
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "🚀 Production deployment completed to open-retina.org"
+          else
+            echo "📖 Documentation preview deployment completed - check commit comment for URL"
+          fi

@@ -1,7 +1,5 @@
 ---
-title: base_dataloader
+title: Base Dataloader
 ---
-
-# Base Dataloader
 
 ::: openretina.data_io.base_dataloader 
