@@ -189,14 +189,14 @@ class SingleCellSeparatedLNP(LightningModule):
     def training_step(self, batch: tuple[str, DataPoint], batch_idx: int) -> torch.Tensor:
         session_id, data_point = batch
         if self.crop:
-            images = self.crop_input(data_point.images)
+            images = self.crop_input(data_point.inputs)
         else:
-            images = data_point.images
+            images = data_point.inputs
         model_output = self.forward(images, session_id)
-        loss = self.loss.forward(model_output, data_point.responses)
+        loss = self.loss.forward(model_output, data_point.targets)
         regularization = self.regularizer()
         total_loss = loss + regularization
-        correlation = -self.correlation_loss.forward(model_output, data_point.responses)
+        correlation = -self.correlation_loss.forward(model_output, data_point.targets)
 
         self.log("regularization_loss_core", regularization, on_step=False, on_epoch=True)
         self.log("train_total_loss", total_loss, on_step=False, on_epoch=True)
@@ -208,14 +208,14 @@ class SingleCellSeparatedLNP(LightningModule):
     def validation_step(self, batch: tuple[str, DataPoint], batch_idx: int) -> torch.Tensor:
         session_id, data_point = batch
         if self.crop:
-            images = self.crop_input(data_point.images)
+            images = self.crop_input(data_point.inputs)
         else:
-            images = data_point.images
+            images = data_point.inputs
         model_output = self.forward(images, session_id)
-        loss = self.loss.forward(model_output, data_point.responses) / sum(model_output.shape)
+        loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
         regularization = self.regularizer()
         total_loss = loss + regularization
-        correlation = -self.correlation_loss.forward(model_output, data_point.responses)
+        correlation = -self.correlation_loss.forward(model_output, data_point.targets)
 
         self.log("val_loss", loss, logger=True, prog_bar=True)
         self.log("val_regularization_loss", regularization, logger=True)
