@@ -40,6 +40,7 @@ dependencies = [
     "jupyter",
     "ipywidgets",
     "mlflow",
+    "deepspeed",
 ]
 
 [project.urls]
