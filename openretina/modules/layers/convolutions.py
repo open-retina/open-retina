@@ -383,9 +383,12 @@ class STSeparableBatchConv3d(nn.Module):
         Returns:
             tuple: Tuple containing sin and cos weights.
         """
-        K = length // 3
-        sin_weights = torch.nn.Parameter(data=torch.randn(num_feat, num_channels, K) * scale, requires_grad=True)
-        cos_weights = torch.nn.Parameter(data=torch.randn(num_feat, num_channels, K) * scale, requires_grad=True)
+        # From hoefling, 2024
+        # Then, in order to stay well under the Nyquist limit,
+        # we parameterize the kernels with k = 21/3 = 7 sines and cosines (that's why //3)
+        k = max(length // 3, 1)
+        sin_weights = torch.nn.Parameter(data=torch.randn(num_feat, num_channels, k) * scale, requires_grad=True)
+        cos_weights = torch.nn.Parameter(data=torch.randn(num_feat, num_channels, k) * scale, requires_grad=True)
         return sin_weights, cos_weights
 
     @staticmethod
@@ -400,13 +403,16 @@ class STSeparableBatchConv3d(nn.Module):
         Returns:
             tuple: Tuple containing sines and cosines tensors.
         """
-        K = T // 3
+        # From hoefling, 2024
+        # Then, in order to stay well under the Nyquist limit,
+        # we parameterize the kernels with k = 21/3 = 7 sines and cosines (that's why //3)
+        big_k = max(T // 3, 1)
         time = torch.arange(T, dtype=torch.float, device=stretches.device) - T
         stretched = stretches * time
         freq = stretched * 2 * np.pi / T
         mask = STSeparableBatchConv3d.mask_tf(time, stretches, T)
         sines, cosines = [], []
-        for k in range(K):
+        for k in range(big_k):
             sines.append(mask * torch.sin(freq * k))
             cosines.append(mask * torch.cos(freq * k))
         sines_stacked = torch.stack(sines, 0)
