@@ -117,6 +117,8 @@ class MultiSampledGaussianReadoutWrapper(nn.ModuleDict):
         mean_activity = None,
         gamma_readout: float=1.0,
         readout_reg_avg: bool = False,
+        nonlinearity_function=torch.nn.functional.softplus,
+
     ):
         super().__init__()
         self.session_init_args = {
@@ -138,6 +140,7 @@ class MultiSampledGaussianReadoutWrapper(nn.ModuleDict):
 
         self.gamma_readout = gamma_readout
         self.readout_reg_avg = readout_reg_avg
+        self.nonlinearity = nonlinearity_function
 
     def add_sessions(self, n_neurons_dict: dict[str, int]) -> None:
         """Adds new sessions to the readout wrapper.
@@ -168,16 +171,17 @@ class MultiSampledGaussianReadoutWrapper(nn.ModuleDict):
                 out_core = out_core.reshape(((-1,) + out_core.size()[2:]))
                 resp = self[readout_key](out_core, **kwargs)
                 resp = resp.reshape((args[0].size(0), -1, resp.size(-1)))
-
+                resp = self.nonlinearity(resp)
                 readout_responses.append(resp)
 
             response = torch.concatenate(readout_responses, dim=-1)
         else:
             out_core = torch.transpose(args[0], 1, 2)
-            # print('outcore shape', out_core.shape)
             out_core = out_core.reshape(((-1,) + out_core.size()[2:]))
             response = self[data_key](out_core, **kwargs)
             response = response.reshape((args[0].size(0), -1, response.size(-1)))
+            response = self.nonlinearity(response)
+
         return response
 
     def regularizer(self, data_key: str) -> torch.Tensor:
