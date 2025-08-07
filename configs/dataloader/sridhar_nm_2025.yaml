@@ -4,7 +4,7 @@
 
 _target_: openretina.data_io.sridhar_2025.dataloaders.frame_movie_loader
 _convert_: object
-basepath: ''
+basepath: '/projects/extern/nhr/nhr_ni/nim00010/dir.project/marmoset_data/'
 files:
   '01': 'responses/cell_responses_01_fixation_movie.pkl'
   '02': 'responses/cell_responses_02_fixation_movie.pkl'
@@ -34,6 +34,7 @@ seed: null
 train_frac: 0.8
 subsample: 1
 crop: 0
+cell_index: null
 num_of_trials_to_use: null
 start_using_trial: 0
 num_of_frames: 30
@@ -53,6 +54,8 @@ retina_specific_crops: True
 hard_coded: null
 flip_imgs: False
 shuffle: null
+get_locations: True
+sta_dir: 'stas'
 
 
 
