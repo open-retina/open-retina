@@ -4,7 +4,6 @@ title: Loading Pre-trained Models
 
 ## TODO check page: AI generated
 
-
 This tutorial will guide you through loading and using pre-trained retinal models in `openretina`. You'll learn how to download models, run inference, and analyze the results.
 
 ## Overview

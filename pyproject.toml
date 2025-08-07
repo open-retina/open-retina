@@ -34,7 +34,7 @@ dev = [
     "nbmake",
     "jupyterlab",
     "mkdocs",
-    "mkdocs-material",
+    "mkdocs-material[imaging]",
     "mkdocstrings[python]",
 ]
 devmodels = ["neuralpredictors"]
