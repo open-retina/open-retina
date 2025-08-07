@@ -68,6 +68,7 @@ class SimpleCoreWrapper(Core):
         downsample_input_kernel_size: tuple[int, int, int] | None = None,
         input_padding: bool | int | str | tuple[int, int, int] = False,
         hidden_padding: bool | int | str | tuple[int, int, int] = True,
+        turn_input_greyscale: bool | tuple[float, float] = False,
     ):
         # Input validation
         if len(channels) < 2:
@@ -82,6 +83,10 @@ class SimpleCoreWrapper(Core):
                 f"Temporal and spatial kernel sizes must have the same length."
                 f"{temporal_kernel_sizes=} {spatial_kernel_sizes=}"
             )
+        if turn_input_greyscale is not False and channels[0] != 1:
+            raise ValueError(
+                f"Channel dimension of inputs ({channels[0]}) must be 1 when turning input to greyscale, "
+            )
 
         super().__init__()
         self.gamma_input = gamma_input
@@ -92,6 +97,7 @@ class SimpleCoreWrapper(Core):
         self._downsample_input_kernel_size = (
             list(downsample_input_kernel_size) if downsample_input_kernel_size is not None else None
         )
+        self._turn_input_greyscale = turn_input_greyscale
         if self._cut_first_n_frames and not input_padding:
             warnings.warn(
                 (
@@ -103,7 +109,6 @@ class SimpleCoreWrapper(Core):
             )
 
         self._input_weights_regularizer_spatial = FlatLaplaceL23dnorm(padding=0)
-
         self.features = torch.nn.Sequential()
         for layer_id, (num_in_channels, num_out_channels) in enumerate(zip(channels[:-1], channels[1:], strict=True)):
             layer: dict[str, torch.nn.Module] = OrderedDict()
@@ -137,6 +142,10 @@ class SimpleCoreWrapper(Core):
     def forward(self, input_: torch.Tensor) -> torch.Tensor:
         if self._downsample_input_kernel_size is not None:
             input_ = torch.nn.functional.avg_pool3d(input_, kernel_size=self._downsample_input_kernel_size)  # type: ignore
+        
+        if self._turn_input_greyscale is not False:
+            input_ = self.turn_greyscale(input_)
+        
         res = self.features(input_)
         # To keep compatibility with hoefling model scores
         res_cut = res[:, :, self._cut_first_n_frames :, :, :]
@@ -148,6 +157,29 @@ class SimpleCoreWrapper(Core):
     def temporal_smoothness(self) -> torch.Tensor:
         results = [temporal_smoothing(x.conv.sin_weights, x.conv.cos_weights) for x in self.features]
         return torch.sum(torch.stack(results))
+    
+    def turn_greyscale(self, x: torch.Tensor) -> torch.Tensor:
+        """ Squash input to a greyscale image."""
+        
+        # if the tensor is already greyscale (channel dim is 1), return it as is
+        if x.shape[1] == 1:
+            return x
+
+        if isinstance(self._turn_input_greyscale, tuple):
+            ch0_weight,ch1_weight = self._turn_input_greyscale
+        elif self._turn_input_greyscale is True:
+            ch0_weight, ch1_weight = 1, 1
+        
+        x_out = x
+        x_out[:,0,:,:,:] = x[:,0,:,:,:] * ch0_weight
+        x_out[:,1,:,:,:] = x[:,1,:,:,:] * ch1_weight
+        print("Modified input")
+        # take the mean across channels but keep channel dimension
+        x_out = torch.mean(x_out,dim=1).unsqueeze(1)
+
+
+        return x_out
+
 
     def group_sparsity_0(self) -> torch.Tensor:
         result_array = []

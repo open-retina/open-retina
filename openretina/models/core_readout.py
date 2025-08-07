@@ -200,6 +200,7 @@ class CoreReadout(BaseCoreReadout):
         dropout_rate: float = 0.0,
         maxpool_every_n_layers: Optional[int] = None,
         downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
+        turn_input_greyscale: bool | tuple[float, float] = False,
         data_info: dict[str, Any] | None = None,
     ):
         core = SimpleCoreWrapper(
@@ -215,6 +216,7 @@ class CoreReadout(BaseCoreReadout):
             maxpool_every_n_layers=maxpool_every_n_layers,
             downsample_input_kernel_size=downsample_input_kernel_size,
             input_padding=core_input_padding,
+            turn_input_greyscale=turn_input_greyscale,
             hidden_padding=core_hidden_padding,
         )
 
