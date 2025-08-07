@@ -1,10 +1,11 @@
 from torch.utils.data import Sampler
-
+import os
 from openretina.data_io.sridhar_2025.constants import NM_DATASET, WN_DATASET
 from openretina.utils.misc import set_seed
 import numpy as np
 import datasets
 from datasets import load_dataset
+import torch
 # from openretina.env import HF_TOKEN
 
 
@@ -57,6 +58,60 @@ def get_trial_wise_validation_split(
     print(f"val idx: {val_idx}")
     return train_idx, val_idx
 
+def flatten_collate_fn(batch):
+    # batch is a list of (x, y) pairs
+    xs, ys = zip(*batch)
+    xs = torch.stack(xs)  # [B, ...]
+    ys = torch.stack(ys)
+
+    # Flatten features (keep batch dimension B intact)
+    ys = ys.flatten(0,1)
+    return xs, ys
+
+def get_location_from_sta(sta_dir, file_name, flip_sta=False,
+                              crop=0):
+    sta = np.load(
+        os.path.join(sta_dir,file_name)
+    )
+    if isinstance(crop, int):
+        crop = (crop, crop, crop, crop)
+
+    if flip_sta:
+        sta = np.flip(sta, axis=1)
+
+    if sum(crop) > 0:
+        num_of_imgs, h, w = sta.shape
+        sta = sta[
+              :, crop[0]: h - crop[1], crop[2]: w - crop[3]
+              ]
+    temporal_variances = np.var(sta, axis=0)
+    location = np.unravel_index(
+        np.argmax(temporal_variances), (sta.shape[1], sta.shape[2])
+    )
+    return location
+
+def make_file_name(cell, retina_index):
+    """
+    Create a file name based on the provided parameters.
+    """
+    return f"cell_data_{retina_index}_WN_stas_cell_{cell}.npy"
+
+
+def get_locations_from_stas(sta_dir, retina_index, cells, crop=0, flip_sta=False):
+    """
+    Get the source grid from the STA directory for the specified cells and file name.
+    This function is a placeholder and should be implemented based on your specific requirements.
+    """
+    all_locations = []
+    for cell in cells:
+        file_name = make_file_name(cell, retina_index)
+        location = get_location_from_sta(
+            sta_dir, file_name, flip_sta=flip_sta, crop=crop
+        )
+        all_locations.append(location)
+    return np.array(all_locations)
+
+
 def filter_trials(train_responses, all_train_ids, all_validation_ids, hard_coded=None,
                   num_of_trials_to_use=None, starting_trial=0):
 
@@ -81,6 +136,7 @@ def filter_trials(train_responses, all_train_ids, all_validation_ids, hard_coded
                      int(x) < min(num_trials, num_of_trials_to_use + starting_trial)]
 
     return train_ids, valid_ids
+
 
 class ChunkedSampler(Sampler):
     def __init__(self, dataset, seed=42):

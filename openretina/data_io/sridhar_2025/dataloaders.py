@@ -8,12 +8,12 @@ from torch.utils.data import DataLoader, Dataset
 
 from openretina.data_io.sridhar_2025.constants import TEST_DATA_FRAMES
 from openretina.data_io.sridhar_2025.dataloader_utils import get_trial_wise_validation_split, filter_trials, \
-    ChunkedSampler
+    ChunkedSampler, get_locations_from_stas, flatten_collate_fn
 from openretina.data_io.sridhar_2025.responses import load_responses, average_repeated_stimuli_responses
 from openretina.data_io.sridhar_2025.stimuli import process_fixations, load_frames
 
 # from line_profiler_pycharm import profile
-default_image_datapoint = namedtuple("DefaultDataPoint", ["images", "responses"])
+default_image_datapoint = namedtuple("DefaultDataPoint", ["inputs", "targets"])
 
 def crop_based_on_fixation(
     img, x_center, y_center, img_h, img_w, flip=False, padding=200
@@ -134,9 +134,11 @@ class MarmosetMovieDataset(Dataset):
             img_w=800,
             img_h=600,
             padding=200,
+            excluded_cells=None,
+            locations=None
     ):
         self.data_keys = data_keys
-        if set(data_keys) == {"images", "responses"}:
+        if set(data_keys) == {"inputs", "targets"}:
             # this version IS serializable in pickle
             self.data_point = default_image_datapoint
 
@@ -153,6 +155,8 @@ class MarmosetMovieDataset(Dataset):
         self.padding = padding
 
         self.test_frames = test_frames
+        self.excluded_cells = excluded_cells
+        self.locations = locations
 
         self.num_of_frames = num_of_frames
         if num_of_hidden_frames is None:
@@ -229,6 +233,22 @@ class MarmosetMovieDataset(Dataset):
                 )
             )
 
+    def get_locations(self, cell_index):
+        if self.locations is None:
+            raise ValueError("Locations are not available in this dataset.")
+        else:
+            return self.locations[cell_index]
+
+    def get_all_locations(self):
+        """
+        Returns the locations of all cells in the dataset.
+        :return: list of locations for each cell in the dataset
+        """
+        if self.locations is not None:
+            return self.locations
+        else:
+            raise ValueError("Locations are not available in this dataset.")
+
     def transform(self, images):
         """
         applies transformations to the image: downsampling, cropping, rescaling, and dimension expansion.
@@ -288,7 +308,7 @@ class MarmosetMovieDataset(Dataset):
         #       f'response: {ending_img_index}')
         ret = []
         for data_key in self.data_keys:
-            if data_key == "images":
+            if data_key == "inputs":
                 value = self.get_frames(
                     actual_trial_index, starting_img_index, ending_img_index
                 )
@@ -300,11 +320,11 @@ class MarmosetMovieDataset(Dataset):
                             :,
                             starting_img_index + self.frame_overhead: ending_img_index,
                             actual_trial_index,
-                            ]
+                            ].T
                 else:
                     value = self.test_responses[
                             :, starting_img_index + self.frame_overhead: ending_img_index
-                            ]
+                            ].T
 
             ret.append(value)
         x = self.data_point(*ret)
@@ -374,12 +394,14 @@ def get_dataloader(
     full_img_h=800,
     img_h=600,
     img_w=800,
+    excluded_cells=None,
+    locations=None
 ):
     data = MarmosetMovieDataset(
         response_dict,
         path,
-        "images",
-        "responses",
+        "inputs",
+        "targets",
         frames=frames,
         fixations=fixations,
         indices=indices,
@@ -397,7 +419,9 @@ def get_dataloader(
         full_img_h=full_img_h,
         full_img_w=full_img_w,
         img_h=img_h,
-        img_w=img_w
+        img_w=img_w,
+        excluded_cells= excluded_cells,
+        locations=locations
     )
 
     dataloader = DataLoader(data, batch_size=batch_size, shuffle=shuffle)
@@ -438,6 +462,8 @@ def frame_movie_loader(
     hard_coded=None,
     flip_imgs=False,
     shuffle=None,
+    sta_dir='stas',
+    get_locations=True
 
 ):
     """
@@ -618,6 +644,13 @@ def frame_movie_loader(
 
         if retina_specific_crops:
             crop = big_crops[retina_index]
+        locations = None
+        if get_locations:
+            assert sta_dir is not None
+            locations = get_locations_from_stas(sta_dir=os.path.join(basepath, sta_dir), retina_index=retina_index,
+                                                cells=[cell_index] if cell_index is not None else [x for x in range(0,
+                                            train_responses.shape[0]+len(excluded_cells[retina_index])) if x not in excluded_cells[retina_index]],
+                                                crop=crop, flip_sta=True)
         train_loader = get_dataloader(
             {"train_responses": train_responses, "test_responses": test_responses},
             fixations=fixations,
@@ -640,7 +673,9 @@ def frame_movie_loader(
             img_h=img_h,
             img_w=img_w,
             temporal_dilation=temporal_dilation,
-            hidden_temporal_dilation=hidden_temporal_dilation
+            hidden_temporal_dilation=hidden_temporal_dilation,
+            excluded_cells=excluded_cells,
+            locations= locations
         )
 
         valid_loader = get_dataloader(
@@ -665,7 +700,9 @@ def frame_movie_loader(
             img_h=img_h,
             img_w=img_w,
             temporal_dilation=temporal_dilation,
-            hidden_temporal_dilation=hidden_temporal_dilation
+            hidden_temporal_dilation=hidden_temporal_dilation,
+            excluded_cells=excluded_cells,
+            locations=locations
         )
 
         test_loader = get_dataloader(
@@ -690,7 +727,9 @@ def frame_movie_loader(
             img_h=img_h,
             img_w=img_w,
             temporal_dilation=temporal_dilation,
-            hidden_temporal_dilation=hidden_temporal_dilation
+            hidden_temporal_dilation=hidden_temporal_dilation,
+            excluded_cells=excluded_cells,
+            locations=locations
         )
 
         dataloaders["train"][retina_index] = train_loader
@@ -721,6 +760,8 @@ class NoiseDataset(Dataset):
             hidden_temporal_dilation=1,
             num_of_hidden_frames: int = None,
             extra_frame=0,
+            locations: list = None,
+            excluded_cells: list = None,
     ):
         """
         Dataset for the following (example) file structure:
@@ -823,6 +864,8 @@ class NoiseDataset(Dataset):
         self.n_neurons = self.train_responses.shape[0]
         self.num_of_trials = self.train_responses.shape[2]
         self.num_of_imgs = int(self.train_responses.shape[1])
+        self.locations = locations
+        self.excluded_cells = excluded_cells
 
         # Checks if trials are saved in evenly sized files
         if test:
@@ -1024,7 +1067,9 @@ def get_noise_dataloader(
     hidden_temporal_dilation=1,
     num_of_hidden_frames=None,
     extra_frame=0,
-    chunked_sampling=True
+    chunked_sampling=True,
+    locations=None,
+    excluded_cells=None
 ):
     data = NoiseDataset(
         response_dict,
@@ -1045,6 +1090,8 @@ def get_noise_dataloader(
         temporal_dilation=temporal_dilation,
         hidden_temporal_dilation=hidden_temporal_dilation,
         extra_frame=extra_frame,
+        locations=locations,
+        excluded_cells=excluded_cells
     )
     if chunked_sampling:
         chunked_sampler = ChunkedSampler(data, seed=8)
@@ -1080,7 +1127,9 @@ def white_noise_loader(
     retina_specific_crops=True,
     extra_frame=0,
     hard_coded=None,
-    chunked_sampling=False
+    chunked_sampling=False,
+    get_locations=True,
+    sta_dir='stas'
 ):
     dataloaders = {"train": {}, "validation": {}, "test": {}}
     retina_indices = list(files.keys())
@@ -1112,6 +1161,13 @@ def white_noise_loader(
 
         if retina_specific_crops:
             crop = big_crops[retina_index]
+
+        if get_locations:
+            assert sta_dir is not None
+            locations = get_locations_from_stas(sta_dir=os.path.join(basepath, sta_dir), retina_index=retina_index,
+                                                cells=[cell_index] if cell_index is not None else [x for x in range(0,
+                                            train_responses.shape[0]+len(excluded_cells[retina_index])) if x not in excluded_cells[retina_index]],
+                                                crop=crop, flip_sta=False)
         train_loader = get_noise_dataloader(
             {"train_responses": train_responses, "test_responses": test_responses},
             path=dataset_train_image_path,
@@ -1131,7 +1187,9 @@ def white_noise_loader(
             temporal_dilation=temporal_dilation,
             hidden_temporal_dilation=hidden_temporal_dilation,
             extra_frame=extra_frame,
-            chunked_sampling=chunked_sampling
+            chunked_sampling=chunked_sampling,
+            locations=locations,
+            excluded_cells=excluded_cells
         )
 
         valid_loader = get_noise_dataloader(
@@ -1153,7 +1211,9 @@ def white_noise_loader(
             temporal_dilation=temporal_dilation,
             hidden_temporal_dilation=hidden_temporal_dilation,
             extra_frame=extra_frame,
-            chunked_sampling=False
+            chunked_sampling=False,
+            locations=locations,
+            excluded_cells=excluded_cells
         )
 
         test_loader = get_noise_dataloader(
@@ -1175,7 +1235,9 @@ def white_noise_loader(
             temporal_dilation=temporal_dilation,
             hidden_temporal_dilation=hidden_temporal_dilation,
             extra_frame=extra_frame,
-            chunked_sampling=False
+            chunked_sampling=False,
+            locations=locations,
+            excluded_cells=excluded_cells
         )
 
         dataloaders["train"][retina_index] = train_loader
