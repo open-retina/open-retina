@@ -1,3 +1,3 @@
 TEST_DATA_FRAMES = 5100
-NM_DATASET = 'm-vys/nm_marmoset_data'
-WN_DATASET = 'm-vys/wn_marmoset_data'
+NM_DATASET = "open-retina/nm_marmoset_data"
+WN_DATASET = "open-retina/wn_marmoset_data"

@@ -1,3 +1,8 @@
+# Config file for loading white noise data from the Sridhar et al. (2025) dataset
+# Data originally from: https://gin.g-node.org/gollischlab/Sridhar_Gollisch_2025_Marmoset_RGC_Responses_Naturalistic_Movies
+# Paper: https://www.biorxiv.org/content/10.1101/2024.03.05.583449v2
+
+
 _target_: openretina.data_io.sridhar_2025.dataloaders.white_noise_loader
 _convert_: object
 basepath: ''
