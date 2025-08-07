@@ -36,7 +36,6 @@ dev = [
     "mkdocs",
     "mkdocs-material",
     "mkdocstrings[python]",
-    "mkdocs-social-plugin",
 ]
 devmodels = ["neuralpredictors"]
 
