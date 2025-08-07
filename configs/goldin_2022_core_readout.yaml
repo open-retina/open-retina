@@ -1,0 +1,41 @@
+defaults:
+  - data_io: goldin_2022
+  - dataloader: goldin_2022
+  - model: GRU_core_readout
+  - training_callbacks:
+    - early_stopping
+    - lr_monitor
+    - model_checkpoint
+  - logger:
+    - tensorboard
+    - csv
+  - trainer: default_deterministic
+  - hydra: default
+  - _self_ # values in this config will overwrite the defaults
+
+exp_name: core_readout_goldin_2022
+seed: 42
+check_stimuli_responses_match: false
+
+paths:
+  cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Remote files are downloaded to this location
+  # If data_dir is a local path, data will be read from there. If a remote link, the target will be downloaded to cache_dir.
+  data_dir: '/home/baptiste/Documents/LabPipelines/open-retina/notebooks/data/omarre_lab/goldin_2022/'
+  log_dir: "." # Used as parent for output_dir. Will store train logs.
+  output_dir: ${hydra:runtime.output_dir} # Modify in the "hydra/default.yaml" config
+
+# Overwrite model defaults with specifics for Maheswaranathan 2023 input data format.
+model:
+  in_shape: [1, 1, 108, 108]
+  hidden_channels: [16, 32]
+  temporal_kernel_sizes: [0, 0] 
+  spatial_kernel_sizes: [15, 11] 
+  core_gamma_temporal : 0.0
+
+matmul_precision:
+  _target_: torch.set_float32_matmul_precision
+  precision: highest
+
+trainer:
+  gradient_clip_val: 1
+

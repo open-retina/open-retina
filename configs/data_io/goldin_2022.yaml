@@ -1,0 +1,17 @@
+stimuli:
+  _target_: openretina.data_io.goldin_2022.stimuli.load_all_stimuli
+  _convert_: object
+  base_data_path: ${paths.data_dir}
+  stim_type: "naturalscene"
+  specie: "axolotl"
+  normalize_stimuli: true
+
+
+responses:
+  _target_: openretina.data_io.goldin_2022.responses.load_all_responses
+  _convert_: object
+  base_data_path: ${paths.data_dir}
+  stim_type: "naturalscene"
+  response_type: "firing_rate_300ms"
+  specie: "axolotl"
+  fr_normalization: 1.0
