@@ -7,7 +7,8 @@ import torch.nn as nn
 from matplotlib import pyplot as plt
 
 from openretina.modules.layers import FlatLaplaceL23dnorm
-from openretina.modules.layers.convolutions import STSeparableBatchConv3d
+from openretina.modules.layers.convolutions import STSeparableBatchConv3d, TorchSTSeparableConv3D
+from openretina.modules.layers.regularizers import Laplace1d
 from openretina.modules.layers.scaling import Bias3DLayer
 
 
@@ -68,6 +69,7 @@ class SimpleCoreWrapper(Core):
         downsample_input_kernel_size: tuple[int, int, int] | None = None,
         input_padding: bool | int | str | tuple[int, int, int] = False,
         hidden_padding: bool | int | str | tuple[int, int, int] = True,
+        type='sin_cos'
     ):
         # Input validation
         if len(channels) < 2:
@@ -84,6 +86,7 @@ class SimpleCoreWrapper(Core):
             )
 
         super().__init__()
+        self.type = type
         self.gamma_input = gamma_input
         self.gamma_temporal = gamma_temporal
         self.gamma_in_sparse = gamma_in_sparse
@@ -103,6 +106,7 @@ class SimpleCoreWrapper(Core):
             )
 
         self._input_weights_regularizer_spatial = FlatLaplaceL23dnorm(padding=0)
+        self._input_weights_regularizer_temporal = Laplace1d(padding=0)
 
         self.features = torch.nn.Sequential()
         for layer_id, (num_in_channels, num_out_channels) in enumerate(zip(channels[:-1], channels[1:], strict=True)):
@@ -116,23 +120,38 @@ class SimpleCoreWrapper(Core):
             else:
                 padding = padding_to_use
 
-            layer["conv"] = STSeparableBatchConv3d(
-                num_in_channels,
-                num_out_channels,
-                log_speed_dict={},
-                temporal_kernel_size=temporal_kernel_sizes[layer_id],
-                spatial_kernel_size=spatial_kernel_sizes[layer_id],
-                bias=False,
-                padding=padding,
-            )
-            layer["norm"] = torch.nn.BatchNorm3d(num_out_channels, momentum=0.1, affine=True)
-            layer["bias"] = Bias3DLayer(num_out_channels)
-            layer["nonlin"] = torch.nn.ELU()
-            if dropout_rate > 0.0:
-                layer["dropout"] = torch.nn.Dropout3d(p=dropout_rate)
-            if maxpool_every_n_layers is not None and (layer_id % maxpool_every_n_layers) == 0:
-                layer["pool"] = torch.nn.MaxPool3d((1, 2, 2))
-            self.features.add_module(f"layer{layer_id}", torch.nn.Sequential(layer))  # type: ignore
+            if type == 'sin_cos':
+                layer["conv"] = STSeparableBatchConv3d(
+                    num_in_channels,
+                    num_out_channels,
+                    log_speed_dict={},
+                    temporal_kernel_size=temporal_kernel_sizes[layer_id],
+                    spatial_kernel_size=spatial_kernel_sizes[layer_id],
+                    bias=False,
+                    padding=padding,
+                )
+
+                layer["norm"] = torch.nn.BatchNorm3d(num_out_channels, momentum=0.1, affine=True)
+                layer["bias"] = Bias3DLayer(num_out_channels)
+                layer["nonlin"] = torch.nn.ELU()
+                if dropout_rate > 0.0:
+                    layer["dropout"] = torch.nn.Dropout3d(p=dropout_rate)
+                if maxpool_every_n_layers is not None and (layer_id % maxpool_every_n_layers) == 0:
+                    layer["pool"] = torch.nn.MaxPool3d((1, 2, 2))
+                self.features.add_module(f"layer{layer_id}", torch.nn.Sequential(layer))  # type: ignore
+
+            elif type == 'torch':
+                layer["conv"] = TorchSTSeparableConv3D(
+                    num_in_channels,
+                    num_out_channels,
+                    log_speed_dict={},
+                    temporal_kernel_size=temporal_kernel_sizes[layer_id],
+                    spatial_kernel_size=spatial_kernel_sizes[layer_id],
+                    bias=False,
+                    padding=padding,
+                )
+            else:
+                raise ValueError(f"Unknown type {type}. Supported types are 'sin_cos' and 'torch'.")
 
     def forward(self, input_: torch.Tensor) -> torch.Tensor:
         if self._downsample_input_kernel_size is not None:
@@ -145,9 +164,16 @@ class SimpleCoreWrapper(Core):
     def spatial_laplace(self) -> torch.Tensor:
         return self._input_weights_regularizer_spatial(self.features[0].conv.weight_spatial, avg=False)
 
+    def temporal_laplace(self) -> torch.Tensor:
+        ch_in, ch_out, t, h, w = self.features[0].conv.time_conv.weight.shape
+        return self._input_weights_regularizer_temporal(self.features[0].conv.time_conv.weight.view(ch_in*ch_out, 1, t), avg=False)
+
     def temporal_smoothness(self) -> torch.Tensor:
-        results = [temporal_smoothing(x.conv.sin_weights, x.conv.cos_weights) for x in self.features]
-        return torch.sum(torch.stack(results))
+        if self.type == 'torch':
+            return self.temporal_laplace()
+        else:
+            results = [temporal_smoothing(x.conv.sin_weights, x.conv.cos_weights) for x in self.features]
+            return torch.sum(torch.stack(results))
 
     def group_sparsity_0(self) -> torch.Tensor:
         result_array = []

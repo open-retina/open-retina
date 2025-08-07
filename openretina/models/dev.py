@@ -4,7 +4,9 @@ Models in this folder are under development. They can depend on the legacy codeb
 
 import torch
 import torch.nn as nn
-from neuralpredictors.layers.readouts import FullGaussian2d, Gaussian3d, MultiReadoutBase
+from neuralpredictors.layers.readouts import MultiReadoutBase, Gaussian3d
+
+from openretina.modules.readout.gaussian import FullGaussian2d
 
 
 class Encoder(nn.Module):
