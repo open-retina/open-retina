@@ -2,7 +2,8 @@
 title: Stimulus Optimization Tutorial
 ---
 
-# Stimulus Optimization Tutorial
+## TODO: check page. AI generated.
+
 
 This tutorial will guide you through using OpenRetina's stimulus optimization tools to find visual stimuli that optimally drive retinal neurons. You'll learn how to generate most exciting inputs (MEIs) and most discriminative stimuli (MDS) for understanding neural function.
 
