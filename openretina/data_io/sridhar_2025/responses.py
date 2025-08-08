@@ -1,6 +1,6 @@
 import os
 import pickle
-from typing import Optional, Any
+from typing import Any, Optional
 
 import numpy as np
 
@@ -10,8 +10,11 @@ def average_repeated_stimuli_responses(repeated_responses: np.ndarray):
     return np.mean(repeated_responses, axis=-1)
 
 
-def load_responses(base_path, files, stimulus_seed=0, excluded_cells: Optional[dict[Any, list[int]]] = None, cell_index: Optional[int] = None):
+def load_responses(base_path, files, stimulus_seed=0,
+                   excluded_cells: Optional[dict[Any, list[int]]] = None,
+                   cell_index: Optional[int] = None):
     responses = {}
+
     for session_id, file in files.items():
         with open(os.path.join(base_path, file), "rb") as pkl:
             neural_data = pickle.load(pkl)
@@ -21,7 +24,7 @@ def load_responses(base_path, files, stimulus_seed=0, excluded_cells: Optional[d
         if cell_index is not None:
             train_responses = train_responses[cell_index : cell_index + 1, :, :]
             test_responses = test_responses[cell_index : cell_index + 1, :, :]
-        else:
+        elif excluded_cells is not None:
             train_responses = np.delete(train_responses, excluded_cells[session_id], axis=0)
             test_responses = np.delete(test_responses, excluded_cells[session_id], axis=0)
 

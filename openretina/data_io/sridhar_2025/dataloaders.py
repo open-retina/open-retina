@@ -1,6 +1,7 @@
 import os
 from collections import namedtuple
 from pathlib import Path
+from typing import Any, Optional, Union
 
 import numpy as np
 import torch
@@ -17,7 +18,7 @@ from openretina.data_io.sridhar_2025.responses import load_responses
 from openretina.data_io.sridhar_2025.stimuli import load_frames, process_fixations
 
 # from line_profiler_pycharm import profile
-default_image_datapoint = namedtuple("DefaultDataPoint", ["inputs", "targets"])
+default_image_datapoint = namedtuple("default_image_datapoint", ["inputs", "targets"])
 
 
 def crop_based_on_fixation(img, x_center, y_center, img_h, img_w, flip=False, padding=200):
@@ -126,13 +127,13 @@ class MarmosetMovieDataset(Dataset):
         img_dir_name="stimuli",
         frame_file: str = "_img_",
         test: bool = False,
-        crop: int or tuple = 0,
+        crop: int | tuple = 0,
         subsample: int = 1,
         num_of_frames: int = 15,
-        num_of_hidden_frames: int = 15,
-        num_of_layers: int = None,
+        num_of_hidden_frames: int | tuple = 15,
+        num_of_layers: int = 1,
         device: str = "cpu",
-        time_chunk_size: int = None,
+        time_chunk_size: Optional[int] = None,
         full_img_w=1000,
         full_img_h=800,
         img_w=800,
@@ -163,10 +164,6 @@ class MarmosetMovieDataset(Dataset):
         self.locations = locations
 
         self.num_of_frames = num_of_frames
-        if num_of_hidden_frames is None:
-            self.num_of_hidden_frames = self.num_of_frames
-        else:
-            self.num_of_hidden_frames = num_of_hidden_frames
 
         if isinstance(hidden_temporal_dilation, str):
             hidden_temporal_dilation = int(hidden_temporal_dilation)
@@ -180,6 +177,11 @@ class MarmosetMovieDataset(Dataset):
             hidden_reach = sum((f - 1) * d for f, d in zip(num_of_hidden_frames, hidden_temporal_dilation))
         else:
             hidden_reach = 0
+
+        if num_of_hidden_frames is None:
+            self.num_of_hidden_frames: tuple = (self.num_of_frames,)
+        else:
+            self.num_of_hidden_frames = num_of_hidden_frames
 
         self.frame_overhead = (num_of_frames - 1) * self.temporal_dilation + hidden_reach
 
@@ -208,7 +210,7 @@ class MarmosetMovieDataset(Dataset):
         if test:
             self.num_of_imgs = self.test_responses.shape[1]
 
-        self.cache = []
+        self.cache: list[Any] = []
         self.last_start_index = -1
         self.last_end_index = -1
 
@@ -732,18 +734,18 @@ class NoiseDataset(Dataset):
         trial_prefix: str = "trial",
         test: bool = False,
         cache_maxsize: int = 5,
-        crop: int or tuple = 20,
+        crop: int | tuple = 20,
         subsample: int = 1,
-        num_of_frames: int = None,
-        num_of_layers: int = None,
+        num_of_frames: int = 15,
+        num_of_layers: int = 1,
         device: str = "cpu",
-        time_chunk_size: int = None,
-        temporal_dilation=1,
-        hidden_temporal_dilation=1,
-        num_of_hidden_frames: int = None,
-        extra_frame=0,
-        locations: list = None,
-        excluded_cells: list = None,
+        time_chunk_size: Optional[int] = None,
+        temporal_dilation: int = 1,
+        hidden_temporal_dilation: Union[int | str | tuple] = 1,
+        num_of_hidden_frames: Union[int | tuple] = 15,
+        extra_frame: int = 0,
+        locations: Optional[list] = None,
+        excluded_cells: Optional[list] = None,
     ):
         """
         Dataset for the following (example) file structure:
@@ -790,7 +792,7 @@ class NoiseDataset(Dataset):
 
         self.use_cache = use_cache
         self.data_keys = data_keys
-        if set(data_keys) == {"images", "responses"}:
+        if set(data_keys) == {"inputs", "targets"}:
             # this version IS serializable in pickle
             self.data_point = default_image_datapoint
         if self.use_cache:
@@ -803,21 +805,19 @@ class NoiseDataset(Dataset):
         self.temporal_dilation = temporal_dilation
 
         self.num_of_frames = num_of_frames
-        if num_of_hidden_frames is None:
-            self.num_of_hidden_frames = num_of_frames
-        else:
-            self.num_of_hidden_frames = num_of_hidden_frames
-
-        if hidden_temporal_dilation is None:
-            hidden_temporal_dilation = 1
 
         if isinstance(hidden_temporal_dilation, str):
             hidden_temporal_dilation = int(hidden_temporal_dilation)
 
         if isinstance(hidden_temporal_dilation, int):
             hidden_temporal_dilation = (hidden_temporal_dilation,) * (self.num_of_layers - 1)
-        if isinstance(self.num_of_hidden_frames, int):
-            self.num_of_hidden_frames = (self.num_of_hidden_frames,) * (self.num_of_layers - 1)
+        if isinstance(num_of_hidden_frames, int):
+            num_of_hidden_frames = (num_of_hidden_frames,) * (self.num_of_layers - 1)
+
+        if num_of_hidden_frames is None:
+            self.num_of_hidden_frames: tuple = (num_of_frames, )
+        else:
+            self.num_of_hidden_frames = num_of_hidden_frames
 
         hidden_reach = sum((f - 1) * d for f, d in zip(self.num_of_hidden_frames, hidden_temporal_dilation))
 
@@ -861,7 +861,7 @@ class NoiseDataset(Dataset):
                 - self.extra_frame
             )
 
-        self._cache = {data_key: {} for data_key in data_keys}
+        self._cache : dict[Any, Any] = {data_key: {} for data_key in data_keys}
 
     def purge_cache(self):
         self._cache = {data_key: {} for data_key in self.data_keys}
