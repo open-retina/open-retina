@@ -9,9 +9,6 @@ from torch.utils.data import Sampler
 from openretina.data_io.sridhar_2025.constants import NM_DATASET, WN_DATASET
 from openretina.utils.misc import set_seed
 
-# from openretina.env import HF_TOKEN
-
-
 def download_nm_dataset(cache_dir, base_path, hf_token):
     """Download the natural movie (NM) marmoset dataset from Hugging Face.
     Original data source: https://gin.g-node.org/gollischlab/Sridhar_Gollisch_2025_Marmoset_RGC_Responses_Naturalistic_Movies/src/master/README.md
@@ -44,6 +41,9 @@ def download_wn_dataset(cache_dir, base_path, hf_token):
 
 
 def get_trial_wise_validation_split(train_responses, train_frac, seed=None, final_training=False, hard_coded=None):
+    """
+    Get a trial-wise validation split of the training responses.
+    """
     if hard_coded is not None:
         print(f"hard coded train trials:{hard_coded[0]}")
         print(f"hard coded validation trials: {hard_coded[1]}")
@@ -78,17 +78,18 @@ def get_trial_wise_validation_split(train_responses, train_frac, seed=None, fina
 
 
 def flatten_collate_fn(batch):
-    # batch is a list of (x, y) pairs
     xs, ys = zip(*batch)
     xs = torch.stack(xs)  # [B, ...]
     ys = torch.stack(ys)
 
-    # Flatten features (keep batch dimension B intact)
+    # Flatten batch and time
     ys = ys.flatten(0, 1)
     return xs, ys
 
 
 def get_location_from_sta(sta_dir, file_name, flip_sta=False, crop=0):
+    """Get the location of the pixel with maximum variance of the spatial-temporal average (STA).
+    The STA is loaded from a file."""
     sta = np.load(os.path.join(sta_dir, file_name))
     if isinstance(crop, int):
         crop = (crop, crop, crop, crop)
@@ -106,15 +107,24 @@ def get_location_from_sta(sta_dir, file_name, flip_sta=False, crop=0):
 
 def make_file_name(cell, retina_index):
     """
-    Create a file name based on the provided parameters.
+    Create a file name based on the provided dataset index and cell index.
+    Works for the natural movie marmoset dataset "nm_marmoset_data" and
+    white noise marmoset "wn_marmoset_data" datasets.
     """
     return f"cell_data_{retina_index}_WN_stas_cell_{cell}.npy"
 
 
 def get_locations_from_stas(sta_dir, retina_index, cells, crop=0, flip_sta=False):
     """
-    Get the source grid from the STA directory for the specified cells and file name.
-    This function is a placeholder and should be implemented based on your specific requirements.
+    Get the source grid -- i.e. all the locations from the STAs in the sta directory for the specified cells and file name.
+    Args:
+        sta_dir (str): Directory where the STAs are stored.
+        retina_index (str): Key of the retina dataset.
+        cells (list): List of cell indices for which to get the locations.
+        crop (int or tuple): Amount to crop from the STA. If int, crops the same amount from all sides.
+                             If tuple, crops (top, bottom, left, right).
+        flip_sta (bool): Whether to flip the STA horizontally. - this is useful as the STAs are all computed from the white noise dataset
+                         and the natural movie dataset is flipped horizontally.
     """
     all_locations = []
     for cell in cells:
@@ -127,7 +137,18 @@ def get_locations_from_stas(sta_dir, retina_index, cells, crop=0, flip_sta=False
 def filter_trials(
     train_responses, all_train_ids, all_validation_ids, hard_coded=None, num_of_trials_to_use=None, starting_trial=0
 ):
+    """
+    Selects a subset of trials based on the provided parameters.
+    Args:
+        train_responses (np.ndarray): The training responses array.
+        all_train_ids (np.ndarray): Array of all training trial IDs.
+        all_validation_ids (np.ndarray): Array of all validation trial IDs.
+        hard_coded (tuple, optional): If provided, uses these IDs instead of filtering.
+        num_of_trials_to_use (int, optional): Number of trials to use. If None, all trials are used.
+        starting_trial (int): The starting trial index to consider.
+        """
     if num_of_trials_to_use is None:
+        # If num_of_trials_to_use is not provided, use all trials
         num_of_trials_to_use = len(all_train_ids) + len(all_validation_ids)
     if hard_coded is None:
         train_ids = np.isin(
@@ -141,6 +162,7 @@ def filter_trials(
         )
         valid_ids = all_validation_ids[valid_ids]
     else:
+        # If hard_coded is provided, use those IDs directly
         num_trials = train_responses.shape[-1]
         train_ids = [int(x) for x in all_train_ids if int(x) < min(num_trials, num_of_trials_to_use + starting_trial)]
         valid_ids = [
@@ -154,12 +176,14 @@ class ChunkedSampler(Sampler):
     def __init__(self, dataset, seed=42):
         """
         Custom sampler that shuffles indices within n chunks and shuffles the chunk order.
-
+        This is to speed up the NoiseDataset training by reducing the number of times a trial is loaded from disk
+        It loads one trial file, shuffles chunks within trial and then continues on to the next trial.
         Args:
             dataset (Dataset): The dataset.
             num_chunks (int): Number of chunks.
             seed (int): Random seed for reproducibility.
         """
+        super().__init__()
         self.dataset = dataset
         self.num_of_imgs = dataset.num_of_imgs
         self.num_of_frames = dataset.num_of_frames
@@ -174,7 +198,6 @@ class ChunkedSampler(Sampler):
 
     def _create_shuffled_chunks(self):
         """Create shuffled chunks of indices for each epoch."""
-        np.random.seed()  # Use different random seed per epoch
         chunks = [self.indices[i * self.chunk_size : (i + 1) * self.chunk_size] for i in range(self.num_chunks)]
 
         # Shuffle within each chunk

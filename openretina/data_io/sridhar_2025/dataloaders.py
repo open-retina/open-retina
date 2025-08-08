@@ -17,7 +17,6 @@ from openretina.data_io.sridhar_2025.dataloader_utils import (
 from openretina.data_io.sridhar_2025.responses import load_responses
 from openretina.data_io.sridhar_2025.stimuli import load_frames, process_fixations
 
-# from line_profiler_pycharm import profile
 default_image_datapoint = namedtuple("default_image_datapoint", ["inputs", "targets"])
 
 
@@ -42,13 +41,14 @@ class MarmosetMovieDataset(Dataset):
     stimuli together with the corresponding neuronal responses recorded from
     visual cortex.
 
-    The dataset is designed for **temporal models** (e.g., 3-D CNNs, RNNs,
-    SSMs) that predict neural activity from short clips of video input.
-    Compared with a vanilla ``torchvision.datasets.VisionDataset``, it handles:
+    Specifically designed for the *Sridhar et al. 2025* dataset.
+    Original dataset is available at: https://doi.gin.g-node.org/10.12751/g-node.3dfiti/
+    The HuggingFace version of the dataset is available at: https://huggingface.co/datasets/open-retina/nm_marmoset_data
+
+    The dataset is designed for **temporal models** that predict neural activity from short clips of video input.
+    Compared with a vanilla ``torchvision.datasets.VisionDataset``, it does:
 
     * Stimulus‐aligned **eye-fixation cropping** of movie frames
-    * On-the-fly spatiotemporal subsampling and caching for efficient training
-      on large movie corpora.
 
     Parameters
     ----------
@@ -64,7 +64,7 @@ class MarmosetMovieDataset(Dataset):
         ``"inputs"`` and ``"targets"``.  The tuple is forwarded to
         ``self.data_point`` to build the sample object.
     indices : list[int]
-        Trial indices to draw from train_responses.  Ignored for test sets.
+        Trial indices to draw from train_responses.  Ignored for test sets which is averaged over trials.
     frames : np.ndarray
         All stimulus frames set loaded in memory,
         ``shape  == (N_frames, full_img_h, full_img_w)``.
@@ -144,7 +144,6 @@ class MarmosetMovieDataset(Dataset):
     ):
         self.data_keys = data_keys
         if set(data_keys) == {"inputs", "targets"}:
-            # this version IS serializable in pickle
             self.data_point = default_image_datapoint
 
         if isinstance(crop, int):
