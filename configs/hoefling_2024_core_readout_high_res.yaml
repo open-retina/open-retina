@@ -23,13 +23,14 @@ dataloader:
 
 
 model:
-  in_shape: [2, 150, 72, 64]
+  in_shape: [1, 150, 72, 64]
   hidden_channels: [16, 16, 16, 16]
   temporal_kernel_sizes: [15, 15, 7, 7]
   spatial_kernel_sizes: [15, 15, 7, 7]
   core_hidden_padding: true
   core_input_padding: true
   cut_first_n_frames_in_core: 30
+  color_squashing_weights: [0.5,0.5]
   maxpool_every_n_layers: 2
   # downsample_input_kernel_size: [1, 4, 4]  # to reproduce 18x16px lowres input
 
