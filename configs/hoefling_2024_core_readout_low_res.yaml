@@ -22,8 +22,7 @@ dataloader:
   batch_size: 128
 
 model:
-  in_shape: [1, 150, 18, 16]
-  color_squashing_weights: [0.5,0.5]
+  in_shape: [2, 150, 18, 16]
 
 paths:
   load_model_path: null  # e.g. hoefling_2024_base_low_res or path to a .ckpt model
