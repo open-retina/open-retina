@@ -815,7 +815,7 @@ class NoiseDataset(Dataset):
             num_of_hidden_frames = (num_of_hidden_frames,) * (self.num_of_layers - 1)
 
         if num_of_hidden_frames is None:
-            self.num_of_hidden_frames: tuple = (num_of_frames, )
+            self.num_of_hidden_frames: tuple = (num_of_frames,)
         else:
             self.num_of_hidden_frames = num_of_hidden_frames
 
@@ -861,7 +861,7 @@ class NoiseDataset(Dataset):
                 - self.extra_frame
             )
 
-        self._cache : dict[Any, Any] = {data_key: {} for data_key in data_keys}
+        self._cache: dict[Any, Any] = {data_key: {} for data_key in data_keys}
 
     def purge_cache(self):
         self._cache = {data_key: {} for data_key in self.data_keys}

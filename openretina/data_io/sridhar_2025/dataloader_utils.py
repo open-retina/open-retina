@@ -11,6 +11,7 @@ from openretina.utils.misc import set_seed
 
 # from openretina.env import HF_TOKEN
 
+
 def download_nm_dataset(cache_dir, base_path, hf_token):
     """Download the natural movie (NM) marmoset dataset from Hugging Face.
     Original data source: https://gin.g-node.org/gollischlab/Sridhar_Gollisch_2025_Marmoset_RGC_Responses_Naturalistic_Movies/src/master/README.md
@@ -29,9 +30,9 @@ def download_nm_dataset(cache_dir, base_path, hf_token):
 
 def download_wn_dataset(cache_dir, base_path, hf_token):
     """Download the white noise (WN) marmoset dataset from Hugging Face.
-        Original data source: https://gin.g-node.org/gollischlab/Sridhar_Gollisch_2025_Marmoset_RGC_Responses_Naturalistic_Movies/src/master/README.md
-        Original paper: https://www.biorxiv.org/content/10.1101/2024.03.05.583449v2
-        Creates a folder structure to work with the NoiseDataset class."""
+    Original data source: https://gin.g-node.org/gollischlab/Sridhar_Gollisch_2025_Marmoset_RGC_Responses_Naturalistic_Movies/src/master/README.md
+    Original paper: https://www.biorxiv.org/content/10.1101/2024.03.05.583449v2
+    Creates a folder structure to work with the NoiseDataset class."""
     load_dataset(
         WN_DATASET,
         name="wn_marmoset_data",
