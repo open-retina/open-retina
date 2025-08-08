@@ -1,3 +1,4 @@
+from xml.parsers.expat import model
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
@@ -6,51 +7,70 @@ from PIL import Image
 from scipy.ndimage import zoom
 import torch
 
-def prepare_movies_dataset(model, session_id, device="cuda"):
-    # Load images from directory
-    image_dir = (
-        "/home/baptiste/Documents/LabPipelines/open-retina/openretina/insilico/VectorFieldAnalysis/natural_images/"
-    )
-    image_files = sorted([f for f in os.listdir(image_dir) if f.lower().endswith(".png")])
+from openretina.models.core_readout import load_core_readout_from_remote
 
-    images = np.array([np.array(Image.open(os.path.join(image_dir, f))) for f in image_files])
-    print(f"Loaded {len(images)} images with shape: {images.shape}")
 
-    # Resize images to match model input shape
+def prepare_movies_dataset(
+    model, session_id, n_image_frames=16, normalize_movies=True, image_library=None, device="cuda"
+):
+    n_channels = model.data_info["input_shape"][0]
+
     target_h, target_w = model.data_info["input_shape"][1:3]
-    compressed_images = []
 
-    for img in images:
-        # Downsample and center crop
-        downsample_factor = int(min(img.shape[0] / target_h, img.shape[1] / target_w))
-        img = img[::downsample_factor, ::downsample_factor]
+    print(f"Model input shape: {model.data_info['input_shape']}")
+    if image_library is None:
+        # Load the model if not provided
+        image_dir = (
+            "/home/baptiste/Documents/LabPipelines/open-retina/openretina/insilico/VectorFieldAnalysis/natural_images/"
+        )
+        image_files = sorted([f for f in os.listdir(image_dir) if f.lower().endswith(".png")])
 
-        h, w = img.shape
-        start_h, start_w = (h - target_h) // 2, (w - target_w) // 2
-        compressed_images.append(img[start_h : start_h + target_h, start_w : start_w + target_w])
+        images = np.array([np.array(Image.open(os.path.join(image_dir, f))) for f in image_files])
+        print(f"Loaded {len(images)} images with shape: {images.shape}")
+        print(
+            f"Image stats - Mean: {images.mean():.2f}, Std: {images.std():.2f}, Min: {images.min()}, Max: {images.max()}"
+        )
+        compressed_images = []
+        for img in images:
+            # Downsample and center crop
+            downsample_factor = int(min(img.shape[0] / target_h, img.shape[1] / target_w))
+            img = img[::downsample_factor, ::downsample_factor]
 
-    compressed_images = np.array(compressed_images)
-    print(f"Compressed shape: {compressed_images.shape}")
+            h, w = img.shape
+            start_h, start_w = (h - target_h) // 2, (w - target_w) // 2
+            compressed_images.append(img[start_h : start_h + target_h, start_w : start_w + target_w])
+
+        compressed_images = np.array(compressed_images)
+        compressed_images = np.repeat(compressed_images[:, np.newaxis, :, :], n_channels, axis=1).astype(np.float32)
+        print(f"Compressed shape: {compressed_images.shape}")
+
+    else:
+        # Use the provided image library
+        compressed_images = image_library
+        print(f"Using provided image library with shape: {compressed_images.shape}")
+        print(
+            f"Image stats- Mean: {compressed_images.mean():.2f}, Std: {compressed_images.std():.2f}, Min: {compressed_images.min()}, Max: {compressed_images.max()}"
+        )
 
     # Determine temporal padding needed by model
-    n_channels = model.data_info["input_shape"][0]
     empty_movie = torch.zeros(1, n_channels, 100, target_h, target_w, dtype=torch.float32, device=device)
     n_empty_frames = 100 - model(empty_movie).shape[1]
+    print(f"Number of empty frames needed: {n_empty_frames}")
 
-    movies = np.repeat(compressed_images[:, np.newaxis, :, :], n_empty_frames + 16, axis=1)
-    movies = np.repeat(movies[:, np.newaxis, :, :, :], n_channels, axis=1).astype(np.float32)
+    movies = np.repeat(compressed_images[:, :, np.newaxis, :, :], n_empty_frames + n_image_frames, axis=2)
 
     # Normalize using model parameters
-    if n_channels == 1:
-        stim_mean = model.data_info["movie_norm_dict"][session_id]["norm_mean"]
-        stim_std = model.data_info["movie_norm_dict"][session_id]["norm_std"]
-    else:
-        print("unclear behavior when n_channels > 1")
-        stim_mean = model.data_info["movie_norm_dict"][session_id]["norm_mean"]
-        stim_std = model.data_info["movie_norm_dict"][session_id]["norm_std"]
+    if normalize_movies:
+        if n_channels == 1:
+            stim_mean = model.data_info["movie_norm_dict"][session_id]["norm_mean"]
+            stim_std = model.data_info["movie_norm_dict"][session_id]["norm_std"]
+        else:
+            print("unclear behavior when n_channels > 1")
+            stim_mean = model.data_info["movie_norm_dict"]["default"]["norm_mean"]
+            stim_std = model.data_info["movie_norm_dict"]["default"]["norm_std"]
 
-    for channel in range(n_channels):
-        movies[:, channel, :, :, :] = (movies[:, channel, :, :, :] - stim_mean) / stim_std
+        for channel in range(n_channels):
+            movies[:, channel, :, :, :] = (movies[:, channel, :, :, :] - stim_mean) / stim_std
 
     # Set initial frames to mean grey
     movies[:, :, :n_empty_frames, :, :] = movies.mean()
@@ -59,13 +79,13 @@ def prepare_movies_dataset(model, session_id, device="cuda"):
     return movies, n_empty_frames
 
 
-def compute_lsta_library(model, movies, session_id, cell_id, batch_size=64, device="cuda"):
+def compute_lsta_library(model, movies, session_id, cell_id, batch_size=64, integration_window=(5, 10), device="cuda"):
     model.eval()
     batch_size = 64
     all_lstas = []
     all_outputs = []
 
-    movies = movies[:1000]
+    movies = movies[:1000]  # For debugging, limit to 1000 movies, TO DO: Suppress this line
 
     for i in range(0, len(movies), batch_size):
         batch_movies = torch.tensor(movies[i : i + batch_size], dtype=torch.float32, device=device)
@@ -73,8 +93,8 @@ def compute_lsta_library(model, movies, session_id, cell_id, batch_size=64, devi
 
         outputs = model(batch_movies, data_key=session_id)
         chosen_cell_outputs = outputs[
-            :, 1:, cell_id
-        ].sum()  # I usually give up the first frame since it is contaminated by past responses
+            :, integration_window[0]:integration_window[1], cell_id
+        ].sum()  # I usually give up the first frame since it is contaminated by past responses (not done here)
         chosen_cell_outputs.backward()
 
         batch_lstas = batch_movies.grad.detach().cpu().numpy()
