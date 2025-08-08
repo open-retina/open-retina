@@ -11,6 +11,7 @@ from openretina.modules.layers.convolutions import STSeparableBatchConv3d
 from openretina.modules.layers.scaling import Bias3DLayer
 from openretina.modules.layers.reducers import WeightedChannelSumLayer
 
+
 def temporal_smoothing(sin: torch.Tensor, cos: torch.Tensor) -> torch.Tensor:
     smoother = torch.linspace(0.1, 0.9, sin.shape[2], device=sin.device)[None, None, :]
     size = float(sin.shape[0])
@@ -68,7 +69,7 @@ class SimpleCoreWrapper(Core):
         downsample_input_kernel_size: tuple[int, int, int] | None = None,
         input_padding: bool | int | str | tuple[int, int, int] = False,
         hidden_padding: bool | int | str | tuple[int, int, int] = True,
-        color_squashing_weights: tuple[float, ...] | None = None
+        color_squashing_weights: tuple[float, ...] | None = None,
     ):
         # Input validation
         if len(channels) < 2:
@@ -85,7 +86,7 @@ class SimpleCoreWrapper(Core):
             )
         if color_squashing_weights is not None and channels[0] != 1:
             raise ValueError(
-                f"Channel dimension of inputs ({channels[0]}) must be 1 when squashing color input to greyscale, "
+                f"Channel dimension of inputs ({channels[0]}) must be 1 when squashing color input to greyscale."
             )
 
         super().__init__()
@@ -109,8 +110,10 @@ class SimpleCoreWrapper(Core):
             )
 
         self._input_weights_regularizer_spatial = FlatLaplaceL23dnorm(padding=0)
-        self.features = torch.nn.Sequential()                        
-        self.color_squashing_layer = WeightedChannelSumLayer(self.color_squashing_weights) if self.color_squashing_weights is not None else None                          
+        self.features = torch.nn.Sequential()
+        self.color_squashing_layer = (
+            WeightedChannelSumLayer(self.color_squashing_weights) if self.color_squashing_weights is not None else None
+        )
 
         for layer_id, (num_in_channels, num_out_channels) in enumerate(zip(channels[:-1], channels[1:], strict=True)):
             layer: dict[str, torch.nn.Module] = OrderedDict()
@@ -142,14 +145,12 @@ class SimpleCoreWrapper(Core):
             self.features.add_module(f"layer{layer_id}", torch.nn.Sequential(layer))  # type: ignore
 
     def forward(self, input_: torch.Tensor) -> torch.Tensor:
-        
         if self.color_squashing_layer is not None:
             input_ = self.color_squashing_layer(input_)
 
         if self._downsample_input_kernel_size is not None:
             input_ = torch.nn.functional.avg_pool3d(input_, kernel_size=self._downsample_input_kernel_size)  # type: ignore
-        
-        
+
         res = self.features(input_)
         # To keep compatibility with hoefling model scores
         res_cut = res[:, :, self._cut_first_n_frames :, :, :]
