@@ -1,6 +1,6 @@
 import os
 
-import datasets
+import datasets # type: ignore
 import numpy as np
 import torch
 from datasets import load_dataset

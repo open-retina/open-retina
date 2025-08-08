@@ -1,5 +1,6 @@
 import os
 import pickle
+from typing import Optional, Any
 
 import numpy as np
 
@@ -9,7 +10,7 @@ def average_repeated_stimuli_responses(repeated_responses: np.ndarray):
     return np.mean(repeated_responses, axis=-1)
 
 
-def load_responses(base_path, files, stimulus_seed=0, excluded_cells: dict = None, cell_index: int = None):
+def load_responses(base_path, files, stimulus_seed=0, excluded_cells: Optional[dict[Any, list[int]]] = None, cell_index: Optional[int] = None):
     responses = {}
     for session_id, file in files.items():
         with open(os.path.join(base_path, file), "rb") as pkl:
