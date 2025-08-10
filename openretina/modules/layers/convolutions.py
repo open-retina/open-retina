@@ -142,7 +142,7 @@ class TimeIndependentConv3D(nn.Module):
         return self.conv(x)
 
 
-def compute_temporal_kernel(log_speed, sin_weights, cos_weights, length: int) -> torch.Tensor:
+def compute_temporal_kernel(log_speed, sin_weights, cos_weights, length: int, subsampling_factor: int) -> torch.Tensor:
     """
     Computes the temporal kernel for the convolution.
 
@@ -151,12 +151,13 @@ def compute_temporal_kernel(log_speed, sin_weights, cos_weights, length: int) ->
         sin_weights (torch.nn.Parameter): Sinusoidal weights.
         cos_weights (torch.nn.Parameter): Cosine weights.
         length (int): Length of the temporal kernel.
+        subsampling_factor (int): the factor by which to subsample the sin and cos weights
 
     Returns:
         torch.Tensor: The temporal kernel.
     """
     stretches = torch.exp(log_speed)
-    sines, cosines = STSeparableBatchConv3d.temporal_basis(stretches, length)
+    sines, cosines = STSeparableBatchConv3d.temporal_basis(stretches, length, subsampling_factor)
     weights_temporal = torch.sum(sin_weights[:, :, :, None] * sines[None, None, ...], dim=2) + torch.sum(
         cos_weights[:, :, :, None] * cosines[None, None, ...], dim=2
     )
@@ -223,7 +224,8 @@ class STSeparableBatchConv3d(nn.Module):
         self.subsampling_factor = subsampling_factor
 
         # Initialize temporal weights
-        self.sin_weights, self.cos_weights = self.temporal_weights(temporal_kernel_size, in_channels, out_channels)
+        self.sin_weights, self.cos_weights = self.temporal_weights(temporal_kernel_size, in_channels, out_channels,
+                                                                   subsampling_factor=self.subsampling_factor)
 
         # Initialize spatial weights
         self.weight_spatial = nn.Parameter(
@@ -261,7 +263,7 @@ class STSeparableBatchConv3d(nn.Module):
         else:
             log_speed = getattr(self, "_".join(["log_speed", data_key]))
         self.weight_temporal = compute_temporal_kernel(
-            log_speed, self.sin_weights, self.cos_weights, self.temporal_kernel_size
+            log_speed, self.sin_weights, self.cos_weights, self.temporal_kernel_size, self.subsampling_factor
         )
 
         # Assemble the complete weight tensor for convolution
@@ -280,7 +282,7 @@ class STSeparableBatchConv3d(nn.Module):
 
     def get_temporal_weight(self, in_channel: int, out_channel: int) -> tuple[np.ndarray, float]:
         weight_temporal = compute_temporal_kernel(
-            self._log_speed_default, self.sin_weights, self.cos_weights, self.temporal_kernel_size
+            self._log_speed_default, self.sin_weights, self.cos_weights, self.temporal_kernel_size, self.subsampling_factor,
         )
         global_abs_max = float(weight_temporal.detach().abs().max().item())
         temporal_trace_tensor = weight_temporal[out_channel, in_channel, :, 0, 0]
@@ -381,6 +383,7 @@ class STSeparableBatchConv3d(nn.Module):
             num_channels (int): Number of input channels.
             num_feat (int): Number of output features.
             scale (float, optional): Scaling factor for weight initialization. Defaults to 0.01.
+            subsampling_factor (int): subsampling factor for sin, cos weights.
 
         Returns:
             tuple: Tuple containing sin and cos weights.

@@ -268,6 +268,7 @@ class ConvGRUCore(Core3d, nn.Module):
             self.features[0].conv.sin_weights,
             self.features[0].conv.cos_weights,
             self.features[0].conv.temporal_kernel_size,
+            subsampling_factor=3,
         )
         # abc are dummy dimensions
         weight = torch.einsum("oitab,oichw->oithw", weight_temporal, self.features[0].conv.weight_spatial)
