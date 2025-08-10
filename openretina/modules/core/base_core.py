@@ -106,7 +106,7 @@ class SimpleCoreWrapper(Core):
             )
 
         self._input_weights_regularizer_spatial = FlatLaplaceL23dnorm(padding=0)
-        self._input_weights_regularizer_temporal = Laplace1d(padding=0)
+        self._input_weights_regularizer_temporal = Laplace1d(padding=0, persistent_buffer=False)
 
         self.features = torch.nn.Sequential()
         for layer_id, (num_in_channels, num_out_channels) in enumerate(zip(channels[:-1], channels[1:], strict=True)):

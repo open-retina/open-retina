@@ -94,6 +94,7 @@ class Laplace(nn.Module):
         self,
         padding: int | None = None,
         filter_size: int = 3,
+        persistent_buffer: bool = True,
     ):
         """Laplace filter for a stack of data"""
 
@@ -107,7 +108,8 @@ class Laplace(nn.Module):
         else:
             raise ValueError(f"Unsupported filter size {filter_size}")
 
-        self.register_buffer("filter", torch.from_numpy(kernel))
+        self.register_buffer("filter", torch.from_numpy(kernel),
+                             persistent=persistent_buffer)
         self.padding_size = kernel.shape[-1] // 2 if padding is None else padding
 
     def forward(self, x):
@@ -115,9 +117,10 @@ class Laplace(nn.Module):
 
 
 class Laplace1d(torch.nn.Module):
-    def __init__(self, padding: int | None):
+    def __init__(self, padding: int | None, persistent_buffer: bool = True):
         super().__init__()
-        self.register_buffer("filter", torch.from_numpy(LAPLACE_1D))
+        self.register_buffer("filter", torch.from_numpy(LAPLACE_1D),
+                             persistent=persistent_buffer)
         self.padding_size = LAPLACE_1D.shape[-1] // 2 if padding is None else padding
 
     def forward(self, x: torch.Tensor, avg: bool = False) -> torch.Tensor:
