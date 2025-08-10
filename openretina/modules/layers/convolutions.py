@@ -194,6 +194,7 @@ class STSeparableBatchConv3d(nn.Module):
         padding: int | str | tuple[int, ...] = 0,
         num_scans: int = 1,
         bias: bool = True,
+        subsampling_factor: int = 3,
     ):
         """
         Initializes the STSeparableBatchConv3d layer.
@@ -219,6 +220,7 @@ class STSeparableBatchConv3d(nn.Module):
         self.stride = stride
         self.padding = padding
         self.num_scans = num_scans
+        self.subsampling_factor = subsampling_factor
 
         # Initialize temporal weights
         self.sin_weights, self.cos_weights = self.temporal_weights(temporal_kernel_size, in_channels, out_channels)
@@ -369,7 +371,7 @@ class STSeparableBatchConv3d(nn.Module):
 
     @staticmethod
     def temporal_weights(
-        length: int, num_channels: int, num_feat: int, scale: float = 0.01
+        length: int, num_channels: int, num_feat: int, scale: float = 0.01, subsampling_factor: int = 3,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Generates initial weights for the temporal components of the convolution.
@@ -386,19 +388,21 @@ class STSeparableBatchConv3d(nn.Module):
         # From hoefling, 2024
         # Then, in order to stay well under the Nyquist limit,
         # we parameterize the kernels with k = 21/3 = 7 sines and cosines (that's why //3)
-        k = max(length // 3, 1)
+        if length < subsampling_factor:
+            raise ValueError(f"Length cannot be smaller than subsampling factor: {length=} {subsampling_factor=}")
+        k = length // subsampling_factor
         sin_weights = torch.nn.Parameter(data=torch.randn(num_feat, num_channels, k) * scale, requires_grad=True)
         cos_weights = torch.nn.Parameter(data=torch.randn(num_feat, num_channels, k) * scale, requires_grad=True)
         return sin_weights, cos_weights
 
     @staticmethod
-    def temporal_basis(stretches: torch.Tensor, T: int) -> tuple[torch.Tensor, torch.Tensor]:
+    def temporal_basis(stretches: torch.Tensor, length: int, subsampling_factor: int) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Generates the basis for the temporal component of the convolution.
 
         Args:
             stretches (torch.Tensor): Temporal stretches per ROI.
-            T (int): Length of the temporal kernel.
+            length (int): Length of the temporal kernel.
 
         Returns:
             tuple: Tuple containing sines and cosines tensors.
@@ -406,11 +410,13 @@ class STSeparableBatchConv3d(nn.Module):
         # From hoefling, 2024
         # Then, in order to stay well under the Nyquist limit,
         # we parameterize the kernels with k = 21/3 = 7 sines and cosines (that's why //3)
-        big_k = max(T // 3, 1)
-        time = torch.arange(T, dtype=torch.float, device=stretches.device) - T
+        if length < subsampling_factor:
+            raise ValueError(f"Length cannot be smaller than subsampling factor: {length=}, {subsampling_factor=}")
+        big_k = length // subsampling_factor
+        time = torch.arange(length, dtype=torch.float, device=stretches.device) - length
         stretched = stretches * time
-        freq = stretched * 2 * np.pi / T
-        mask = STSeparableBatchConv3d.mask_tf(time, stretches, T)
+        freq = stretched * 2 * np.pi / length
+        mask = STSeparableBatchConv3d.mask_tf(time, stretches, length)
         sines, cosines = [], []
         for k in range(big_k):
             sines.append(mask * torch.sin(freq * k))
