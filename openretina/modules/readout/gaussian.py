@@ -3,10 +3,10 @@
 import warnings
 
 import numpy as np
-from torch.nn.parameter import Parameter
-from torch import nn
 import torch
+from torch import nn
 from torch.nn import functional as F
+from torch.nn.parameter import Parameter
 
 from openretina.modules.readout.base import Readout
 
@@ -60,7 +60,9 @@ class FullGaussian2d(Readout):
                 Source grid for the grid_mean_predictor.
                 Needs to be of size neurons x grid_mean_predictor[input_dimensions]
 
-        init_grid (numpy.array): Initial grid locations for the neurons. Only set if both shared_grid and grid_mean_predictor are None.
+        init_grid (numpy.array):
+            Initial grid locations for the neurons.
+            Only set if both shared_grid and grid_mean_predictor are None.
 
     """
 
@@ -77,13 +79,12 @@ class FullGaussian2d(Readout):
         grid_mean_predictor=None,
         shared_features=None,
         shared_grid=None,
-        init_grid=None, # initial grid locations for the neurons
+        init_grid=None,  # initial grid locations for the neurons
         source_grid=None,
         mean_activity=None,
         gamma_readout=1.0,
         **kwargs,
     ):
-
         super().__init__()
         self.gamma_redout = gamma_readout
         self.mean_activity = mean_activity
@@ -109,7 +110,7 @@ class FullGaussian2d(Readout):
         self._original_grid = not self._predicted_grid
 
         if grid_mean_predictor is None and shared_grid is None:
-            self._mu = Parameter(torch.Tensor(*self.grid_shape)) # mean location of gaussian for each neuron
+            self._mu = Parameter(torch.Tensor(*self.grid_shape))  # mean location of gaussian for each neuron
             if init_grid is not None:
                 self._mu.data = init_grid
         elif grid_mean_predictor is not None and shared_grid is not None:
@@ -118,7 +119,6 @@ class FullGaussian2d(Readout):
             self.init_grid_predictor(source_grid=source_grid, **grid_mean_predictor)
         elif shared_grid is not None:
             self.initialize_shared_grid(**(shared_grid or {}))
-
 
         if gauss_type == "full":
             self.sigma_shape = (1, outdims, 2, 2)
@@ -207,16 +207,18 @@ class FullGaussian2d(Readout):
         Returns the grid locations from the core by sampling from a Gaussian distribution
         Args:
             batch_size (int): size of the batch
-            sample (bool/None): sample determines whether we draw a sample from Gaussian distribution, N(mu,sigma), defined per neuron
-                            or use the mean, mu, of the Gaussian distribution without sampling.
-                           if sample is None (default), samples from the N(mu,sigma) during training phase and
-                             fixes to the mean, mu, during evaluation phase.
-                           if sample is True/False, overrides the model_state (i.e training or eval) and does as instructed
+            sample (bool/None): sample determines whether we draw a sample from Gaussian distribution, N(mu,sigma),
+                                defined per neuron or use the mean, mu, of the Gaussian distribution without sampling.
+                                if sample is None (default), samples from the N(mu,sigma) during training phase and
+                                fixes to the mean, mu, during evaluation phase.
+                                if sample is True/False, overrides the model_state (i.e training or eval)
+                                and does as instructed
         """
         with torch.no_grad():
             self.mu.clamp_(
                 min=-1, max=1
-            )  # at eval time, only self.mu is used so it must belong to [-1,1] # sigma/variance i    s always a positive quantity
+            )  # at eval time, only self.mu is used so it must belong to [-1,1]
+            # sigma/variance is always a positive quantity
 
         grid_shape = (batch_size,) + self.grid_shape[1:]
 
@@ -343,11 +345,12 @@ class FullGaussian2d(Readout):
         Propagates the input forwards through the readout
         Args:
             x: input data
-            sample (bool/None): sample determines whether we draw a sample from Gaussian distribution, N(mu,sigma), defined per neuron
-                            or use the mean, mu, of the Gaussian distribution without sampling.
-                           if sample is None (default), samples from the N(mu,sigma) during training phase and
-                             fixes to the mean, mu, during evaluation phase.
-                           if sample is True/False, overrides the model_state (i.e training or eval) and does as instructed
+            sample (bool/None): sample determines whether we draw a sample from Gaussian distribution, N(mu,sigma),
+                                defined per neuron or use the mean, mu, of the Gaussian distribution without sampling.
+                                if sample is None (default), samples from the N(mu,sigma) during training phase and
+                                fixes to the mean, mu, during evaluation phase.
+                                if sample is True/False, overrides the model_state (i.e training or eval)
+                                and does as instructed
             shift (bool): shifts the location of the grid (from eye-tracking data)
             out_idx (bool): index of neurons to be predicted
 

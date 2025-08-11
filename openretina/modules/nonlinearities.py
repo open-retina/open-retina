@@ -3,7 +3,7 @@ from torch import nn
 
 
 class ParametrizedELU(nn.Module):
-    def __init__(self, a=1.0, b=1.0, c=1.0, device='cuda', *args, **kwargs):
+    def __init__(self, a=1.0, b=1.0, c=1.0, device="cuda", *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.a = torch.nn.Parameter(torch.tensor(a, device=device), requires_grad=True)
         self.b = torch.nn.Parameter(torch.tensor(b, device=device), requires_grad=True)
@@ -25,7 +25,3 @@ class parametrized_softplus(nn.Module):
 
     def forward(self, x):
         return self.w * torch.log(1 + torch.exp(self.a * x + self.b))
-
-
-
-

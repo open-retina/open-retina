@@ -69,7 +69,7 @@ class SimpleCoreWrapper(Core):
         downsample_input_kernel_size: tuple[int, int, int] | None = None,
         input_padding: bool | int | str | tuple[int, int, int] = False,
         hidden_padding: bool | int | str | tuple[int, int, int] = True,
-        type='sin_cos'
+        convolution_type="sin_cos",
     ):
         # Input validation
         if len(channels) < 2:
@@ -86,7 +86,7 @@ class SimpleCoreWrapper(Core):
             )
 
         super().__init__()
-        self.type = type
+        self.convolution_type = convolution_type
         self.gamma_input = gamma_input
         self.gamma_temporal = gamma_temporal
         self.gamma_in_sparse = gamma_in_sparse
@@ -120,7 +120,7 @@ class SimpleCoreWrapper(Core):
             else:
                 padding = padding_to_use
 
-            if type == 'sin_cos':
+            if self.convolution_type == "sin_cos":
                 layer["conv"] = STSeparableBatchConv3d(
                     num_in_channels,
                     num_out_channels,
@@ -140,7 +140,7 @@ class SimpleCoreWrapper(Core):
                     layer["pool"] = torch.nn.MaxPool3d((1, 2, 2))
                 self.features.add_module(f"layer{layer_id}", torch.nn.Sequential(layer))  # type: ignore
 
-            elif type == 'torch':
+            elif self.convolution_type == "torch":
                 layer["conv"] = TorchSTSeparableConv3D(
                     num_in_channels,
                     num_out_channels,
@@ -151,7 +151,9 @@ class SimpleCoreWrapper(Core):
                     padding=padding,
                 )
             else:
-                raise ValueError(f"Unknown type {type}. Supported types are 'sin_cos' and 'torch'.")
+                raise ValueError(
+                    f"Unknown type {convolution_type}. Supported convolution types are 'sin_cos' and 'torch'."
+                )
 
     def forward(self, input_: torch.Tensor) -> torch.Tensor:
         if self._downsample_input_kernel_size is not None:
@@ -166,10 +168,12 @@ class SimpleCoreWrapper(Core):
 
     def temporal_laplace(self) -> torch.Tensor:
         ch_in, ch_out, t, h, w = self.features[0].conv.time_conv.weight.shape
-        return self._input_weights_regularizer_temporal(self.features[0].conv.time_conv.weight.view(ch_in*ch_out, 1, t), avg=False)
+        return self._input_weights_regularizer_temporal(
+            self.features[0].conv.time_conv.weight.view(ch_in * ch_out, 1, t), avg=False
+        )
 
     def temporal_smoothness(self) -> torch.Tensor:
-        if self.type == 'torch':
+        if self.convolution_type == "torch":
             return self.temporal_laplace()
         else:
             results = [temporal_smoothing(x.conv.sin_weights, x.conv.cos_weights) for x in self.features]

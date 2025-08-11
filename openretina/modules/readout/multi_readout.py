@@ -95,30 +95,30 @@ class MultiGaussianReadoutWrapper(nn.ModuleDict):
     def sessions(self) -> list[str]:
         return self.readout_keys()
 
+
 class MultiSampledGaussianReadoutWrapper(nn.ModuleDict):
     """
-    Multiple Sessions version of the SimpleSpatialXFeature3d factorised gaussian readout.
+    Multiple Sessions version of the sampling gaussian readout.
     """
 
     def __init__(
         self,
-        in_shape: tuple[int, int, int, int],
+        in_shape: tuple[int, int, int],
         n_neurons_dict: dict[str, int],
         bias: bool,
         init_mu_range: float,
         init_sigma_range: float,
-        batch_sample:bool=True,
+        batch_sample: bool = True,
         align_corners: bool = True,
         gauss_type: Literal["full", "iso"] = "full",
-        grid_mean_predictor = None,
+        grid_mean_predictor=None,
         shared_features=None,
         shared_grid=None,
-        init_grid = None,
-        mean_activity = None,
-        gamma_readout: float=1.0,
+        init_grid=None,
+        mean_activity=None,
+        gamma_readout: float = 1.0,
         readout_reg_avg: bool = False,
         nonlinearity_function=torch.nn.functional.softplus,
-
     ):
         super().__init__()
         self.session_init_args = {

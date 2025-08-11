@@ -1,17 +1,18 @@
+from typing import Optional
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from lightning import LightningModule
 from einops import rearrange
 from jaxtyping import Float, Int
+from lightning import LightningModule
 
 from openretina.data_io.base_dataloader import DataPoint
 from openretina.models.core_readout import BaseCoreReadout
-from openretina.modules.core.base_core import DummyCore, Core
+from openretina.modules.core.base_core import DummyCore
 from openretina.modules.layers import regularizers
-from openretina.modules.losses import PoissonLoss3d, CorrelationLoss3d
+from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
 from openretina.modules.nonlinearities import parametrized_softplus
-from openretina.modules.readout.gaussian import FullGaussian2d
 from openretina.modules.readout.multi_readout import MultiReadoutBase
 
 
@@ -99,11 +100,12 @@ class MultipleLNP(BaseCoreReadout):
 
         return output_lnp
 
+
 class SingleCellSeparatedLNP(LightningModule):
     def __init__(
         self,
         in_shape: Int[tuple, "channel time height width"],
-        rf_location: Int[tuple, "y x"] = None,
+        rf_location: Optional[Int[tuple, "y x"]] = None,
         spat_kernel_size: Int[tuple, "height width"] = (15, 15),
         learning_rate: float = 1e-3,
         rank: int = 1,
@@ -134,7 +136,9 @@ class SingleCellSeparatedLNP(LightningModule):
         self.normalize_weights = normalize_weights
         self.crop = (in_shape[-1] != spat_kernel_size[1]) or (in_shape[-2] != spat_kernel_size[0])
         # if location is not provided, use the center of the input
-        self.location = rf_location if rf_location is not None else (in_shape[2] // 2, in_shape[3] // 2)
+        if rf_location is None:
+            rf_location = (in_shape[2] // 2, in_shape[3] // 2)
+        self.location = rf_location
 
         regularizer_config_spat = (
             dict(padding=laplace_padding, kernel=self.spat_kernel_size)
@@ -153,7 +157,9 @@ class SingleCellSeparatedLNP(LightningModule):
         self.kernel_size = spat_kernel_size
         self.in_channels = in_shape[0]
         self.n_neurons = 1
-        self.nonlinearity = parametrized_softplus() if nonlinearity == "parametrized_softplus" else F.__dict__[nonlinearity]
+        self.nonlinearity = (
+            parametrized_softplus() if nonlinearity == "parametrized_softplus" else F.__dict__[nonlinearity]
+        )
         self.fit_gaussian = fit_gaussian
         self.space_conv = nn.Conv3d(
             in_channels=self.in_channels,
@@ -162,9 +168,9 @@ class SingleCellSeparatedLNP(LightningModule):
             bias=False,
             stride=1,
         )
-        self.time_conv = nn.Conv3d(in_channels=rank, out_channels=1, kernel_size=(in_shape[1], 1, 1),
-                                   bias=False, stride=1)
-
+        self.time_conv = nn.Conv3d(
+            in_channels=rank, out_channels=1, kernel_size=(in_shape[1], 1, 1), bias=False, stride=1
+        )
 
         nn.init.xavier_normal_(self.space_conv.weight.data)
         nn.init.xavier_normal_(self.time_conv.weight.data)
@@ -177,11 +183,9 @@ class SingleCellSeparatedLNP(LightningModule):
             :,
             :,
             :,
-            self.location[0]
-            - min(self.kernel_size[0] // 2, self.location[0]) : self.location[0]
+            self.location[0] - min(self.kernel_size[0] // 2, self.location[0]) : self.location[0]
             + min(self.kernel_size[0] // 2 + self.kernel_size[0] % 2, h - self.location[0]),
-            self.location[1]
-            - min(self.kernel_size[1] // 2, self.location[1]) : self.location[1]
+            self.location[1] - min(self.kernel_size[1] // 2, self.location[1]) : self.location[1]
             + min(self.kernel_size[1] // 2 + self.kernel_size[1] % 2, w - self.location[1]),
         ]
         return input_tensor
@@ -248,11 +252,10 @@ class SingleCellSeparatedLNP(LightningModule):
             },
         }
 
-
     def laplace(self):
         return self.smooth_weight_spat * self._smooth_reg_fn_spat(
-            self.space_conv.weight.squeeze(2)) + self.smooth_weight_temp * self._smooth_reg_fn_temp(
-            self.time_conv.weight.squeeze(-1,-2))
+            self.space_conv.weight.squeeze(2)
+        ) + self.smooth_weight_temp * self._smooth_reg_fn_temp(self.time_conv.weight.squeeze(-1, -2))
 
     def weights_l1(self, average: bool = True):
         """Returns l1 regularization across all weight dimensions
