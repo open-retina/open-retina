@@ -305,7 +305,14 @@ class MarmosetMovieDataset(Dataset):
 
         return x
 
-    def get_frames(self, trial_index, starting_img_index, ending_img_index):
+    def get_frames(self, trial_index: int, starting_img_index: int, ending_img_index: int):
+        """
+        Returns a tensor of frames for the given trial based on the starting and ending image indices.
+        The starting and ending indices index into the list of fixations which correspond to the lines in the
+        fixation file.
+        Each fixations element defines the index of the used frame, the center around which the crop is made,
+        and whether the image should be flipped.
+        """
         cache = []
         if self._test:
             starting_line = starting_img_index
