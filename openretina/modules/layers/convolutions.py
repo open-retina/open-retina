@@ -95,7 +95,7 @@ class TorchSTSeparableConv3D(nn.Module):
     def forward(self, input_: torch.Tensor) -> torch.Tensor:
         if type(input_) is torch.Tensor:
             x = input_
-            data_key = None
+            data_key: str | None = None
         else:
             x, data_key = input_
 
