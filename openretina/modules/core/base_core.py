@@ -69,7 +69,7 @@ class SimpleCoreWrapper(Core):
         downsample_input_kernel_size: tuple[int, int, int] | None = None,
         input_padding: bool | int | str | tuple[int, int, int] = False,
         hidden_padding: bool | int | str | tuple[int, int, int] = True,
-        convolution_type="sin_cos",
+        convolution_type: str = "sin_cos",
     ):
         # Input validation
         if len(channels) < 2:
@@ -164,25 +164,25 @@ class SimpleCoreWrapper(Core):
         return res_cut
 
     def spatial_laplace(self) -> torch.Tensor:
-        return self._input_weights_regularizer_spatial(self.features[0].conv.weight_spatial, avg=False)
+        return self._input_weights_regularizer_spatial(self.features[0].conv.weight_spatial, avg=False) # type: ignore
 
     def temporal_laplace(self) -> torch.Tensor:
-        ch_in, ch_out, t, h, w = self.features[0].conv.time_conv.weight.shape
+        ch_in, ch_out, t, h, w = self.features[0].conv.time_conv.weight.shape # type: ignore
         return self._input_weights_regularizer_temporal(
-            self.features[0].conv.time_conv.weight.view(ch_in * ch_out, 1, t), avg=False
+            self.features[0].conv.time_conv.weight.view(ch_in * ch_out, 1, t), avg=False # type: ignore
         )
 
     def temporal_smoothness(self) -> torch.Tensor:
         if self.convolution_type == "torch":
             return self.temporal_laplace()
         else:
-            results = [temporal_smoothing(x.conv.sin_weights, x.conv.cos_weights) for x in self.features]
+            results = [temporal_smoothing(x.conv.sin_weights, x.conv.cos_weights) for x in self.features] # type: ignore
             return torch.sum(torch.stack(results))
 
     def group_sparsity_0(self) -> torch.Tensor:
         result_array = []
         for layer in self.features:
-            result = layer.conv.weight_spatial.pow(2).sum([2, 3, 4]).sqrt().sum(1) / torch.sqrt(
+            result = layer.conv.weight_spatial.pow(2).sum([2, 3, 4]).sqrt().sum(1) / torch.sqrt( # type: ignore
                 1e-8 + layer.conv.weight_spatial.pow(2).sum([1, 2, 3, 4])
             )
             result_array.append(result.sum())
@@ -191,7 +191,7 @@ class SimpleCoreWrapper(Core):
 
     def group_sparsity(self) -> torch.Tensor:
         sparsities: list[torch.Tensor] = []
-        for feat in self.features[1:]:
+        for feat in self.features[1:]: # type: ignore
             val = feat.conv.weight_spatial.pow(2).sum([2, 3, 4]).sqrt().sum(1) / torch.sqrt(
                 1e-8 + feat.conv.weight_spatial.pow(2).sum([1, 2, 3, 4])
             )
@@ -215,14 +215,14 @@ class SimpleCoreWrapper(Core):
         if layer >= len(self.features):
             raise ValueError(f"Requested layer {layer}, but only {len(self.features)} layers present.")
         conv_obj = self.features[layer].conv
-        fig = conv_obj.plot_weights(in_channel, out_channel)
+        fig = conv_obj.plot_weights(in_channel, out_channel) # type: ignore
         return fig
 
     def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg") -> None:
         for i, layer in enumerate(self.features):
             output_dir = os.path.join(folder_path, f"weights_layer_{i}")
             os.makedirs(output_dir, exist_ok=True)
-            layer.conv.save_weight_visualizations(output_dir, file_format)
+            layer.conv.save_weight_visualizations(output_dir, file_format) # type: ignore
             print(f"Saved weight visualization at path {output_dir}")
 
 

@@ -1,5 +1,5 @@
 import os
-from typing import Literal
+from typing import Callable, Literal
 
 import torch
 import torch.nn as nn
@@ -111,14 +111,14 @@ class MultiSampledGaussianReadoutWrapper(nn.ModuleDict):
         batch_sample: bool = True,
         align_corners: bool = True,
         gauss_type: Literal["full", "iso"] = "full",
-        grid_mean_predictor=None,
-        shared_features=None,
-        shared_grid=None,
-        init_grid=None,
-        mean_activity=None,
+        grid_mean_predictor = None,
+        shared_features = None,
+        shared_grid = None,
+        init_grid = None,
+        mean_activity = None,
         gamma_readout: float = 1.0,
         readout_reg_avg: bool = False,
-        nonlinearity_function=torch.nn.functional.softplus,
+        nonlinearity_function: Callable[[torch.Tensor], torch.Tensor] = torch.nn.functional.softplus,
     ):
         super().__init__()
         self.session_init_args = {
@@ -185,7 +185,7 @@ class MultiSampledGaussianReadoutWrapper(nn.ModuleDict):
         return response
 
     def regularizer(self, data_key: str) -> torch.Tensor:
-        feature_loss = self[data_key].feature_l1() * self.gamma_readout
+        feature_loss = self[data_key].feature_l1() * self.gamma_readout # type: ignore
         return feature_loss
 
     def readout_keys(self) -> list[str]:

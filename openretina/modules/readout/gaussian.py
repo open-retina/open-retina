@@ -8,10 +8,8 @@ from torch import nn
 from torch.nn import functional as F
 from torch.nn.parameter import Parameter
 
-from openretina.modules.readout.base import Readout
 
-
-class FullGaussian2d(Readout):
+class FullGaussian2d(nn.Module):
     """
     A readout using a spatial transformer layer whose positions are sampled from one Gaussian per neuron. Mean
     and covariance of that Gaussian are learned.
@@ -20,11 +18,11 @@ class FullGaussian2d(Readout):
         in_shape (list, tuple): shape of the input feature map [channels, width, height]
         outdims (int): number of output units
         bias (bool): adds a bias term
-        init_mu_range (float): initialises the the mean with Uniform([-init_range, init_range])
+        init_mu_range (float): initialises the mean with Uniform([-init_range, init_range])
                             [expected: positive value <=1]. Default: 0.1
         init_sigma (float): The standard deviation of the Gaussian with `init_sigma` when `gauss_type` is
             'isotropic' or 'uncorrelated'. When `gauss_type='full'` initialize the square root of the
-            covariance matrix with with Uniform([-init_sigma, init_sigma]). Default: 1
+            covariance matrix with Uniform([-init_sigma, init_sigma]). Default: 1
         batch_sample (bool): if True, samples a position for each image in the batch separately
                             [default: True as it decreases convergence time and performs just as well]
         align_corners (bool): Keyword agrument to gridsample for bilinear interpolation.
