@@ -93,7 +93,11 @@ class TorchSTSeparableConv3D(nn.Module):
         )
 
     def forward(self, input_: torch.Tensor) -> torch.Tensor:
-        x, data_key = input_
+        if type(input_) is torch.Tensor:
+            x = input_
+            data_key: str | None = None
+        else:
+            x, data_key = input_
 
         # Compute temporal kernel based on the provided data key
         if data_key is None:
