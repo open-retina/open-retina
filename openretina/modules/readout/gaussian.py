@@ -8,8 +8,10 @@ from torch import nn
 from torch.nn import functional as F
 from torch.nn.parameter import Parameter
 
+from openretina.modules.readout.base import Readout
 
-class FullGaussian2d(nn.Module):
+
+class FullGaussian2d(Readout):
     """
     A readout using a spatial transformer layer whose positions are sampled from one Gaussian per neuron. Mean
     and covariance of that Gaussian are learned.
