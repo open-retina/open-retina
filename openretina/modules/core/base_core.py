@@ -176,9 +176,11 @@ class SimpleCoreWrapper(Core):
     def temporal_smoothness(self) -> torch.Tensor:
         if self.convolution_type == "separable":
             return self.temporal_laplace()
-        else:
+        elif self.convolution_type == "custom_separable":
             results = [temporal_smoothing(x.conv.sin_weights, x.conv.cos_weights) for x in self.features]
             return torch.sum(torch.stack(results))
+        else:
+            raise ValueError(f"Temporal smoothness not supported for {self.convolution_type=}")
 
     def group_sparsity_0(self) -> torch.Tensor:
         result_array = []
