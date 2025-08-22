@@ -147,7 +147,8 @@ class BaseCoreReadout(LightningModule):
         device = next(core.parameters()).device
 
         with torch.no_grad():
-            core_test_output = core.forward(torch.zeros((1,) + tuple(core_in_shape)), device=device)
+            stimulus = torch.zeros((1,) + tuple(core_in_shape), device=device)
+            core_test_output = core.forward(stimulus)
 
         return core_test_output.shape[1:]  # type: ignore
 

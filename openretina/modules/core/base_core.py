@@ -120,7 +120,6 @@ class SimpleCoreWrapper(Core):
             else:
                 padding = padding_to_use
 
-            breakpoint()
             conv_class = get_conv_class(self.convolution_type)
             layer["conv"] = conv_class(
                 num_in_channels,
