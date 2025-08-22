@@ -8,8 +8,8 @@ from matplotlib import pyplot as plt
 
 from openretina.modules.layers import FlatLaplaceL23dnorm
 from openretina.modules.layers.convolutions import STSeparableBatchConv3d
-from openretina.modules.layers.scaling import Bias3DLayer
 from openretina.modules.layers.reducers import WeightedChannelSumLayer
+from openretina.modules.layers.scaling import Bias3DLayer
 
 
 def temporal_smoothing(sin: torch.Tensor, cos: torch.Tensor) -> torch.Tensor:
@@ -86,7 +86,8 @@ class SimpleCoreWrapper(Core):
             )
         if color_squashing_weights is not None and channels[0] != 1:
             raise ValueError(
-                f"Channel dimension of inputs ({channels[0]}) must be 1 when squashing color input to greyscale."
+                f"Number of input channels (set to {channels[0]}) must be 1 when squashing multi-channel (color)\
+                      to single-channel (greyscale) input."
             )
 
         super().__init__()

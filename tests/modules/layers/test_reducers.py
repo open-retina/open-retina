@@ -5,14 +5,13 @@ from openretina.modules.layers.reducers import WeightedChannelSumLayer
 
 
 @pytest.mark.parametrize(
-    "init_channel_weights, trainable",
-    [((5, 7), False), ((0.5, 0.5), False)],
+    "init_channel_weights",
+    [(5, 7), (0.5, 0.5)],
 )
 def test_weighted_channel_sum_layer(
     init_channel_weights: tuple[float, ...],
-    trainable: bool,
 ):
-    layer = WeightedChannelSumLayer(init_channel_weights, trainable=trainable)
+    layer = WeightedChannelSumLayer(init_channel_weights)
 
     x = torch.ones((1, 2, 50, 18, 16))
     x[:, 0, ...] *= 2

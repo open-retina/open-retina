@@ -3,9 +3,10 @@ import torch.nn as nn
 
 
 class WeightedChannelSumLayer(nn.Module):
-    """A layer that reduces the first channel of its input into one dimension according to the provided weights.
-    If the first channel is already one dimensional, will return it unchanged.
-    One use case is of this layer is to convert a multi-color channel into a grey-scale channel."""
+    """A layer that reduces  multi-channel input to single-channel input by computing \
+        a weighted sum across the channel dimension using the provided weights.
+    If the input only has a single channel, it will return it unchanged.
+    One use case is of this layer is to convert a multi-color input into a grey-scale input to the model."""
 
     def __init__(self, init_channel_weights: tuple[float, ...], trainable: bool = False):
         super().__init__()
@@ -14,7 +15,7 @@ class WeightedChannelSumLayer(nn.Module):
         self.channel_weights = nn.Parameter(torch.tensor(init_channel_weights), requires_grad=trainable)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """If the input is not multi-dimensional, take a weighted sum to turn it greyscale."""
+        """If the input is not already single-channel (i.e. greyscale), take a weighted sum over channels ."""
 
         if x.shape[1] == 1:
             return x
