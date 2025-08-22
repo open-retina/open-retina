@@ -202,6 +202,7 @@ class CoreReadout(BaseCoreReadout):
         maxpool_every_n_layers: Optional[int] = None,
         downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
         convolution_type: str = "custom_separable",
+        color_squashing_weights: tuple[float, ...] | None = None,
         data_info: dict[str, Any] | None = None,
     ):
         core = SimpleCoreWrapper(
@@ -217,6 +218,7 @@ class CoreReadout(BaseCoreReadout):
             maxpool_every_n_layers=maxpool_every_n_layers,
             downsample_input_kernel_size=downsample_input_kernel_size,
             input_padding=core_input_padding,
+            color_squashing_weights=color_squashing_weights,
             hidden_padding=core_hidden_padding,
             convolution_type=convolution_type,
         )
