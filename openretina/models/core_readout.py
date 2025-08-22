@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable, Literal, Optional
 
 import torch
 import torch.nn as nn
@@ -12,7 +12,7 @@ from openretina.data_io.base_dataloader import DataPoint
 from openretina.modules.core.base_core import Core, SimpleCoreWrapper
 from openretina.modules.core.gru_core import ConvGRUCore
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
-from openretina.modules.readout.multi_readout import MultiGaussianReadoutWrapper
+from openretina.modules.readout.multi_readout import MultiGaussianReadoutWrapper, MultiSampledGaussianReadoutWrapper
 from openretina.utils.file_utils import get_cache_directory, get_local_file_path
 
 LOGGER = logging.getLogger(__name__)
@@ -144,10 +144,10 @@ class BaseCoreReadout(LightningModule):
         self, core_in_shape: tuple[int, int, int, int], core: Core
     ) -> tuple[int, int, int, int]:
         # Use the same device as the core's parameters to avoid potential errors at init.
-        device = next(core.parameters()).device
+        # device = next(core.parameters()).device
 
         with torch.no_grad():
-            core_test_output = core.forward(torch.zeros((1,) + tuple(core_in_shape), device=device))
+            core_test_output = core.forward(torch.zeros((1,) + tuple(core_in_shape)))
 
         return core_test_output.shape[1:]  # type: ignore
 
@@ -316,6 +316,82 @@ class GRUCoreReadout(BaseCoreReadout):
             readout_gamma,
             readout_gamma_masks,
             readout_reg_avg,
+        )
+
+        super().__init__(core=core, readout=readout, learning_rate=learning_rate, data_info=data_info)
+        self.save_hyperparameters()
+
+
+class CoreGaussianReadout(BaseCoreReadout):
+    def __init__(
+        self,
+        in_shape: Int[tuple, "channels time height width"],
+        hidden_channels: Iterable[int],
+        temporal_kernel_sizes: Iterable[int],
+        spatial_kernel_sizes: Iterable[int],
+        n_neurons_dict: dict[str, int],
+        core_gamma_input: float = 0.0,
+        core_gamma_hidden: float = 0.0,
+        core_gamma_in_sparse: float = 0.0,
+        core_gamma_temporal: float = 40.0,
+        core_input_padding: bool = False,
+        core_hidden_padding: bool = False,
+        readout_bias: bool = True,
+        init_mu_range: float = 0.1,
+        init_sigma_range: float = 0.1,
+        readout_gamma: float = 0.4,
+        readout_reg_avg: bool = False,
+        batch_sample: bool = False,
+        align_corners: bool = True,
+        gauss_type: Literal["full", "iso"] = "full",
+        grid_mean_predictor=None,
+        shared_features=None,
+        init_grid=None,
+        shared_grid=None,
+        mean_activity=None,
+        learning_rate: float = 0.01,
+        cut_first_n_frames_in_core: int = 0,
+        dropout_rate: float = 0.0,
+        maxpool_every_n_layers: Optional[int] = None,
+        downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
+        data_info: dict[str, Any] | None = None,
+    ):
+        core = SimpleCoreWrapper(
+            channels=(in_shape[0], *hidden_channels),
+            temporal_kernel_sizes=tuple(temporal_kernel_sizes),
+            spatial_kernel_sizes=tuple(spatial_kernel_sizes),
+            gamma_input=core_gamma_input,
+            gamma_temporal=core_gamma_temporal,
+            gamma_in_sparse=core_gamma_in_sparse,
+            gamma_hidden=core_gamma_hidden,
+            cut_first_n_frames=cut_first_n_frames_in_core,
+            dropout_rate=dropout_rate,
+            maxpool_every_n_layers=maxpool_every_n_layers,
+            downsample_input_kernel_size=downsample_input_kernel_size,
+            input_padding=core_input_padding,
+            hidden_padding=core_hidden_padding,
+            convolution_type="torch",
+        )
+
+        in_shape_readout = self.compute_readout_input_shape(in_shape, core)
+        in_shape_readout_no_time = (in_shape_readout[0],) + in_shape_readout[2:]  # remove time dimension
+
+        readout = MultiSampledGaussianReadoutWrapper(
+            in_shape=in_shape_readout_no_time,
+            n_neurons_dict=n_neurons_dict,
+            bias=readout_bias,
+            init_mu_range=init_mu_range,
+            init_sigma_range=init_sigma_range,
+            gamma_readout=readout_gamma,
+            batch_sample=batch_sample,
+            align_corners=align_corners,
+            gauss_type=gauss_type,
+            grid_mean_predictor=grid_mean_predictor,
+            shared_features=shared_features,
+            shared_grid=shared_grid,
+            init_grid=init_grid,
+            mean_activity=mean_activity,
+            readout_reg_avg=readout_reg_avg,
         )
 
         super().__init__(core=core, readout=readout, learning_rate=learning_rate, data_info=data_info)
