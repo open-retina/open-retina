@@ -358,6 +358,7 @@ class CoreGaussianReadout(BaseCoreReadout):
         dropout_rate: float = 0.0,
         maxpool_every_n_layers: Optional[int] = None,
         downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
+        convolution_type: str = "full",
         data_info: dict[str, Any] | None = None,
     ):
         core = SimpleCoreWrapper(
@@ -374,7 +375,7 @@ class CoreGaussianReadout(BaseCoreReadout):
             downsample_input_kernel_size=downsample_input_kernel_size,
             input_padding=core_input_padding,
             hidden_padding=core_hidden_padding,
-            convolution_type="torch",
+            convolution_type=convolution_type,
         )
 
         in_shape_readout = self.compute_readout_input_shape(in_shape, core)

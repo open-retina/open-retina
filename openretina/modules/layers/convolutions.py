@@ -42,8 +42,12 @@ class TorchFullConv3D(nn.Module):
             bias=bias,
         )
 
-    def forward(self, input_: torch.Tensor) -> torch.Tensor:
-        x, data_key = input_
+    def forward(self, input_: torch.Tensor | tuple[torch.Tensor, str]) -> torch.Tensor:
+        if type(input_) is torch.Tensor:
+            x = input_
+            data_key: str | None = None
+        else:
+            x, data_key = input_
 
         # Compute temporal kernel based on the provided data key
         # TODO implement log speed use in full conv
@@ -142,7 +146,11 @@ class TimeIndependentConv3D(nn.Module):
         )
 
     def forward(self, input_):
-        x, data_key = input_
+        if type(input_) is torch.Tensor:
+            x = input_
+            data_key: str | None = None
+        else:
+            x, data_key = input_
         return self.conv(x)
 
 

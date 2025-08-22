@@ -14,6 +14,7 @@ core_input_padding: false
 core_hidden_padding: false
 maxpool_every_n_layers: null
 downsample_input_kernel_size: null
+convolution_type: "full"
 
 # readout
 n_neurons_dict: ??? # Required for readout init. Set dynamically in scripts/train.py based on loaded sessions.
