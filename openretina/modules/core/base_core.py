@@ -69,7 +69,7 @@ class SimpleCoreWrapper(Core):
         downsample_input_kernel_size: tuple[int, int, int] | None = None,
         input_padding: bool | int | str | tuple[int, int, int] = False,
         hidden_padding: bool | int | str | tuple[int, int, int] = True,
-        convolution_type: str = "sin_cos",
+        convolution_type: str = "custom_separable",
     ):
         # Input validation
         if len(channels) < 2:
@@ -120,6 +120,7 @@ class SimpleCoreWrapper(Core):
             else:
                 padding = padding_to_use
 
+            breakpoint()
             conv_class = get_conv_class(self.convolution_type)
             layer["conv"] = conv_class(
                 num_in_channels,
