@@ -200,6 +200,7 @@ class CoreReadout(BaseCoreReadout):
         dropout_rate: float = 0.0,
         maxpool_every_n_layers: Optional[int] = None,
         downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
+        convolution_type: str = "custom_separable",
         data_info: dict[str, Any] | None = None,
     ):
         core = SimpleCoreWrapper(
@@ -216,6 +217,7 @@ class CoreReadout(BaseCoreReadout):
             downsample_input_kernel_size=downsample_input_kernel_size,
             input_padding=core_input_padding,
             hidden_padding=core_hidden_padding,
+            convolution_type=convolution_type,
         )
 
         # Run one forward pass to determine output shape of core
@@ -269,6 +271,7 @@ class GRUCoreReadout(BaseCoreReadout):
         batch_adaptation: bool = False,
         learning_rate: float = 0.01,
         core_gru_kwargs: Optional[dict] = None,
+        convolution_type: str = "custom_separable",
         data_info: dict[str, Any] | None = None,
     ):
         core = ConvGRUCore(  # type: ignore
@@ -292,7 +295,7 @@ class GRUCoreReadout(BaseCoreReadout):
             batch_adaptation=batch_adaptation,
             use_avg_reg=False,
             nonlinearity="ELU",
-            conv_type="custom_separable",
+            conv_type=convolution_type,
             use_gru=core_use_gru,
             use_projections=core_use_projections,
             gru_kwargs=core_gru_kwargs,

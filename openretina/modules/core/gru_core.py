@@ -9,10 +9,9 @@ from openretina.modules.core.base_core import Core3d
 from openretina.modules.layers import Bias3DLayer, Scale2DLayer, Scale3DLayer
 from openretina.modules.layers.convolutions import (
     STSeparableBatchConv3d,
-    TimeIndependentConv3D,
     TorchFullConv3D,
-    TorchSTSeparableConv3D,
     compute_temporal_kernel,
+    get_conv_class,
     temporal_smoothing,
 )
 from openretina.modules.layers.gru import GRU_Module
@@ -56,7 +55,7 @@ class ConvGRUCore(Core3d, nn.Module):
         self._input_weights_regularizer_temporal = TimeLaplaceL23dnorm(padding=laplace_padding)
 
         # Get convolution class
-        self.conv_class = self.get_conv_class(conv_type)
+        self.conv_class = get_conv_class(conv_type)
 
         if n_neurons_dict is None:
             n_neurons_dict = {}
@@ -127,18 +126,6 @@ class ConvGRUCore(Core3d, nn.Module):
             )
 
         return input_
-
-    def get_conv_class(self, conv_type: str) -> type[nn.Module]:
-        if conv_type == "separable":
-            return TorchSTSeparableConv3D
-        elif conv_type == "custom_separable":
-            return STSeparableBatchConv3d
-        elif conv_type == "full":
-            return TorchFullConv3D
-        elif conv_type == "time_independent":
-            return TimeIndependentConv3D
-        else:
-            raise ValueError(f"Un-implemented conv_type {conv_type}")
 
     def calculate_padding(self, input_padding, hidden_padding, spatial_kernel_size):
         if input_padding:
