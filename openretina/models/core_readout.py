@@ -200,7 +200,7 @@ class CoreReadout(BaseCoreReadout):
         dropout_rate: float = 0.0,
         maxpool_every_n_layers: Optional[int] = None,
         downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
-        color_squashing_weights: tuple[float] | None = None,
+        color_squashing_weights: tuple[float, ...] | None = None,
         data_info: dict[str, Any] | None = None,
     ):
         core = SimpleCoreWrapper(
