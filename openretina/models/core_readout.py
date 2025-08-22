@@ -144,10 +144,10 @@ class BaseCoreReadout(LightningModule):
         self, core_in_shape: tuple[int, int, int, int], core: Core
     ) -> tuple[int, int, int, int]:
         # Use the same device as the core's parameters to avoid potential errors at init.
-        # device = next(core.parameters()).device
+        device = next(core.parameters()).device
 
         with torch.no_grad():
-            core_test_output = core.forward(torch.zeros((1,) + tuple(core_in_shape)))
+            core_test_output = core.forward(torch.zeros((1,) + tuple(core_in_shape)), device=device)
 
         return core_test_output.shape[1:]  # type: ignore
 

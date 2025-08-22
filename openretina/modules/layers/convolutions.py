@@ -92,7 +92,7 @@ class TorchSTSeparableConv3D(nn.Module):
             out_channels, out_channels, (temporal_kernel_size, 1, 1), stride=stride, padding=padding, bias=bias
         )
 
-    def forward(self, input_: torch.Tensor) -> torch.Tensor:
+    def forward(self, input_: torch.Tensor | tuple[torch.Tensor, str | None]) -> torch.Tensor:
         if type(input_) is torch.Tensor:
             x = input_
             data_key: str | None = None
