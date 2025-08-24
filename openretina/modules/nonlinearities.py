@@ -13,7 +13,7 @@ class ParametrizedELU(nn.Module):
         return torch.where(x > 0, self.c * x, self.a * (torch.exp(x / self.b) - 1))
 
 
-class parametrized_softplus(nn.Module):
+class ParametrizedSoftplus(nn.Module):
     def __init__(self, a=1.0, b=0.0, w=1.0, learn_a=False):
         super().__init__()
         if learn_a:

@@ -144,10 +144,11 @@ class BaseCoreReadout(LightningModule):
         self, core_in_shape: tuple[int, int, int, int], core: Core
     ) -> tuple[int, int, int, int]:
         # Use the same device as the core's parameters to avoid potential errors at init.
-        # device = next(core.parameters()).device
+        device = next(core.parameters()).device
 
         with torch.no_grad():
-            core_test_output = core.forward(torch.zeros((1,) + tuple(core_in_shape)))
+            stimulus = torch.zeros((1,) + tuple(core_in_shape), device=device)
+            core_test_output = core.forward(stimulus)
 
         return core_test_output.shape[1:]  # type: ignore
 
@@ -200,6 +201,7 @@ class CoreReadout(BaseCoreReadout):
         dropout_rate: float = 0.0,
         maxpool_every_n_layers: Optional[int] = None,
         downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
+        convolution_type: str = "custom_separable",
         color_squashing_weights: tuple[float, ...] | None = None,
         data_info: dict[str, Any] | None = None,
     ):
@@ -218,6 +220,7 @@ class CoreReadout(BaseCoreReadout):
             input_padding=core_input_padding,
             color_squashing_weights=color_squashing_weights,
             hidden_padding=core_hidden_padding,
+            convolution_type=convolution_type,
         )
 
         # Run one forward pass to determine output shape of core
@@ -271,6 +274,7 @@ class GRUCoreReadout(BaseCoreReadout):
         batch_adaptation: bool = False,
         learning_rate: float = 0.01,
         core_gru_kwargs: Optional[dict] = None,
+        convolution_type: str = "custom_separable",
         data_info: dict[str, Any] | None = None,
     ):
         core = ConvGRUCore(  # type: ignore
@@ -294,7 +298,7 @@ class GRUCoreReadout(BaseCoreReadout):
             batch_adaptation=batch_adaptation,
             use_avg_reg=False,
             nonlinearity="ELU",
-            conv_type="custom_separable",
+            conv_type=convolution_type,
             use_gru=core_use_gru,
             use_projections=core_use_projections,
             gru_kwargs=core_gru_kwargs,
@@ -354,6 +358,7 @@ class CoreGaussianReadout(BaseCoreReadout):
         dropout_rate: float = 0.0,
         maxpool_every_n_layers: Optional[int] = None,
         downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
+        convolution_type: str = "full",
         data_info: dict[str, Any] | None = None,
     ):
         core = SimpleCoreWrapper(
@@ -370,7 +375,7 @@ class CoreGaussianReadout(BaseCoreReadout):
             downsample_input_kernel_size=downsample_input_kernel_size,
             input_padding=core_input_padding,
             hidden_padding=core_hidden_padding,
-            convolution_type="torch",
+            convolution_type=convolution_type,
         )
 
         in_shape_readout = self.compute_readout_input_shape(in_shape, core)

@@ -7,7 +7,7 @@ import torch.nn as nn
 from matplotlib import pyplot as plt
 
 from openretina.modules.layers import FlatLaplaceL23dnorm
-from openretina.modules.layers.convolutions import STSeparableBatchConv3d, TorchSTSeparableConv3D
+from openretina.modules.layers.convolutions import get_conv_class
 from openretina.modules.layers.reducers import WeightedChannelSumLayer
 from openretina.modules.layers.regularizers import Laplace1d
 from openretina.modules.layers.scaling import Bias3DLayer
@@ -71,7 +71,7 @@ class SimpleCoreWrapper(Core):
         input_padding: bool | int | str | tuple[int, int, int] = False,
         hidden_padding: bool | int | str | tuple[int, int, int] = True,
         color_squashing_weights: tuple[float, ...] | None = None,
-        convolution_type: str = "sin_cos",
+        convolution_type: str = "custom_separable",
     ):
         # Input validation
         if len(channels) < 2:
@@ -124,7 +124,7 @@ class SimpleCoreWrapper(Core):
         for layer_id, (num_in_channels, num_out_channels) in enumerate(zip(channels[:-1], channels[1:], strict=True)):
             layer: dict[str, torch.nn.Module] = OrderedDict()
             padding_to_use = input_padding if layer_id == 0 else hidden_padding
-            # explictily check against bools as the type can also be an int or a tuple
+            # explicitly check against bools as the type can also be an int or a tuple
             if padding_to_use is True:
                 padding: str | int | tuple[int, int, int] = "same"
             elif padding_to_use is False:
@@ -132,40 +132,25 @@ class SimpleCoreWrapper(Core):
             else:
                 padding = padding_to_use
 
-            if self.convolution_type == "sin_cos":
-                layer["conv"] = STSeparableBatchConv3d(
-                    num_in_channels,
-                    num_out_channels,
-                    log_speed_dict={},
-                    temporal_kernel_size=temporal_kernel_sizes[layer_id],
-                    spatial_kernel_size=spatial_kernel_sizes[layer_id],
-                    bias=False,
-                    padding=padding,
-                )
+            conv_class = get_conv_class(self.convolution_type)
+            layer["conv"] = conv_class(
+                num_in_channels,
+                num_out_channels,
+                log_speed_dict={},
+                temporal_kernel_size=temporal_kernel_sizes[layer_id],
+                spatial_kernel_size=spatial_kernel_sizes[layer_id],
+                bias=False,
+                padding=padding,
+            )
 
-                layer["norm"] = torch.nn.BatchNorm3d(num_out_channels, momentum=0.1, affine=True)
-                layer["bias"] = Bias3DLayer(num_out_channels)
-                layer["nonlin"] = torch.nn.ELU()
-                if dropout_rate > 0.0:
-                    layer["dropout"] = torch.nn.Dropout3d(p=dropout_rate)
-                if maxpool_every_n_layers is not None and (layer_id % maxpool_every_n_layers) == 0:
-                    layer["pool"] = torch.nn.MaxPool3d((1, 2, 2))
-                self.features.add_module(f"layer{layer_id}", torch.nn.Sequential(layer))  # type: ignore
-
-            elif self.convolution_type == "torch":
-                layer["conv"] = TorchSTSeparableConv3D(
-                    num_in_channels,
-                    num_out_channels,
-                    log_speed_dict={},
-                    temporal_kernel_size=temporal_kernel_sizes[layer_id],
-                    spatial_kernel_size=spatial_kernel_sizes[layer_id],
-                    bias=False,
-                    padding=padding,
-                )
-            else:
-                raise ValueError(
-                    f"Unknown type {convolution_type}. Supported convolution types are 'sin_cos' and 'torch'."
-                )
+            layer["norm"] = torch.nn.BatchNorm3d(num_out_channels, momentum=0.1, affine=True)
+            layer["bias"] = Bias3DLayer(num_out_channels)
+            layer["nonlin"] = torch.nn.ELU()
+            if dropout_rate > 0.0:
+                layer["dropout"] = torch.nn.Dropout3d(p=dropout_rate)
+            if maxpool_every_n_layers is not None and (layer_id % maxpool_every_n_layers) == 0:
+                layer["pool"] = torch.nn.MaxPool3d((1, 2, 2))
+            self.features.add_module(f"layer{layer_id}", torch.nn.Sequential(layer))  # type: ignore
 
     def forward(self, input_: torch.Tensor) -> torch.Tensor:
         if self.color_squashing_layer is not None:
@@ -189,11 +174,16 @@ class SimpleCoreWrapper(Core):
         )
 
     def temporal_smoothness(self) -> torch.Tensor:
-        if self.convolution_type == "torch":
+        if self.convolution_type == "separable":
             return self.temporal_laplace()
-        else:
+        elif self.convolution_type == "custom_separable":
             results = [temporal_smoothing(x.conv.sin_weights, x.conv.cos_weights) for x in self.features]
             return torch.sum(torch.stack(results))
+        else:
+            raise ValueError(
+                f"Temporal smoothness not supported for {self.convolution_type=}. "
+                "Set the temporal smoothness regularization weight to 0.0 to still use this conv type."
+            )
 
     def group_sparsity_0(self) -> torch.Tensor:
         result_array = []

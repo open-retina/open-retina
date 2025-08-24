@@ -12,7 +12,7 @@ from openretina.models.core_readout import BaseCoreReadout
 from openretina.modules.core.base_core import DummyCore
 from openretina.modules.layers import regularizers
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
-from openretina.modules.nonlinearities import parametrized_softplus
+from openretina.modules.nonlinearities import ParametrizedSoftplus
 from openretina.modules.readout.multi_readout import MultiReadoutBase
 
 
@@ -158,7 +158,7 @@ class SingleCellSeparatedLNP(LightningModule):
         self.in_channels = in_shape[0]
         self.n_neurons = 1
         self.nonlinearity = (
-            parametrized_softplus() if nonlinearity == "parametrized_softplus" else F.__dict__[nonlinearity]
+            ParametrizedSoftplus() if nonlinearity == "parametrized_softplus" else F.__dict__[nonlinearity]
         )
         self.fit_gaussian = fit_gaussian
         self.space_conv = nn.Conv3d(
