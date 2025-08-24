@@ -42,8 +42,12 @@ class TorchFullConv3D(nn.Module):
             bias=bias,
         )
 
-    def forward(self, input_: torch.Tensor) -> torch.Tensor:
-        x, data_key = input_
+    def forward(self, input_: torch.Tensor | tuple[torch.Tensor, str]) -> torch.Tensor:
+        if type(input_) is torch.Tensor:
+            x = input_
+            data_key: str | None = None
+        else:
+            x, data_key = input_
 
         # Compute temporal kernel based on the provided data key
         # TODO implement log speed use in full conv
@@ -92,7 +96,7 @@ class TorchSTSeparableConv3D(nn.Module):
             out_channels, out_channels, (temporal_kernel_size, 1, 1), stride=stride, padding=padding, bias=bias
         )
 
-    def forward(self, input_: torch.Tensor) -> torch.Tensor:
+    def forward(self, input_: torch.Tensor | tuple[torch.Tensor, str | None]) -> torch.Tensor:
         if type(input_) is torch.Tensor:
             x = input_
             data_key: str | None = None
@@ -142,7 +146,11 @@ class TimeIndependentConv3D(nn.Module):
         )
 
     def forward(self, input_):
-        x, data_key = input_
+        if type(input_) is torch.Tensor:
+            x = input_
+            data_key: str | None = None
+        else:
+            x, data_key = input_
         return self.conv(x)
 
 
@@ -440,3 +448,16 @@ def temporal_smoothing(sin: torch.Tensor, cos: torch.Tensor) -> torch.Tensor:
     reg = torch.sum((smoother * sin) ** 2) / F
     reg += torch.sum((smoother * cos) ** 2) / F
     return reg
+
+
+def get_conv_class(conv_type: str) -> type[nn.Module]:
+    if conv_type == "separable":
+        return TorchSTSeparableConv3D
+    elif conv_type == "custom_separable":
+        return STSeparableBatchConv3d
+    elif conv_type == "full":
+        return TorchFullConv3D
+    elif conv_type == "time_independent":
+        return TimeIndependentConv3D
+    else:
+        raise ValueError(f"Un-implemented conv_type {conv_type}")
