@@ -181,8 +181,8 @@ class SimpleCoreWrapper(Core):
             return torch.sum(torch.stack(results))
         else:
             raise ValueError(
-            f"Temporal smoothness not supported for {self.convolution_type=}. "
-            "Set the temporal smoothness regularisation weight to 0 to still use this conv type."
+                f"Temporal smoothness not supported for {self.convolution_type=}. "
+                "Set the temporal smoothness regularization weight to 0.0 to still use this conv type."
             )
 
     def group_sparsity_0(self) -> torch.Tensor:
