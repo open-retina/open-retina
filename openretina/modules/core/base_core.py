@@ -7,7 +7,9 @@ import torch.nn as nn
 from matplotlib import pyplot as plt
 
 from openretina.modules.layers import FlatLaplaceL23dnorm
-from openretina.modules.layers.convolutions import STSeparableBatchConv3d
+from openretina.modules.layers.convolutions import get_conv_class
+from openretina.modules.layers.reducers import WeightedChannelSumLayer
+from openretina.modules.layers.regularizers import Laplace1d
 from openretina.modules.layers.scaling import Bias3DLayer
 
 
@@ -68,6 +70,8 @@ class SimpleCoreWrapper(Core):
         downsample_input_kernel_size: tuple[int, int, int] | None = None,
         input_padding: bool | int | str | tuple[int, int, int] = False,
         hidden_padding: bool | int | str | tuple[int, int, int] = True,
+        color_squashing_weights: tuple[float, ...] | None = None,
+        convolution_type: str = "custom_separable",
     ):
         # Input validation
         if len(channels) < 2:
@@ -82,8 +86,14 @@ class SimpleCoreWrapper(Core):
                 f"Temporal and spatial kernel sizes must have the same length."
                 f"{temporal_kernel_sizes=} {spatial_kernel_sizes=}"
             )
+        if color_squashing_weights is not None and channels[0] != 1:
+            raise ValueError(
+                f"Number of input channels (set to {channels[0]}) must be 1 when squashing multi-channel (color)\
+                      to single-channel (greyscale) input."
+            )
 
         super().__init__()
+        self.convolution_type = convolution_type
         self.gamma_input = gamma_input
         self.gamma_temporal = gamma_temporal
         self.gamma_in_sparse = gamma_in_sparse
@@ -92,6 +102,7 @@ class SimpleCoreWrapper(Core):
         self._downsample_input_kernel_size = (
             list(downsample_input_kernel_size) if downsample_input_kernel_size is not None else None
         )
+        self.color_squashing_weights = color_squashing_weights
         if self._cut_first_n_frames and not input_padding:
             warnings.warn(
                 (
@@ -103,12 +114,17 @@ class SimpleCoreWrapper(Core):
             )
 
         self._input_weights_regularizer_spatial = FlatLaplaceL23dnorm(padding=0)
+        self._input_weights_regularizer_temporal = Laplace1d(padding=0, persistent_buffer=False)
 
         self.features = torch.nn.Sequential()
+        self.color_squashing_layer = (
+            WeightedChannelSumLayer(self.color_squashing_weights) if self.color_squashing_weights is not None else None
+        )
+
         for layer_id, (num_in_channels, num_out_channels) in enumerate(zip(channels[:-1], channels[1:], strict=True)):
             layer: dict[str, torch.nn.Module] = OrderedDict()
             padding_to_use = input_padding if layer_id == 0 else hidden_padding
-            # explictily check against bools as the type can also be an int or a tuple
+            # explicitly check against bools as the type can also be an int or a tuple
             if padding_to_use is True:
                 padding: str | int | tuple[int, int, int] = "same"
             elif padding_to_use is False:
@@ -116,7 +132,8 @@ class SimpleCoreWrapper(Core):
             else:
                 padding = padding_to_use
 
-            layer["conv"] = STSeparableBatchConv3d(
+            conv_class = get_conv_class(self.convolution_type)
+            layer["conv"] = conv_class(
                 num_in_channels,
                 num_out_channels,
                 log_speed_dict={},
@@ -125,6 +142,7 @@ class SimpleCoreWrapper(Core):
                 bias=False,
                 padding=padding,
             )
+
             layer["norm"] = torch.nn.BatchNorm3d(num_out_channels, momentum=0.1, affine=True)
             layer["bias"] = Bias3DLayer(num_out_channels)
             layer["nonlin"] = torch.nn.ELU()
@@ -135,8 +153,12 @@ class SimpleCoreWrapper(Core):
             self.features.add_module(f"layer{layer_id}", torch.nn.Sequential(layer))  # type: ignore
 
     def forward(self, input_: torch.Tensor) -> torch.Tensor:
+        if self.color_squashing_layer is not None:
+            input_ = self.color_squashing_layer(input_)
+
         if self._downsample_input_kernel_size is not None:
             input_ = torch.nn.functional.avg_pool3d(input_, kernel_size=self._downsample_input_kernel_size)  # type: ignore
+
         res = self.features(input_)
         # To keep compatibility with hoefling model scores
         res_cut = res[:, :, self._cut_first_n_frames :, :, :]
@@ -145,9 +167,23 @@ class SimpleCoreWrapper(Core):
     def spatial_laplace(self) -> torch.Tensor:
         return self._input_weights_regularizer_spatial(self.features[0].conv.weight_spatial, avg=False)
 
+    def temporal_laplace(self) -> torch.Tensor:
+        ch_in, ch_out, t, h, w = self.features[0].conv.time_conv.weight.shape
+        return self._input_weights_regularizer_temporal(
+            self.features[0].conv.time_conv.weight.view(ch_in * ch_out, 1, t), avg=False
+        )
+
     def temporal_smoothness(self) -> torch.Tensor:
-        results = [temporal_smoothing(x.conv.sin_weights, x.conv.cos_weights) for x in self.features]
-        return torch.sum(torch.stack(results))
+        if self.convolution_type == "separable":
+            return self.temporal_laplace()
+        elif self.convolution_type == "custom_separable":
+            results = [temporal_smoothing(x.conv.sin_weights, x.conv.cos_weights) for x in self.features]
+            return torch.sum(torch.stack(results))
+        else:
+            raise ValueError(
+                f"Temporal smoothness not supported for {self.convolution_type=}. "
+                "Set the temporal smoothness regularization weight to 0.0 to still use this conv type."
+            )
 
     def group_sparsity_0(self) -> torch.Tensor:
         result_array = []
