@@ -3,7 +3,7 @@ stimuli:
   _convert_: object
   base_data_path: ${paths.data_dir}
   stim_type: "naturalscene"
-  specie: "axolotl"
+  specie: "mouse" # or "axolotl"
   normalize_stimuli: true
 
 
@@ -13,5 +13,5 @@ responses:
   base_data_path: ${paths.data_dir}
   stim_type: "naturalscene"
   response_type: "firing_rate_300ms"
-  specie: "axolotl"
+  specie: "mouse" # or "axolotl"
   fr_normalization: 1.0

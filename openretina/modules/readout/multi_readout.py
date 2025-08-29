@@ -107,6 +107,7 @@ class MultiKlindtReadoutWrapper(nn.ModuleDict):
         n_neurons_dict: dict[str, int],
         mask_l1_reg: float,
         weights_l1_reg: float,
+        laplace_mask_reg: float,
         mask_size: int | Iterable[int],
         readout_bias: bool = False,
         weights_constraint: Optional[str] = None,
@@ -120,6 +121,7 @@ class MultiKlindtReadoutWrapper(nn.ModuleDict):
             "num_kernels": num_kernels,
             "mask_l1_reg": mask_l1_reg,
             "weights_l1_reg": weights_l1_reg,
+            "laplace_mask_reg": laplace_mask_reg,
             "mask_size": mask_size,
             "readout_bias": readout_bias,
             "weights_constraint": weights_constraint,
@@ -133,6 +135,7 @@ class MultiKlindtReadoutWrapper(nn.ModuleDict):
 
         self.gamma_readout = weights_l1_reg
         self.gamma_masks = mask_l1_reg
+        self.gamma_laplace_masks = laplace_mask_reg
 
     def add_sessions(self, n_neurons_dict: dict[str, int]) -> None:
         """Adds new sessions to the readout wrapper.
@@ -173,11 +176,11 @@ class MultiKlindtReadoutWrapper(nn.ModuleDict):
     def readout_keys(self) -> list[str]:
         return sorted(self._modules.keys())
 
-    def save_weight_visualizations(self, folder_path: str) -> None:
+    def save_weight_visualizations(self, folder_path: str, file_format, state_suffix: str = None) -> None:
         for key in self.readout_keys():
             readout_folder = os.path.join(folder_path, key)
             os.makedirs(readout_folder, exist_ok=True)
-            self._modules[key].save_weight_visualizations(readout_folder, filename_suffix=None)  # type: ignore
+            self._modules[key].save_weight_visualizations(readout_folder, file_format, state_suffix)  # type: ignore
 
     @property
     def sessions(self) -> list[str]:

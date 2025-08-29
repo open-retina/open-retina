@@ -12,7 +12,6 @@ from openretina.modules.layers.reducers import WeightedChannelSumLayer
 from openretina.modules.layers.regularizers import Laplace1d
 from openretina.modules.layers.scaling import Bias3DLayer
 
-
 def temporal_smoothing(sin: torch.Tensor, cos: torch.Tensor) -> torch.Tensor:
     smoother = torch.linspace(0.1, 0.9, sin.shape[2], device=sin.device)[None, None, :]
     size = float(sin.shape[0])
@@ -206,6 +205,8 @@ class SimpleCoreWrapper(Core):
 
     def regularizer(self) -> torch.Tensor:
         res: torch.Tensor = 0.0  # type: ignore
+        if self.convolution_type == "time_independent":
+            self.features[0].conv.refresh_spatial_weight_attribute()
         for weight, reg_fn in [
             (self.gamma_input, self.spatial_laplace),
             (self.gamma_hidden, self.group_sparsity),
@@ -224,12 +225,12 @@ class SimpleCoreWrapper(Core):
         fig = conv_obj.plot_weights(in_channel, out_channel)
         return fig
 
-    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg") -> None:
+    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg", state_suffix: str = None) -> None:
         for i, layer in enumerate(self.features):
             output_dir = os.path.join(folder_path, f"weights_layer_{i}")
             os.makedirs(output_dir, exist_ok=True)
-            layer.conv.save_weight_visualizations(output_dir, file_format)
-            print(f"Saved weight visualization at path {output_dir}")
+            layer.conv.save_weight_visualizations(output_dir, file_format, state_suffix)
+            # print(f"Saved weight visualization at path {output_dir}")
 
 
 class DummyCore(Core):

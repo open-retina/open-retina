@@ -7,6 +7,7 @@ import torch.nn as nn
 from jaxtyping import Float, Int
 from lightning import LightningModule
 from lightning.pytorch.utilities import grad_norm
+import inspect
 
 from openretina.data_io.base_dataloader import DataPoint
 from openretina.modules.core.base_core import Core, SimpleCoreWrapper
@@ -140,9 +141,19 @@ class BaseCoreReadout(LightningModule):
             },
         }
 
-    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg") -> None:
-        self.core.save_weight_visualizations(os.path.join(folder_path, "weights_core"), file_format)
-        self.readout.save_weight_visualizations(os.path.join(folder_path, "weights_readout"), file_format)  # type: ignore
+    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg", state_suffix: str = "") -> None:
+        if 'state_suffix' in inspect.signature(self.core.save_weight_visualizations).parameters:
+            self.core.save_weight_visualizations(
+                os.path.join(folder_path, "weights_core"), file_format, state_suffix=state_suffix
+            )
+        else:
+            self.core.save_weight_visualizations(os.path.join(folder_path, "weights_core"), file_format)
+        if 'state_suffix' in inspect.signature(self.readout.save_weight_visualizations).parameters:
+            self.readout.save_weight_visualizations(
+                os.path.join(folder_path, "weights_readout"), file_format, state_suffix=state_suffix
+            )  # type: ignore
+        else:
+            self.readout.save_weight_visualizations(os.path.join(folder_path, "weights_readout"), file_format)  # type: ignore
 
     def compute_readout_input_shape(
         self, core_in_shape: tuple[int, int, int, int], core: Core
@@ -421,16 +432,15 @@ class CoreKlindtReadout(BaseCoreReadout):
         core_gamma_temporal: float = 40.0,
         core_input_padding: bool = False,
         core_hidden_padding: bool = False,
-        num_neurons: int = 1,
         readout_bias: bool = False,
         weights_constraint: Optional[str] = None,
         mask_constraint: Optional[str] = None,
         init_mask: Optional[torch.Tensor] = None,
         init_weights: Optional[torch.Tensor] = None,
         init_scales: Iterable[Iterable[float]] = None,
-        num_kernels: Iterable[Int] = None,
         mask_l1_reg: float = 1e-3,
         weights_l1_reg: float = 1e-1,
+        laplace_mask_reg: float = 1e-1,
         learning_rate: float = 0.01,
         cut_first_n_frames_in_core: int = 0,
         dropout_rate: float = 0.0,
@@ -464,6 +474,7 @@ class CoreKlindtReadout(BaseCoreReadout):
             n_neurons_dict=n_neurons_dict,
             mask_l1_reg=mask_l1_reg,
             weights_l1_reg=weights_l1_reg,
+            laplace_mask_reg=laplace_mask_reg,
             mask_size=in_shape_readout_no_time[1:],
             readout_bias=readout_bias,
             weights_constraint=weights_constraint,

@@ -25,7 +25,7 @@ weights_constraint: null
 mask_constraint: null
 init_mask: null
 init_weights: null
-init_scales: [[0.0, 1.0], [0.0, 1.0]]
+init_scales: [[0.0, 0.15], [0.0, 0.15]]
 
 # training
 learning_rate: 0.01

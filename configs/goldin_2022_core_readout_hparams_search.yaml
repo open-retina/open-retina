@@ -12,6 +12,8 @@ defaults:
     - csv
   - trainer: default_deterministic
   - hydra: default
+  - override hydra/sweeper: optuna
+  - override hydra/sweeper/sampler: tpe
   - _self_ # values in this config will overwrite the defaults
 
 exp_name: core_readout_goldin_2022
@@ -30,6 +32,27 @@ data_io:
     specie: 'mouse'
   responses:
     specie: 'mouse'
+
+objective_target: val_loss
+
+hydra:
+  run:
+    dir: ${paths.log_dir}/openretina_assets/runs/${exp_name}/${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: ${paths.log_dir}/openretina_assets/runs/${exp_name}/${now:%Y-%m-%d_%H-%M-%S}
+  sweeper:
+    sampler:
+      seed: 42
+    direction: minimize
+    study_name: ${exp_name}
+    storage: null
+    n_trials: 20
+    n_jobs: 1
+    params:
+      model.mask_l1_reg : interval(1e-5, 1e-0)
+      model.core_gamma_input: interval(1e-5, 1e-0)
+      model.weights_l1_reg: interval(1e-5, 1e-0)
+      model.laplace_mask_reg: interval(1e-5, 1e-0)
 
 # Overwrite model defaults
 model:

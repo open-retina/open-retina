@@ -1,7 +1,7 @@
 import logging
 import os
 from typing import Any, Iterable, Literal, Optional
-import matplotlib.piplot as plt
+import matplotlib.pyplot as plt
 from math import sqrt, ceil
 import torch
 import torch.nn as nn
@@ -9,6 +9,8 @@ from lightning.pytorch.utilities import grad_norm
 from openretina.utils.file_utils import get_cache_directory, get_local_file_path
 from openretina.modules.readout.base import Readout
 import torch.nn.functional as F
+from openretina.modules.layers import FlatLaplaceL23dnorm
+
 
 class KlindtReadoutWrapper3D(Readout):
     def __init__(
@@ -17,6 +19,7 @@ class KlindtReadoutWrapper3D(Readout):
         num_neurons: int,
         mask_l1_reg: float,
         weights_l1_reg: float,
+        laplace_mask_reg: float,
         mask_size: int | Iterable[int],
         readout_bias: bool = False,
         weights_constraint: Optional[str] = None,
@@ -25,20 +28,19 @@ class KlindtReadoutWrapper3D(Readout):
         init_weights: Optional[torch.Tensor] = None,
         init_scales: Optional[Iterable[Iterable[float]]] = None,
     ):
-        '''
+        """
         TO DO:
         - Refactorised some names
-        - Correct Regularizations (Add Laplace most importantly)
-        - Plot filters as well
-        '''
+        """
         super().__init__()
 
         self.num_neurons = num_neurons
-        self.reg = [mask_l1_reg, weights_l1_reg]
+        self.reg = [mask_l1_reg, weights_l1_reg, laplace_mask_reg]
         self.mask_size = mask_size
         self.readout_bias = readout_bias
         self.weights_constraint = weights_constraint
         self.mask_constraint = mask_constraint
+        self._input_weights_regularizer_spatial = FlatLaplaceL23dnorm(padding=0)
 
         if isinstance(mask_size, int):
             self.num_mask_pixels = mask_size**2
@@ -106,20 +108,23 @@ class KlindtReadoutWrapper3D(Readout):
     def regularizer(self) -> torch.Tensor:
         mask_r = self.reg[0] * torch.mean(torch.sum(torch.abs(self.mask_weights), dim=0))
         wt_r = self.reg[1] * torch.mean(torch.sum(torch.abs(self.readout_weights), dim=0))
-        return mask_r + wt_r
+        reshaped_masked_weights = self.mask_weights.reshape(-1, 1, 1, self.mask_size[0], self.mask_size[1])
+        laplace_mask_r = self.reg[2] * self._input_weights_regularizer_spatial(reshaped_masked_weights, avg=False)
+        return mask_r + wt_r + laplace_mask_r
 
-    def save_weight_visualizations(self, readout_folder, filename_suffix=None, cell_indices=None):
-        if hasattr(self, 'mask_size'):
+    def save_weight_visualizations(self, readout_folder, file_format, state_suffix=None, cell_indices=None):
+        state_suffix = str(state_suffix)
+        if hasattr(self, "mask_size"):
             H, W = self.mask_size
         else:
             raise AttributeError("Model does not have attribute 'mask_size'.")
 
-        readout = self.readout
-        if hasattr(readout, 'mask_weights'):  # nn.Parameter & matmul
-            weights = dict(readout.named_parameters())['mask_weights'].detach().cpu()
+        readout = self
+        if hasattr(readout, "mask_weights"):  # nn.Parameter & matmul
+            weights = dict(readout.named_parameters())["mask_weights"].detach().cpu()
             weights = weights.T.view(-1, H, W)  # [num_neurons, H, W]
-        elif hasattr(readout, 'mask'):  # nn.Linear
-            weights = dict(readout.named_parameters())['mask.weight'].detach().cpu()
+        elif hasattr(readout, "mask"):  # nn.Linear
+            weights = dict(readout.named_parameters())["mask.weight"].detach().cpu()
             weights = weights.view(-1, H, W)
         else:
             raise AttributeError("Model does not have 'mask_weights' or 'readout_weights'.")
@@ -148,26 +153,40 @@ class KlindtReadoutWrapper3D(Readout):
 
         for i, ax in enumerate(axes):
             if i < n_cells:
-                ax.imshow(selected_weights[i], interpolation='bicubic', cmap='gray', vmin=vmin, vmax=vmax)
+                ax.imshow(selected_weights[i], interpolation="bicubic", cmap="gray", vmin=vmin, vmax=vmax)
                 ax.set_xticks([])
                 ax.set_yticks([])
             else:
-                ax.axis('off')
+                ax.axis("off")
 
         fig.suptitle("Spatial Masks", fontsize=14)
         fig.tight_layout()
-        fig.save(os.path.join(readout_folder, 'readout_masks' + filename_suffix))
+        fig.savefig(
+            os.path.join(readout_folder, "readout_masks_" + state_suffix + f".{file_format}"),
+            bbox_inches="tight",
+            facecolor="w",
+            dpi=300,
+        )
+        fig.clf()
+        plt.close()
 
         # Feature weights
-        weights = dict(self.named_parameters())['readout.readout_weights'].detach().cpu()
+        weights = readout.readout_weights.detach().cpu()
         weights = weights.numpy()
 
         fig, ax = plt.subplots(figsize=(8, 6))
-        im = ax.imshow(weights, aspect='auto', cmap='gray')
+        im = ax.imshow(weights, aspect="auto", cmap="gray")
         ax.set_title("Feature Weights (channels × neurons)")
         ax.set_xlabel("Neuron")
         ax.set_ylabel("Feature Channel")
         fig.colorbar(im, ax=ax)
         fig.tight_layout()
 
-        fig.save(os.path.join(readout_folder, 'feature_weights' + filename_suffix))
+        fig.savefig(
+            os.path.join(readout_folder, "feature_weights_" + state_suffix + f".{file_format}"),
+            bbox_inches="tight",
+            facecolor="w",
+            dpi=300,
+        )
+        fig.clf()
+        plt.close()
