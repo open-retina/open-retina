@@ -1,0 +1,33 @@
+_target_: openretina.models.core_readout.CoreKlindtReadout
+_convert_: object
+
+# core
+in_shape: ??? # Required for core init. Needs to be assigned in the top level config.
+hidden_channels: [16, 16]
+temporal_kernel_sizes: [21, 11]
+spatial_kernel_sizes: [11, 5]
+core_gamma_input: 0.0
+core_gamma_in_sparse: 0.0
+core_gamma_hidden: 0.0
+core_gamma_temporal: 40.0
+core_input_padding: 0
+core_hidden_padding: [0, 2, 2]
+maxpool_every_n_layers: null
+downsample_input_kernel_size: null
+convolution_type: "custom_separable"
+
+# readout
+n_neurons_dict: ??? # Required for readout init. Set dynamically in scripts/train.py based on loaded sessions.
+mask_l1_reg: 0.0
+weights_l1_reg: 0.0
+readout_bias: true
+weights_constraint: null
+mask_constraint: null
+init_mask: null
+init_weights: null
+init_scales: [[0.0, 1.0], [0.0, 1.0]]
+
+# training
+learning_rate: 0.01
+cut_first_n_frames_in_core: 0
+dropout_rate: 0.0
