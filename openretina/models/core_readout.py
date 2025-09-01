@@ -141,7 +141,6 @@ class BaseCoreReadout(LightningModule):
             },
         }
 
-
     def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg", state_suffix: str = "") -> None:
         """Save weight visualizations for core and readout modules.
 
