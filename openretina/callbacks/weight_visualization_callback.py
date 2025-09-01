@@ -74,7 +74,7 @@ class ConditionalWeightVisualizationCallback(Callback):
                     kwargs["state_suffix"] = f"{stage}_epoch_{trainer.current_epoch}"
                 else:
                     print(
-                        "Weights visualizations will only save the last epoch. " \
+                        "Weights visualizations will only save the last epoch. "
                         "For epoch by epoch visualization, implement state_suffix in the viz function"
                     )
             pl_module.save_weight_visualizations(**kwargs)
