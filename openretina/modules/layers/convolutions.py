@@ -426,7 +426,9 @@ class STSeparableBatchConv3d(nn.Module):
 
         return fig
 
-    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg", state_suffix: Optional[str] = None) -> None:
+    def save_weight_visualizations(
+        self, folder_path: str, file_format: str = "jpg", state_suffix: Optional[str] = None
+    ) -> None:
         for in_channel in range(self.in_channels):
             for out_channel in range(self.out_channels):
                 plot_path = f"{folder_path}/{in_channel}_{out_channel}_{state_suffix}.{file_format}"

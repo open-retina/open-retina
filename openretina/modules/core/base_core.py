@@ -1,6 +1,7 @@
 import os
 import warnings
 from collections import OrderedDict
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -11,7 +12,6 @@ from openretina.modules.layers.convolutions import get_conv_class
 from openretina.modules.layers.reducers import WeightedChannelSumLayer
 from openretina.modules.layers.regularizers import Laplace1d
 from openretina.modules.layers.scaling import Bias3DLayer
-from typing import Optional
 
 
 def temporal_smoothing(sin: torch.Tensor, cos: torch.Tensor) -> torch.Tensor:
@@ -227,7 +227,9 @@ class SimpleCoreWrapper(Core):
         fig = conv_obj.plot_weights(in_channel, out_channel)
         return fig
 
-    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg", state_suffix: Optional[str] = None) -> None:
+    def save_weight_visualizations(
+        self, folder_path: str, file_format: str = "jpg", state_suffix: Optional[str] = None
+    ) -> None:
         for i, layer in enumerate(self.features):
             output_dir = os.path.join(folder_path, f"weights_layer_{i}")
             os.makedirs(output_dir, exist_ok=True)

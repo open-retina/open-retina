@@ -141,19 +141,30 @@ class BaseCoreReadout(LightningModule):
             },
         }
 
+
     def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg", state_suffix: str = "") -> None:
-        if "state_suffix" in inspect.signature(self.core.save_weight_visualizations).parameters:
-            self.core.save_weight_visualizations(
-                os.path.join(folder_path, "weights_core"), file_format, state_suffix=state_suffix
-            )
-        else:
-            self.core.save_weight_visualizations(os.path.join(folder_path, "weights_core"), file_format)
-        if "state_suffix" in inspect.signature(self.readout.save_weight_visualizations).parameters:
-            self.readout.save_weight_visualizations(
-                os.path.join(folder_path, "weights_readout"), file_format, state_suffix=state_suffix
-            )  # type: ignore
-        else:
-            self.readout.save_weight_visualizations(os.path.join(folder_path, "weights_readout"), file_format)  # type: ignore
+        """Save weight visualizations for core and readout modules.
+
+        Args:
+            folder_path: Base directory to save visualizations
+            file_format: Image format for saved files
+            state_suffix: Optional suffix for state identification
+        """
+
+        # Helper function to call save_weight_visualizations with dynamic parameter support
+        def _call_save_viz(module: Any, subfolder: str) -> None:
+            full_path = os.path.join(folder_path, subfolder)
+
+            # Check if the method supports state_suffix parameter
+            if "state_suffix" in inspect.signature(module.save_weight_visualizations).parameters:
+                kwargs = {"state_suffix": state_suffix}
+            else:
+                kwargs = {}
+
+            module.save_weight_visualizations(full_path, file_format, **kwargs)
+
+        _call_save_viz(self.core, "weights_core")
+        _call_save_viz(self.readout, "weights_readout")
 
     def compute_readout_input_shape(
         self, core_in_shape: tuple[int, int, int, int], core: Core

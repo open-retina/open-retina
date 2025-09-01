@@ -1,6 +1,6 @@
 import os
 from math import ceil, sqrt
-from typing import Any, Iterable, Optional
+from typing import Any, Literal, Optional, Sequence, Tuple
 
 import matplotlib.pyplot as plt
 import torch
@@ -12,20 +12,22 @@ from openretina.modules.readout.base import Readout
 
 
 class KlindtReadoutWrapper3D(Readout):
+    mask_size: Tuple[int, int]
+
     def __init__(
         self,
-        num_kernels: Iterable[int],
+        num_kernels: Sequence[int],
         num_neurons: int,
         mask_l1_reg: float,
         weights_l1_reg: float,
         laplace_mask_reg: float,
-        mask_size: int | Iterable[int],
+        mask_size: int | Tuple[int, int],
         readout_bias: bool = False,
         weights_constraint: Optional[str] = None,
         mask_constraint: Optional[str] = None,
         init_mask: Optional[torch.Tensor] = None,
         init_weights: Optional[torch.Tensor] = None,
-        init_scales: Optional[Iterable[Iterable[float]]] = None,
+        init_scales: Optional[Sequence[Tuple[float, float]]] = None,
     ):
         """
         TO DO:
@@ -35,7 +37,6 @@ class KlindtReadoutWrapper3D(Readout):
 
         self.num_neurons = num_neurons
         self.reg = [mask_l1_reg, weights_l1_reg, laplace_mask_reg]
-        self.mask_size = mask_size
         self.readout_bias = readout_bias
         self.weights_constraint = weights_constraint
         self.mask_constraint = mask_constraint
@@ -43,9 +44,11 @@ class KlindtReadoutWrapper3D(Readout):
 
         if isinstance(mask_size, int):
             self.num_mask_pixels = mask_size**2
+            self.mask_size = (mask_size, mask_size)
         else:
             h, w = mask_size
             self.num_mask_pixels = h * w
+            self.mask_size = mask_size
 
         if init_mask is not None:
             num_neurons = init_mask.shape[0]
@@ -63,7 +66,8 @@ class KlindtReadoutWrapper3D(Readout):
             # Convert to tensor and register as parameter
             self.mask_weights = nn.Parameter(torch.tensor(reshaped, dtype=torch.float32))
         else:
-            assert init_scales is not None
+            if init_scales is None:
+                raise ValueError("Either init_mask or init_scales must be provided")
             mean, std = init_scales[0]
             self.mask_weights = nn.Parameter(torch.normal(mean=mean, std=std, size=(self.num_mask_pixels, num_neurons)))
 
@@ -74,7 +78,8 @@ class KlindtReadoutWrapper3D(Readout):
             mean, std = init_scales[1]
             self.readout_weights = nn.Parameter(torch.normal(mean=mean, std=std, size=(num_kernels[-1], num_neurons)))
 
-        self.bias = nn.Parameter(torch.full((num_neurons,), 0.5)) if readout_bias else None
+        init_bias = 0.5 if self.readout_bias else 0.0
+        self.bias = nn.Parameter(torch.full((num_neurons,), init_bias))
 
     def apply_constraints(self):
         if self.mask_constraint == "abs":
@@ -104,12 +109,15 @@ class KlindtReadoutWrapper3D(Readout):
         out = (masked * self.readout_weights.T.unsqueeze(0).unsqueeze(0)).sum(dim=3)
         return F.softplus(out + self.bias) if self.readout_bias else out
 
-    def regularizer(self) -> torch.Tensor:
+    def regularizer(self, reduction: Optional[Literal["sum", "mean"]] = None) -> torch.Tensor:
         mask_r = self.reg[0] * torch.mean(torch.sum(torch.abs(self.mask_weights), dim=0))
         wt_r = self.reg[1] * torch.mean(torch.sum(torch.abs(self.readout_weights), dim=0))
         reshaped_masked_weights = self.mask_weights.reshape(-1, 1, 1, self.mask_size[0], self.mask_size[1])
         laplace_mask_r = self.reg[2] * self._input_weights_regularizer_spatial(reshaped_masked_weights, avg=False)
-        return mask_r + wt_r + laplace_mask_r
+        if reduction == "mean":
+            return mask_r + wt_r + laplace_mask_r / 3
+        else:
+            return mask_r + wt_r + laplace_mask_r
 
     def save_weight_visualizations(self, readout_folder, file_format, state_suffix=None, cell_indices=None):
         state_suffix = str(state_suffix)
