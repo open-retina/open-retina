@@ -1,15 +1,14 @@
-import logging
 import os
-from typing import Any, Iterable, Literal, Optional
+from math import ceil, sqrt
+from typing import Any, Iterable, Optional
+
 import matplotlib.pyplot as plt
-from math import sqrt, ceil
 import torch
 import torch.nn as nn
-from lightning.pytorch.utilities import grad_norm
-from openretina.utils.file_utils import get_cache_directory, get_local_file_path
-from openretina.modules.readout.base import Readout
 import torch.nn.functional as F
+
 from openretina.modules.layers import FlatLaplaceL23dnorm
+from openretina.modules.readout.base import Readout
 
 
 class KlindtReadoutWrapper3D(Readout):

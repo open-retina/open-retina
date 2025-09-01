@@ -12,7 +12,6 @@ import os
 from typing import Literal
 
 from openretina.data_io.base import ResponsesTrainTestSplit
-from openretina.data_io.base_dataloader import NeuronDataSplit
 from openretina.utils.file_utils import get_local_file_path
 from openretina.utils.h5_handling import load_dataset_from_h5
 

@@ -1,3 +1,4 @@
+import inspect
 import logging
 import os
 from typing import Any, Iterable, Literal, Optional
@@ -7,7 +8,6 @@ import torch.nn as nn
 from jaxtyping import Float, Int
 from lightning import LightningModule
 from lightning.pytorch.utilities import grad_norm
-import inspect
 
 from openretina.data_io.base_dataloader import DataPoint
 from openretina.modules.core.base_core import Core, SimpleCoreWrapper
@@ -15,8 +15,8 @@ from openretina.modules.core.gru_core import ConvGRUCore
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
 from openretina.modules.readout.multi_readout import (
     MultiGaussianReadoutWrapper,
-    MultiSampledGaussianReadoutWrapper,
     MultiKlindtReadoutWrapper,
+    MultiSampledGaussianReadoutWrapper,
 )
 from openretina.utils.file_utils import get_cache_directory, get_local_file_path
 

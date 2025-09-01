@@ -1,13 +1,13 @@
 import os
-from typing import Callable, Literal, Iterable, Optional
+from typing import Callable, Iterable, Literal, Optional
 
 import torch
 import torch.nn as nn
 
 from openretina.modules.readout.base import ClonedReadout, Readout
 from openretina.modules.readout.factorised_gaussian import SimpleSpatialXFeature3d
-from openretina.modules.readout.klindt_readout import KlindtReadoutWrapper3D
 from openretina.modules.readout.gaussian import FullGaussian2d
+from openretina.modules.readout.klindt_readout import KlindtReadoutWrapper3D
 
 
 class MultiGaussianReadoutWrapper(nn.ModuleDict):

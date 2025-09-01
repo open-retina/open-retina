@@ -1,8 +1,9 @@
+import inspect
+import os
 from contextlib import contextmanager
+
 import torch
 from lightning.pytorch.callbacks import Callback
-import os
-import inspect
 
 
 @contextmanager
