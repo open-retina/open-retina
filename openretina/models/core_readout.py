@@ -437,7 +437,7 @@ class CoreKlindtReadout(BaseCoreReadout):
         mask_constraint: Optional[str] = None,
         init_mask: Optional[torch.Tensor] = None,
         init_weights: Optional[torch.Tensor] = None,
-        init_scales: Iterable[Iterable[float]] = None,
+        init_scales: Optional[Iterable[Iterable[float]]] = None,
         mask_l1_reg: float = 1e-3,
         weights_l1_reg: float = 1e-1,
         laplace_mask_reg: float = 1e-1,

@@ -177,7 +177,7 @@ class MultiKlindtReadoutWrapper(nn.ModuleDict):
     def readout_keys(self) -> list[str]:
         return sorted(self._modules.keys())
 
-    def save_weight_visualizations(self, folder_path: str, file_format, state_suffix: str = None) -> None:
+    def save_weight_visualizations(self, folder_path: str, file_format, state_suffix: Optional[str] = None) -> None:
         for key in self.readout_keys():
             readout_folder = os.path.join(folder_path, key)
             os.makedirs(readout_folder, exist_ok=True)
