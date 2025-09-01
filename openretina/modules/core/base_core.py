@@ -12,6 +12,7 @@ from openretina.modules.layers.reducers import WeightedChannelSumLayer
 from openretina.modules.layers.regularizers import Laplace1d
 from openretina.modules.layers.scaling import Bias3DLayer
 
+
 def temporal_smoothing(sin: torch.Tensor, cos: torch.Tensor) -> torch.Tensor:
     smoother = torch.linspace(0.1, 0.9, sin.shape[2], device=sin.device)[None, None, :]
     size = float(sin.shape[0])

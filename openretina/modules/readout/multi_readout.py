@@ -96,6 +96,7 @@ class MultiGaussianReadoutWrapper(nn.ModuleDict):
     def sessions(self) -> list[str]:
         return self.readout_keys()
 
+
 class MultiKlindtReadoutWrapper(nn.ModuleDict):
     """
     Multiple Sessions version of the SimpleSpatialXFeature3d factorised gaussian readout.
@@ -185,6 +186,7 @@ class MultiKlindtReadoutWrapper(nn.ModuleDict):
     @property
     def sessions(self) -> list[str]:
         return self.readout_keys()
+
 
 class MultiSampledGaussianReadoutWrapper(nn.ModuleDict):
     """

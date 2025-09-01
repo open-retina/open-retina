@@ -142,13 +142,13 @@ class BaseCoreReadout(LightningModule):
         }
 
     def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg", state_suffix: str = "") -> None:
-        if 'state_suffix' in inspect.signature(self.core.save_weight_visualizations).parameters:
+        if "state_suffix" in inspect.signature(self.core.save_weight_visualizations).parameters:
             self.core.save_weight_visualizations(
                 os.path.join(folder_path, "weights_core"), file_format, state_suffix=state_suffix
             )
         else:
             self.core.save_weight_visualizations(os.path.join(folder_path, "weights_core"), file_format)
-        if 'state_suffix' in inspect.signature(self.readout.save_weight_visualizations).parameters:
+        if "state_suffix" in inspect.signature(self.readout.save_weight_visualizations).parameters:
             self.readout.save_weight_visualizations(
                 os.path.join(folder_path, "weights_readout"), file_format, state_suffix=state_suffix
             )  # type: ignore

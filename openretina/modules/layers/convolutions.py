@@ -209,6 +209,7 @@ class TimeIndependentConv3D(nn.Module):
                 fig.clf()
                 plt.close()
 
+
 def compute_temporal_kernel(log_speed, sin_weights, cos_weights, length: int) -> torch.Tensor:
     """
     Computes the temporal kernel for the convolution.
