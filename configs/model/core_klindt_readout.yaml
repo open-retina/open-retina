@@ -1,4 +1,4 @@
-_target_: openretina.models.core_readout.CoreReadout
+_target_: openretina.models.core_readout.CoreKlindtReadout
 _convert_: object
 
 # core
@@ -18,13 +18,14 @@ convolution_type: "custom_separable"
 
 # readout
 n_neurons_dict: ??? # Required for readout init. Set dynamically in scripts/train.py based on loaded sessions.
-readout_scale: true
+mask_l1_reg: 0.0
+weights_l1_reg: 0.0
 readout_bias: true
-readout_gaussian_masks: true
-readout_gaussian_mean_scale: 6.0
-readout_gaussian_var_scale: 4.0
-readout_positive: true
-readout_gamma: 0.4
+weights_constraint: null
+mask_constraint: null
+init_mask: null
+init_weights: null
+init_scales: [[0.0, 0.15], [0.0, 0.15]]
 
 # training
 learning_rate: 0.01

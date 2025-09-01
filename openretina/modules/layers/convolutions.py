@@ -42,8 +42,12 @@ class TorchFullConv3D(nn.Module):
             bias=bias,
         )
 
-    def forward(self, input_: torch.Tensor) -> torch.Tensor:
-        x, data_key = input_
+    def forward(self, input_: torch.Tensor | tuple[torch.Tensor, str]) -> torch.Tensor:
+        if type(input_) is torch.Tensor:
+            x = input_
+            data_key: str | None = None
+        else:
+            x, data_key = input_
 
         # Compute temporal kernel based on the provided data key
         # TODO implement log speed use in full conv
@@ -92,8 +96,12 @@ class TorchSTSeparableConv3D(nn.Module):
             out_channels, out_channels, (temporal_kernel_size, 1, 1), stride=stride, padding=padding, bias=bias
         )
 
-    def forward(self, input_: torch.Tensor) -> torch.Tensor:
-        x, data_key = input_
+    def forward(self, input_: torch.Tensor | tuple[torch.Tensor, str | None]) -> torch.Tensor:
+        if type(input_) is torch.Tensor:
+            x = input_
+            data_key: str | None = None
+        else:
+            x, data_key = input_
 
         # Compute temporal kernel based on the provided data key
         if data_key is None:
@@ -124,6 +132,8 @@ class TimeIndependentConv3D(nn.Module):
         # Store log speeds for each data key
         for key, val in log_speed_dict.items():
             setattr(self, key, val)
+        self.in_channels = in_channels
+        self.out_channels = out_channels
 
         if spatial_kernel_size2 is None:
             spatial_kernel_size2 = spatial_kernel_size
@@ -136,10 +146,68 @@ class TimeIndependentConv3D(nn.Module):
             padding=padding,
             bias=bias,
         )
+        self.weight_spatial = self.conv.weight.data
+
+    def refresh_spatial_weight_attribute(self):
+        self.weight_spatial = self.conv.weight.data
 
     def forward(self, input_):
-        x, data_key = input_
+        if type(input_) is torch.Tensor:
+            x = input_
+            data_key: str | None = None
+        else:
+            x, data_key = input_
         return self.conv(x)
+
+    def plot_weights(
+        self,
+        in_channel: int,
+        out_channel: int,
+        add_titles: bool = True,
+        remove_ticks: bool = False,
+        spatial_weight_center_positive: bool = True,
+    ) -> plt.Figure:
+        ncols = 2
+        fig_axes_tuple = plt.subplots(ncols=ncols, figsize=(ncols * 6, 6))
+        fig: plt.Figure = fig_axes_tuple[0]
+        axes: list[plt.Axes] = fig_axes_tuple[1]  # type: ignore
+        spatial_weight = self.conv.weight.data.detach().cpu().numpy()[out_channel, in_channel, 0]
+
+        center_x, center_y = int(spatial_weight.shape[0] / 2), int(spatial_weight.shape[1] / 2)
+        # Optionally make sure the center of the weight matrix is positive
+        if (
+            spatial_weight_center_positive
+            and np.mean(spatial_weight[center_x - 3 : center_x + 2, center_y - 3 : center_y + 2]) < 0
+        ):
+            spatial_weight *= -1
+
+        abs_max = float(np.abs(spatial_weight).max().item())
+        im = axes[0].imshow(
+            spatial_weight, interpolation="none", cmap="RdBu_r", norm=Normalize(vmin=-abs_max, vmax=abs_max)
+        )
+        color_bar = fig.colorbar(im, orientation="vertical")
+
+        if add_titles:
+            fig.suptitle(f"Weights for {in_channel=} {out_channel=}")
+            axes[0].set_title("Spatial Weight")
+            axes[1].set_title("No temporal filter")
+
+        if remove_ticks:
+            for ax in axes:
+                ax.get_xaxis().set_ticks([])
+                ax.get_yaxis().set_ticks([])
+            color_bar.set_ticks([])
+
+        return fig
+
+    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg", state_suffix: str = "") -> None:
+        for in_channel in range(self.in_channels):
+            for out_channel in range(self.out_channels):
+                plot_path = f"{folder_path}/{in_channel}_{out_channel}_{state_suffix}.{file_format}"
+                fig = self.plot_weights(in_channel, out_channel)
+                fig.savefig(plot_path, bbox_inches="tight", facecolor="w", dpi=300)
+                fig.clf()
+                plt.close()
 
 
 def compute_temporal_kernel(log_speed, sin_weights, cos_weights, length: int) -> torch.Tensor:
@@ -358,10 +426,12 @@ class STSeparableBatchConv3d(nn.Module):
 
         return fig
 
-    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg") -> None:
+    def save_weight_visualizations(
+        self, folder_path: str, file_format: str = "jpg", state_suffix: Optional[str] = None
+    ) -> None:
         for in_channel in range(self.in_channels):
             for out_channel in range(self.out_channels):
-                plot_path = f"{folder_path}/{in_channel}_{out_channel}.{file_format}"
+                plot_path = f"{folder_path}/{in_channel}_{out_channel}_{state_suffix}.{file_format}"
                 fig = self.plot_weights(in_channel, out_channel)
                 fig.savefig(plot_path, bbox_inches="tight", facecolor="w", dpi=300)
                 fig.clf()
@@ -436,3 +506,16 @@ def temporal_smoothing(sin: torch.Tensor, cos: torch.Tensor) -> torch.Tensor:
     reg = torch.sum((smoother * sin) ** 2) / F
     reg += torch.sum((smoother * cos) ** 2) / F
     return reg
+
+
+def get_conv_class(conv_type: str) -> type[nn.Module]:
+    if conv_type == "separable":
+        return TorchSTSeparableConv3D
+    elif conv_type == "custom_separable":
+        return STSeparableBatchConv3d
+    elif conv_type == "full":
+        return TorchFullConv3D
+    elif conv_type == "time_independent":
+        return TimeIndependentConv3D
+    else:
+        raise ValueError(f"Un-implemented conv_type {conv_type}")
