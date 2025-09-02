@@ -522,6 +522,7 @@ def load_core_readout_model(
     model_path_or_name: str,
     device: str,
     is_gru_model: bool,
+    is_klindt_readout: bool,
     cache_directory_path: str | os.PathLike | None = None,
 ) -> BaseCoreReadout:
     if cache_directory_path is None:
@@ -532,5 +533,7 @@ def load_core_readout_model(
     local_path = get_local_file_path(model_path_or_name, cache_directory_path)
     if is_gru_model:
         return GRUCoreReadout.load_from_checkpoint(local_path, map_location=device)
+    elif is_klindt_readout:
+        return CoreKlindtReadout.load_from_checkpoint(local_path, map_location=device)
     else:
         return CoreReadout.load_from_checkpoint(local_path, map_location=device)

@@ -41,6 +41,7 @@ class KlindtReadoutWrapper3D(Readout):
         self.weights_constraint = weights_constraint
         self.mask_constraint = mask_constraint
         self._input_weights_regularizer_spatial = FlatLaplaceL23dnorm(padding=0)
+        self.outdims = num_neurons
 
         if isinstance(mask_size, int):
             self.num_mask_pixels = mask_size**2

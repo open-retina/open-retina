@@ -128,7 +128,7 @@ def get_pc_from_pca(model, channel, lsta_library, plot=False):
             plt.imshow(
                 pca.components_[k].reshape(model.data_info["input_shape"][1:3]), cmap="bwr", vmin=-PC_max, vmax=PC_max
             )
-            plt.title(f"PCA {k} ({explained_variance[k]:.2f} v.e.)")
+            plt.title(f"PCA {k} ({explained_variance[k]:.2f} e.v.)")
             plt.axis("off")
 
     return PC1, PC2, explained_variance
@@ -153,6 +153,7 @@ def get_images_coordinate(images, PC1, PC2, plot=False):
 def plot_untreated_vectorfield(lsta_library, PC1, PC2, images):
     arrowheads = np.array([[np.dot(PC1, lsta.flatten()), np.dot(PC2, lsta.flatten())] for lsta in lsta_library])
     plt.figure(figsize=(20, 15))
+    arrowheads = arrowheads * 1000
     plt.quiver(
         images[: len(lsta_library), 0],
         images[: len(lsta_library), 1],
