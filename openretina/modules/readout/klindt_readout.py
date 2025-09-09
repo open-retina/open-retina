@@ -37,13 +37,14 @@ class KlindtReadoutWrapper3D(Readout):
             mask_l1_reg (float): L1 regularization strength for mask.
             weights_l1_reg (float): L1 regularization strength for weights.
             laplace_mask_reg (float): Laplace regularization strength for mask.
-            mask_size (int | Tuple[int, int]): Size of the mask (height, width).
+            mask_size (int | Tuple[int, int]): Size of the mask (height, width) or (height).
             readout_bias (bool, optional): If True, includes bias in readout. Defaults to False.
             weights_constraint (Optional[str], optional): Constraint for weights. Defaults to None.
             mask_constraint (Optional[str], optional): Constraint for mask. Defaults to None.
             init_mask (Optional[torch.Tensor], optional): Initial mask tensor. Defaults to None.
             init_weights (Optional[torch.Tensor], optional): Initial weights tensor. Defaults to None.
-            init_scales (Optional[Sequence[Tuple[float, float]]], optional): Initialization scales for mask and weights. Defaults to None.
+            init_scales (Optional[Sequence[Tuple[float, float]]], optional): Initialization scales for mask
+            and weights. Defaults to None.
         Raises:
             ValueError: If neither init_mask nor init_scales is provided.
         """

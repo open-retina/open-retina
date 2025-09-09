@@ -207,8 +207,6 @@ class SimpleCoreWrapper(Core):
 
     def regularizer(self) -> torch.Tensor:
         res: torch.Tensor = 0.0  # type: ignore
-        if self.convolution_type == "time_independent":
-            self.features[0].conv.refresh_spatial_weight_attribute()
         for weight, reg_fn in [
             (self.gamma_input, self.spatial_laplace),
             (self.gamma_hidden, self.group_sparsity),
