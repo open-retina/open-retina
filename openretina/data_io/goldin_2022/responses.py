@@ -54,7 +54,7 @@ def load_all_responses(
             "Train and test responses should have the same number of neurons."
         )
 
-        responses_all_sessions[str(session).replace(".h5", "")] = ResponsesTrainTestSplit(
+        responses_all_sessions[str(session).removesuffix(".h5")] = ResponsesTrainTestSplit(
             train=train_session_data / fr_normalization,
             test=test_session_data / fr_normalization,
             stim_id=stim_type,
