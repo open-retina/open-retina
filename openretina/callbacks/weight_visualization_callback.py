@@ -49,7 +49,7 @@ class ConditionalWeightVisualizationCallback(Callback):
         self.save_plots = save_plots
         self.folder_path = folder_path
 
-    def _should_visualize(self, current_epoch):
+    def _should_visualize(self, current_epoch: int) -> bool:
         """Check if we should visualize at the current epoch."""
         return current_epoch >= self.start_epoch and current_epoch % self.every_n_epochs == 0
 
