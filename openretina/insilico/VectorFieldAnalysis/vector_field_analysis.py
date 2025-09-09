@@ -54,7 +54,7 @@ def prepare_movies_dataset(
 
     # Determine temporal padding needed by model
     empty_movie = torch.zeros(1, n_channels, 100, target_h, target_w, dtype=torch.float32, device=device)
-    n_empty_frames = 100 - model(empty_movie).shape[1]
+    n_empty_frames = 100 - model(empty_movie).shape[1] +10 # +10 for border effects
     print(f"Number of empty frames needed: {n_empty_frames}")
 
     movies = np.repeat(compressed_images[:, :, np.newaxis, :, :], n_empty_frames + n_image_frames, axis=2)
@@ -72,7 +72,7 @@ def prepare_movies_dataset(
         for channel in range(n_channels):
             movies[:, channel, :, :, :] = (movies[:, channel, :, :, :] - stim_mean) / stim_std
 
-    # Set initial frames to mean grey
+    # Set initial frames to mean grey in the images
     movies[:, :, :n_empty_frames, :, :] = movies.mean()
     print(f"Final movies shape: {movies.shape}")
 
@@ -85,7 +85,7 @@ def compute_lsta_library(model, movies, session_id, cell_id, batch_size=64, inte
     all_lstas = []
     all_outputs = []
 
-    movies = movies[:1000]  # For debugging, limit to 1000 movies, TO DO: Suppress this line
+    # movies = movies[:1000]  # For debugging, limit to 1000 movies, TO DO: Suppress this line
 
     for i in range(0, len(movies), batch_size):
         batch_movies = torch.tensor(movies[i : i + batch_size], dtype=torch.float32, device=device)
@@ -163,6 +163,7 @@ def plot_untreated_vectorfield(lsta_library, PC1, PC2, images):
         scale_units="xy",
         angles="xy",
         scale=arrowheads.max() / 1.5,
+        alpha=0.2,
     )
     plt.xlim([-20, 20])
     plt.ylim([-20, 20])
