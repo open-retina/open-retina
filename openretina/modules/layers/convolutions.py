@@ -146,9 +146,9 @@ class TimeIndependentConv3D(nn.Module):
             padding=padding,
             bias=bias,
         )
-        self.weight_spatial = self.conv.weight.data
 
-    def refresh_spatial_weight_attribute(self):
+    @property
+    def weight_spatial(self):
         self.weight_spatial = self.conv.weight.data
 
     def forward(self, input_):
