@@ -1,5 +1,5 @@
 """
-Minimal stimulus loading utilities to train a model on the data used in Maheswaranathan et al. 2023
+Minimal stimulus loading utilities to train a model on the data used in Goldin et al. 2022.
 
 Paper: https://doi.org/10.1038/s41467-022-33242-8
 Data: https://zenodo.org/record/6868362#.YtgeLoxBxH4 [Unformatted]
