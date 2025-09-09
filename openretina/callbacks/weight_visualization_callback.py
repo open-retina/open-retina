@@ -25,12 +25,12 @@ class ConditionalWeightVisualizationCallback(Callback):
 
     def __init__(
         self,
-        every_n_epochs=1,
-        start_epoch=0,
-        call_on_train_epoch_end=True,
-        call_on_validation_epoch_end=False,
-        save_plots=False,
-        folder_path=None,
+        every_n_epochs: int = 1,
+        start_epoch: int = 0,
+        call_on_train_epoch_end: bool = True,
+        call_on_validation_epoch_end: bool = False,
+        save_plots: bool = False,
+        folder_path: str | None = None,
     ):
         """
         Args:
