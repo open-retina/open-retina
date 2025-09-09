@@ -84,7 +84,6 @@ class ConditionalWeightVisualizationCallback(Callback):
 
     def on_train_start(self, trainer, pl_module):
         if trainer.current_epoch == 0:
-            # print("Running weight visualization on train start")
             self._call_visualization(trainer, pl_module, "init")
 
     def on_train_epoch_end(self, trainer, pl_module):
