@@ -53,7 +53,7 @@ class ConditionalWeightVisualizationCallback(Callback):
         """Check if we should visualize at the current epoch."""
         return current_epoch >= self.start_epoch and current_epoch % self.every_n_epochs == 0
 
-    def _call_visualization(self, trainer, pl_module, stage=""):
+    def _call_visualization(self, trainer, pl_module, stage: str = "") -> None:
         """Helper method to call the visualization function."""
         if not hasattr(pl_module, "save_weight_visualizations"):
             print("Warning: Model does not have 'save_weight_visualizations' method")
