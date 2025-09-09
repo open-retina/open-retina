@@ -6,17 +6,6 @@ import torch
 from lightning.pytorch.callbacks import Callback
 
 
-@contextmanager
-def eval_state(model: torch.nn.Module):
-    training_status = model.training
-
-    try:
-        model.eval()
-        yield model
-    finally:
-        model.train(training_status)
-
-
 class ConditionalWeightVisualizationCallback(Callback):
     """
     PyTorch Lightning callback that calls the model's save_weight_visualizations
