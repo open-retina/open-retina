@@ -1,11 +1,11 @@
 """
-Minimal stimulus loading utilities to train a model on the data used in Maheswaranathan et al. 2023
+Minimal stimulus loading utilities to train a model on the data used in Goldin et al. 2022.
 
 Paper: https://doi.org/10.1038/s41467-022-33242-8
 Data: https://zenodo.org/record/6868362#.YtgeLoxBxH4 [Unformatted]
 
 OpenRetina provides a mirror of the dataset on huggingface:
-### TODO: Update this link when the dataset is available
+https://huggingface.co/datasets/open-retina/open-retina/tree/main/marre_lab/goldin_2022
 """
 
 import os
@@ -32,7 +32,6 @@ def load_all_stimuli(
 
     Alternatively, base_data_path can point directly to our huggingface mirror of the dataset, which will then
     be downloaded and extracted automatically to the openretina cache directory.
-    TO DO: Update this link when the dataset is available
     """
     # Resolve data path
     base_data_path = get_local_file_path(str(base_data_path))

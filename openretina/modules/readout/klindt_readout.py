@@ -30,8 +30,23 @@ class KlindtReadoutWrapper3D(Readout):
         init_scales: Optional[Sequence[Tuple[float, float]]] = None,
     ):
         """
-        TO DO:
-        - Refactorised some names
+        Initializes the Klindt readout module : (2d spatial mask + feature weights) / cell.
+        Args:
+            num_kernels (Sequence[int]): Number of kernels per layer.
+            num_neurons (int): Number of output neurons.
+            mask_l1_reg (float): L1 regularization strength for mask.
+            weights_l1_reg (float): L1 regularization strength for weights.
+            laplace_mask_reg (float): Laplace regularization strength for mask.
+            mask_size (int | Tuple[int, int]): Size of the mask (height, width) or (height).
+            readout_bias (bool, optional): If True, includes bias in readout. Defaults to False.
+            weights_constraint (Optional[str], optional): Constraint for weights. Defaults to None.
+            mask_constraint (Optional[str], optional): Constraint for mask. Defaults to None.
+            init_mask (Optional[torch.Tensor], optional): Initial mask tensor. Defaults to None.
+            init_weights (Optional[torch.Tensor], optional): Initial weights tensor. Defaults to None.
+            init_scales (Optional[Sequence[Tuple[float, float]]], optional): Initialization scales for mask
+            and weights. Defaults to None.
+        Raises:
+            ValueError: If neither init_mask nor init_scales is provided.
         """
         super().__init__()
 
@@ -44,11 +59,11 @@ class KlindtReadoutWrapper3D(Readout):
         self.outdims = num_neurons
 
         if isinstance(mask_size, int):
-            self.num_mask_pixels = mask_size**2
+            num_mask_pixels = mask_size**2
             self.mask_size = (mask_size, mask_size)
         else:
             h, w = mask_size
-            self.num_mask_pixels = h * w
+            num_mask_pixels = h * w
             self.mask_size = mask_size
 
         if init_mask is not None:
@@ -70,7 +85,7 @@ class KlindtReadoutWrapper3D(Readout):
             if init_scales is None:
                 raise ValueError("Either init_mask or init_scales must be provided")
             mean, std = init_scales[0]
-            self.mask_weights = nn.Parameter(torch.normal(mean=mean, std=std, size=(self.num_mask_pixels, num_neurons)))
+            self.mask_weights = nn.Parameter(torch.normal(mean=mean, std=std, size=(num_mask_pixels, num_neurons)))
 
         if init_weights is not None:
             self.readout_weights = nn.Parameter(init_weights)
@@ -108,7 +123,9 @@ class KlindtReadoutWrapper3D(Readout):
         masked = torch.matmul(x_flat, self.mask_weights)
         masked = masked.permute(0, 1, 3, 2)
         out = (masked * self.readout_weights.T.unsqueeze(0).unsqueeze(0)).sum(dim=3)
-        return F.softplus(out + self.bias) if self.readout_bias else out
+        if self.readout_bias:
+            out = out + self.bias
+        return F.softplus(out)
 
     def regularizer(self, reduction: Optional[Literal["sum", "mean"]] = None) -> torch.Tensor:
         mask_r = self.reg[0] * torch.mean(torch.sum(torch.abs(self.mask_weights), dim=0))

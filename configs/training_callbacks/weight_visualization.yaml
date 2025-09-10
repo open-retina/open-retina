@@ -1,4 +1,3 @@
-# # Visualize frequently at the beginning, then less often
 weight_visualization:
   _target_: openretina.callbacks.weight_visualization_callback.ConditionalWeightVisualizationCallback
   every_n_epochs: 1

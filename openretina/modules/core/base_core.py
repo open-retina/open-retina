@@ -207,8 +207,6 @@ class SimpleCoreWrapper(Core):
 
     def regularizer(self) -> torch.Tensor:
         res: torch.Tensor = 0.0  # type: ignore
-        if self.convolution_type == "time_independent":
-            self.features[0].conv.refresh_spatial_weight_attribute()
         for weight, reg_fn in [
             (self.gamma_input, self.spatial_laplace),
             (self.gamma_hidden, self.group_sparsity),
@@ -234,7 +232,6 @@ class SimpleCoreWrapper(Core):
             output_dir = os.path.join(folder_path, f"weights_layer_{i}")
             os.makedirs(output_dir, exist_ok=True)
             layer.conv.save_weight_visualizations(output_dir, file_format, state_suffix)
-            # print(f"Saved weight visualization at path {output_dir}")
 
 
 class DummyCore(Core):

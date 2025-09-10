@@ -1,20 +1,7 @@
 import inspect
 import os
-from contextlib import contextmanager
 
-import torch
 from lightning.pytorch.callbacks import Callback
-
-
-@contextmanager
-def eval_state(model: torch.nn.Module):
-    training_status = model.training
-
-    try:
-        model.eval()
-        yield model
-    finally:
-        model.train(training_status)
 
 
 class ConditionalWeightVisualizationCallback(Callback):
@@ -25,12 +12,12 @@ class ConditionalWeightVisualizationCallback(Callback):
 
     def __init__(
         self,
-        every_n_epochs=1,
-        start_epoch=0,
-        call_on_train_epoch_end=True,
-        call_on_validation_epoch_end=False,
-        save_plots=False,
-        folder_path=None,
+        every_n_epochs: int = 1,
+        start_epoch: int = 0,
+        call_on_train_epoch_end: bool = True,
+        call_on_validation_epoch_end: bool = False,
+        save_plots: bool = False,
+        folder_path: str | None = None,
     ):
         """
         Args:
@@ -49,11 +36,11 @@ class ConditionalWeightVisualizationCallback(Callback):
         self.save_plots = save_plots
         self.folder_path = folder_path
 
-    def _should_visualize(self, current_epoch):
+    def _should_visualize(self, current_epoch: int) -> bool:
         """Check if we should visualize at the current epoch."""
         return current_epoch >= self.start_epoch and current_epoch % self.every_n_epochs == 0
 
-    def _call_visualization(self, trainer, pl_module, stage=""):
+    def _call_visualization(self, trainer, pl_module, stage: str = "") -> None:
         """Helper method to call the visualization function."""
         if not hasattr(pl_module, "save_weight_visualizations"):
             print("Warning: Model does not have 'save_weight_visualizations' method")
@@ -84,7 +71,6 @@ class ConditionalWeightVisualizationCallback(Callback):
 
     def on_train_start(self, trainer, pl_module):
         if trainer.current_epoch == 0:
-            # print("Running weight visualization on train start")
             self._call_visualization(trainer, pl_module, "init")
 
     def on_train_epoch_end(self, trainer, pl_module):
