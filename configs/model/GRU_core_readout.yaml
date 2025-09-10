@@ -16,6 +16,7 @@ core_hidden_padding: [0, 2, 2]
 core_use_gru: false
 core_use_projections: true
 batch_adaptation: false
+convolution_type: "custom_separable"
 
 # GRU-specific arguments. GRU is applied before the readout.
 core_gru_kwargs:
