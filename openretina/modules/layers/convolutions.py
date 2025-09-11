@@ -177,7 +177,7 @@ class TimeIndependentConv3D(nn.Module):
         # Optionally make sure the center of the weight matrix is positive
         if (
             spatial_weight_center_positive
-            and np.mean(spatial_weight[center_x - 3 : center_x + 2, center_y - 3 : center_y + 2]) < 0
+            and np.mean(spatial_weight[max(center_x - 3, 0) : center_x + 2, max(center_y - 3, 0) : center_y + 2]) < 0
         ):
             spatial_weight *= -1
 
@@ -379,7 +379,7 @@ class STSeparableBatchConv3d(nn.Module):
         # Optionally make sure the center of the weight matrix is positive
         if (
             spatial_weight_center_positive
-            and np.mean(spatial_weight[center_x - 3 : center_x + 2, center_y - 3 : center_y + 2]) < 0
+            and np.mean(spatial_weight[max(center_x - 3, 0) : center_x + 2, max(center_y - 3, 0) : center_y + 2]) < 0
         ):
             spatial_weight *= -1
             temporal_weight *= -1
