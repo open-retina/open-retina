@@ -86,11 +86,11 @@ class MultiGaussianReadoutWrapper(nn.ModuleDict):
     def readout_keys(self) -> list[str]:
         return sorted(self._modules.keys())
 
-    def save_weight_visualizations(self, folder_path: str) -> None:
+    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg", state_suffix: str = "") -> None:
         for key in self.readout_keys():
             readout_folder = os.path.join(folder_path, key)
             os.makedirs(readout_folder, exist_ok=True)
-            self._modules[key].save_weight_visualizations(readout_folder)  # type: ignore
+            self._modules[key].save_weight_visualizations(readout_folder, file_format, state_suffix)  # type: ignore
 
     @property
     def sessions(self) -> list[str]:
@@ -177,7 +177,7 @@ class MultiKlindtReadoutWrapper(nn.ModuleDict):
     def readout_keys(self) -> list[str]:
         return sorted(self._modules.keys())
 
-    def save_weight_visualizations(self, folder_path: str, file_format, state_suffix: Optional[str] = None) -> None:
+    def save_weight_visualizations(self, folder_path: str, file_format, state_suffix: str = "") -> None:
         for key in self.readout_keys():
             readout_folder = os.path.join(folder_path, key)
             os.makedirs(readout_folder, exist_ok=True)
