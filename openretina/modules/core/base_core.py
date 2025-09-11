@@ -1,7 +1,6 @@
 import os
 import warnings
 from collections import OrderedDict
-from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -39,7 +38,9 @@ class Core(nn.Module):
             ret.append(f"{attr} = {getattr(self, attr)}")
         return s + "|".join(ret) + "]\n"
 
-    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg") -> None:
+    def save_weight_visualizations(
+        self, folder_path: str, file_format: str = "jpg", state_suffix: str | None = None
+    ) -> None:
         print(f"Save weight visualization of {self.__class__.__name__} not implemented.")
 
 
@@ -226,7 +227,7 @@ class SimpleCoreWrapper(Core):
         return fig
 
     def save_weight_visualizations(
-        self, folder_path: str, file_format: str = "jpg", state_suffix: Optional[str] = None
+        self, folder_path: str, file_format: str = "jpg", state_suffix: str | None = None
     ) -> None:
         for i, layer in enumerate(self.features):
             output_dir = os.path.join(folder_path, f"weights_layer_{i}")
