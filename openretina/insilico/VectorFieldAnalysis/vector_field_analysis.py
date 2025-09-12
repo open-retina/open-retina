@@ -54,7 +54,7 @@ def prepare_movies_dataset(
 
     # Determine temporal padding needed by model
     empty_movie = torch.zeros(1, n_channels, 100, target_h, target_w, dtype=torch.float32, device=device)
-    n_empty_frames = 100 - model(empty_movie).shape[1] +10 # +10 for border effects
+    n_empty_frames = 100 - model(empty_movie).shape[1] + 10  # +10 for border effects
     print(f"Number of empty frames needed: {n_empty_frames}")
 
     movies = np.repeat(compressed_images[:, :, np.newaxis, :, :], n_empty_frames + n_image_frames, axis=2)
@@ -93,7 +93,7 @@ def compute_lsta_library(model, movies, session_id, cell_id, batch_size=64, inte
 
         outputs = model(batch_movies, data_key=session_id)
         chosen_cell_outputs = outputs[
-            :, integration_window[0]:integration_window[1], cell_id
+            :, integration_window[0] : integration_window[1], cell_id
         ].sum()  # I usually give up the first frame since it is contaminated by past responses (not done here)
         chosen_cell_outputs.backward()
 
@@ -150,24 +150,40 @@ def get_images_coordinate(images, PC1, PC2, plot=False):
     return images_coordinate
 
 
-def plot_untreated_vectorfield(lsta_library, PC1, PC2, images):
+def plot_untreated_vectorfield(lsta_library, channel, PC1, PC2, images_coordinate):
+    lsta_library = lsta_library[:, channel, :, :]
     arrowheads = np.array([[np.dot(PC1, lsta.flatten()), np.dot(PC2, lsta.flatten())] for lsta in lsta_library])
-    plt.figure(figsize=(20, 15))
-    arrowheads = arrowheads * 1000
-    plt.quiver(
-        images[: len(lsta_library), 0],
-        images[: len(lsta_library), 1],
+    fig, ax = plt.subplots(figsize=(20, 15))
+    window_size = int(max(images_coordinate[:, 0].max(), images_coordinate[:, 1].max()) * 1.1)
+    ax.quiver(
+        images_coordinate[: len(lsta_library), 0],
+        images_coordinate[: len(lsta_library), 1],
         arrowheads[:, 0],
         arrowheads[:, 1],
         width=0.002,
         scale_units="xy",
         angles="xy",
-        scale=arrowheads.max() / 1.5,
-        alpha=0.2,
+        scale=arrowheads.max(),
+        alpha=0.5,
     )
-    plt.xlim([-20, 20])
-    plt.ylim([-20, 20])
-    plt.axis("off")
+    ax.set_xlim([-window_size, window_size])
+    ax.set_ylim([-window_size, window_size])
+    ax.axis("off")
+
+    x_size = lsta_library.shape[-2]
+    y_size = lsta_library.shape[-1]
+    # Add PC components as insets
+    PC_max = max(np.abs(PC1).max(), np.abs(PC2).max())
+
+    ax_img1 = fig.add_axes([0.825, 0.425, 0.15, 0.15], anchor="C", zorder=1)
+    ax_img1.imshow(PC1.reshape(x_size, y_size), cmap="bwr", vmin=-PC_max, vmax=PC_max)
+    ax_img1.axis("off")
+    ax_img1.set_title(f"PC1", size=20)
+
+    ax_img2 = fig.add_axes([0.425, 0.825, 0.15, 0.15], anchor="C", zorder=1)
+    ax_img2.imshow(PC2.reshape(x_size, y_size), cmap="bwr", vmin=-PC_max, vmax=PC_max)
+    ax_img2.axis("off")
+    ax_img2.set_title(f"PC2", size=20)
     return plt.gcf()
 
 
@@ -182,8 +198,10 @@ def plot_clean_vectorfield(
     x_bins=31,
     y_bins=31,
 ):
-    dx = 40 / x_bins
-    dy = 40 / x_bins
+    lsta_library = lsta_library[:, channel, :, :]
+    window_size = int(max(images_coordinate[:, 0].max(), images_coordinate[:, 1].max()) * 1.1)
+    dx = 2 * window_size / x_bins
+    dy = 2 * window_size / y_bins
 
     binned_imgs = []
     binned_lstas = []
@@ -191,16 +209,16 @@ def plot_clean_vectorfield(
     y_size = lsta_library.shape[-1]
 
     for x_tick in range(x_bins):
-        x_val = -20 + x_tick * dx
+        x_val = -window_size + x_tick * dx
         for y_tick in range(y_bins):
-            y_val = -20 + y_tick * dy
+            y_val = -window_size + y_tick * dy
             temp_img = np.zeros((x_size, y_size))
             temp_lsta = np.zeros((x_size, y_size))
             nb = 0
             for i, coords in enumerate(images_coordinate[: lsta_library.shape[0]]):
                 if x_val <= coords[0] < x_val + dx and y_val <= coords[1] < y_val + dy:
                     temp_img += images[i]
-                    temp_lsta += lsta_library[i, channel]
+                    temp_lsta += lsta_library[i]
                     nb += 1
             if nb > 0:
                 binned_imgs.append(temp_img / nb)
