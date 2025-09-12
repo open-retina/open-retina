@@ -1,3 +1,4 @@
+import inspect
 import logging
 import os
 from typing import Any, Iterable, Literal, Optional
@@ -12,7 +13,11 @@ from openretina.data_io.base_dataloader import DataPoint
 from openretina.modules.core.base_core import Core, SimpleCoreWrapper
 from openretina.modules.core.gru_core import ConvGRUCore
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
-from openretina.modules.readout.multi_readout import MultiGaussianReadoutWrapper, MultiSampledGaussianReadoutWrapper
+from openretina.modules.readout.multi_readout import (
+    MultiGaussianReadoutWrapper,
+    MultiKlindtReadoutWrapper,
+    MultiSampledGaussianReadoutWrapper,
+)
 from openretina.utils.file_utils import get_cache_directory, get_local_file_path
 
 LOGGER = logging.getLogger(__name__)
@@ -136,9 +141,29 @@ class BaseCoreReadout(LightningModule):
             },
         }
 
-    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg") -> None:
-        self.core.save_weight_visualizations(os.path.join(folder_path, "weights_core"), file_format)
-        self.readout.save_weight_visualizations(os.path.join(folder_path, "weights_readout"), file_format)  # type: ignore
+    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg", state_suffix: str = "") -> None:
+        """Save weight visualizations for core and readout modules.
+
+        Args:
+            folder_path: Base directory to save visualizations
+            file_format: Image format for saved files
+            state_suffix: Optional suffix for state identification
+        """
+
+        # Helper function to call save_weight_visualizations with dynamic parameter support
+        def _call_save_viz(module: Any, subfolder: str) -> None:
+            full_path = os.path.join(folder_path, subfolder)
+
+            # Check if the method supports state_suffix parameter
+            if "state_suffix" in inspect.signature(module.save_weight_visualizations).parameters:
+                kwargs = {"state_suffix": state_suffix}
+            else:
+                kwargs = {}
+
+            module.save_weight_visualizations(full_path, file_format, **kwargs)
+
+        _call_save_viz(self.core, "weights_core")
+        _call_save_viz(self.readout, "weights_readout")
 
     def compute_readout_input_shape(
         self, core_in_shape: tuple[int, int, int, int], core: Core
@@ -397,6 +422,76 @@ class CoreGaussianReadout(BaseCoreReadout):
             init_grid=init_grid,
             mean_activity=mean_activity,
             readout_reg_avg=readout_reg_avg,
+        )
+
+        super().__init__(core=core, readout=readout, learning_rate=learning_rate, data_info=data_info)
+        self.save_hyperparameters()
+
+
+class CoreKlindtReadout(BaseCoreReadout):
+    def __init__(
+        self,
+        in_shape: Int[tuple, "channels time height width"],
+        hidden_channels: Iterable[int],
+        temporal_kernel_sizes: Iterable[int],
+        spatial_kernel_sizes: Iterable[int],
+        n_neurons_dict: dict[str, int],
+        core_gamma_input: float = 0.0,
+        core_gamma_hidden: float = 0.0,
+        core_gamma_in_sparse: float = 0.0,
+        core_gamma_temporal: float = 40.0,
+        core_input_padding: bool = False,
+        core_hidden_padding: bool = False,
+        readout_bias: bool = False,
+        weights_constraint: Optional[str] = None,
+        mask_constraint: Optional[str] = None,
+        init_mask: Optional[torch.Tensor] = None,
+        init_weights: Optional[torch.Tensor] = None,
+        init_scales: Optional[Iterable[Iterable[float]]] = None,
+        mask_l1_reg: float = 1e-3,
+        weights_l1_reg: float = 1e-1,
+        laplace_mask_reg: float = 1e-1,
+        learning_rate: float = 0.01,
+        cut_first_n_frames_in_core: int = 0,
+        dropout_rate: float = 0.0,
+        maxpool_every_n_layers: Optional[int] = None,
+        downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
+        convolution_type: str = "full",
+        data_info: dict[str, Any] | None = None,
+    ):
+        core = SimpleCoreWrapper(
+            channels=(in_shape[0], *hidden_channels),
+            temporal_kernel_sizes=tuple(temporal_kernel_sizes),
+            spatial_kernel_sizes=tuple(spatial_kernel_sizes),
+            gamma_input=core_gamma_input,
+            gamma_temporal=core_gamma_temporal,
+            gamma_in_sparse=core_gamma_in_sparse,
+            gamma_hidden=core_gamma_hidden,
+            cut_first_n_frames=cut_first_n_frames_in_core,
+            dropout_rate=dropout_rate,
+            maxpool_every_n_layers=maxpool_every_n_layers,
+            downsample_input_kernel_size=downsample_input_kernel_size,
+            input_padding=core_input_padding,
+            hidden_padding=core_hidden_padding,
+            convolution_type=convolution_type,
+        )
+
+        in_shape_readout = self.compute_readout_input_shape(in_shape, core)
+        in_shape_readout_no_time = (in_shape_readout[0],) + in_shape_readout[2:]  # remove time dimension
+
+        readout = MultiKlindtReadoutWrapper(
+            num_kernels=[in_shape_readout_no_time[0]],
+            n_neurons_dict=n_neurons_dict,
+            mask_l1_reg=mask_l1_reg,
+            weights_l1_reg=weights_l1_reg,
+            laplace_mask_reg=laplace_mask_reg,
+            mask_size=in_shape_readout_no_time[1:],
+            readout_bias=readout_bias,
+            weights_constraint=weights_constraint,
+            mask_constraint=mask_constraint,
+            init_mask=init_mask,
+            init_weights=init_weights,
+            init_scales=init_scales,
         )
 
         super().__init__(core=core, readout=readout, learning_rate=learning_rate, data_info=data_info)

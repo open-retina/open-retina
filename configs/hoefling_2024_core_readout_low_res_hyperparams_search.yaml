@@ -13,7 +13,7 @@ defaults:
     - mlflow
   - trainer: default_deterministic
   - hydra: default
-  - override hydra/sweeper: optuna
+  - override hydra/sweeper: optuna  # make sure to install `pip install -e ".[optuna]"
   - override hydra/sweeper/sampler: tpe
   - _self_ # values in this config will overwrite the defaults
 
