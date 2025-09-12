@@ -38,7 +38,12 @@ class Core(nn.Module):
             ret.append(f"{attr} = {getattr(self, attr)}")
         return s + "|".join(ret) + "]\n"
 
-    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg") -> None:
+    def save_weight_visualizations(
+        self,
+        folder_path: str,
+        file_format: str = "jpg",
+        state_suffix: str = "",
+    ) -> None:
         print(f"Save weight visualization of {self.__class__.__name__} not implemented.")
 
 
@@ -224,12 +229,11 @@ class SimpleCoreWrapper(Core):
         fig = conv_obj.plot_weights(in_channel, out_channel)
         return fig
 
-    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg") -> None:
+    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg", state_suffix: str = "") -> None:
         for i, layer in enumerate(self.features):
             output_dir = os.path.join(folder_path, f"weights_layer_{i}")
             os.makedirs(output_dir, exist_ok=True)
-            layer.conv.save_weight_visualizations(output_dir, file_format)
-            print(f"Saved weight visualization at path {output_dir}")
+            layer.conv.save_weight_visualizations(output_dir, file_format, state_suffix)
 
 
 class DummyCore(Core):

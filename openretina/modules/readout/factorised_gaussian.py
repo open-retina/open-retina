@@ -159,13 +159,13 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
 
         return plt.gcf()
 
-    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg") -> None:
+    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg", state_suffix: str = "") -> None:
         for neuron_id in range(self.outdims):
             fig_axes_tuple = plt.subplots(ncols=2, figsize=(2 * 6, 6))
             axes: tuple[plt.Axes, plt.Axes] = fig_axes_tuple[1]  # type: ignore
             self.plot_weight_for_neuron(neuron_id, axes)
 
-            plot_path = f"{folder_path}/neuron_{neuron_id}.{file_format}"
+            plot_path = f"{folder_path}/neuron_{neuron_id}_{state_suffix}.{file_format}"
             fig_axes_tuple[0].savefig(plot_path, bbox_inches="tight", facecolor="w", dpi=300)
             fig_axes_tuple[0].clf()
             plt.close()
