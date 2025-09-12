@@ -2,12 +2,15 @@ import inspect
 import logging
 import os
 from typing import Any, Iterable, Literal, Optional
+import functools
 
 import torch
 import torch.nn as nn
 from jaxtyping import Float, Int
 from lightning import LightningModule
 from lightning.pytorch.utilities import grad_norm
+from omegaconf import DictConfig, OmegaConf
+import hydra.utils
 
 from openretina.data_io.base_dataloader import DataPoint
 from openretina.modules.core.base_core import Core, SimpleCoreWrapper
@@ -196,6 +199,105 @@ class BaseCoreReadout(LightningModule):
         if hasattr(self, "hparams"):
             self.hparams["n_neurons_dict"] = self.data_info["n_neurons_dict"]
             self.hparams["data_info"] = self.data_info
+
+
+class UnifiedCoreReadout(BaseCoreReadout):
+    @classmethod
+    def load_from_checkpoint(
+        cls,
+        checkpoint_path: str | os.PathLike,
+        map_location: str | torch.device | None = None,
+        hparams_file: str | None = None,
+        strict: bool = True,
+        **kwargs,
+    ) -> "UnifiedCoreReadout":
+        breakpoint()
+        ckpt = torch.load(checkpoint_path, map_location=map_location, weights_only=False)
+        saved_hparams = ckpt.get("hyper_parameters", {}) or {}
+        if "core" in saved_hparams and "core" not in kwargs:
+            kwargs["core"] = saved_hparams["core"]
+        if "readout" in saved_hparams and "readout" not in kwargs:
+            kwargs["readout"] = saved_hparams["readout"]
+        return super().load_from_checkpoint(
+            checkpoint_path=checkpoint_path,
+            map_location=map_location,
+            hparams_file=hparams_file,
+            strict=strict,
+            **kwargs,
+        )
+
+    def __init__(
+        self,
+        in_shape: Int[tuple, "channels time height width"],
+        hidden_channels: Iterable[int],
+        temporal_kernel_sizes: Iterable[int],
+        spatial_kernel_sizes: Iterable[int],
+        n_neurons_dict: dict[str, int],
+        core: DictConfig | dict,
+        readout: DictConfig | dict,
+        learning_rate: float = 0.001,
+        cut_first_n_frames_in_core: int = 0,
+        dropout_rate: float = 0.0,
+        maxpool_every_n_layers: Optional[int] = None,
+        downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
+        color_squashing_weights: tuple[float, ...] | None = None,
+        data_info: dict[str, Any] | None = None,
+    ):
+        if isinstance(core, DictConfig):
+            core_cfg = core
+        else:
+            core_cfg = OmegaConf.create(core)
+
+        core_module = hydra.utils.instantiate(
+            core_cfg,
+            channels=(in_shape[0], *hidden_channels),
+            temporal_kernel_sizes=tuple(temporal_kernel_sizes),
+            spatial_kernel_sizes=tuple(spatial_kernel_sizes),
+            cut_first_n_frames=cut_first_n_frames_in_core,
+            dropout_rate=dropout_rate,
+            maxpool_every_n_layers=maxpool_every_n_layers,
+            downsample_input_kernel_size=downsample_input_kernel_size,
+            color_squashing_weights=color_squashing_weights,
+        )
+
+        # Determine output shape of core
+        in_shape_readout = self.compute_readout_input_shape(in_shape, core_module)
+
+        # Build readout via Hydra partial with shape-dependent injection
+        if isinstance(readout, DictConfig):
+            readout_cfg = readout
+        else:
+            readout_cfg = OmegaConf.create(readout)
+        in_shape_no_time = (in_shape_readout[0],) + in_shape_readout[2:]
+        readout_module = hydra.utils.instantiate(
+            readout_cfg,
+            in_shape=in_shape_no_time,
+            n_neurons_dict=n_neurons_dict,
+        )
+
+        super().__init__(core=core_module, readout=readout_module, learning_rate=learning_rate, data_info=data_info)
+        self.save_hyperparameters()
+        # Save reconstructible hyperparameters as plain dicts
+        #core_hparams = OmegaConf.to_container(core_cfg, resolve=False)  # type: ignore
+        #readout_hparams = OmegaConf.to_container(readout_cfg, resolve=False)  # type: ignore
+        #self.save_hyperparameters(
+        #    {
+        #        "in_shape": in_shape,
+        #        "hidden_channels": tuple(hidden_channels),
+        #        "temporal_kernel_sizes": tuple(temporal_kernel_sizes),
+        #        "spatial_kernel_sizes": tuple(spatial_kernel_sizes),
+        #        "n_neurons_dict": n_neurons_dict,
+        #        "core": core_hparams,
+        #        "readout": readout_hparams,
+        #        "learning_rate": learning_rate,
+        #        "cut_first_n_frames_in_core": cut_first_n_frames_in_core,
+        #        "dropout_rate": dropout_rate,
+        #        "maxpool_every_n_layers": maxpool_every_n_layers,
+        #        "downsample_input_kernel_size": downsample_input_kernel_size,
+        #        "color_squashing_weights": color_squashing_weights,
+        #        "data_info": data_info,
+        #    }
+        #)
 
 
 class CoreReadout(BaseCoreReadout):

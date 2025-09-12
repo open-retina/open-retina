@@ -1,0 +1,44 @@
+# core + data
+in_shape: ???  # Required at top-level config
+hidden_channels: [16]
+temporal_kernel_sizes: [8]
+spatial_kernel_sizes: [8]
+n_neurons_dict: ???  # Set dynamically (e.g., in training script after loading sessions)
+
+# instantiate core via Hydra partial
+core:
+  _target_: openretina.modules.core.base_core.SimpleCoreWrapper
+  _convert_: object
+  gamma_input: 0.0
+  gamma_hidden: 0.0
+  gamma_in_sparse: 0.0
+  gamma_temporal: 40.0
+  input_padding: false
+  hidden_padding: true
+  convolution_type: custom_separable
+  channels: ???
+  temporal_kernel_sizes: ???
+  spatial_kernel_sizes: ???
+
+# instantiate readout via Hydra partial
+# Example: sampled Gaussian readout (uses (C,H,W) from core output)
+readout:
+  _target_: openretina.modules.readout.multi_readout.MultiSampledGaussianReadoutWrapper
+  _convert_: object
+  bias: true
+  gamma_readout: 0.4
+  init_mu_range: 0.1
+  init_sigma_range: 0.15
+  readout_reg_avg: false
+  batch_sample: true
+  align_corners: true
+  gauss_type: full
+
+# training
+learning_rate: 0.001
+cut_first_n_frames_in_core: 0
+dropout_rate: 0.0
+maxpool_every_n_layers: null
+downsample_input_kernel_size: null
+color_squashing_weights: null
+

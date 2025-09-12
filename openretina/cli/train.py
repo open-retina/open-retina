@@ -13,6 +13,7 @@ from openretina.data_io.base import compute_data_info
 from openretina.data_io.cyclers import LongCycler, ShortCycler
 from openretina.models.core_readout import load_core_readout_model
 from openretina.utils.log_to_mlflow import log_to_mlflow
+from openretina.models.core_readout import UnifiedCoreReadout
 
 log = logging.getLogger(__name__)
 
@@ -81,8 +82,12 @@ def train_model(cfg: DictConfig) -> float | None:
     else:
         # Assign missing n_neurons_dict to model
         cfg.model.n_neurons_dict = data_info["n_neurons_dict"]
-        log.info(f"Instantiating model <{cfg.model._target_}>")
-        model = hydra.utils.instantiate(cfg.model, data_info=data_info)
+        if hasattr(cfg.model, "_target_"):
+            log.info(f"Instantiating model <{cfg.model._target_}>")
+            model = hydra.utils.instantiate(cfg.model, data_info=data_info)
+        else:
+            log.info("Instantiating model <UnifiedCoreReadout>")
+            model = UnifiedCoreReadout(data_info=data_info, **cfg.model)
 
     if cfg.get("only_train_readout") is True:
         log.info("Only training readout, core model parameters will be frozen.")
