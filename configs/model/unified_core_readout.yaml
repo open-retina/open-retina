@@ -18,34 +18,19 @@ core:
   spatial_kernel_sizes: [8]
   channels: ???  # set dynamically
 
-# instantiate readout via Hydra partial
-#readout:
-#  _target_: openretina.modules.readout.multi_readout.MultiGaussianReadoutWrapper
-#  _convert_: object
-#  in_shape: ???
-#  scale: true
-#  bias: true
-#  gaussian_masks: true
-#  gaussian_mean_scale: 6.0
-#  gaussian_var_scale: 4.0
-#  positive: true
-#  gamma_readout: 0.4
-#  gamma_masks: 0.0
-#  readout_reg_avg: false
-
-# Example: sampled Gaussian readout (uses (C,H,W) from core output)
 readout:
-  _target_: openretina.modules.readout.multi_readout.MultiSampledGaussianReadoutWrapper
+  _target_: openretina.modules.readout.multi_readout.MultiGaussianReadoutWrapper
   _convert_: object
-  bias: true
-  gamma_readout: 0.4
-  init_mu_range: 0.1
-  init_sigma_range: 0.15
-  readout_reg_avg: false
-  batch_sample: true
-  align_corners: true
-  gauss_type: full
   in_shape: ???
+  scale: true
+  bias: true
+  gaussian_masks: true
+  gaussian_mean_scale: 6.0
+  gaussian_var_scale: 4.0
+  positive: true
+  gamma_readout: 0.4
+  gamma_masks: 0.0
+  readout_reg_avg: false
 
 # training
 learning_rate: 0.001

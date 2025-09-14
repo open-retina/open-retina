@@ -206,8 +206,8 @@ class UnifiedCoreReadout(BaseCoreReadout):
         in_shape: Int[tuple, "channels time height width"],
         hidden_channels: Iterable[int],
         n_neurons_dict: dict[str, int],
-        core: DictConfig | dict,
-        readout: DictConfig | dict,
+        core: DictConfig,
+        readout: DictConfig,
         learning_rate: float = 0.001,
         cut_first_n_frames_in_core: int = 0,
         dropout_rate: float = 0.0,
@@ -216,14 +216,9 @@ class UnifiedCoreReadout(BaseCoreReadout):
         color_squashing_weights: tuple[float, ...] | None = None,
         data_info: dict[str, Any] | None = None,
     ):
-        if isinstance(core, DictConfig):
-            core_cfg = core
-        else:
-            core_cfg = OmegaConf.create(core)
-
-        core_cfg.channels = (in_shape[0], *hidden_channels)
+        core.channels = (in_shape[0], *hidden_channels)
         core_module = hydra.utils.instantiate(
-            core_cfg,
+            core,
             cut_first_n_frames=cut_first_n_frames_in_core,
             dropout_rate=dropout_rate,
             maxpool_every_n_layers=maxpool_every_n_layers,
@@ -232,44 +227,17 @@ class UnifiedCoreReadout(BaseCoreReadout):
         )
 
         # Build readout via Hydra partial with shape-dependent injection
-        if isinstance(readout, DictConfig):
-            readout_cfg: DictConfig = readout
-        else:
-            readout_cfg = OmegaConf.create(readout)
-        # Determine output shape of core and set it in the readout config
         if "in_shape" not in readout:
             in_shape_readout = self.compute_readout_input_shape(in_shape, core_module)
-            readout_cfg.in_shape = (in_shape_readout[0],) + in_shape_readout[1:]
+            readout["in_shape"] = (in_shape_readout[0],) + in_shape_readout[1:]
         readout_module = hydra.utils.instantiate(
-            readout_cfg,
+            readout,
             n_neurons_dict=n_neurons_dict,
         )
 
+        # if calling save_hyperparameters after __init__ it leads to errors related to data_info["session_kwargs"]
+        self.save_hyperparameters()
         super().__init__(core=core_module, readout=readout_module, learning_rate=learning_rate, data_info=data_info)
-        core_hparams = OmegaConf.to_container(core_cfg, resolve=False)  # type: ignore
-        readout_hparams = OmegaConf.to_container(readout_cfg, resolve=False)  # type: ignore
-        self.save_hyperparameters(
-            {
-                "in_shape": in_shape,
-                "hidden_channels": tuple(hidden_channels),
-                "n_neurons_dict": n_neurons_dict,
-                "core": core_hparams,
-                "readout": readout_hparams,
-                "learning_rate": learning_rate,
-                "cut_first_n_frames_in_core": cut_first_n_frames_in_core,
-                "dropout_rate": dropout_rate,
-                "maxpool_every_n_layers": maxpool_every_n_layers,
-                "downsample_input_kernel_size": downsample_input_kernel_size,
-                "color_squashing_weights": color_squashing_weights,
-                "data_info": {
-                    "n_neurons_dict": data_info["n_neurons_dict"],  # type: ignore
-                    "input_shape": data_info["input_shape"],  # type: ignore
-                    "movie_norm_dict": data_info["movie_norm_dict"],  # type: ignore
-                    # something is up with the data_info["session_kwargs"] object here for whatever reason??
-                    # "sessions_kwargs": data_info["sessions_kwargs"],
-                },
-            }
-        )
 
 
 class CoreReadout(BaseCoreReadout):
