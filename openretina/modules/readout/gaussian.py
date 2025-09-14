@@ -68,7 +68,7 @@ class FullGaussian2d(Readout):
 
     def __init__(
         self,
-        in_shape,
+        in_shape: tuple[int, int, int, int],
         outdims,
         bias,
         init_mu_range=0.1,
@@ -285,7 +285,7 @@ class FullGaussian2d(Readout):
         learns the original features (True) or if it uses a copy of the features from another instance of FullGaussian2d
         via the `shared_features` (False). If it uses a copy, the feature_l1 regularizer for this copy will return 0
         """
-        c, w, h = self.in_shape
+        c, _, w, h = self.in_shape
         self._original_features = True
         if match_ids is not None:
             assert self.outdims == len(match_ids)
@@ -315,8 +315,6 @@ class FullGaussian2d(Readout):
             self._shared_features = False
 
     def initialize_shared_grid(self, match_ids=None, shared_grid=None):
-        c, w, h = self.in_shape
-
         if match_ids is None:
             raise ValueError("match_ids must be set for sharing grid")
         assert self.outdims == len(match_ids), "There must be one match ID per output dimension"
@@ -358,7 +356,7 @@ class FullGaussian2d(Readout):
             y: neuronal activity
         """
         N, c, w, h = x.size()
-        c_in, w_in, h_in = self.in_shape
+        c_in, _, w_in, h_in = self.in_shape
         if (c_in, w_in, h_in) != (c, w, h):
             warnings.warn("the specified feature map dimension is not the readout's expected input dimension")
         feat = self.features.view(1, c, self.outdims)
@@ -393,7 +391,7 @@ class FullGaussian2d(Readout):
         return y
 
     def __repr__(self):
-        c, w, h = self.in_shape
+        c, _, w, h = self.in_shape
         r = self.gauss_type + " "
         r += self.__class__.__name__ + " (" + "{} x {} x {}".format(c, w, h) + " -> " + str(self.outdims) + ")"
         if self.bias is not None:

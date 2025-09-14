@@ -11,9 +11,8 @@ from omegaconf import DictConfig, OmegaConf
 
 from openretina.data_io.base import compute_data_info
 from openretina.data_io.cyclers import LongCycler, ShortCycler
-from openretina.models.core_readout import load_core_readout_model
+from openretina.models.core_readout import UnifiedCoreReadout, load_core_readout_model
 from openretina.utils.log_to_mlflow import log_to_mlflow
-from openretina.models.core_readout import UnifiedCoreReadout
 
 log = logging.getLogger(__name__)
 

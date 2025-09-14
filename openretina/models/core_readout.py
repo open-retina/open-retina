@@ -2,15 +2,14 @@ import inspect
 import logging
 import os
 from typing import Any, Iterable, Literal, Optional
-import functools
 
+import hydra.utils
 import torch
 import torch.nn as nn
 from jaxtyping import Float, Int
 from lightning import LightningModule
 from lightning.pytorch.utilities import grad_norm
 from omegaconf import DictConfig, OmegaConf
-import hydra.utils
 
 from openretina.data_io.base_dataloader import DataPoint
 from openretina.modules.core.base_core import Core, SimpleCoreWrapper
@@ -202,36 +201,10 @@ class BaseCoreReadout(LightningModule):
 
 
 class UnifiedCoreReadout(BaseCoreReadout):
-    @classmethod
-    def load_from_checkpoint(
-        cls,
-        checkpoint_path: str | os.PathLike,
-        map_location: str | torch.device | None = None,
-        hparams_file: str | None = None,
-        strict: bool = True,
-        **kwargs,
-    ) -> "UnifiedCoreReadout":
-        breakpoint()
-        ckpt = torch.load(checkpoint_path, map_location=map_location, weights_only=False)
-        saved_hparams = ckpt.get("hyper_parameters", {}) or {}
-        if "core" in saved_hparams and "core" not in kwargs:
-            kwargs["core"] = saved_hparams["core"]
-        if "readout" in saved_hparams and "readout" not in kwargs:
-            kwargs["readout"] = saved_hparams["readout"]
-        return super().load_from_checkpoint(
-            checkpoint_path=checkpoint_path,
-            map_location=map_location,
-            hparams_file=hparams_file,
-            strict=strict,
-            **kwargs,
-        )
-
     def __init__(
         self,
         in_shape: Int[tuple, "channels time height width"],
         hidden_channels: Iterable[int],
-        temporal_kernel_sizes: Iterable[int],
-        spatial_kernel_sizes: Iterable[int],
         n_neurons_dict: dict[str, int],
         core: DictConfig | dict,
         readout: DictConfig | dict,
@@ -248,11 +221,9 @@ class UnifiedCoreReadout(BaseCoreReadout):
         else:
             core_cfg = OmegaConf.create(core)
 
+        core_cfg.channels = (in_shape[0], *hidden_channels)
         core_module = hydra.utils.instantiate(
             core_cfg,
-            channels=(in_shape[0], *hidden_channels),
-            temporal_kernel_sizes=tuple(temporal_kernel_sizes),
-            spatial_kernel_sizes=tuple(spatial_kernel_sizes),
             cut_first_n_frames=cut_first_n_frames_in_core,
             dropout_rate=dropout_rate,
             maxpool_every_n_layers=maxpool_every_n_layers,
@@ -260,44 +231,45 @@ class UnifiedCoreReadout(BaseCoreReadout):
             color_squashing_weights=color_squashing_weights,
         )
 
-        # Determine output shape of core
-        in_shape_readout = self.compute_readout_input_shape(in_shape, core_module)
-
         # Build readout via Hydra partial with shape-dependent injection
         if isinstance(readout, DictConfig):
-            readout_cfg = readout
+            readout_cfg: DictConfig = readout
         else:
             readout_cfg = OmegaConf.create(readout)
-        in_shape_no_time = (in_shape_readout[0],) + in_shape_readout[2:]
+        # Determine output shape of core and set it in the readout config
+        if "in_shape" not in readout:
+            in_shape_readout = self.compute_readout_input_shape(in_shape, core_module)
+            readout_cfg.in_shape = (in_shape_readout[0],) + in_shape_readout[1:]
         readout_module = hydra.utils.instantiate(
             readout_cfg,
-            in_shape=in_shape_no_time,
             n_neurons_dict=n_neurons_dict,
         )
 
         super().__init__(core=core_module, readout=readout_module, learning_rate=learning_rate, data_info=data_info)
-        self.save_hyperparameters()
-        # Save reconstructible hyperparameters as plain dicts
-        #core_hparams = OmegaConf.to_container(core_cfg, resolve=False)  # type: ignore
-        #readout_hparams = OmegaConf.to_container(readout_cfg, resolve=False)  # type: ignore
-        #self.save_hyperparameters(
-        #    {
-        #        "in_shape": in_shape,
-        #        "hidden_channels": tuple(hidden_channels),
-        #        "temporal_kernel_sizes": tuple(temporal_kernel_sizes),
-        #        "spatial_kernel_sizes": tuple(spatial_kernel_sizes),
-        #        "n_neurons_dict": n_neurons_dict,
-        #        "core": core_hparams,
-        #        "readout": readout_hparams,
-        #        "learning_rate": learning_rate,
-        #        "cut_first_n_frames_in_core": cut_first_n_frames_in_core,
-        #        "dropout_rate": dropout_rate,
-        #        "maxpool_every_n_layers": maxpool_every_n_layers,
-        #        "downsample_input_kernel_size": downsample_input_kernel_size,
-        #        "color_squashing_weights": color_squashing_weights,
-        #        "data_info": data_info,
-        #    }
-        #)
+        core_hparams = OmegaConf.to_container(core_cfg, resolve=False)  # type: ignore
+        readout_hparams = OmegaConf.to_container(readout_cfg, resolve=False)  # type: ignore
+        self.save_hyperparameters(
+            {
+                "in_shape": in_shape,
+                "hidden_channels": tuple(hidden_channels),
+                "n_neurons_dict": n_neurons_dict,
+                "core": core_hparams,
+                "readout": readout_hparams,
+                "learning_rate": learning_rate,
+                "cut_first_n_frames_in_core": cut_first_n_frames_in_core,
+                "dropout_rate": dropout_rate,
+                "maxpool_every_n_layers": maxpool_every_n_layers,
+                "downsample_input_kernel_size": downsample_input_kernel_size,
+                "color_squashing_weights": color_squashing_weights,
+                "data_info": {
+                    "n_neurons_dict": data_info["n_neurons_dict"],  # type: ignore
+                    "input_shape": data_info["input_shape"],  # type: ignore
+                    "movie_norm_dict": data_info["movie_norm_dict"],  # type: ignore
+                    # something is up with the data_info["session_kwargs"] object here for whatever reason??
+                    # "sessions_kwargs": data_info["sessions_kwargs"],
+                },
+            }
+        )
 
 
 class CoreReadout(BaseCoreReadout):
@@ -506,10 +478,8 @@ class CoreGaussianReadout(BaseCoreReadout):
         )
 
         in_shape_readout = self.compute_readout_input_shape(in_shape, core)
-        in_shape_readout_no_time = (in_shape_readout[0],) + in_shape_readout[2:]  # remove time dimension
-
         readout = MultiSampledGaussianReadoutWrapper(
-            in_shape=in_shape_readout_no_time,
+            in_shape=in_shape_readout,
             n_neurons_dict=n_neurons_dict,
             bias=readout_bias,
             init_mu_range=init_mu_range,

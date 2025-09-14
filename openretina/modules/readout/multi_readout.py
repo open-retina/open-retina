@@ -116,6 +116,7 @@ class MultiKlindtReadoutWrapper(nn.ModuleDict):
         init_mask: Optional[torch.Tensor] = None,
         init_weights: Optional[torch.Tensor] = None,
         init_scales: Optional[Iterable[Iterable[float]]] = None,
+        in_shape: tuple[int, int, int, int] = (42, 42, 42, 42),  # for compatibility with other readouts
     ):
         super().__init__()
         self.session_init_args = {
@@ -195,7 +196,7 @@ class MultiSampledGaussianReadoutWrapper(nn.ModuleDict):
 
     def __init__(
         self,
-        in_shape: tuple[int, int, int],
+        in_shape: tuple[int, int, int, int],
         n_neurons_dict: dict[str, int],
         bias: bool,
         init_mu_range: float,
@@ -246,7 +247,7 @@ class MultiSampledGaussianReadoutWrapper(nn.ModuleDict):
             )
         for k in n_neurons_dict:  # iterate over sessions
             n_neurons = n_neurons_dict[k]
-            assert len(self.session_init_args["in_shape"]) == 3  # type: ignore
+            assert len(self.session_init_args["in_shape"]) == 4  # type: ignore
             self.add_module(
                 k,
                 FullGaussian2d(  # add a readout for each session
