@@ -1,7 +1,6 @@
 import argparse
 import os
 from functools import partial
-from pathlib import PurePath
 from typing import Any
 
 import matplotlib.pyplot as plt

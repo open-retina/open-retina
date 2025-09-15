@@ -73,9 +73,9 @@ class ConvGRUCore(Core3d, nn.Module):
         self.use_avg_reg = use_avg_reg
 
         if not isinstance(temporal_kernel_sizes, (list, tuple)):
-            temporal_kernel_size = [temporal_kernel_sizes] * self.layers
+            temporal_kernel_sizes = [temporal_kernel_sizes] * self.layers
         if not isinstance(spatial_kernel_sizes, (list, tuple)):
-            spatial_kernel_size = [spatial_kernel_sizes] * self.layers
+            spatial_kernel_sizes = [spatial_kernel_sizes] * self.layers
 
         self.features = nn.Sequential()
 
