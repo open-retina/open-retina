@@ -324,7 +324,6 @@ def load_core_readout_from_remote(
 def load_core_readout_model(
     model_path_or_name: str,
     device: str,
-    is_gru_model: bool | None = None,  # for legacy models
     cache_directory_path: str | os.PathLike | None = None,
 ) -> BaseCoreReadout:
     if cache_directory_path is None:
