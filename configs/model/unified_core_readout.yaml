@@ -1,5 +1,5 @@
 # core + data
-hidden_channels: [16]
+hidden_channels: [16, 16]
 in_shape: ???  # Required at top-level config
 n_neurons_dict: ???  # Set dynamically (e.g., in training script after loading sessions)
 
@@ -11,11 +11,11 @@ core:
   gamma_hidden: 0.0
   gamma_in_sparse: 0.0
   gamma_temporal: 40.0
-  input_padding: false
-  hidden_padding: true
+  input_padding: 0
+  hidden_padding: [0, 2, 2]
   convolution_type: custom_separable
-  temporal_kernel_sizes: [8]
-  spatial_kernel_sizes: [8]
+  temporal_kernel_sizes: [21, 11]
+  spatial_kernel_sizes: [11, 5]
   cut_first_n_frames: 0
   dropout_rate: 0.0
   maxpool_every_n_layers: null

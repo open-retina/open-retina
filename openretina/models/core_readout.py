@@ -560,6 +560,7 @@ def load_core_readout_model(
         return load_core_readout_from_remote(model_path_or_name, device)
 
     local_path = get_local_file_path(model_path_or_name, cache_directory_path)
+    return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
     if is_gru_model:
         return GRUCoreReadout.load_from_checkpoint(local_path, map_location=device)
     else:
