@@ -41,19 +41,20 @@ hydra:
     n_jobs: 1
     params:
       model.hidden_channels: choice([8, 8, 8, 8], [16, 16, 16, 16], [32, 32, 32, 32])
-      model.core_gamma_input: interval(1e-5, 1e-2)
+      model.core.gamma_input: interval(1e-5, 1e-2)
       
 
 model:
   in_shape: [2, 150, 18, 16]
   hidden_channels: [16, 16, 16, 16]
-  temporal_kernel_sizes: [15, 15, 7, 7]
-  spatial_kernel_sizes: [15, 15, 7, 7]
-  core_hidden_padding: true
-  core_input_padding: true
-  cut_first_n_frames_in_core: 30
-  maxpool_every_n_layers: 2
-  # downsample_input_kernel_size: [1, 4, 4]  # to reproduce 18x16px lowres input
+  core:
+    temporal_kernel_sizes: [15, 15, 7, 7]
+    spatial_kernel_sizes: [15, 15, 7, 7]
+    hidden_padding: true
+    core_input_padding: true
+    cut_first_n_frames: 30
+    maxpool_every_n_layers: 2
+    # downsample_input_kernel_size: [1, 4, 4]  # to reproduce 18x16px lowres input
 
 paths:
   cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Remote files are downloaded to this location
