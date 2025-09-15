@@ -29,9 +29,7 @@ _HUGGINGFACE_CHECKPOINTS_BASE_PATH = (
 _MODEL_NAME_TO_REMOTE_LOCATION = {
     "hoefling_2024_base_low_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/hoefling_2024_base_low_res.ckpt",
     "hoefling_2024_base_high_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/hoefling_2024_base_high_res.ckpt",
-    "karamanlis_2024_gru": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/karamanlis_2024_GRU.ckpt",
     "karamanlis_2024_base": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/karamanlis_2024_base.ckpt",
-    "maheswaranathan_2023_gru": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/maheswaranathan_2023_GRU.ckpt",
     "maheswaranathan_2023_base": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/maheswaranathan_2023_base.ckpt",
 }
 
@@ -212,6 +210,7 @@ class UnifiedCoreReadout(BaseCoreReadout):
         core.channels = (in_shape[0], *hidden_channels)
         core_module = hydra.utils.instantiate(
             core,
+            n_neurons_dict=n_neurons_dict,
         )
 
         # determine input_shape of readout if it is not already present
@@ -301,88 +300,6 @@ class CoreReadout(BaseCoreReadout):
         self.save_hyperparameters()
 
 
-class GRUCoreReadout(BaseCoreReadout):
-    # Legacy: keep to load old models
-    def __init__(
-        self,
-        in_shape: Int[tuple, "channels time height width"],
-        hidden_channels: Iterable[int],
-        temporal_kernel_sizes: Iterable[int],
-        spatial_kernel_sizes: Iterable[int],
-        n_neurons_dict: dict[str, int],
-        core_gamma_hidden: float,
-        core_gamma_input: float,
-        core_gamma_in_sparse: float,
-        core_gamma_temporal: float,
-        core_bias: bool,
-        core_input_padding: bool,
-        core_hidden_padding: bool,
-        core_use_gru: bool,
-        core_use_projections: bool,
-        readout_scale: bool,
-        readout_bias: bool,
-        readout_gaussian_masks: bool,
-        readout_gaussian_mean_scale: float,
-        readout_gaussian_var_scale: float,
-        readout_positive: bool,
-        readout_gamma: float,
-        readout_gamma_masks: float = 0.0,
-        readout_reg_avg: bool = False,
-        batch_adaptation: bool = False,
-        learning_rate: float = 0.01,
-        core_gru_kwargs: Optional[dict] = None,
-        convolution_type: str = "custom_separable",
-        data_info: dict[str, Any] | None = None,
-    ):
-        core = ConvGRUCore(  # type: ignore
-            n_neurons_dict=n_neurons_dict,
-            input_channels=in_shape[0],
-            hidden_channels=hidden_channels,
-            temporal_kernel_size=temporal_kernel_sizes,
-            spatial_kernel_size=spatial_kernel_sizes,
-            layers=len(tuple(hidden_channels)),
-            gamma_hidden=core_gamma_hidden,
-            gamma_input=core_gamma_input,
-            gamma_in_sparse=core_gamma_in_sparse,
-            gamma_temporal=core_gamma_temporal,
-            final_nonlinearity=True,
-            bias=core_bias,
-            input_padding=core_input_padding,
-            hidden_padding=core_hidden_padding,
-            batch_norm=True,
-            batch_norm_scale=True,
-            batch_norm_momentum=0.1,
-            batch_adaptation=batch_adaptation,
-            use_avg_reg=False,
-            nonlinearity="ELU",
-            conv_type=convolution_type,
-            use_gru=core_use_gru,
-            use_projections=core_use_projections,
-            gru_kwargs=core_gru_kwargs,
-        )
-
-        # Run one forward pass to determine output shape of core
-        in_shape_readout = self.compute_readout_input_shape(in_shape, core)
-        LOGGER.info(f"{in_shape_readout=}")
-
-        readout = MultiGaussianReadoutWrapper(
-            in_shape_readout,
-            n_neurons_dict,
-            readout_scale,
-            readout_bias,
-            readout_gaussian_masks,
-            readout_gaussian_mean_scale,
-            readout_gaussian_var_scale,
-            readout_positive,
-            readout_gamma,
-            readout_gamma_masks,
-            readout_reg_avg,
-        )
-
-        super().__init__(core=core, readout=readout, learning_rate=learning_rate, data_info=data_info)
-        self.save_hyperparameters()
-
-
 def load_core_readout_from_remote(
     model_name: str,
     device: str,
@@ -401,11 +318,8 @@ def load_core_readout_from_remote(
     try:
         return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
     except:  # noqa: E722
-        LOGGER.warning("Could not load UnifiedCoreReadout, trying to load legacy models.")
-        if "gru" in model_name.lower():
-            return GRUCoreReadout.load_from_checkpoint(local_path, map_location=device)
-        else:
-            return CoreReadout.load_from_checkpoint(local_path, map_location=device)
+        LOGGER.warning("Could not load UnifiedCoreReadout, trying to load legacy model.")
+        return CoreReadout.load_from_checkpoint(local_path, map_location=device)
 
 
 def load_core_readout_model(
@@ -423,8 +337,5 @@ def load_core_readout_model(
     try:
         return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
     except:  # noqa: E722
-        LOGGER.warning("Could not load UnifiedCoreReadout, trying to load legacy models.")
-        if is_gru_model:
-            return GRUCoreReadout.load_from_checkpoint(local_path, map_location=device)
-        else:
-            return CoreReadout.load_from_checkpoint(local_path, map_location=device)
+        LOGGER.warning("Could not load UnifiedCoreReadout, trying to load legacy model.")
+        return CoreReadout.load_from_checkpoint(local_path, map_location=device)

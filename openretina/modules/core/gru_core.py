@@ -22,12 +22,10 @@ from openretina.modules.layers.scaling import FiLM
 class ConvGRUCore(Core3d, nn.Module):
     def __init__(
         self,
+        channels: tuple[int, ...],
         n_neurons_dict: dict[str, int] | None = None,
-        input_channels: int = 2,
-        hidden_channels=(8,),
-        temporal_kernel_size=(21,),
-        spatial_kernel_size=(14,),
-        layers: int = 1,
+        temporal_kernel_sizes=(21,),
+        spatial_kernel_sizes=(14,),
         gamma_hidden: float = 0.0,
         gamma_input: float = 0.0,
         gamma_in_sparse: float = 0.0,
@@ -65,21 +63,19 @@ class ConvGRUCore(Core3d, nn.Module):
                     "learn the adaptation terms per session."
                 )
 
-        self.layers = layers
         self.gamma_input = gamma_input
         self.gamma_in_sparse = gamma_in_sparse
         self.gamma_hidden = gamma_hidden
         self.gamma_temporal = gamma_temporal
-        self.input_channels = input_channels
-        self.hidden_channels = hidden_channels
+        self.input_channels = channels[0]
+        self.hidden_channels = channels[1:]
+        self.layers = len(self.hidden_channels)
         self.use_avg_reg = use_avg_reg
 
-        if not isinstance(hidden_channels, (list, tuple)):
-            hidden_channels = [hidden_channels] * (self.layers)
-        if not isinstance(temporal_kernel_size, (list, tuple)):
-            temporal_kernel_size = [temporal_kernel_size] * (self.layers)
-        if not isinstance(spatial_kernel_size, (list, tuple)):
-            spatial_kernel_size = [spatial_kernel_size] * (self.layers)
+        if not isinstance(temporal_kernel_sizes, (list, tuple)):
+            temporal_kernel_size = [temporal_kernel_sizes] * self.layers
+        if not isinstance(spatial_kernel_sizes, (list, tuple)):
+            spatial_kernel_size = [spatial_kernel_sizes] * self.layers
 
         self.features = nn.Sequential()
 
@@ -87,14 +83,14 @@ class ConvGRUCore(Core3d, nn.Module):
         log_speed_dict = self.generate_log_speed_dict(n_neurons_dict, batch_adaptation) if batch_adaptation else {}
 
         # Padding logic
-        self.input_pad, self.hidden_pad = self.calculate_padding(input_padding, hidden_padding, spatial_kernel_size)
+        self.input_pad, self.hidden_pad = self.calculate_padding(input_padding, hidden_padding, spatial_kernel_sizes)
 
         # Initialize layers, including projection if applicable
         self.initialize_layers(
-            input_channels,
-            hidden_channels,
-            temporal_kernel_size,
-            spatial_kernel_size,
+            self.input_channels,
+            self.hidden_channels,
+            temporal_kernel_sizes,
+            spatial_kernel_sizes,
             log_speed_dict,
             batch_norm,
             batch_norm_momentum,
@@ -112,7 +108,7 @@ class ConvGRUCore(Core3d, nn.Module):
         # GRU integration
         if use_gru:
             print("Using GRU")
-            self.features.add_module("gru", GRU_Module(input_channels=hidden_channels[-1], **gru_kwargs))  # type: ignore
+            self.features.add_module("gru", GRU_Module(input_channels=self.hidden_channels[-1], **gru_kwargs))  # type: ignore
 
     def forward(self, input_, data_key=None):
         ret = []
@@ -143,8 +139,8 @@ class ConvGRUCore(Core3d, nn.Module):
         self,
         input_channels,
         hidden_channels,
-        temporal_kernel_size,
-        spatial_kernel_size,
+        temporal_kernel_sizes,
+        spatial_kernel_sizes,
         log_speed_dict,
         batch_norm,
         batch_norm_momentum,
@@ -161,8 +157,8 @@ class ConvGRUCore(Core3d, nn.Module):
             input_channels,
             hidden_channels[0],
             log_speed_dict,
-            temporal_kernel_size[0],
-            spatial_kernel_size[0],
+            temporal_kernel_sizes[0],
+            spatial_kernel_sizes[0],
             bias=False,
             padding=input_pad,  # type: ignore
         )
@@ -198,15 +194,14 @@ class ConvGRUCore(Core3d, nn.Module):
             )
 
         # --- other layers
-
         for layer_num in range(1, self.layers):
             layer = OrderedDict()
             layer["conv"] = self.conv_class(
                 hidden_channels[layer_num - 1],
                 hidden_channels[layer_num],
                 log_speed_dict,
-                temporal_kernel_size[layer_num],
-                spatial_kernel_size[layer_num],
+                temporal_kernel_sizes[layer_num],
+                spatial_kernel_sizes[layer_num],
                 bias=False,
                 padding=hidden_pad[layer_num - 1],  # type: ignore
             )
