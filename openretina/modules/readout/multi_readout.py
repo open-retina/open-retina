@@ -104,21 +104,22 @@ class MultiKlindtReadoutWrapper(nn.ModuleDict):
 
     def __init__(
         self,
-        num_kernels: Iterable[int],
+        in_shape: tuple[int, int, int, int],
         n_neurons_dict: dict[str, int],
         mask_l1_reg: float,
         weights_l1_reg: float,
         laplace_mask_reg: float,
-        mask_size: int | Iterable[int],
         readout_bias: bool = False,
         weights_constraint: Optional[str] = None,
         mask_constraint: Optional[str] = None,
         init_mask: Optional[torch.Tensor] = None,
         init_weights: Optional[torch.Tensor] = None,
         init_scales: Optional[Iterable[Iterable[float]]] = None,
-        in_shape: tuple[int, int, int, int] = (42, 42, 42, 42),  # for compatibility with other readouts
     ):
         super().__init__()
+        # set kernels and mask size based on input shape
+        num_kernels = [in_shape[0]]
+        mask_size = in_shape[2:]
         self.session_init_args = {
             "num_kernels": num_kernels,
             "mask_l1_reg": mask_l1_reg,
