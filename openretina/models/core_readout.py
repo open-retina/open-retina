@@ -1,7 +1,7 @@
 import inspect
 import logging
 import os
-from typing import Any, Iterable, Literal, Optional
+from typing import Any, Iterable, Optional
 
 import hydra.utils
 import torch
@@ -17,7 +17,6 @@ from openretina.modules.core.gru_core import ConvGRUCore
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
 from openretina.modules.readout.multi_readout import (
     MultiGaussianReadoutWrapper,
-    MultiSampledGaussianReadoutWrapper,
 )
 from openretina.utils.file_utils import get_cache_directory, get_local_file_path
 
@@ -215,7 +214,7 @@ class UnifiedCoreReadout(BaseCoreReadout):
             core,
         )
 
-        # Build readout via Hydra partial with shape-dependent injection
+        # determine input_shape of readout if it is not already present
         if "in_shape" not in readout:
             in_shape_readout = self.compute_readout_input_shape(in_shape, core_module)
             readout["in_shape"] = (in_shape_readout[0],) + in_shape_readout[1:]
@@ -230,6 +229,7 @@ class UnifiedCoreReadout(BaseCoreReadout):
 
 
 class CoreReadout(BaseCoreReadout):
+    # Legacy: keep to load old models
     def __init__(
         self,
         in_shape: Int[tuple, "channels time height width"],
@@ -302,6 +302,7 @@ class CoreReadout(BaseCoreReadout):
 
 
 class GRUCoreReadout(BaseCoreReadout):
+    # Legacy: keep to load old models
     def __init__(
         self,
         in_shape: Int[tuple, "channels time height width"],
@@ -398,14 +399,13 @@ def load_core_readout_from_remote(
     local_path = get_local_file_path(remote_path, cache_directory_path)
 
     try:
-        model = UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
+        return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
     except:  # noqa: E722
         LOGGER.warning("Could not load UnifiedCoreReadout, trying to load legacy models.")
         if "gru" in model_name.lower():
-            model = GRUCoreReadout.load_from_checkpoint(local_path, map_location=device)
+            return GRUCoreReadout.load_from_checkpoint(local_path, map_location=device)
         else:
-            model = CoreReadout.load_from_checkpoint(local_path, map_location=device)
-    return model
+            return CoreReadout.load_from_checkpoint(local_path, map_location=device)
 
 
 def load_core_readout_model(
@@ -421,11 +421,10 @@ def load_core_readout_model(
 
     local_path = get_local_file_path(model_path_or_name, cache_directory_path)
     try:
-        model = UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
+        return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
     except:  # noqa: E722
         LOGGER.warning("Could not load UnifiedCoreReadout, trying to load legacy models.")
         if is_gru_model:
-            model = GRUCoreReadout.load_from_checkpoint(local_path, map_location=device)
+            return GRUCoreReadout.load_from_checkpoint(local_path, map_location=device)
         else:
-            model = CoreReadout.load_from_checkpoint(local_path, map_location=device)
-    return model
+            return CoreReadout.load_from_checkpoint(local_path, map_location=device)
