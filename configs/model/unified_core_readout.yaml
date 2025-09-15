@@ -16,6 +16,11 @@ core:
   convolution_type: custom_separable
   temporal_kernel_sizes: [8]
   spatial_kernel_sizes: [8]
+  cut_first_n_frames: 0
+  dropout_rate: 0.0
+  maxpool_every_n_layers: null
+  downsample_input_kernel_size: null
+  color_squashing_weights: null
   channels: ???  # set dynamically
 
 readout:
@@ -34,9 +39,4 @@ readout:
 
 # training
 learning_rate: 0.001
-cut_first_n_frames_in_core: 0
-dropout_rate: 0.0
-maxpool_every_n_layers: null
-downsample_input_kernel_size: null
-color_squashing_weights: null
 

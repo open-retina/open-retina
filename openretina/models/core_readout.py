@@ -9,7 +9,7 @@ import torch.nn as nn
 from jaxtyping import Float, Int
 from lightning import LightningModule
 from lightning.pytorch.utilities import grad_norm
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from openretina.data_io.base_dataloader import DataPoint
 from openretina.modules.core.base_core import Core, SimpleCoreWrapper
@@ -209,21 +209,11 @@ class UnifiedCoreReadout(BaseCoreReadout):
         core: DictConfig,
         readout: DictConfig,
         learning_rate: float = 0.001,
-        cut_first_n_frames_in_core: int = 0,
-        dropout_rate: float = 0.0,
-        maxpool_every_n_layers: Optional[int] = None,
-        downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
-        color_squashing_weights: tuple[float, ...] | None = None,
         data_info: dict[str, Any] | None = None,
     ):
         core.channels = (in_shape[0], *hidden_channels)
         core_module = hydra.utils.instantiate(
             core,
-            cut_first_n_frames=cut_first_n_frames_in_core,
-            dropout_rate=dropout_rate,
-            maxpool_every_n_layers=maxpool_every_n_layers,
-            downsample_input_kernel_size=downsample_input_kernel_size,
-            color_squashing_weights=color_squashing_weights,
         )
 
         # Build readout via Hydra partial with shape-dependent injection

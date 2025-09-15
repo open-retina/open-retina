@@ -77,7 +77,6 @@ def train_model(cfg: DictConfig) -> float | None:
         # add new readouts and modify stored data in model
         model.readout.add_sessions(data_info["n_neurons_dict"])  # type: ignore
         model.update_model_data_info(data_info)
-
     else:
         # Assign missing n_neurons_dict to model
         cfg.model.n_neurons_dict = data_info["n_neurons_dict"]
