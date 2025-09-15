@@ -86,7 +86,7 @@ class FullGaussian2d(Readout):
         **kwargs,
     ):
         super().__init__()
-        self.gamma_redout = gamma_readout
+        self.gamma_readout = gamma_readout
         self.mean_activity = mean_activity
         # determines whether the Gaussian is isotropic or not
         self.gauss_type = gauss_type

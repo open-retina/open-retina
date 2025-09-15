@@ -210,15 +210,15 @@ class MultiSampledGaussianReadoutWrapper(nn.ModuleDict):
         shared_grid=None,
         init_grid=None,
         mean_activity=None,
-        gamma_readout: float = 1.0,
-        readout_reg_avg: bool = False,
+        gamma: float = 1.0,
+        reg_avg: bool = False,
         nonlinearity_function: Callable[[torch.Tensor], torch.Tensor] = torch.nn.functional.softplus,
     ):
         super().__init__()
         self.session_init_args = {
             "in_shape": in_shape,
             "init_mu_range": init_mu_range,
-            "init_simga": init_sigma_range,
+            "init_sigma": init_sigma_range,
             "batch_sample": batch_sample,
             "align_corners": align_corners,
             "gauss_type": gauss_type,
@@ -232,8 +232,8 @@ class MultiSampledGaussianReadoutWrapper(nn.ModuleDict):
 
         self.add_sessions(n_neurons_dict)
 
-        self.gamma_readout = gamma_readout
-        self.readout_reg_avg = readout_reg_avg
+        self.gamma = gamma
+        self.readout_reg_avg = reg_avg
         self.nonlinearity = nonlinearity_function
 
     def add_sessions(self, n_neurons_dict: dict[str, int]) -> None:
@@ -279,7 +279,7 @@ class MultiSampledGaussianReadoutWrapper(nn.ModuleDict):
         return response
 
     def regularizer(self, data_key: str) -> torch.Tensor:
-        feature_loss = self[data_key].feature_l1() * self.gamma_readout
+        feature_loss = self[data_key].feature_l1() * self.gamma
         return feature_loss
 
     def readout_keys(self) -> list[str]:
