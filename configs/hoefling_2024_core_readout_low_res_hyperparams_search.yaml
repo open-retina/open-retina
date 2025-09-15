@@ -51,7 +51,7 @@ model:
     temporal_kernel_sizes: [15, 15, 7, 7]
     spatial_kernel_sizes: [15, 15, 7, 7]
     hidden_padding: true
-    core_input_padding: true
+    input_padding: true
     cut_first_n_frames: 30
     maxpool_every_n_layers: 2
     # downsample_input_kernel_size: [1, 4, 4]  # to reproduce 18x16px lowres input
