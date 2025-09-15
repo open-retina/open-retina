@@ -17,7 +17,6 @@ from openretina.modules.core.gru_core import ConvGRUCore
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
 from openretina.modules.readout.multi_readout import (
     MultiGaussianReadoutWrapper,
-    MultiKlindtReadoutWrapper,
     MultiSampledGaussianReadoutWrapper,
 )
 from openretina.utils.file_utils import get_cache_directory, get_local_file_path
@@ -475,7 +474,7 @@ def load_core_readout_from_remote(
 
     try:
         model = UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
-    except:
+    except:  # noqa: E722
         LOGGER.warning("Could not load UnifiedCoreReadout, trying to load legacy models.")
         if "gru" in model_name.lower():
             model = GRUCoreReadout.load_from_checkpoint(local_path, map_location=device)
@@ -498,7 +497,7 @@ def load_core_readout_model(
     local_path = get_local_file_path(model_path_or_name, cache_directory_path)
     try:
         model = UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
-    except:
+    except:  # noqa: E722
         LOGGER.warning("Could not load UnifiedCoreReadout, trying to load legacy models.")
         if is_gru_model:
             model = GRUCoreReadout.load_from_checkpoint(local_path, map_location=device)
