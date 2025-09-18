@@ -317,7 +317,7 @@ def load_core_readout_from_remote(
     try:
         return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
     except:  # noqa: E722
-        LOGGER.warning("Could not load UnifiedCoreReadout, trying to load legacy model.")
+        # Support for legacy CoreReadout model
         return CoreReadout.load_from_checkpoint(local_path, map_location=device)
 
 
@@ -335,5 +335,5 @@ def load_core_readout_model(
     try:
         return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
     except:  # noqa: E722
-        LOGGER.warning("Could not load UnifiedCoreReadout, trying to load legacy model.")
+        # Support for legacy CoreReadout model
         return CoreReadout.load_from_checkpoint(local_path, map_location=device)
