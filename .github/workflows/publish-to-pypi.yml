@@ -55,7 +55,7 @@ jobs:
     - name: Publish distribution to TestPyPI
       shell: bash
       run: |
-        uv publish --index testpypi --check-url https://test.pypi.org/simple/
+        uv publish --index testpypi
 
   publish-to-pypi:
     name: PyPI
@@ -82,7 +82,7 @@ jobs:
     - name: Publish distribution to PyPI
       shell: bash
       run: |
-        uv publish --check-url https://pypi.org/simple/
+        uv publish
 
   github-release:
     name: Github Release
