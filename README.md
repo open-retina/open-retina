@@ -14,17 +14,20 @@ The models in this repository are inspired by and partially contain adapted code
 
 ## Installation
 
+We recommend running and installing `openretina` with `uv`, a fast and flexible project and package manager. 
+If you are not familiar with uv, check out their [simple quickstart guide](https://docs.astral.sh/uv/).
+
 For development and to have access to Jupyter notebooks:
 ```
 git clone git@github.com:open-retina/open-retina.git
 cd open-retina
-pip install -e .
+uv sync
 ```
 
 For normal usage:
 
 ```
-pip install openretina
+uv pip install openretina
 ```
 
 Test openretina by downloading a model and running a forward pass:
