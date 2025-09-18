@@ -43,6 +43,8 @@ jobs:
       id-token: write  # IMPORTANT: mandatory for trusted publishing
 
     steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
     - name: Download all the dists
       uses: actions/download-artifact@v4
       with:
@@ -55,7 +57,7 @@ jobs:
     - name: Publish distribution to TestPyPI
       shell: bash
       run: |
-        uv publish --index testpypi
+        uv publish --index testpypi --trusted-publishing always
 
   publish-to-pypi:
     name: PyPI
@@ -70,6 +72,8 @@ jobs:
       id-token: write  # IMPORTANT: mandatory for trusted publishing
 
     steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
     - name: Download all the dists
       uses: actions/download-artifact@v4
       with:
