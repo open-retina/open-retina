@@ -25,13 +25,14 @@ dataloader:
 model:
   in_shape: [2, 150, 72, 64]
   hidden_channels: [16, 16, 16, 16]
-  temporal_kernel_sizes: [15, 15, 7, 7]
-  spatial_kernel_sizes: [15, 15, 7, 7]
-  core_hidden_padding: true
-  core_input_padding: true
-  cut_first_n_frames_in_core: 30
-  maxpool_every_n_layers: 2
-  # downsample_input_kernel_size: [1, 4, 4]  # to reproduce 18x16px lowres input
+  core:
+    temporal_kernel_sizes: [15, 15, 7, 7]
+    spatial_kernel_sizes: [15, 15, 7, 7]
+    hidden_padding: true
+    input_padding: true
+    cut_first_n_frames: 30
+    maxpool_every_n_layers: 2
+    # downsample_input_kernel_size: [1, 4, 4]  # to reproduce 18x16px lowres input
 
 paths:
   load_model_path: null  # e.g. hoefling_2024_base_high_res or path to a .ckpt model

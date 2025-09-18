@@ -1,32 +1,40 @@
-_target_: openretina.models.core_readout.CoreReadout
-_convert_: object
-
-# core
-in_shape: ??? # Required for core init. Needs to be assigned in the top level config.
+# Core and data
 hidden_channels: [16, 16]
-temporal_kernel_sizes: [21, 11]
-spatial_kernel_sizes: [11, 5]
-core_gamma_input: 0.0
-core_gamma_in_sparse: 0.0
-core_gamma_hidden: 0.0
-core_gamma_temporal: 40.0
-core_input_padding: 0
-core_hidden_padding: [0, 2, 2]
-maxpool_every_n_layers: null
-downsample_input_kernel_size: null
-convolution_type: "custom_separable"
+in_shape: ???  # Required at top-level config
+n_neurons_dict: ???  # Set dynamically (e.g., in training script after loading sessions)
 
-# readout
-n_neurons_dict: ??? # Required for readout init. Set dynamically in scripts/train.py based on loaded sessions.
-readout_scale: true
-readout_bias: true
-readout_gaussian_masks: true
-readout_gaussian_mean_scale: 6.0
-readout_gaussian_var_scale: 4.0
-readout_positive: true
-readout_gamma: 0.4
+core:
+  _target_: openretina.modules.core.base_core.SimpleCoreWrapper
+  _convert_: object
+  gamma_input: 0.0
+  gamma_hidden: 0.0
+  gamma_in_sparse: 0.0
+  gamma_temporal: 40.0
+  input_padding: 0
+  hidden_padding: [0, 2, 2]
+  convolution_type: custom_separable
+  temporal_kernel_sizes: [21, 11]
+  spatial_kernel_sizes: [11, 5]
+  cut_first_n_frames: 0
+  dropout_rate: 0.0
+  maxpool_every_n_layers: null
+  downsample_input_kernel_size: null
+  color_squashing_weights: null
+  channels: ???  # set dynamically based on input channels
+
+readout:
+  _target_: openretina.modules.readout.multi_readout.MultiGaussianReadoutWrapper
+  _convert_: object
+  in_shape: ???
+  scale: true
+  bias: true
+  gaussian_masks: true
+  gaussian_mean_scale: 6.0
+  gaussian_var_scale: 4.0
+  positive: true
+  gamma_readout: 0.4
+  gamma_masks: 0.0
+  readout_reg_avg: false
 
 # training
 learning_rate: 0.01
-cut_first_n_frames_in_core: 0
-dropout_rate: 0.0

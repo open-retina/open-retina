@@ -11,7 +11,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from openretina.data_io.base import compute_data_info
 from openretina.data_io.cyclers import LongCycler, ShortCycler
-from openretina.models.core_readout import load_core_readout_model
+from openretina.models.core_readout import UnifiedCoreReadout, load_core_readout_model
 from openretina.utils.log_to_mlflow import log_to_mlflow
 
 log = logging.getLogger(__name__)
@@ -71,18 +71,20 @@ def train_model(cfg: DictConfig) -> float | None:
     if load_model_path:
         log.info(f"Loading model from <{load_model_path}>")
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        is_gru_model = "gru" in cfg.model._target_.lower() if hasattr(cfg.model, "_target_") else False
-        model = load_core_readout_model(load_model_path, device, is_gru_model=is_gru_model)
+        model = load_core_readout_model(load_model_path, device)
 
         # add new readouts and modify stored data in model
         model.readout.add_sessions(data_info["n_neurons_dict"])  # type: ignore
         model.update_model_data_info(data_info)
-
     else:
         # Assign missing n_neurons_dict to model
         cfg.model.n_neurons_dict = data_info["n_neurons_dict"]
-        log.info(f"Instantiating model <{cfg.model._target_}>")
-        model = hydra.utils.instantiate(cfg.model, data_info=data_info)
+        if hasattr(cfg.model, "_target_"):
+            log.info(f"Instantiating model <{cfg.model._target_}>")
+            model = hydra.utils.instantiate(cfg.model, data_info=data_info)
+        else:
+            log.info("Instantiating model <UnifiedCoreReadout>")
+            model = UnifiedCoreReadout(data_info=data_info, **cfg.model)
 
     if cfg.get("only_train_readout") is True:
         log.info("Only training readout, core model parameters will be frozen.")

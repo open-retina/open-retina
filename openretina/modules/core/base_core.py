@@ -77,6 +77,7 @@ class SimpleCoreWrapper(Core):
         hidden_padding: bool | int | str | tuple[int, int, int] = True,
         color_squashing_weights: tuple[float, ...] | None = None,
         convolution_type: str = "custom_separable",
+        n_neurons_dict: dict[str, int] | None = None,  # for compatibility
     ):
         # Input validation
         if len(channels) < 2:

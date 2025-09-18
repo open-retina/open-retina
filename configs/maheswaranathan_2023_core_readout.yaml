@@ -28,7 +28,8 @@ paths:
 model:
   in_shape: [1, 100, 50, 50]
   hidden_channels: [16, 32]
-  spatial_kernel_sizes: [15, 11] # as in the model from the paper. They used stacked convolutions though.
+  core:
+    spatial_kernel_sizes: [15, 11] # as in the model from the paper. They used stacked convolutions though.
 
 matmul_precision:
   _target_: torch.set_float32_matmul_precision
