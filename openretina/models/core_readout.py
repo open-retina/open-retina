@@ -1,22 +1,21 @@
 import inspect
 import logging
 import os
-from typing import Any, Iterable, Literal, Optional
+from typing import Any, Iterable, Optional
 
+import hydra.utils
 import torch
 import torch.nn as nn
 from jaxtyping import Float, Int
 from lightning import LightningModule
 from lightning.pytorch.utilities import grad_norm
+from omegaconf import DictConfig
 
 from openretina.data_io.base_dataloader import DataPoint
 from openretina.modules.core.base_core import Core, SimpleCoreWrapper
-from openretina.modules.core.gru_core import ConvGRUCore
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
 from openretina.modules.readout.multi_readout import (
     MultiGaussianReadoutWrapper,
-    MultiKlindtReadoutWrapper,
-    MultiSampledGaussianReadoutWrapper,
 )
 from openretina.utils.file_utils import get_cache_directory, get_local_file_path
 
@@ -29,9 +28,7 @@ _HUGGINGFACE_CHECKPOINTS_BASE_PATH = (
 _MODEL_NAME_TO_REMOTE_LOCATION = {
     "hoefling_2024_base_low_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/hoefling_2024_base_low_res.ckpt",
     "hoefling_2024_base_high_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/hoefling_2024_base_high_res.ckpt",
-    "karamanlis_2024_gru": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/karamanlis_2024_GRU.ckpt",
     "karamanlis_2024_base": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/karamanlis_2024_base.ckpt",
-    "maheswaranathan_2023_gru": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/maheswaranathan_2023_GRU.ckpt",
     "maheswaranathan_2023_base": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/maheswaranathan_2023_base.ckpt",
 }
 
@@ -198,7 +195,39 @@ class BaseCoreReadout(LightningModule):
             self.hparams["data_info"] = self.data_info
 
 
+class UnifiedCoreReadout(BaseCoreReadout):
+    def __init__(
+        self,
+        in_shape: Int[tuple, "channels time height width"],
+        hidden_channels: Iterable[int],
+        n_neurons_dict: dict[str, int],
+        core: DictConfig,
+        readout: DictConfig,
+        learning_rate: float = 0.001,
+        data_info: dict[str, Any] | None = None,
+    ):
+        core.channels = (in_shape[0], *hidden_channels)
+        core_module = hydra.utils.instantiate(
+            core,
+            n_neurons_dict=n_neurons_dict,
+        )
+
+        # determine input_shape of readout if it is not already present
+        if "in_shape" not in readout:
+            in_shape_readout = self.compute_readout_input_shape(in_shape, core_module)
+            readout["in_shape"] = (in_shape_readout[0],) + in_shape_readout[1:]
+        readout_module = hydra.utils.instantiate(
+            readout,
+            n_neurons_dict=n_neurons_dict,
+        )
+
+        # if calling save_hyperparameters after __init__ it leads to errors related to data_info["session_kwargs"]
+        self.save_hyperparameters()
+        super().__init__(core=core_module, readout=readout_module, learning_rate=learning_rate, data_info=data_info)
+
+
 class CoreReadout(BaseCoreReadout):
+    # Legacy: keep to load old models
     def __init__(
         self,
         in_shape: Int[tuple, "channels time height width"],
@@ -270,234 +299,6 @@ class CoreReadout(BaseCoreReadout):
         self.save_hyperparameters()
 
 
-class GRUCoreReadout(BaseCoreReadout):
-    def __init__(
-        self,
-        in_shape: Int[tuple, "channels time height width"],
-        hidden_channels: Iterable[int],
-        temporal_kernel_sizes: Iterable[int],
-        spatial_kernel_sizes: Iterable[int],
-        n_neurons_dict: dict[str, int],
-        core_gamma_hidden: float,
-        core_gamma_input: float,
-        core_gamma_in_sparse: float,
-        core_gamma_temporal: float,
-        core_bias: bool,
-        core_input_padding: bool,
-        core_hidden_padding: bool,
-        core_use_gru: bool,
-        core_use_projections: bool,
-        readout_scale: bool,
-        readout_bias: bool,
-        readout_gaussian_masks: bool,
-        readout_gaussian_mean_scale: float,
-        readout_gaussian_var_scale: float,
-        readout_positive: bool,
-        readout_gamma: float,
-        readout_gamma_masks: float = 0.0,
-        readout_reg_avg: bool = False,
-        batch_adaptation: bool = False,
-        learning_rate: float = 0.01,
-        core_gru_kwargs: Optional[dict] = None,
-        convolution_type: str = "custom_separable",
-        data_info: dict[str, Any] | None = None,
-    ):
-        core = ConvGRUCore(  # type: ignore
-            n_neurons_dict=n_neurons_dict,
-            input_channels=in_shape[0],
-            hidden_channels=hidden_channels,
-            temporal_kernel_size=temporal_kernel_sizes,
-            spatial_kernel_size=spatial_kernel_sizes,
-            layers=len(tuple(hidden_channels)),
-            gamma_hidden=core_gamma_hidden,
-            gamma_input=core_gamma_input,
-            gamma_in_sparse=core_gamma_in_sparse,
-            gamma_temporal=core_gamma_temporal,
-            final_nonlinearity=True,
-            bias=core_bias,
-            input_padding=core_input_padding,
-            hidden_padding=core_hidden_padding,
-            batch_norm=True,
-            batch_norm_scale=True,
-            batch_norm_momentum=0.1,
-            batch_adaptation=batch_adaptation,
-            use_avg_reg=False,
-            nonlinearity="ELU",
-            conv_type=convolution_type,
-            use_gru=core_use_gru,
-            use_projections=core_use_projections,
-            gru_kwargs=core_gru_kwargs,
-        )
-
-        # Run one forward pass to determine output shape of core
-        in_shape_readout = self.compute_readout_input_shape(in_shape, core)
-        LOGGER.info(f"{in_shape_readout=}")
-
-        readout = MultiGaussianReadoutWrapper(
-            in_shape_readout,
-            n_neurons_dict,
-            readout_scale,
-            readout_bias,
-            readout_gaussian_masks,
-            readout_gaussian_mean_scale,
-            readout_gaussian_var_scale,
-            readout_positive,
-            readout_gamma,
-            readout_gamma_masks,
-            readout_reg_avg,
-        )
-
-        super().__init__(core=core, readout=readout, learning_rate=learning_rate, data_info=data_info)
-        self.save_hyperparameters()
-
-
-class CoreGaussianReadout(BaseCoreReadout):
-    def __init__(
-        self,
-        in_shape: Int[tuple, "channels time height width"],
-        hidden_channels: Iterable[int],
-        temporal_kernel_sizes: Iterable[int],
-        spatial_kernel_sizes: Iterable[int],
-        n_neurons_dict: dict[str, int],
-        core_gamma_input: float = 0.0,
-        core_gamma_hidden: float = 0.0,
-        core_gamma_in_sparse: float = 0.0,
-        core_gamma_temporal: float = 40.0,
-        core_input_padding: bool = False,
-        core_hidden_padding: bool = False,
-        readout_bias: bool = True,
-        init_mu_range: float = 0.1,
-        init_sigma_range: float = 0.1,
-        readout_gamma: float = 0.4,
-        readout_reg_avg: bool = False,
-        batch_sample: bool = False,
-        align_corners: bool = True,
-        gauss_type: Literal["full", "iso"] = "full",
-        grid_mean_predictor=None,
-        shared_features=None,
-        init_grid=None,
-        shared_grid=None,
-        mean_activity=None,
-        learning_rate: float = 0.01,
-        cut_first_n_frames_in_core: int = 0,
-        dropout_rate: float = 0.0,
-        maxpool_every_n_layers: Optional[int] = None,
-        downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
-        convolution_type: str = "full",
-        data_info: dict[str, Any] | None = None,
-    ):
-        core = SimpleCoreWrapper(
-            channels=(in_shape[0], *hidden_channels),
-            temporal_kernel_sizes=tuple(temporal_kernel_sizes),
-            spatial_kernel_sizes=tuple(spatial_kernel_sizes),
-            gamma_input=core_gamma_input,
-            gamma_temporal=core_gamma_temporal,
-            gamma_in_sparse=core_gamma_in_sparse,
-            gamma_hidden=core_gamma_hidden,
-            cut_first_n_frames=cut_first_n_frames_in_core,
-            dropout_rate=dropout_rate,
-            maxpool_every_n_layers=maxpool_every_n_layers,
-            downsample_input_kernel_size=downsample_input_kernel_size,
-            input_padding=core_input_padding,
-            hidden_padding=core_hidden_padding,
-            convolution_type=convolution_type,
-        )
-
-        in_shape_readout = self.compute_readout_input_shape(in_shape, core)
-        in_shape_readout_no_time = (in_shape_readout[0],) + in_shape_readout[2:]  # remove time dimension
-
-        readout = MultiSampledGaussianReadoutWrapper(
-            in_shape=in_shape_readout_no_time,
-            n_neurons_dict=n_neurons_dict,
-            bias=readout_bias,
-            init_mu_range=init_mu_range,
-            init_sigma_range=init_sigma_range,
-            gamma_readout=readout_gamma,
-            batch_sample=batch_sample,
-            align_corners=align_corners,
-            gauss_type=gauss_type,
-            grid_mean_predictor=grid_mean_predictor,
-            shared_features=shared_features,
-            shared_grid=shared_grid,
-            init_grid=init_grid,
-            mean_activity=mean_activity,
-            readout_reg_avg=readout_reg_avg,
-        )
-
-        super().__init__(core=core, readout=readout, learning_rate=learning_rate, data_info=data_info)
-        self.save_hyperparameters()
-
-
-class CoreKlindtReadout(BaseCoreReadout):
-    def __init__(
-        self,
-        in_shape: Int[tuple, "channels time height width"],
-        hidden_channels: Iterable[int],
-        temporal_kernel_sizes: Iterable[int],
-        spatial_kernel_sizes: Iterable[int],
-        n_neurons_dict: dict[str, int],
-        core_gamma_input: float = 0.0,
-        core_gamma_hidden: float = 0.0,
-        core_gamma_in_sparse: float = 0.0,
-        core_gamma_temporal: float = 40.0,
-        core_input_padding: bool = False,
-        core_hidden_padding: bool = False,
-        readout_bias: bool = False,
-        weights_constraint: Optional[str] = None,
-        mask_constraint: Optional[str] = None,
-        init_mask: Optional[torch.Tensor] = None,
-        init_weights: Optional[torch.Tensor] = None,
-        init_scales: Optional[Iterable[Iterable[float]]] = None,
-        mask_l1_reg: float = 1e-3,
-        weights_l1_reg: float = 1e-1,
-        laplace_mask_reg: float = 1e-1,
-        learning_rate: float = 0.01,
-        cut_first_n_frames_in_core: int = 0,
-        dropout_rate: float = 0.0,
-        maxpool_every_n_layers: Optional[int] = None,
-        downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
-        convolution_type: str = "full",
-        data_info: dict[str, Any] | None = None,
-    ):
-        core = SimpleCoreWrapper(
-            channels=(in_shape[0], *hidden_channels),
-            temporal_kernel_sizes=tuple(temporal_kernel_sizes),
-            spatial_kernel_sizes=tuple(spatial_kernel_sizes),
-            gamma_input=core_gamma_input,
-            gamma_temporal=core_gamma_temporal,
-            gamma_in_sparse=core_gamma_in_sparse,
-            gamma_hidden=core_gamma_hidden,
-            cut_first_n_frames=cut_first_n_frames_in_core,
-            dropout_rate=dropout_rate,
-            maxpool_every_n_layers=maxpool_every_n_layers,
-            downsample_input_kernel_size=downsample_input_kernel_size,
-            input_padding=core_input_padding,
-            hidden_padding=core_hidden_padding,
-            convolution_type=convolution_type,
-        )
-
-        in_shape_readout = self.compute_readout_input_shape(in_shape, core)
-        in_shape_readout_no_time = (in_shape_readout[0],) + in_shape_readout[2:]  # remove time dimension
-
-        readout = MultiKlindtReadoutWrapper(
-            num_kernels=[in_shape_readout_no_time[0]],
-            n_neurons_dict=n_neurons_dict,
-            mask_l1_reg=mask_l1_reg,
-            weights_l1_reg=weights_l1_reg,
-            laplace_mask_reg=laplace_mask_reg,
-            mask_size=in_shape_readout_no_time[1:],
-            readout_bias=readout_bias,
-            weights_constraint=weights_constraint,
-            mask_constraint=mask_constraint,
-            init_mask=init_mask,
-            init_weights=init_weights,
-            init_scales=init_scales,
-        )
-
-        super().__init__(core=core, readout=readout, learning_rate=learning_rate, data_info=data_info)
-        self.save_hyperparameters()
-
-
 def load_core_readout_from_remote(
     model_name: str,
     device: str,
@@ -512,16 +313,17 @@ def load_core_readout_from_remote(
         )
     remote_path = _MODEL_NAME_TO_REMOTE_LOCATION[model_name]
     local_path = get_local_file_path(remote_path, cache_directory_path)
-    if "gru" in model_name.lower():
-        return GRUCoreReadout.load_from_checkpoint(local_path, map_location=device)
-    else:
+
+    try:
+        return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
+    except:  # noqa: E722
+        # Support for legacy CoreReadout model
         return CoreReadout.load_from_checkpoint(local_path, map_location=device)
 
 
 def load_core_readout_model(
     model_path_or_name: str,
     device: str,
-    is_gru_model: bool,
     cache_directory_path: str | os.PathLike | None = None,
 ) -> BaseCoreReadout:
     if cache_directory_path is None:
@@ -530,7 +332,8 @@ def load_core_readout_model(
         return load_core_readout_from_remote(model_path_or_name, device)
 
     local_path = get_local_file_path(model_path_or_name, cache_directory_path)
-    if is_gru_model:
-        return GRUCoreReadout.load_from_checkpoint(local_path, map_location=device)
-    else:
+    try:
+        return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
+    except:  # noqa: E722
+        # Support for legacy CoreReadout model
         return CoreReadout.load_from_checkpoint(local_path, map_location=device)

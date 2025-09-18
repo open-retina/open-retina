@@ -104,12 +104,11 @@ class MultiKlindtReadoutWrapper(nn.ModuleDict):
 
     def __init__(
         self,
-        num_kernels: Iterable[int],
+        in_shape: tuple[int, int, int, int],
         n_neurons_dict: dict[str, int],
         mask_l1_reg: float,
         weights_l1_reg: float,
         laplace_mask_reg: float,
-        mask_size: int | Iterable[int],
         readout_bias: bool = False,
         weights_constraint: Optional[str] = None,
         mask_constraint: Optional[str] = None,
@@ -118,6 +117,9 @@ class MultiKlindtReadoutWrapper(nn.ModuleDict):
         init_scales: Optional[Iterable[Iterable[float]]] = None,
     ):
         super().__init__()
+        # set kernels and mask size based on input shape
+        num_kernels = [in_shape[0]]
+        mask_size = in_shape[2:]
         self.session_init_args = {
             "num_kernels": num_kernels,
             "mask_l1_reg": mask_l1_reg,
@@ -195,7 +197,7 @@ class MultiSampledGaussianReadoutWrapper(nn.ModuleDict):
 
     def __init__(
         self,
-        in_shape: tuple[int, int, int],
+        in_shape: tuple[int, int, int, int],
         n_neurons_dict: dict[str, int],
         bias: bool,
         init_mu_range: float,
@@ -208,15 +210,15 @@ class MultiSampledGaussianReadoutWrapper(nn.ModuleDict):
         shared_grid=None,
         init_grid=None,
         mean_activity=None,
-        gamma_readout: float = 1.0,
-        readout_reg_avg: bool = False,
+        gamma: float = 1.0,
+        reg_avg: bool = False,
         nonlinearity_function: Callable[[torch.Tensor], torch.Tensor] = torch.nn.functional.softplus,
     ):
         super().__init__()
         self.session_init_args = {
             "in_shape": in_shape,
             "init_mu_range": init_mu_range,
-            "init_simga": init_sigma_range,
+            "init_sigma": init_sigma_range,
             "batch_sample": batch_sample,
             "align_corners": align_corners,
             "gauss_type": gauss_type,
@@ -230,8 +232,8 @@ class MultiSampledGaussianReadoutWrapper(nn.ModuleDict):
 
         self.add_sessions(n_neurons_dict)
 
-        self.gamma_readout = gamma_readout
-        self.readout_reg_avg = readout_reg_avg
+        self.gamma = gamma
+        self.readout_reg_avg = reg_avg
         self.nonlinearity = nonlinearity_function
 
     def add_sessions(self, n_neurons_dict: dict[str, int]) -> None:
@@ -246,7 +248,7 @@ class MultiSampledGaussianReadoutWrapper(nn.ModuleDict):
             )
         for k in n_neurons_dict:  # iterate over sessions
             n_neurons = n_neurons_dict[k]
-            assert len(self.session_init_args["in_shape"]) == 3  # type: ignore
+            assert len(self.session_init_args["in_shape"]) == 4  # type: ignore
             self.add_module(
                 k,
                 FullGaussian2d(  # add a readout for each session
@@ -277,7 +279,7 @@ class MultiSampledGaussianReadoutWrapper(nn.ModuleDict):
         return response
 
     def regularizer(self, data_key: str) -> torch.Tensor:
-        feature_loss = self[data_key].feature_l1() * self.gamma_readout
+        feature_loss = self[data_key].feature_l1() * self.gamma
         return feature_loss
 
     def readout_keys(self) -> list[str]:

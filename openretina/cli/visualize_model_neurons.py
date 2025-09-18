@@ -1,7 +1,6 @@
 import argparse
 import os
 from functools import partial
-from pathlib import PurePath
 from typing import Any
 
 import matplotlib.pyplot as plt
@@ -69,9 +68,8 @@ def load_model(
 ):
     if path is not None:
         # check if the filename contains gru to decide whether to load from the gru name
-        is_gru_model = "gru" in PurePath(path).name.lower()
-        model = load_core_readout_model(path, device, is_gru_model)
-        print(f"Initializing lightning model from {path} to {device=} ({is_gru_model=}")
+        model = load_core_readout_model(path, device)
+        print(f"Initializing lightning model from {path} to {device=}")
     elif is_hoefling_ensemble_model:
         center_readout = Center(target_mean=(0.0, 0.0)) if do_center_readout else None
         _, ensemble_model = load_ensemble_model_from_remote(device=device, center_readout=center_readout)
