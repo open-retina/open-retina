@@ -48,6 +48,10 @@ jobs:
       with:
         name: python-package-distributions
         path: dist/
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "${HOME}/.local/bin" >> $GITHUB_PATH
     - name: Publish distribution to TestPyPI
       shell: bash
       run: |
@@ -71,6 +75,10 @@ jobs:
       with:
         name: python-package-distributions
         path: dist/
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "${HOME}/.local/bin" >> $GITHUB_PATH
     - name: Publish distribution to PyPI
       shell: bash
       run: |
