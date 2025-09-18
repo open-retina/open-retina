@@ -45,7 +45,7 @@ def get_io_dims(data_loader) -> dict[str, tuple[int, ...]] | tuple:
         data_loader (torch.DataLoader): is expected to be a pytorch Dataloader object returning
             either a namedtuple, dictionary, or a plain tuple.
     Returns:
-        dict or tuple: If data_loader element is either namedtuple or dictionary, a ditionary
+        dict or tuple: If data_loader element is either namedtuple or dictionary, a dictionary
             of shape information, keyed for each entry of dataset is returned. Otherwise, a tuple
             of shape information is returned. The first dimension is always the batch dim
             with size depending on the data_loader configuration.

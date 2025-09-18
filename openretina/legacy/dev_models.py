@@ -258,7 +258,7 @@ class VideoEncoder(Encoder):
         batch_size = x.shape[0]
         time_points = x.shape[1]
 
-        # Treat time as an indipendent (batch) dimension for the readout
+        # Treat time as an independent (batch) dimension for the readout
         x = x.reshape(((-1,) + x.size()[2:]))
         x = self.readout(x, data_key=data_key, **kwargs)
 

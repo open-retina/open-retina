@@ -27,7 +27,7 @@ class FullGaussian2d(Readout):
             covariance matrix with Uniform([-init_sigma, init_sigma]). Default: 1
         batch_sample (bool): if True, samples a position for each image in the batch separately
                             [default: True as it decreases convergence time and performs just as well]
-        align_corners (bool): Keyword agrument to gridsample for bilinear interpolation.
+        align_corners (bool): Keyword argument to gridsample for bilinear interpolation.
                 It changed behavior in PyTorch 1.3. The default of align_corners = True is setting the
                 behavior to pre PyTorch 1.3 functionality for comparability.
         gauss_type (str): Which Gaussian to use. Options are 'isotropic', 'uncorrelated', or 'full' (default).
