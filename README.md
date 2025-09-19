@@ -10,11 +10,11 @@
 [![huggingface](https://huggingface.co/datasets/huggingface/badges/resolve/main/dataset-on-hf-sm.svg)](https://huggingface.co/datasets/open-retina/open-retina)
 
 Open-source repository containing neural network models of the retina.
-The models in this repository are inspired by and partially contain adapted code of [sinzlab/neuralpredictors](https://github.com/sinzlab/neuralpredictors). Accompanying preprint: [openretina: Collaborative Retina Modelling Across Datasets and Species](https://www.biorxiv.org/content/10.1101/2025.03.07.642012v1).
+The models in this repository are inspired by and contain adapted code of [sinzlab/neuralpredictors](https://github.com/sinzlab/neuralpredictors). Accompanying preprint: [openretina: Collaborative Retina Modelling Across Datasets and Species](https://www.biorxiv.org/content/10.1101/2025.03.07.642012v1).
 
 ## Installation
 
-`openretina` supports simply installing via pip.
+`openretina` supports installation via pip.
 
 ```bash
 # (Recommended) using a package manager like uv
@@ -77,12 +77,10 @@ The openretina package is structured as follows:
 
 ## Related papers and data sources
 
-The Core + Readout model was developed in the paper [A chromatic feature detector in the retina signals visual context changes](https://elifesciences.org/articles/86860). All datasets used in openretina are shared under a CC-BY Share-Alike license, and we acknowledge and credit the original sources below:
-
 * hoefling\_2024: Originally published by Höfling et al. (2024), eLife
   * Paper: [A chromatic feature detector in the retina signals visual context changes](https://doi.org/10.7554/eLife.86860).
   * Dataset originally deposited at: https://gin.g-node.org/eulerlab/rgc-natstim
-* karamanlis\_2024: Originally published by Karamanlis et al. (2024), Nature.
+* karamanlis\_2024: Originally published by Karamanlis et al. (2024), Nature
   * Paper: [Nonlinear receptive fields evoke redundant retinal coding of natural scenes](https://doi.org/10.1038/s41586-024-08212-3)
   * Dataset: Karamanlis D, Gollisch T (2023) Dataset - Marmoset and mouse retinal ganglion cell responses to natural stimuli and supporting data. G-Node. https://doi.org/10.12751/g-node.ejk8kx
 * maheswaranathan\_2023: Originally published by Maheswaranathan et al. (2023), Neuron
