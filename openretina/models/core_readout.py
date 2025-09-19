@@ -49,7 +49,7 @@ class BaseCoreReadout(LightningModule):
         self.readout = readout
         self.learning_rate = learning_rate
         self.loss = loss if loss is not None else PoissonLoss3d()
-        self.correlation_loss = correlation_loss if correlation_loss is not None else CorrelationLoss3d(avg=True)
+        self.correlation_loss = correlation_loss if correlation_loss is not None else CorrelationLoss3d(per_neuron=True)
         if data_info is None:
             data_info = {}
         self.data_info = data_info
@@ -105,10 +105,30 @@ class BaseCoreReadout(LightningModule):
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
         correlation = -self.correlation_loss.forward(model_output, data_point.targets)
+
+        if correlation.shape[0] > 1:
+            # Needs aggregating across neurons
+            avg_correlation = correlation.mean(dim=0)
+        else:
+            avg_correlation = correlation
+
+        # Add metric and performances to data_info for downstream tasks
+        if "pretrained_performance_metric" not in self.data_info:
+            self.data_info["pretrained_performance_metric"] = str(type(self.correlation_loss))
+
+        if "pretrained_performance" not in self.data_info:
+            self.data_info["pretrained_performance"] = {}
+
+        # Also add cut frames if not present
+        if "model_cut_frames" not in self.data_info:
+            self.data_info["model_cut_frames"] = data_point.targets.size(1) - model_output.size(1)
+
+        self.data_info["pretrained_performance"][session_id] = correlation
+
         self.log_dict(
             {
                 "test_loss": loss,
-                "test_correlation": correlation,
+                "test_correlation": avg_correlation,
             }
         )
 
@@ -193,6 +213,11 @@ class BaseCoreReadout(LightningModule):
         if hasattr(self, "hparams"):
             self.hparams["n_neurons_dict"] = self.data_info["n_neurons_dict"]
             self.hparams["data_info"] = self.data_info
+
+    @property
+    def pretrained_cfg(self) -> dict[str, Any]:
+        """Alias for data_info, following timm conventions."""
+        return self.data_info
 
 
 class UnifiedCoreReadout(BaseCoreReadout):
