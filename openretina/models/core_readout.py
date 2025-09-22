@@ -49,7 +49,7 @@ class BaseCoreReadout(LightningModule):
         self.readout = readout
         self.learning_rate = learning_rate
         self.loss = loss if loss is not None else PoissonLoss3d()
-        self.correlation_loss = correlation_loss if correlation_loss is not None else CorrelationLoss3d(per_neuron=True)
+        self.correlation_loss = correlation_loss if correlation_loss is not None else CorrelationLoss3d(avg=True)
         if data_info is None:
             data_info = {}
         self.data_info = data_info
@@ -104,17 +104,12 @@ class BaseCoreReadout(LightningModule):
         session_id, data_point = batch
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
-        correlation = -self.correlation_loss.forward(model_output, data_point.targets)
-
-        if correlation.shape[0] > 1:
-            # Needs aggregating across neurons
-            avg_correlation = correlation.mean(dim=0)
-        else:
-            avg_correlation = correlation
+        avg_correlation = -self.correlation_loss.forward(model_output, data_point.targets)
+        per_neuron_correlation = -self.correlation_loss._per_neuron_correlations
 
         # Add metric and performances to data_info for downstream tasks
         if "pretrained_performance_metric" not in self.data_info:
-            self.data_info["pretrained_performance_metric"] = str(type(self.correlation_loss))
+            self.data_info["pretrained_performance_metric"] = "test " + type(self.correlation_loss).__name__
 
         if "pretrained_performance" not in self.data_info:
             self.data_info["pretrained_performance"] = {}
@@ -123,7 +118,7 @@ class BaseCoreReadout(LightningModule):
         if "model_cut_frames" not in self.data_info:
             self.data_info["model_cut_frames"] = data_point.targets.size(1) - model_output.size(1)
 
-        self.data_info["pretrained_performance"][session_id] = correlation
+        self.data_info["pretrained_performance"][session_id] = per_neuron_correlation
 
         self.log_dict(
             {
@@ -133,6 +128,17 @@ class BaseCoreReadout(LightningModule):
         )
 
         return loss
+
+    def on_test_end(self):
+        # Update internal lightning hyperparameters to save the updated data_info after testing.
+        self.hparams["data_info"] = self.data_info
+
+        # Save using checkpointer callback (should always exist with our default configs)
+        if self.trainer and self.trainer.checkpoint_callback:
+            best_model_path = self.trainer.checkpoint_callback.best_model_path
+            if best_model_path:
+                final_path = best_model_path.replace(".ckpt", "_final.ckpt")
+                self.trainer.save_checkpoint(final_path)
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
