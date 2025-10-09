@@ -39,7 +39,12 @@ class Core(nn.Module):
             ret.append(f"{attr} = {getattr(self, attr)}")
         return s + "|".join(ret) + "]\n"
 
-    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg") -> None:
+    def save_weight_visualizations(
+        self,
+        folder_path: str,
+        file_format: str = "jpg",
+        state_suffix: str = "",
+    ) -> None:
         print(f"Save weight visualization of {self.__class__.__name__} not implemented.")
 
 
@@ -73,6 +78,7 @@ class SimpleCoreWrapper(Core):
         hidden_padding: bool | int | str | tuple[int, int, int] = True,
         color_squashing_weights: tuple[float, ...] | None = None,
         convolution_type: str = "custom_separable",
+        n_neurons_dict: dict[str, int] | None = None,  # for compatibility
     ):
         # Input validation
         if len(channels) < 2:
@@ -225,9 +231,7 @@ class SimpleCoreWrapper(Core):
         fig = conv_obj.plot_weights(in_channel, out_channel)
         return fig
 
-    def save_weight_visualizations(
-        self, folder_path: str, file_format: str = "jpg", state_suffix: Optional[str] = None
-    ) -> None:
+    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg", state_suffix: str = "") -> None:
         for i, layer in enumerate(self.features):
             output_dir = os.path.join(folder_path, f"weights_layer_{i}")
             os.makedirs(output_dir, exist_ok=True)

@@ -21,12 +21,16 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: 'pip'
 
-      - name: Install openretina with dependencies
+      - name: Install uv
         run: |
-          pip install --upgrade pip
-          pip install ".[dev]"
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "${HOME}/.local/bin" >> $GITHUB_PATH
 
-      - name: Run unittests
-        run: make test-types
+      - name: Sync dev dependencies
+        run: |
+          uv sync --extra dev
+
+      - name: Run MyPy type checks
+        run: |
+          make test-types

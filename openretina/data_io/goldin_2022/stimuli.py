@@ -15,8 +15,6 @@ from openretina.data_io.base import MoviesTrainTestSplit, normalize_train_test_m
 from openretina.utils.file_utils import get_local_file_path
 from openretina.utils.h5_handling import load_dataset_from_h5
 
-CLIP_LENGTH = 1  # one frame of 300ms
-
 
 def load_all_stimuli(
     base_data_path: str | os.PathLike,
@@ -57,7 +55,7 @@ def load_all_stimuli(
         else:
             norm_dict = {"norm_mean": None, "norm_std": None}
 
-        stimuli_all_sessions[str(session).replace(".h5", "")] = MoviesTrainTestSplit(
+        stimuli_all_sessions[str(session).removesuffix(".h5")] = MoviesTrainTestSplit(
             train=train_image,
             test=test_image,
             stim_id=stim_type,
@@ -65,5 +63,4 @@ def load_all_stimuli(
             norm_mean=norm_dict["norm_mean"],
             norm_std=norm_dict["norm_std"],
         )
-    print(stimuli_all_sessions.keys())
     return stimuli_all_sessions

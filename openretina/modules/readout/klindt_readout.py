@@ -137,8 +137,9 @@ class KlindtReadoutWrapper3D(Readout):
         else:
             return mask_r + wt_r + laplace_mask_r
 
-    def save_weight_visualizations(self, readout_folder, file_format, state_suffix=None, cell_indices=None):
-        state_suffix = str(state_suffix)
+    def save_weight_visualizations(
+        self, readout_folder, file_format: str, state_suffix: str = "", cell_indices=None
+    ) -> None:
         if hasattr(self, "mask_size"):
             H, W = self.mask_size
         else:
@@ -196,11 +197,11 @@ class KlindtReadoutWrapper3D(Readout):
         plt.close()
 
         # Feature weights
-        weights = readout.readout_weights.detach().cpu()
-        weights = weights.numpy()
+        feature_weights = readout.readout_weights.detach().cpu()
+        feature_weights_np = feature_weights.numpy()
 
         fig, ax = plt.subplots(figsize=(8, 6))
-        im = ax.imshow(weights, aspect="auto", cmap="gray")
+        im = ax.imshow(feature_weights_np, aspect="auto", cmap="gray")
         ax.set_title("Feature Weights (channels × neurons)")
         ax.set_xlabel("Neuron")
         ax.set_ylabel("Feature Channel")

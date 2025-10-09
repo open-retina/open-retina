@@ -28,5 +28,6 @@ paths:
 model:
   in_shape: ???
   hidden_channels: ???
-  spatial_kernel_sizes: ??? 
+  core:
+    spatial_kernel_sizes: ???
   # Can over-ride further model defaults here.

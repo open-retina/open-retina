@@ -6,9 +6,9 @@ build-backend = "setuptools.build_meta"
 name = "openretina"
 version = "1.0.0"
 authors = [
-  { name="Federico D'Agostino"},
-  { name="Thomas Zenkel"},
-  { name="Larissa Höfling"},
+    { name = "Federico D'Agostino" },
+    { name = "Thomas Zenkel" },
+    { name = "Larissa Höfling" },
 ]
 description = "Open source retina model architectures and training setups"
 requires-python = ">=3.10"
@@ -58,22 +58,28 @@ dev = [
     "nbmake",
     "jupyterlab",
 ]
-devmodels = [
-    "neuralpredictors"
+devmodels = ["neuralpredictors"]
+optuna = [ # for hyperparameter tuning
+    "hydra-optuna-sweeper",
 ]
 
 [tool.setuptools]
 package-dir = { "" = "." }
-include-package-data=true
+include-package-data = true
 
 [tool.setuptools.packages]
-find = {exclude = ["tests"]}
+find = { exclude = ["tests"] }
 
 [tool.setuptools.package-data]
 "openretina" = ["py.typed", "configs/*.yaml", "configs/**/*.yaml"]
 
 [project.scripts]
 openretina = "openretina.cli.openretina_main:main"
+
+[tool.uv]
+# prefer the runner's Python (from actions/setup-python or system Python)
+python-preference = "system"
+package = true
 
 
 [tool.ruff]
@@ -82,18 +88,13 @@ indent-width = 4
 # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
 lint.select = ["E", "W", "F"]
 lint.extend-select = ["I"]
-lint.ignore = ["F722"]  # F722 prevents false positive for jaxtypes
-exclude = [
-    "openretina/legacy/",
-    "tests/paper_openretina_2025/",
-]
+lint.ignore = ["F722"]                                           # F722 prevents false positive for jaxtypes
+exclude = ["openretina/legacy/", "tests/paper_openretina_2025/"]
+
 
 [tool.mypy]
 warn_return_any = false
-exclude = [
-    "openretina/legacy/",
-    "tests/paper_openretina_2025/",
-]
+exclude = ["openretina/legacy/", "tests/paper_openretina_2025/"]
 [[tool.mypy.overrides]]
 module = [
     "neuralpredictors.*",
@@ -105,4 +106,3 @@ module = [
     "moviepy",
 ]
 ignore_missing_imports = true
-

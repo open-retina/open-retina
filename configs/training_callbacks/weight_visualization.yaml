@@ -1,8 +1,7 @@
 weight_visualization:
-  _target_: openretina.callbacks.weight_visualization_callback.ConditionalWeightVisualizationCallback
+  _target_: openretina.callbacks.weight_visualization_callback.WeightVisualizationCallback
   every_n_epochs: 1
   start_epoch: 0
   call_on_train_epoch_end: true
   call_on_validation_epoch_end: false
-  save_plots: true
-  folder_path: "${paths.output_dir}/weight_plots/"
+  folder_path: "${paths.output_dir}/weight_plots/"  # set to null to skip weight visualization entirely

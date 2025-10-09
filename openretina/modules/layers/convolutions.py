@@ -177,7 +177,7 @@ class TimeIndependentConv3D(nn.Module):
         # Optionally make sure the center of the weight matrix is positive
         if (
             spatial_weight_center_positive
-            and np.mean(spatial_weight[center_x - 3 : center_x + 2, center_y - 3 : center_y + 2]) < 0
+            and np.mean(spatial_weight[max(center_x - 3, 0) : center_x + 2, max(center_y - 3, 0) : center_y + 2]) < 0
         ):
             spatial_weight *= -1
 
@@ -210,7 +210,7 @@ class TimeIndependentConv3D(nn.Module):
                 plt.close()
 
 
-def compute_temporal_kernel(log_speed, sin_weights, cos_weights, length: int) -> torch.Tensor:
+def compute_temporal_kernel(log_speed, sin_weights, cos_weights, length: int, subsampling_factor: int) -> torch.Tensor:
     """
     Computes the temporal kernel for the convolution.
 
@@ -219,12 +219,13 @@ def compute_temporal_kernel(log_speed, sin_weights, cos_weights, length: int) ->
         sin_weights (torch.nn.Parameter): Sinusoidal weights.
         cos_weights (torch.nn.Parameter): Cosine weights.
         length (int): Length of the temporal kernel.
+        subsampling_factor (int): the factor by which to subsample the sin and cos weights
 
     Returns:
         torch.Tensor: The temporal kernel.
     """
     stretches = torch.exp(log_speed)
-    sines, cosines = STSeparableBatchConv3d.temporal_basis(stretches, length)
+    sines, cosines = STSeparableBatchConv3d.temporal_basis(stretches, length, subsampling_factor)
     weights_temporal = torch.sum(sin_weights[:, :, :, None] * sines[None, None, ...], dim=2) + torch.sum(
         cos_weights[:, :, :, None] * cosines[None, None, ...], dim=2
     )
@@ -262,6 +263,7 @@ class STSeparableBatchConv3d(nn.Module):
         padding: int | str | tuple[int, ...] = 0,
         num_scans: int = 1,
         bias: bool = True,
+        subsampling_factor: int = 3,
     ):
         """
         Initializes the STSeparableBatchConv3d layer.
@@ -287,9 +289,12 @@ class STSeparableBatchConv3d(nn.Module):
         self.stride = stride
         self.padding = padding
         self.num_scans = num_scans
+        self.subsampling_factor = subsampling_factor
 
         # Initialize temporal weights
-        self.sin_weights, self.cos_weights = self.temporal_weights(temporal_kernel_size, in_channels, out_channels)
+        self.sin_weights, self.cos_weights = self.temporal_weights(
+            temporal_kernel_size, in_channels, out_channels, subsampling_factor=self.subsampling_factor
+        )
 
         # Initialize spatial weights
         self.weight_spatial = nn.Parameter(
@@ -327,7 +332,11 @@ class STSeparableBatchConv3d(nn.Module):
         else:
             log_speed = getattr(self, "_".join(["log_speed", data_key]))
         self.weight_temporal = compute_temporal_kernel(
-            log_speed, self.sin_weights, self.cos_weights, self.temporal_kernel_size
+            log_speed,
+            self.sin_weights,
+            self.cos_weights,
+            self.temporal_kernel_size,
+            self.subsampling_factor,
         )
 
         # Assemble the complete weight tensor for convolution
@@ -346,7 +355,11 @@ class STSeparableBatchConv3d(nn.Module):
 
     def get_temporal_weight(self, in_channel: int, out_channel: int) -> tuple[np.ndarray, float]:
         weight_temporal = compute_temporal_kernel(
-            self._log_speed_default, self.sin_weights, self.cos_weights, self.temporal_kernel_size
+            self._log_speed_default,
+            self.sin_weights,
+            self.cos_weights,
+            self.temporal_kernel_size,
+            self.subsampling_factor,
         )
         global_abs_max = float(weight_temporal.detach().abs().max().item())
         temporal_trace_tensor = weight_temporal[out_channel, in_channel, :, 0, 0]
@@ -379,7 +392,7 @@ class STSeparableBatchConv3d(nn.Module):
         # Optionally make sure the center of the weight matrix is positive
         if (
             spatial_weight_center_positive
-            and np.mean(spatial_weight[center_x - 3 : center_x + 2, center_y - 3 : center_y + 2]) < 0
+            and np.mean(spatial_weight[max(center_x - 3, 0) : center_x + 2, max(center_y - 3, 0) : center_y + 2]) < 0
         ):
             spatial_weight *= -1
             temporal_weight *= -1
@@ -426,9 +439,7 @@ class STSeparableBatchConv3d(nn.Module):
 
         return fig
 
-    def save_weight_visualizations(
-        self, folder_path: str, file_format: str = "jpg", state_suffix: Optional[str] = None
-    ) -> None:
+    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg", state_suffix: str = "") -> None:
         for in_channel in range(self.in_channels):
             for out_channel in range(self.out_channels):
                 plot_path = f"{folder_path}/{in_channel}_{out_channel}_{state_suffix}.{file_format}"
@@ -439,7 +450,11 @@ class STSeparableBatchConv3d(nn.Module):
 
     @staticmethod
     def temporal_weights(
-        length: int, num_channels: int, num_feat: int, scale: float = 0.01
+        length: int,
+        num_channels: int,
+        num_feat: int,
+        scale: float = 0.01,
+        subsampling_factor: int = 3,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Generates initial weights for the temporal components of the convolution.
@@ -449,34 +464,47 @@ class STSeparableBatchConv3d(nn.Module):
             num_channels (int): Number of input channels.
             num_feat (int): Number of output features.
             scale (float, optional): Scaling factor for weight initialization. Defaults to 0.01.
+            subsampling_factor (int): subsampling factor for sin, cos weights.
 
         Returns:
             tuple: Tuple containing sin and cos weights.
         """
-        K = length // 3
-        sin_weights = torch.nn.Parameter(data=torch.randn(num_feat, num_channels, K) * scale, requires_grad=True)
-        cos_weights = torch.nn.Parameter(data=torch.randn(num_feat, num_channels, K) * scale, requires_grad=True)
+        # From hoefling, 2024
+        # Then, in order to stay well under the Nyquist limit,
+        # we parameterize the kernels with k = 21/3 = 7 sines and cosines (that's why //3)
+        if length < subsampling_factor:
+            raise ValueError(f"Length cannot be smaller than subsampling factor: {length=} {subsampling_factor=}")
+        k = length // subsampling_factor
+        sin_weights = torch.nn.Parameter(data=torch.randn(num_feat, num_channels, k) * scale, requires_grad=True)
+        cos_weights = torch.nn.Parameter(data=torch.randn(num_feat, num_channels, k) * scale, requires_grad=True)
         return sin_weights, cos_weights
 
     @staticmethod
-    def temporal_basis(stretches: torch.Tensor, T: int) -> tuple[torch.Tensor, torch.Tensor]:
+    def temporal_basis(
+        stretches: torch.Tensor, length: int, subsampling_factor: int
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Generates the basis for the temporal component of the convolution.
 
         Args:
             stretches (torch.Tensor): Temporal stretches per ROI.
-            T (int): Length of the temporal kernel.
+            length (int): Length of the temporal kernel.
 
         Returns:
             tuple: Tuple containing sines and cosines tensors.
         """
-        K = T // 3
-        time = torch.arange(T, dtype=torch.float, device=stretches.device) - T
+        # From hoefling, 2024
+        # Then, in order to stay well under the Nyquist limit,
+        # we parameterize the kernels with k = 21/3 = 7 sines and cosines (that's why //3)
+        if length < subsampling_factor:
+            raise ValueError(f"Length cannot be smaller than subsampling factor: {length=}, {subsampling_factor=}")
+        big_k = length // subsampling_factor
+        time = torch.arange(length, dtype=torch.float, device=stretches.device) - length
         stretched = stretches * time
-        freq = stretched * 2 * np.pi / T
-        mask = STSeparableBatchConv3d.mask_tf(time, stretches, T)
+        freq = stretched * 2 * np.pi / length
+        mask = STSeparableBatchConv3d.mask_tf(time, stretches, length)
         sines, cosines = [], []
-        for k in range(K):
+        for k in range(big_k):
             sines.append(mask * torch.sin(freq * k))
             cosines.append(mask * torch.cos(freq * k))
         sines_stacked = torch.stack(sines, 0)

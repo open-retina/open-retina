@@ -13,7 +13,7 @@ defaults:
     - mlflow
   - trainer: default_deterministic
   - hydra: default
-  - override hydra/sweeper: optuna
+  - override hydra/sweeper: optuna  # make sure to `pip install -e ".[optuna]"`
   - override hydra/sweeper/sampler: tpe
   - _self_ # values in this config will overwrite the defaults
 
@@ -50,24 +50,26 @@ hydra:
     n_trials: 50
     n_jobs: 1
     params:
-      model.mask_l1_reg : interval(1e-3, 10)
-      model.core_gamma_input: interval(1e-3, 10)
-      model.weights_l1_reg: interval(1e-3, 10)
-      model.laplace_mask_reg: interval(1e-3, 10)
-      model.spatial_kernel_sizes: choice([20],[25],[30])
+      model.core.spatial_kernel_sizes: choice([20],[25],[30])
+      model.core.gamma_input: interval(1e-3, 10)
+      model.readout.weights_l1_reg: interval(1e-3, 10)
+      model.readout.laplace_mask_reg: interval(1e-3, 10)
+      model.readout.mask_l1_reg : interval(1e-3, 10)
 
 # Overwrite model defaults
 model:
   in_shape: [1, 1, 108, 108]
   hidden_channels: [4]
-  temporal_kernel_sizes: [1]
-  spatial_kernel_sizes: [30]
-  core_gamma_temporal: 0.0
-  core_gamma_input: 0.4654576767872573
-  convolution_type: "time_independent"
-  mask_l1_reg : 5.924553274051563
-  weights_l1_reg : 6.075840974162483
-  laplace_mask_reg: 1.706070712749228
+  core:
+    temporal_kernel_sizes: [1]
+    spatial_kernel_sizes: [30]
+    gamma_temporal: 0.0
+    gamma_input: 0.4654576767872573
+    convolution_type: "time_independent"
+  readout:
+    mask_l1_reg : 5.924553274051563
+    weights_l1_reg : 6.075840974162483
+    laplace_mask_reg: 1.706070712749228
 
 matmul_precision:
   _target_: torch.set_float32_matmul_precision
