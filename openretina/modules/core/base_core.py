@@ -1,7 +1,6 @@
 import os
 import warnings
 from collections import OrderedDict
-from typing import Optional
 
 import torch
 import torch.nn as nn

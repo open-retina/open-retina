@@ -1,10 +1,11 @@
-from git import Optional
-import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.decomposition import PCA
 import os
-from PIL import Image
+
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
+from git import Optional
+from PIL import Image
+from sklearn.decomposition import PCA
 
 """
 LSTA (Linear Spatio-Temporal Analysis) visualization toolkit.
@@ -201,7 +202,8 @@ def compute_lsta_library(
     device: str = "cuda",
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Computes the Linear Spatio-Temporal Analysis (LSTA) library and response library for a given model, set of movies, and cell_id.
+    Computes the Linear Spatio-Temporal Analysis (LSTA) library and response library for a given model,
+      set of movies, and cell_id.
 
     For each batch of input movies, this function:
         - Runs the model to obtain outputs for all cells and time points.
@@ -213,16 +215,19 @@ def compute_lsta_library(
     Parameters
     ----------
         model (torch.nn.Module): The neural network model to evaluate.
-        movies (np.ndarray or torch.Tensor): Array of input movie stimuli with shape (num_samples, channels, frames, height, width).
+        movies (np.ndarray or torch.Tensor): Array of input movie stimuli with shape (num_samples, channels, frames,
+          height, width).
         session_id (str): Identifier for the session/data key used by the model.
         cell_id (int): Index of the cell for which to compute LSTA.
         batch_size (int, optional): Number of samples per batch. Default is 64.
-        integration_window (tuple, optional): Tuple (start, end) specifying the time window (frame indices) over which to sum outputs. Default is (5, 10).
+        integration_window (tuple, optional): Tuple (start, end) specifying the time window (frame indices) over which
+          to sum outputs. Default is (5, 10).
         device (str, optional): Device to run computations on ('cuda' or 'cpu'). Default is 'cuda'.
 
     Returns
     -------
-        lsta_library (np.ndarray): Array of LSTA maps averaged over the integration window, shape (num_samples, channels, height, width).
+        lsta_library (np.ndarray): Array of LSTA maps averaged over the integration window, shape
+         (num_samples, channels, height, width).
         response_library (np.ndarray): Array of model outputs for all batches, shape (num_samples, frames, num_cells).
 
     Raises
@@ -231,9 +236,11 @@ def compute_lsta_library(
 
     Notes
     -----
-        - The LSTA map for each movie is computed as the gradient of the summed output for the specified cell and time window,
+        - The LSTA map for each movie is computed as the gradient of the summed output for the specified cell and time
+          window,
             with respect to the input movie frames.
-        - The returned lsta_library is averaged over the integration window (i.e., mean gradient across selected frames).
+        - The returned lsta_library is averaged over the integration window
+          (i.e., mean gradient across selected frames).
         - The response_library contains the raw model outputs for all movies, all frames, and all cells.
     """
     model.eval()
@@ -270,7 +277,8 @@ def get_pc_from_pca(
     model, channel: int, lsta_library: np.ndarray, plot: bool = False
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    Computes the first two principal components (PC1 and PC2) from a PCA analysis on a selected channel of the input data.
+    Computes the first two principal components (PC1 and PC2) from a PCA analysis on a selected channel of the
+      input data.
     Parameters
     ----------
     model : object
@@ -382,7 +390,7 @@ def plot_pc_insets(
     ax_img1 = fig.add_axes([0.825, 0.425, 0.15, 0.15], anchor="C", zorder=1)
     ax_img1.imshow(PC1.reshape(x_size, y_size), cmap="bwr", vmin=-PC_max, vmax=PC_max)
     ax_img1.axis("off")
-    title1 = f"PC1"
+    title1 = "PC1"
     if explained_variance is not None:
         title1 += f" ({explained_variance[0]:.1%})"
     ax_img1.set_title(title1, size=20)
@@ -390,7 +398,7 @@ def plot_pc_insets(
     ax_img2 = fig.add_axes([0.425, 0.825, 0.15, 0.15], anchor="C", zorder=1)
     ax_img2.imshow(PC2.reshape(x_size, y_size), cmap="bwr", vmin=-PC_max, vmax=PC_max)
     ax_img2.axis("off")
-    title2 = f"PC2"
+    title2 = "PC2"
     if explained_variance is not None:
         title2 += f" ({explained_variance[1]:.1%})"
     ax_img2.set_title(title2, size=20)
@@ -401,8 +409,10 @@ def plot_untreated_vectorfield(
 ) -> plt.Figure:
     """
     Plots a vector field visualization using principal components from an LSTA library.
-    This function extracts the specified channel from the LSTA library, projects each LSTA onto two principal components (PC1 and PC2),
-    and visualizes the resulting vector field at given image coordinates using matplotlib's quiver plot. Additionally, it displays
+    This function extracts the specified channel from the LSTA library, projects each LSTA onto two principal components
+      (PC1 and PC2),
+    and visualizes the resulting vector field at given image coordinates using matplotlib's quiver plot. Additionally,
+      it displays
     the PC1 and PC2 components as inset images.
     This function is primarily for visualization in notebooks.
     Returns figure for saving or further customization.
@@ -421,7 +431,8 @@ def plot_untreated_vectorfield(
     Returns
     -------
     plt.Figure
-        The matplotlib Figure object containing the vector field plot with PC1 and PC2 inset images. Call plt.show() to display,
+        The matplotlib Figure object containing the vector field plot with PC1 and PC2 inset images. Call plt.show()
+         to display,
         or fig.savefig() to save.
     Notes
     -----
@@ -467,8 +478,10 @@ def plot_clean_vectorfield(
 ) -> plt.Figure:
     """
     Plots a cleaned vector field representation of binned image and LSTA data projected onto principal components.
-    This function bins images and their corresponding LSTA (Linear Spatio-Temporal Activity) responses based on spatial coordinates,
-    projects the binned data onto two principal components (PC1 and PC2), and visualizes the resulting vector field using quiver plots.
+    This function bins images and their corresponding LSTA (Linear Spatio-Temporal Activity) responses based on spatial
+    coordinates,
+    projects the binned data onto two principal components (PC1 and PC2),
+    and visualizes the resulting vector field using quiver plots.
     Insets showing the PC1 and PC2 components are also added to the figure.
         This function is primarily for visualization in notebooks.
     Returns figure for saving or further customization.
@@ -505,7 +518,8 @@ def plot_clean_vectorfield(
     Notes
     -----
     - This function is primarily intended for visualization in Jupyter notebooks.
-    - The vector field arrows represent the projection of binned images and LSTA responses onto the first two principal components.
+    - The vector field arrows represent the projection of binned images and LSTA responses onto the first two
+    principal components.
     - Insets display the spatial structure of PC1 and PC2 for interpretability.
     """
     lsta_library = lsta_library[:, channel, :, :]
