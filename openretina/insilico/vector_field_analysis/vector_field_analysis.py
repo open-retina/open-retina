@@ -1,4 +1,5 @@
 import os
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -51,17 +52,25 @@ def load_and_preprocess_images(image_dir: str, target_h: int, target_w: int, n_c
         - Center-cropping is applied after downsampling.
         - Single-channel images are repeated across channels if n_channels > 1.
     """
-    image_files: list[str] = sorted([f for f in os.listdir(image_dir) if f.lower().endswith(".png")])
-    images: np.ndarray = np.array([np.array(Image.open(os.path.join(image_dir, f))) for f in image_files])
-    compressed_images: list[np.ndarray] = []
-    for img in images:
-        downsample_factor: int = int(min(img.shape[0] / target_h, img.shape[1] / target_w))
-        img = img[::downsample_factor, ::downsample_factor]
-        h, w = img.shape
-        start_h, start_w = (h - target_h) // 2, (w - target_w) // 2
-        cropped: np.ndarray = img[start_h : start_h + target_h, start_w : start_w + target_w]
-        compressed_images.append(cropped)
-    compressed_images = np.array(compressed_images).astype(np.float32)
+    image_files = sorted([f for f in os.listdir(image_dir) if f.lower().endswith(".png")])
+    images = np.array([np.array(Image.open(os.path.join(image_dir, f))) for f in image_files])
+    # Downsample and crop using array operations
+    downsample_factors = np.minimum(images.shape[1] / target_h, images.shape[2] / target_w).astype(int)
+    # Ensure downsample_factors is at least 1
+    downsample_factors[downsample_factors < 1] = 1
+
+    # Downsample
+    ds_images = np.array([
+        img[::factor, ::factor] for img, factor in zip(images, downsample_factors)
+    ])
+
+    # Center crop
+    h, w = ds_images.shape[1:3]
+    start_h = (h - target_h) // 2
+    start_w = (w - target_w) // 2
+    cropped_images = ds_images[:, start_h : start_h + target_h, start_w : start_w + target_w]
+
+    compressed_images = cropped_images.astype(np.float32)
     # Add channel dimension
     compressed_images = compressed_images[:, np.newaxis]
     # Repeat channels if needed
@@ -118,11 +127,11 @@ def normalize_movies_array(movies: np.ndarray, model: torch.nn.Module, session_i
         - For multi-channel models, uses default normalization.
     """
     if n_channels == 1:
-        stim_mean: float = model.data_info["movie_norm_dict"][session_id]["norm_mean"]
-        stim_std: float = model.data_info["movie_norm_dict"][session_id]["norm_std"]
+        stim_mean = model.data_info["movie_norm_dict"][session_id]["norm_mean"]
+        stim_std = model.data_info["movie_norm_dict"][session_id]["norm_std"]
     else:
-        stim_mean: float = model.data_info["movie_norm_dict"]["default"]["norm_mean"]
-        stim_std: float = model.data_info["movie_norm_dict"]["default"]["norm_std"]
+        stim_mean = model.data_info["movie_norm_dict"]["default"]["norm_mean"]
+        stim_std = model.data_info["movie_norm_dict"]["default"]["norm_std"]
     for channel in range(n_channels):
         movies[:, channel, :, :, :] = (movies[:, channel, :, :, :] - stim_mean) / stim_std
     return movies
@@ -175,12 +184,14 @@ def prepare_movies_dataset(
 
     if image_library is not None and image_dir is not None:
         raise ValueError("Provide either image_library or image_dir, not both.")
-    if image_dir is None and image_library is None:
-        raise ValueError("Provide either image_library or image_dir.")
-    if image_library is None:
+    if image_dir is not None:
+        print (f"Loading images from {image_dir}...")
         compressed_images = load_and_preprocess_images(image_dir, target_h, target_w, n_channels)
-    else:
+    elif image_library is not None:
+        print ("Using provided image library...")
         compressed_images = image_library
+    else:
+        raise ValueError("Provide either image_library or image_dir.")
 
     n_empty_frames = get_model_temporal_padding(model, n_channels, target_h, target_w, device)
     movies = np.repeat(compressed_images[:, :, np.newaxis, :, :], n_empty_frames + n_image_frames, axis=2)
@@ -194,7 +205,7 @@ def prepare_movies_dataset(
 
 def compute_lsta_library(
     model: torch.nn.Module,
-    movies: np.ndarray | torch.Tensor,
+    movies: np.ndarray,
     session_id: str,
     cell_id: int,
     batch_size: int = 64,
@@ -244,8 +255,8 @@ def compute_lsta_library(
         - The response_library contains the raw model outputs for all movies, all frames, and all cells.
     """
     model.eval()
-    all_lstas: list[torch.Tensor] = []
-    all_outputs: list[torch.Tensor] = []
+    all_lstas = []
+    all_outputs= []
 
     for i in range(0, len(movies), batch_size):
         batch_movies = torch.tensor(movies[i : i + batch_size], dtype=torch.float32, device=device)
@@ -365,7 +376,7 @@ def plot_pc_insets(
     PC2: np.ndarray,
     x_size: int,
     y_size: int,
-    explained_variance: list[float] | np.ndarray = None,
+    explained_variance: np.ndarray = None,
 ) -> None:
     """
     Helper function to plot PC1 and PC2 as inset images on a matplotlib figure.
@@ -470,9 +481,9 @@ def plot_clean_vectorfield(
     channel: int,
     PC1: np.ndarray,
     PC2: np.ndarray,
-    images: np.ndarray,
-    images_coordinate: np.ndarray,
-    explained_variance: np.ndarray,
+    images: list[Any] | np.ndarray,
+    images_coordinate: list[Any] | np.ndarray,
+    explained_variance: list[Any] | np.ndarray,
     x_bins: int = 31,
     y_bins: int = 31,
 ) -> plt.Figure:
@@ -523,33 +534,38 @@ def plot_clean_vectorfield(
     - Insets display the spatial structure of PC1 and PC2 for interpretability.
     """
     lsta_library = lsta_library[:, channel, :, :]
-    window_size = int(max(images_coordinate[:, 0].max(), images_coordinate[:, 1].max()) * 1.1)
-    dx = 2 * window_size / x_bins
-    dy = 2 * window_size / y_bins
-
-    binned_imgs: list[np.ndarray] = []
-    binned_lstas: list[np.ndarray] = []
     x_size = lsta_library.shape[-2]
     y_size = lsta_library.shape[-1]
 
-    for x_tick in range(x_bins):
-        x_val = -window_size + x_tick * dx
-        for y_tick in range(y_bins):
-            y_val = -window_size + y_tick * dy
-            temp_img = np.zeros((x_size, y_size))
-            temp_lsta = np.zeros((x_size, y_size))
-            nb = 0
-            for i, coords in enumerate(images_coordinate[: lsta_library.shape[0]]):
-                if x_val <= coords[0] < x_val + dx and y_val <= coords[1] < y_val + dy:
-                    temp_img += images[i]
-                    temp_lsta += lsta_library[i]
-                    nb += 1
-            if nb > 0:
-                binned_imgs.append(temp_img / nb)
-                binned_lstas.append(temp_lsta / nb)
+    # Bin edges for PC1 and PC2 coordinates
+    x_edges = np.linspace(images_coordinate[:, 0].min(), images_coordinate[:, 0].max(), x_bins + 1)
+    y_edges = np.linspace(images_coordinate[:, 1].min(), images_coordinate[:, 1].max(), y_bins + 1)
+
+    # Digitize coordinates to bins
+    x_bin_idx = np.digitize(images_coordinate[:, 0], x_edges) - 1
+    y_bin_idx = np.digitize(images_coordinate[:, 1], y_edges) - 1
+
+    # Mask for valid bins
+    valid_mask = (x_bin_idx >= 0) & (x_bin_idx < x_bins) & (y_bin_idx >= 0) & (y_bin_idx < y_bins)
+
+    # Prepare lists for binned images and lstas
+    binned_imgs = []
+    binned_lstas = []
+    bin_coords = []
+
+    # For each bin, average images and lstas assigned to it
+    for xi in range(x_bins):
+        for yi in range(y_bins):
+            bin_mask = valid_mask & (x_bin_idx == xi) & (y_bin_idx == yi)
+            if np.any(bin_mask):
+                binned_imgs.append(images[bin_mask].mean(axis=0))
+                binned_lstas.append(lsta_library[bin_mask].mean(axis=0))
+                # Use bin center as coordinate
+                bin_coords.append([0.5 * (x_edges[xi] + x_edges[xi + 1]), 0.5 * (y_edges[yi] + y_edges[yi + 1])])
 
     binned_imgs = np.array(binned_imgs)
     binned_lstas = np.array(binned_lstas)
+    images_coordinate = np.array(bin_coords)
     # Check if we have any binned data
 
     if len(binned_imgs) == 0:
