@@ -131,7 +131,7 @@ def normalize_movies_array(movies: np.ndarray, model: BaseCoreReadout, session_i
         - For single-channel models, uses session-specific normalization.
         - For multi-channel models, uses default normalization.
     """
-    if session_id in model.data_info["movie_norm_dict"]
+    if session_id in model.data_info["movie_norm_dict"]:
         movie_norm_dict_key = session_id
     else:
         movie_norm_dict_key = "default"
