@@ -7,11 +7,16 @@ import torch
 from git import Optional
 from PIL import Image
 from sklearn.decomposition import PCA
+import logging
 
 from openretina.models.core_readout import BaseCoreReadout
 
+LOGGER = logging.getLogger(__name__)
+
+
+
 """
-LSTA (Linear Spatio-Temporal Analysis) visualization toolkit.
+LSTA (Local Spike-Triggered Average) visualization toolkit.
 
 Example usage:
     >>> # Load your model (ensure it has the required attributes)
@@ -126,7 +131,7 @@ def normalize_movies_array(movies: np.ndarray, model: BaseCoreReadout, session_i
         - For single-channel models, uses session-specific normalization.
         - For multi-channel models, uses default normalization.
     """
-    if n_channels == 1:
+    if session_id in model.data_info["movie_norm_dict"]
         movie_norm_dict_key = session_id
     else:
         movie_norm_dict_key = "default"
@@ -136,19 +141,6 @@ def normalize_movies_array(movies: np.ndarray, model: BaseCoreReadout, session_i
     stim_std = movie_norm_dict["norm_std"]
     for channel in range(n_channels):
         movies[:, channel, :, :, :] = (movies[:, channel, :, :, :] - stim_mean) / stim_std
-    return movies
-
-
-def set_initial_frames_to_grey(movies, n_empty_frames):
-    """
-    Sets the initial frames of each movie to mean grey.
-    Args:
-        movies (np.ndarray): Movies array.
-        n_empty_frames (int): Number of initial frames to set.
-    Returns:
-        np.ndarray: Movies array with initial frames set to mean grey.
-    """
-    movies[:, :, :n_empty_frames, :, :] = movies.mean()
     return movies
 
 
@@ -187,10 +179,10 @@ def prepare_movies_dataset(
     if image_library is not None and image_dir is not None:
         raise ValueError("Provide either image_library or image_dir, not both.")
     if image_dir is not None:
-        print(f"Loading images from {image_dir}...")
+        LOGGER.info(f"Loading images from {image_dir}...")
         compressed_images = load_and_preprocess_images(image_dir, target_h, target_w, n_channels)
     elif image_library is not None:
-        print("Using provided image library...")
+        LOGGER.info("Using provided image library...")
         compressed_images = image_library
     else:
         raise ValueError("Provide either image_library or image_dir.")
@@ -201,7 +193,8 @@ def prepare_movies_dataset(
     if normalize_movies:
         movies = normalize_movies_array(movies, model, session_id, n_channels)
 
-    movies = set_initial_frames_to_grey(movies, n_empty_frames)
+    # Set initial empty frames to mean grey
+    movies[:, :, :n_empty_frames, :, :] = movies.mean()
     return movies, n_empty_frames
 
 
@@ -215,7 +208,7 @@ def compute_lsta_library(
     device: str = "cuda",
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Computes the Linear Spatio-Temporal Analysis (LSTA) library and response library for a given model,
+    Computes the Local Spike-Triggered Average (LSTA) library and response library for a given model,
       set of movies, and cell_id.
 
     For each batch of input movies, this function:
@@ -491,7 +484,7 @@ def plot_clean_vectorfield(
 ) -> plt.Figure:
     """
     Plots a cleaned vector field representation of binned image and LSTA data projected onto principal components.
-    This function bins images and their corresponding LSTA (Linear Spatio-Temporal Activity) responses based on spatial
+    This function bins images and their corresponding LSTA (Local Spike-Triggered Average) responses based on spatial
     coordinates,
     projects the binned data onto two principal components (PC1 and PC2),
     and visualizes the resulting vector field using quiver plots.
