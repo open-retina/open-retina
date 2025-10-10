@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import Any
 
@@ -7,7 +8,6 @@ import torch
 from git import Optional
 from PIL import Image
 from sklearn.decomposition import PCA
-import logging
 
 from openretina.models.core_readout import BaseCoreReadout
 
