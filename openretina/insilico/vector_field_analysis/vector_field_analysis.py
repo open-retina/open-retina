@@ -8,6 +8,8 @@ from git import Optional
 from PIL import Image
 from sklearn.decomposition import PCA
 
+from openretina.models.core_readout import BaseCoreReadout
+
 """
 LSTA (Linear Spatio-Temporal Analysis) visualization toolkit.
 
@@ -60,9 +62,7 @@ def load_and_preprocess_images(image_dir: str, target_h: int, target_w: int, n_c
     downsample_factors[downsample_factors < 1] = 1
 
     # Downsample
-    ds_images = np.array([
-        img[::factor, ::factor] for img, factor in zip(images, downsample_factors)
-    ])
+    ds_images = np.array([img[::factor, ::factor] for img, factor in zip(images, downsample_factors)])
 
     # Center crop
     h, w = ds_images.shape[1:3]
@@ -106,7 +106,7 @@ def get_model_temporal_padding(
     return n_empty_frames
 
 
-def normalize_movies_array(movies: np.ndarray, model: torch.nn.Module, session_id: str, n_channels: int) -> np.ndarray:
+def normalize_movies_array(movies: np.ndarray, model: BaseCoreReadout, session_id: str, n_channels: int) -> np.ndarray:
     """
     Normalizes movies using model parameters.
     Parameters:
@@ -127,11 +127,13 @@ def normalize_movies_array(movies: np.ndarray, model: torch.nn.Module, session_i
         - For multi-channel models, uses default normalization.
     """
     if n_channels == 1:
-        stim_mean = model.data_info["movie_norm_dict"][session_id]["norm_mean"]
-        stim_std = model.data_info["movie_norm_dict"][session_id]["norm_std"]
+        movie_norm_dict_key = session_id
     else:
-        stim_mean = model.data_info["movie_norm_dict"]["default"]["norm_mean"]
-        stim_std = model.data_info["movie_norm_dict"]["default"]["norm_std"]
+        movie_norm_dict_key = "default"
+
+    movie_norm_dict: dict[str, float] = model.data_info["movie_norm_dict"][movie_norm_dict_key]
+    stim_mean = movie_norm_dict["norm_mean"]
+    stim_std = movie_norm_dict["norm_std"]
     for channel in range(n_channels):
         movies[:, channel, :, :, :] = (movies[:, channel, :, :, :] - stim_mean) / stim_std
     return movies
@@ -151,7 +153,7 @@ def set_initial_frames_to_grey(movies, n_empty_frames):
 
 
 def prepare_movies_dataset(
-    model: torch.nn.Module,
+    model: BaseCoreReadout,
     session_id: str,
     n_image_frames: int = 16,
     normalize_movies: bool = True,
@@ -185,10 +187,10 @@ def prepare_movies_dataset(
     if image_library is not None and image_dir is not None:
         raise ValueError("Provide either image_library or image_dir, not both.")
     if image_dir is not None:
-        print (f"Loading images from {image_dir}...")
+        print(f"Loading images from {image_dir}...")
         compressed_images = load_and_preprocess_images(image_dir, target_h, target_w, n_channels)
     elif image_library is not None:
-        print ("Using provided image library...")
+        print("Using provided image library...")
         compressed_images = image_library
     else:
         raise ValueError("Provide either image_library or image_dir.")
@@ -256,11 +258,10 @@ def compute_lsta_library(
     """
     model.eval()
     all_lstas = []
-    all_outputs= []
+    all_outputs = []
 
     for i in range(0, len(movies), batch_size):
-        batch_movies = torch.tensor(movies[i : i + batch_size], dtype=torch.float32, device=device)
-        batch_movies.requires_grad = True
+        batch_movies = torch.tensor(movies[i : i + batch_size], dtype=torch.float32, device=device, requires_grad=True)
 
         outputs = model(batch_movies, data_key=session_id)
         num_cells = outputs.shape[-1]
@@ -270,6 +271,7 @@ def compute_lsta_library(
         chosen_cell_outputs = outputs[:, integration_window[0] : integration_window[1], cell_id].sum()
         chosen_cell_outputs.backward()
 
+        assert batch_movies.grad is not None
         batch_lstas = batch_movies.grad.detach()
         all_lstas.append(batch_lstas)
         all_outputs.append(outputs.detach())
@@ -376,7 +378,7 @@ def plot_pc_insets(
     PC2: np.ndarray,
     x_size: int,
     y_size: int,
-    explained_variance: np.ndarray = None,
+    explained_variance: np.ndarray | None = None,
 ) -> None:
     """
     Helper function to plot PC1 and PC2 as inset images on a matplotlib figure.
@@ -398,7 +400,7 @@ def plot_pc_insets(
     """
     PC_max = max(np.abs(PC1).max(), np.abs(PC2).max())
 
-    ax_img1 = fig.add_axes([0.825, 0.425, 0.15, 0.15], anchor="C", zorder=1)
+    ax_img1 = fig.add_axes((0.825, 0.425, 0.15, 0.15), anchor="C", zorder=1)
     ax_img1.imshow(PC1.reshape(x_size, y_size), cmap="bwr", vmin=-PC_max, vmax=PC_max)
     ax_img1.axis("off")
     title1 = "PC1"
@@ -406,7 +408,7 @@ def plot_pc_insets(
         title1 += f" ({explained_variance[0]:.1%})"
     ax_img1.set_title(title1, size=20)
 
-    ax_img2 = fig.add_axes([0.425, 0.825, 0.15, 0.15], anchor="C", zorder=1)
+    ax_img2 = fig.add_axes((0.425, 0.825, 0.15, 0.15), anchor="C", zorder=1)
     ax_img2.imshow(PC2.reshape(x_size, y_size), cmap="bwr", vmin=-PC_max, vmax=PC_max)
     ax_img2.axis("off")
     title2 = "PC2"
@@ -466,8 +468,8 @@ def plot_untreated_vectorfield(
         scale=arrowheads.max(),
         alpha=0.5,
     )
-    ax.set_xlim([-window_size, window_size])
-    ax.set_ylim([-window_size, window_size])
+    ax.set_xlim((-window_size, window_size))
+    ax.set_ylim((-window_size, window_size))
     ax.axis("off")
 
     x_size = lsta_library.shape[-2]
@@ -482,8 +484,8 @@ def plot_clean_vectorfield(
     PC1: np.ndarray,
     PC2: np.ndarray,
     images: list[Any] | np.ndarray,
-    images_coordinate: list[Any] | np.ndarray,
-    explained_variance: list[Any] | np.ndarray,
+    images_coordinate: np.ndarray,
+    explained_variance: np.ndarray,
     x_bins: int = 31,
     y_bins: int = 31,
 ) -> plt.Figure:
@@ -549,23 +551,23 @@ def plot_clean_vectorfield(
     valid_mask = (x_bin_idx >= 0) & (x_bin_idx < x_bins) & (y_bin_idx >= 0) & (y_bin_idx < y_bins)
 
     # Prepare lists for binned images and lstas
-    binned_imgs = []
-    binned_lstas = []
-    bin_coords = []
+    binned_imgs_list = []
+    binned_lstas_list = []
+    bin_coords_list = []
 
     # For each bin, average images and lstas assigned to it
     for xi in range(x_bins):
         for yi in range(y_bins):
             bin_mask = valid_mask & (x_bin_idx == xi) & (y_bin_idx == yi)
             if np.any(bin_mask):
-                binned_imgs.append(images[bin_mask].mean(axis=0))
-                binned_lstas.append(lsta_library[bin_mask].mean(axis=0))
+                binned_imgs_list.append(images[bin_mask].mean(axis=0))
+                binned_lstas_list.append(lsta_library[bin_mask].mean(axis=0))
                 # Use bin center as coordinate
-                bin_coords.append([0.5 * (x_edges[xi] + x_edges[xi + 1]), 0.5 * (y_edges[yi] + y_edges[yi + 1])])
+                bin_coords_list.append([0.5 * (x_edges[xi] + x_edges[xi + 1]), 0.5 * (y_edges[yi] + y_edges[yi + 1])])
 
-    binned_imgs = np.array(binned_imgs)
-    binned_lstas = np.array(binned_lstas)
-    images_coordinate = np.array(bin_coords)
+    binned_imgs = np.array(binned_imgs_list)
+    binned_lstas = np.array(binned_lstas_list)
+    images_coordinate = np.array(bin_coords_list)
     # Check if we have any binned data
 
     if len(binned_imgs) == 0:
@@ -606,8 +608,8 @@ def plot_clean_vectorfield(
     ax.set_xticks([])
     ax.set_yticks([])
 
-    ax.set_xlim([-xlim, xlim])
-    ax.set_ylim([-xlim, xlim])
+    ax.set_xlim((-xlim, xlim))
+    ax.set_ylim((-xlim, xlim))
 
     plot_pc_insets(fig, PC1, PC2, x_size, y_size, explained_variance)
     return fig
