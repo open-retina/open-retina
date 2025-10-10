@@ -11,10 +11,6 @@ from sklearn.decomposition import PCA
 
 from openretina.models.core_readout import BaseCoreReadout
 
-LOGGER = logging.getLogger(__name__)
-
-
-
 """
 LSTA (Local Spike-Triggered Average) visualization toolkit.
 
@@ -36,6 +32,8 @@ Example usage:
     >>> fig = plot_clean_vectorfield(lsta_lib, 0, PC1, PC2, images, coords, ev)
     >>> plt.show()
 """
+
+LOGGER = logging.getLogger(__name__)
 
 
 def load_and_preprocess_images(image_dir: str, target_h: int, target_w: int, n_channels: int) -> np.ndarray:
