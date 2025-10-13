@@ -40,6 +40,7 @@ test-h5train:
 
 test-notebooks:  # ignore demo notebook and training notebooks as they only run fast on GPU
 	uv run pytest --nbmake --ignore-glob="notebooks/training*" notebooks/
+	uv run pytest --nbmake --ignore-glob="notebooks/vector_field_analysis*" notebooks/
 
 # Fast tool runs without creating a full project environment - used in actions
 uvx-test-codestyle:
