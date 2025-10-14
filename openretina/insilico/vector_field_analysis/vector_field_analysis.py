@@ -185,7 +185,8 @@ def prepare_movies_dataset(
     else:
         raise ValueError("Provide either image_library or image_dir.")
 
-    n_empty_frames = get_model_temporal_padding(model, n_channels, target_h, target_w, device)
+    # number of grey frames = size of equivalent temporal filter of the full model + 10 for border effects
+    n_empty_frames = get_model_temporal_padding(model, n_channels, target_h, target_w, device) + 10
     movies = np.repeat(compressed_images[:, :, np.newaxis, :, :], n_empty_frames + n_image_frames, axis=2)
 
     if normalize_movies:
@@ -202,7 +203,7 @@ def compute_lsta_library(
     session_id: str,
     cell_id: int,
     batch_size: int = 64,
-    integration_window: tuple[int, int] = (5, 10),
+    integration_window: tuple[int, int] = (5, 15),
     device: str = "cuda",
 ) -> tuple[np.ndarray, np.ndarray]:
     """
@@ -246,6 +247,8 @@ def compute_lsta_library(
         - The returned lsta_library is averaged over the integration window
           (i.e., mean gradient across selected frames).
         - The response_library contains the raw model outputs for all movies, all frames, and all cells.
+        - Default integration_window is not always optimal;
+          adjust based on model architecture and expected response timing.
     """
     model.eval()
     all_lstas = []
