@@ -104,5 +104,6 @@ module = [
     "seaborn",
     "torchvision.*",
     "moviepy",
+    "sklearn.decomposition",
 ]
 ignore_missing_imports = true
