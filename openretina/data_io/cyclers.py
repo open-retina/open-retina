@@ -6,7 +6,7 @@ import math
 import random
 
 import torch.utils.data
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, IterableDataset
 
 
 def cycle(iterable):
@@ -38,7 +38,7 @@ class LongCycler(torch.utils.data.IterableDataset):
     def __iter__(self):
         worker_info = torch.utils.data.get_worker_info()
         if worker_info is not None and worker_info.num_workers > 1:
-            raise NotImplementedError("LongCycler does not support multiple workers yet.")
+            raise NotImplementedError("LongCycler does not support multiple workers.")
 
         keys = sorted(self.loaders.keys())
 
@@ -57,13 +57,16 @@ class LongCycler(torch.utils.data.IterableDataset):
         return len(self.loaders) * self.max_batches
 
 
-class ShortCycler(torch.utils.data.IterableDataset):
+class ShortCycler(IterableDataset):
     """
     Cycles through the elements of each dataloader without repeating any element.
     """
 
     def __init__(self, loaders: dict[str, DataLoader]):
         self.loaders = loaders
+
+    def __len__(self):
+        return sum(len(loader) for loader in self.loaders.values())
 
     def _get_keys(self) -> list[str]:
         sorted_keys = sorted(self.loaders.keys())
