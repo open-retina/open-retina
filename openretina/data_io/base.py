@@ -227,7 +227,7 @@ def compute_data_info(
     }
 
     return {
-        "n_neurons": n_neurons_dict,
+        "n_neurons_dict": n_neurons_dict,
         "input_shape": input_shape,
         "sessions_kwargs": sessions_kwargs,
         "stim_mean": stim_mean,

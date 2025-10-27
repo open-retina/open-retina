@@ -222,7 +222,7 @@ class BaseCoreReadout(LightningModule):
 
     @property
     def pretrained_cfg(self) -> dict[str, Any]:
-        """Alias for data_info, following timm conventions."""
+        """Alias for data_info, following `timm` (Pytorch Image Models) conventions."""
         return self.data_info
 
 

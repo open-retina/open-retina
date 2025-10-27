@@ -37,7 +37,7 @@ responses:
         cache_folder: ${paths.cache_dir}
 
 data_info:
-  response_rate: 30
-  stimulus_rate: 30
+  response_rate_hz: 30
+  stimulus_rate_hz: 30
   stimulus_class: ${data_io.responses.response_type}
   retina_pixel_size_um: 12.5
