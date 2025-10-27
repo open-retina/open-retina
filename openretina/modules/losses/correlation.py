@@ -22,8 +22,8 @@ class CorrelationLoss3d(nn.Module):
             (var_out + self.eps) * (var_target + self.eps)
         ).sqrt()
 
-        per_neuron_correlations = -corrs.view(-1, corrs.shape[-1]).mean(dim=0)
-        self._per_neuron_correlations = per_neuron_correlations.detach()
+        per_neuron_correlations = corrs.view(-1, corrs.shape[-1]).mean(dim=0)
+        self._per_neuron_correlations = per_neuron_correlations.detach()  # Not a loss, so no need to negate
 
         # Return scalar for possible backprop
         if not self.per_neuron:

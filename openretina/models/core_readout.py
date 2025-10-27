@@ -105,7 +105,7 @@ class BaseCoreReadout(LightningModule):
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
         avg_correlation = -self.correlation_loss.forward(model_output, data_point.targets)
-        per_neuron_correlation = -self.correlation_loss._per_neuron_correlations  # type: ignore
+        per_neuron_correlation = self.correlation_loss._per_neuron_correlations
 
         # Add metric and performances to data_info for downstream tasks
         if "pretrained_performance_metric" not in self.data_info:
