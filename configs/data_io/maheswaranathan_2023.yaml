@@ -5,7 +5,6 @@ stimuli:
   stim_type: "naturalscene"
   normalize_stimuli: true
 
-
 responses:
   _target_: openretina.data_io.maheswaranathan_2023.responses.load_all_responses
   _convert_: object
@@ -13,3 +12,9 @@ responses:
   stim_type: "naturalscene"
   response_type: "firing_rate_20ms"
   fr_normalization: 1.0
+
+data_info:
+  response_rate_hz: 30
+  stimulus_rate_hz: 30
+  stimulus_class: ${data_io.responses.stim_type}
+  retina_pixel_size_um: 50 # Paper reports 50um projector pixel size, but RFs suggest 25um. See paper.
