@@ -4,12 +4,12 @@ defaults:
   - dataloader: hoefling_2024
   - model: base_core_readout
   - training_callbacks:
-    - early_stopping
-    - lr_monitor
-    - model_checkpoint
+      - early_stopping
+      - lr_monitor
+      - model_checkpoint
   - logger:
-    - tensorboard
-    - csv
+      - tensorboard
+      - csv
   - trainer: default_deterministic
   - hydra: default
   - _self_ # values in this config will overwrite the defaults
@@ -24,8 +24,11 @@ dataloader:
 model:
   in_shape: [2, 150, 18, 16]
 
+data_io:
+  retina_pixel_size_um: 50 # 4x bigger than high res model
+
 paths:
-  load_model_path: null  # e.g. hoefling_2024_base_low_res or path to a .ckpt model
+  load_model_path: null # e.g. hoefling_2024_base_low_res or path to a .ckpt model
   cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Remote files are downloaded to this location
   data_dir: ${paths.cache_dir}/data/ # Folder where local files are read from.
   log_dir: "." # Used as parent for output_dir. Will store train logs.

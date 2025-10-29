@@ -104,15 +104,41 @@ class BaseCoreReadout(LightningModule):
         session_id, data_point = batch
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
-        correlation = -self.correlation_loss.forward(model_output, data_point.targets)
+        avg_correlation = -self.correlation_loss.forward(model_output, data_point.targets)
+        per_neuron_correlation = self.correlation_loss._per_neuron_correlations
+
+        # Add metric and performances to data_info for downstream tasks
+        if "pretrained_performance_metric" not in self.data_info:
+            self.data_info["pretrained_performance_metric"] = "test " + type(self.correlation_loss).__name__
+
+        if "pretrained_performance" not in self.data_info:
+            self.data_info["pretrained_performance"] = {}
+
+        # Also add cut frames if not present
+        if "model_cut_frames" not in self.data_info:
+            self.data_info["model_cut_frames"] = data_point.targets.size(1) - model_output.size(1)
+
+        self.data_info["pretrained_performance"][session_id] = per_neuron_correlation
+
         self.log_dict(
             {
                 "test_loss": loss,
-                "test_correlation": correlation,
+                "test_correlation": avg_correlation,
             }
         )
 
         return loss
+
+    def on_test_end(self):
+        # Update internal lightning hyperparameters to save the updated data_info after testing.
+        self.hparams["data_info"] = self.data_info
+
+        # Save using checkpointer callback (should always exist with our default configs)
+        if self.trainer and self.trainer.checkpoint_callback:
+            best_model_path = self.trainer.checkpoint_callback.best_model_path
+            if best_model_path:
+                final_path = best_model_path.replace(".ckpt", "_final.ckpt")
+                self.trainer.save_checkpoint(final_path)
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
@@ -193,6 +219,11 @@ class BaseCoreReadout(LightningModule):
         if hasattr(self, "hparams"):
             self.hparams["n_neurons_dict"] = self.data_info["n_neurons_dict"]
             self.hparams["data_info"] = self.data_info
+
+    @property
+    def pretrained_cfg(self) -> dict[str, Any]:
+        """Alias for data_info, following `timm` (Pytorch Image Models) conventions."""
+        return self.data_info
 
 
 class UnifiedCoreReadout(BaseCoreReadout):
