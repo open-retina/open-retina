@@ -252,9 +252,8 @@ class UnifiedCoreReadout(BaseCoreReadout):
             n_neurons_dict=n_neurons_dict,
         )
 
-        # if calling save_hyperparameters after __init__ it leads to errors related to data_info["session_kwargs"]
-        self.save_hyperparameters()
         super().__init__(core=core_module, readout=readout_module, learning_rate=learning_rate, data_info=data_info)
+        self.save_hyperparameters(ignore=["n_neurons_dict"])
 
 
 class CoreReadout(BaseCoreReadout):
@@ -327,7 +326,7 @@ class CoreReadout(BaseCoreReadout):
         )
 
         super().__init__(core=core, readout=readout, learning_rate=learning_rate, data_info=data_info)
-        self.save_hyperparameters()
+        self.save_hyperparameters(ignore=["n_neurons_dict"])
 
 
 def load_core_readout_from_remote(
