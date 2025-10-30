@@ -263,7 +263,7 @@ class UnifiedCoreReadout(BaseCoreReadout):
     def __init__(
         self,
         in_shape: Int[tuple, "channels time height width"],
-        hidden_channels: Iterable[int],
+        hidden_channels: tuple[int, ...] | Iterable[int],
         n_neurons_dict: dict[str, int],
         core: DictConfig,
         readout: DictConfig,
@@ -289,6 +289,11 @@ class UnifiedCoreReadout(BaseCoreReadout):
             data_info (dict[str, Any], optional):
                 Additional metadata dictionary, e.g., with input shape and neuron mapping.
         """
+        # force in_shape and hidden_channels to be a tuple, they can be a dictConfig due to hydra
+        # this lead to an error when logging hyperparameters with the csv logger during training
+        hidden_channels = tuple(hidden_channels)
+        in_shape = tuple(in_shape)
+
         core.channels = (in_shape[0], *hidden_channels)
         core_module = hydra.utils.instantiate(
             core,
