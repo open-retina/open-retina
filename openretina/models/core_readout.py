@@ -1,6 +1,7 @@
 import inspect
 import logging
 import os
+import warnings
 from typing import Any, Iterable, Optional
 
 import hydra.utils
@@ -32,6 +33,15 @@ _MODEL_NAME_TO_REMOTE_LOCATION = {
 
 
 class BaseCoreReadout(LightningModule):
+    """
+    Base module for models combining a shared core and a multi-session readout.
+    All models following the Core Readout pattern should inherit from this class.
+
+    This LightningModule encapsulates a model made of a shared core and a flexible multi-session readout,
+    suitable for training across-session architectures. It defines training, validation, and testing steps,
+    provides hooks for optimizer and scheduler configuration, and methods for handling data info and visualization.
+    """
+
     def __init__(
         self,
         core: Core,
@@ -41,6 +51,20 @@ class BaseCoreReadout(LightningModule):
         correlation_loss: nn.Module | None = None,
         data_info: dict[str, Any] | None = None,
     ):
+        """
+        Initializes a BaseCoreReadout module.
+
+        Args:
+            core (Core): The shared feature extraction core network.
+            readout (MultiReadoutBase): The multi-session readout module mapping core features to neuron outputs
+                per session.
+            learning_rate (float): Learning rate for network training.
+            loss (nn.Module, optional): Loss function for training. Defaults to PoissonLoss3d if None.
+            correlation_loss (nn.Module, optional): Loss used to compute correlation performance metric.
+                Defaults to CorrelationLoss3d (avg=True) if None.
+            data_info (dict[str, Any], optional): Dictionary containing data-specific metadata, such as input_shape,
+                session neuron counts, etc. If None, defaults to empty dict.
+        """
         super().__init__()
 
         self.core = core
@@ -163,7 +187,8 @@ class BaseCoreReadout(LightningModule):
         }
 
     def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg", state_suffix: str = "") -> None:
-        """Save weight visualizations for core and readout modules.
+        """
+        Save weight visualizations for core and readout modules.
 
         Args:
             folder_path: Base directory to save visualizations
@@ -225,6 +250,16 @@ class BaseCoreReadout(LightningModule):
 
 
 class UnifiedCoreReadout(BaseCoreReadout):
+    """
+    A highly flexible core-readout model for multi-session neural data, designed for Hydra config workflows.
+
+    This class is the recommended entry point for defining core-readout models via config files using Hydra.
+    It allows unified instantiation of arbitrary core and readout modules, specified via DictConfig,
+    enabling rapid experimentation and extensibility. Supports all multi-session settings, custom core/readout
+    combinations, and seamless integration with configuration-driven pipelines.
+
+    """
+
     def __init__(
         self,
         in_shape: Int[tuple, "channels time height width"],
@@ -235,6 +270,25 @@ class UnifiedCoreReadout(BaseCoreReadout):
         learning_rate: float = 0.001,
         data_info: dict[str, Any] | None = None,
     ):
+        """
+        Initializes a UnifiedCoreReadout for multi-session configurable neural modeling via Hydra configs.
+
+        Args:
+            in_shape (tuple[int, int, int, int]):
+                Input shape as (channels, time, height, width) for the core module.
+            hidden_channels (Iterable[int]):
+                List of hidden channels for the core; used in core config initialization.
+            n_neurons_dict (dict[str, int]):
+                Mapping from session/dataset identifier to neuron count for each session.
+            core (DictConfig):
+                Hydra config for instantiating the core module (should specify class and params).
+            readout (DictConfig):
+                Hydra config for the readout module (specifies type and custom session-aware params).
+            learning_rate (float, optional):
+                Learning rate for model training. Defaults to 0.001.
+            data_info (dict[str, Any], optional):
+                Additional metadata dictionary, e.g., with input shape and neuron mapping.
+        """
         core.channels = (in_shape[0], *hidden_channels)
         core_module = hydra.utils.instantiate(
             core,
@@ -261,8 +315,18 @@ class UnifiedCoreReadout(BaseCoreReadout):
         self.save_hyperparameters(ignore=["n_neurons_dict"])
 
 
-class CoreReadout(BaseCoreReadout):
-    # Legacy: keep to load old models
+class ExampleCoreReadout(BaseCoreReadout):
+    """
+    Example implementation of a custom Core-Readout model, using a convolutional core and a Gaussian readout.
+
+    This class serves as a guide for constructing custom Core-Readout models without using the unified Hydra
+    configuration system and the `UnifiedCoreReadout` class. Use this model as a reference if you wish to instantiate
+    or design core/readout units directly in code rather than through configuration files. For most workflows,
+    especially those using Hydra, `UnifiedCoreReadout` is preferred for maximum flexibility.
+
+    N.B., this class is provided as a reference example.
+    """
+
     def __init__(
         self,
         in_shape: Int[tuple, "channels time height width"],
@@ -294,14 +358,14 @@ class CoreReadout(BaseCoreReadout):
         color_squashing_weights: tuple[float, ...] | None = None,
         data_info: dict[str, Any] | None = None,
     ):
-        import warnings
-
         warnings.warn(
-            "CoreReadout is deprecated and will be removed in a future version. Please use UnifiedCoreReadout instead.",
-            DeprecationWarning,
+            "You are using ExampleCoreReadout, which is intended as a reference/example class for custom "
+            "core-readout model implementations. For most configuration-driven workflows, especially if you "
+            "use Hydra, consider using UnifiedCoreReadout instead, or writing your own class that inherits "
+            "from BaseCoreReadout.",
+            UserWarning,
             stacklevel=2,
         )
-
         core = SimpleCoreWrapper(
             channels=(in_shape[0], *hidden_channels),
             temporal_kernel_sizes=tuple(temporal_kernel_sizes),
@@ -329,7 +393,6 @@ class CoreReadout(BaseCoreReadout):
             n_neurons_dict,
             readout_scale,
             readout_bias,
-            readout_gaussian_masks,
             readout_gaussian_mean_scale,
             readout_gaussian_var_scale,
             readout_positive,
@@ -360,8 +423,8 @@ def load_core_readout_from_remote(
     try:
         return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
     except:  # noqa: E722
-        # Support for legacy CoreReadout model
-        return CoreReadout.load_from_checkpoint(local_path, map_location=device)
+        # Support for legacy ExampleCoreReadout model
+        return ExampleCoreReadout.load_from_checkpoint(local_path, map_location=device)
 
 
 def load_core_readout_model(
@@ -378,5 +441,5 @@ def load_core_readout_model(
     try:
         return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
     except:  # noqa: E722
-        # Support for legacy CoreReadout model
-        return CoreReadout.load_from_checkpoint(local_path, map_location=device)
+        # Support for legacy ExampleCoreReadout model
+        return ExampleCoreReadout.load_from_checkpoint(local_path, map_location=device)
