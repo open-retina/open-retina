@@ -74,7 +74,8 @@ def train_model(cfg: DictConfig) -> float | None:
         model = load_core_readout_model(load_model_path, device)
 
         # add new readouts and modify stored data in model
-        model.readout.add_sessions(data_info["n_neurons_dict"])  # type: ignore
+        mean_activity_dict = data_info.get("mean_activity_dict")
+        model.readout.add_sessions(data_info["n_neurons_dict"], mean_activity_dict)  # type: ignore
         model.update_model_data_info(data_info)
     else:
         # Assign missing n_neurons_dict to model

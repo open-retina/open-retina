@@ -1,32 +1,43 @@
+from typing import Literal
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from jaxtyping import Float
 from matplotlib.colors import Normalize
 from torch import nn
 
+from openretina.modules.readout.base import Readout
 
-class SimpleSpatialXFeature3d(torch.nn.Module):
+
+class SimpleSpatialXFeature3d(Readout):
     def __init__(
         self,
         in_shape: tuple[int, int, int, int],
         outdims: int,
+        mean_activity: Float[torch.Tensor, " outdims"] | None = None,
         gaussian_mean_scale: float = 1e0,
         gaussian_var_scale: float = 1e0,
         positive: bool = False,
         scale: bool = False,
         bias: bool = True,
         nonlinearity_function=torch.nn.functional.softplus,
+        mask_l1_reg: float = 1.0,
+        feature_weights_l1_reg: float = 1.0,
     ):
         """
         Args:
             in_shape: The shape of the input tensor (c, t, w, h).
             outdims: The number of output dimensions (usually the number of neurons in the session).
-            gaussian_mean_scale: The scale factor for the Gaussian mean. Defaults to 1e0.
-            gaussian_var_scale: The scale factor for the Gaussian variance. Defaults to 1e0.
+            mean_activity: The mean activity of the neurons, used to initialize the bias. Defaults to None.
+            gaussian_mean_scale: The scale factor for the Gaussian mask mean. Defaults to 1e0.
+            gaussian_var_scale: The scale factor for the Gaussian mask variance. Defaults to 1e0.
             positive: Whether the output should be positive. Defaults to False.
             scale: Whether to include a scale parameter. Defaults to False.
             bias: Whether to include a bias parameter. Defaults to True.
             nonlinearity_function: torch nonlinearity function , e.g. nn.functional.softplus
+            mask_l1_reg: The regularization strength for the sparsity of the spatial mask. Defaults to 1.0.
+            feature_weights_l1_reg: The regularization strength for the sparsity of the feature weights. Defaults to 1.0.
         """
         super().__init__()
         self.in_shape = in_shape
@@ -36,6 +47,8 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
         self.gaussian_var_scale = gaussian_var_scale
         self.positive = positive
         self.nonlinearity_function = nonlinearity_function
+        self.mask_l1_reg = mask_l1_reg
+        self.feature_weights_l1_reg = feature_weights_l1_reg
 
         """we train on the log var and transform to var in a separate step"""
         self.mask_mean = torch.nn.Parameter(data=torch.zeros(self.outdims, 2), requires_grad=True)
@@ -54,9 +67,17 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
             self.register_buffer("scale_param", torch.ones(outdims))  # Non-trainable
 
         if bias:
-            self.bias_param = nn.Parameter(torch.zeros(outdims))
+            self.bias = nn.Parameter(torch.zeros(outdims))
         else:
-            self.register_buffer("bias_param", torch.zeros(outdims))  # Non-trainable
+            self.register_buffer("bias", torch.zeros(outdims))  # Non-trainable
+
+        self.initialize(mean_activity)
+
+    def initialize(self, mean_activity: torch.Tensor | None = None) -> None:
+        """
+        Initialize bias using base helper to optionally use mean activity.
+        """
+        self.initialize_bias(mean_activity)
 
     def feature_l1(self, average: bool = False) -> torch.Tensor:
         features_abs = self.features.abs()
@@ -76,6 +97,13 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
                 torch.exp(self.mask_log_var * self.gaussian_var_scale).sum()
                 + (self.mask_mean * self.gaussian_mean_scale).pow(2).sum()
             )
+
+    def regularizer(self, reduction: Literal["sum", "mean"] = "sum") -> torch.Tensor:
+        reg = (
+            self.mask_l1(average=reduction == "mean") * self.mask_l1_reg
+            + self.feature_l1(average=reduction == "mean") * self.feature_weights_l1_reg
+        )
+        return reg
 
     @staticmethod
     def make_mask_grid(outdims: int, w: int, h: int) -> torch.Tensor:
@@ -109,14 +137,14 @@ class SimpleSpatialXFeature3d(torch.nn.Module):
             self.features.data.clamp_(0)
         y = (y * self.features).sum(1)
 
-        y = self.nonlinearity_function(y * self.scale_param + self.bias_param)
+        y = self.nonlinearity_function(y * self.scale_param + self.bias)
         return y
 
     def __repr__(self) -> str:
         c, _, w, h = self.in_shape
         res_array: list[str] = []
         r = f"{self.__class__.__name__} ( {c} x {w} x {h} -> {str(self.outdims)})"
-        if not self.bias_param.requires_grad:
+        if not self.bias.requires_grad:
             r += " with bias"
         res_array.append(r)
 

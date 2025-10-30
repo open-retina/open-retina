@@ -196,6 +196,15 @@ def compute_data_info(
     including partial data information passed in the training config.
     """
     n_neurons_dict = get_n_neurons_per_session(neuron_data_dictionary)
+
+    # Compute mean activity for each session from training responses
+    mean_activity_dict = {}
+    for session_name, responses in neuron_data_dictionary.items():
+        # responses.train has shape (n_neurons, n_timepoints)
+        # Compute mean across time dimension
+        mean_activity = torch.tensor(responses.train.mean(axis=1), dtype=torch.float32)
+        mean_activity_dict[session_name] = mean_activity
+
     if isinstance(movies_dictionary, MoviesTrainTestSplit):
         stim_mean = movies_dictionary.norm_mean
         stim_std = movies_dictionary.norm_std
@@ -228,6 +237,7 @@ def compute_data_info(
 
     return {
         "n_neurons_dict": n_neurons_dict,
+        "mean_activity_dict": mean_activity_dict,
         "input_shape": input_shape,
         "sessions_kwargs": sessions_kwargs,
         "stim_mean": stim_mean,

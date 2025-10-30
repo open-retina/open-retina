@@ -8,6 +8,7 @@ from typing import Any, Literal, Optional
 
 import torch
 import torch.nn as nn
+from jaxtyping import Float
 
 
 class Readout(nn.Module):
@@ -49,7 +50,7 @@ class Readout(nn.Module):
                 f"Reduction method '{reduction}' is not recognized. Valid values are ['mean', 'sum', None]"
             )
 
-    def initialize_bias(self, mean_activity: Optional[torch.Tensor] = None) -> None:
+    def initialize_bias(self, mean_activity: Optional[Float[torch.Tensor, " n_neurons"]] = None) -> None:
         """
         Initialize the biases in readout.
         Args:
@@ -66,6 +67,9 @@ class Readout(nn.Module):
 
     def __repr__(self) -> str:
         return super().__repr__() + " [{}]\n".format(self.__class__.__name__)
+
+    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg", state_suffix: str = "") -> None:
+        raise NotImplementedError("save_weight_visualizations is not implemented for ", self.__class__.__name__)
 
 
 class ClonedReadout(nn.Module):

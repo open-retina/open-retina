@@ -14,9 +14,7 @@ from omegaconf import DictConfig
 from openretina.data_io.base_dataloader import DataPoint
 from openretina.modules.core.base_core import Core, SimpleCoreWrapper
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
-from openretina.modules.readout.multi_readout import (
-    MultiGaussianReadoutWrapper,
-)
+from openretina.modules.readout.multi_readout import MultiGaussianReadoutWrapper, MultiReadoutBase
 from openretina.utils.file_utils import get_cache_directory, get_local_file_path
 
 LOGGER = logging.getLogger(__name__)
@@ -37,7 +35,7 @@ class BaseCoreReadout(LightningModule):
     def __init__(
         self,
         core: Core,
-        readout: nn.Module,
+        readout: MultiReadoutBase,
         learning_rate: float,
         loss: nn.Module | None = None,
         correlation_loss: nn.Module | None = None,
@@ -247,9 +245,16 @@ class UnifiedCoreReadout(BaseCoreReadout):
         if "in_shape" not in readout:
             in_shape_readout = self.compute_readout_input_shape(in_shape, core_module)
             readout["in_shape"] = (in_shape_readout[0],) + in_shape_readout[1:]
+
+        # Extract mean_activity_dict from data_info if available
+        mean_activity_dict = None
+        if data_info is not None and "mean_activity_dict" in data_info:
+            mean_activity_dict = data_info["mean_activity_dict"]
+
         readout_module = hydra.utils.instantiate(
             readout,
             n_neurons_dict=n_neurons_dict,
+            mean_activity_dict=mean_activity_dict,
         )
 
         super().__init__(core=core_module, readout=readout_module, learning_rate=learning_rate, data_info=data_info)
@@ -289,6 +294,14 @@ class CoreReadout(BaseCoreReadout):
         color_squashing_weights: tuple[float, ...] | None = None,
         data_info: dict[str, Any] | None = None,
     ):
+        import warnings
+
+        warnings.warn(
+            "CoreReadout is deprecated and will be removed in a future version. Please use UnifiedCoreReadout instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         core = SimpleCoreWrapper(
             channels=(in_shape[0], *hidden_channels),
             temporal_kernel_sizes=tuple(temporal_kernel_sizes),
