@@ -3,6 +3,7 @@ from typing import Callable, Iterable, Literal, Optional
 
 import torch
 import torch.nn as nn
+from einops import rearrange
 from jaxtyping import Float
 
 from openretina.modules.readout.base import ClonedReadout, Readout
@@ -241,10 +242,12 @@ class MultiFactorizedReadout(MultiReadoutBase):
         return response
 
 
-class MultiSampledGaussianReadout(nn.ModuleDict):
+class MultiSampledGaussianReadout(MultiReadoutBase):
     """
     Multiple Sessions version of the sampled point gaussian readout.
     """
+
+    _base_readout = PointGaussianReadout
 
     def __init__(
         self,
@@ -260,88 +263,46 @@ class MultiSampledGaussianReadout(nn.ModuleDict):
         shared_features=None,
         shared_grid=None,
         init_grid=None,
-        mean_activity=None,
         gamma: float = 1.0,
         reg_avg: bool = False,
         nonlinearity_function: Callable[[torch.Tensor], torch.Tensor] = torch.nn.functional.softplus,
+        mean_activity_dict: dict[str, float] | None = None,
     ):
-        super().__init__()
-        self.session_init_args = {
-            "in_shape": in_shape,
-            "init_mu_range": init_mu_range,
-            "init_sigma": init_sigma_range,
-            "batch_sample": batch_sample,
-            "align_corners": align_corners,
-            "gauss_type": gauss_type,
-            "grid_mean_predictor": grid_mean_predictor,
-            "shared_features": shared_features,
-            "shared_grid": shared_grid,
-            "init_grid": init_grid,
-            "mean_activity": mean_activity,
-            "bias": bias,
-        }
+        super().__init__(
+            in_shape=in_shape,
+            n_neurons_dict=n_neurons_dict,
+            bias=bias,
+            init_mu_range=init_mu_range,
+            init_sigma_range=init_sigma_range,
+            batch_sample=batch_sample,
+            align_corners=align_corners,
+            gauss_type=gauss_type,
+            grid_mean_predictor=grid_mean_predictor,
+            shared_features=shared_features,
+            shared_grid=shared_grid,
+            init_grid=init_grid,
+            gamma_readout=gamma,
+            readout_reg_avg=reg_avg,
+            mean_activity_dict=mean_activity_dict,
+        )
 
-        self.add_sessions(n_neurons_dict)
-
-        self.gamma = gamma
-        self.readout_reg_avg = reg_avg
         self.nonlinearity = nonlinearity_function
-
-    def add_sessions(self, n_neurons_dict: dict[str, int]) -> None:
-        """Adds new sessions to the readout wrapper.
-        Can be called to add new sessions to an existing readout wrapper."""
-
-        if any(key in self.keys() for key in n_neurons_dict):
-            duplicate_session_names = set(self.keys()).intersection(n_neurons_dict.keys())
-            raise ValueError(
-                f"Found duplicate sessions in n_neurons_dict:  {duplicate_session_names=}. \
-                    Make sure to use different session names for each session."
-            )
-        for k in n_neurons_dict:  # iterate over sessions
-            n_neurons = n_neurons_dict[k]
-            assert len(self.session_init_args["in_shape"]) == 4  # type: ignore
-            self.add_module(
-                k,
-                PointGaussianReadout(  # add a readout for each session
-                    outdims=n_neurons,
-                    **self.session_init_args,  # type: ignore
-                ),
-            )
 
     def forward(self, *args, data_key: str | None, **kwargs) -> torch.Tensor:
         if data_key is None:
             readout_responses = []
             for readout_key in self.readout_keys():
-                out_core = torch.transpose(args[0], 1, 2)
-                out_core = out_core.reshape(((-1,) + out_core.size()[2:]))
+                out_core = rearrange(args[0], "batch channels time height width -> (batch time) channels height width")
                 resp = self[readout_key](out_core, **kwargs)
-                resp = resp.reshape((args[0].size(0), -1, resp.size(-1)))
+                resp = rearrange(resp, "(batch time) neurons -> batch time neurons", batch=args[0].size(0))
                 resp = self.nonlinearity(resp)
                 readout_responses.append(resp)
 
             response = torch.concatenate(readout_responses, dim=-1)
         else:
-            out_core = torch.transpose(args[0], 1, 2)
-            out_core = out_core.reshape(((-1,) + out_core.size()[2:]))
+            out_core = rearrange(args[0], "batch channels time height width -> (batch time) channels height width")
             response = self[data_key](out_core, **kwargs)
-            response = response.reshape((args[0].size(0), -1, response.size(-1)))
+            response = rearrange(response, "(batch time) neurons -> batch time neurons", batch=args[0].size(0))
             response = self.nonlinearity(response)
 
         return response
-
-    def regularizer(self, data_key: str) -> torch.Tensor:
-        feature_loss = self[data_key].feature_l1() * self.gamma
-        return feature_loss
-
-    def readout_keys(self) -> list[str]:
-        return sorted(self._modules.keys())
-
-    def save_weight_visualizations(self, folder_path: str) -> None:
-        for key in self.readout_keys():
-            readout_folder = os.path.join(folder_path, key)
-            os.makedirs(readout_folder, exist_ok=True)
-            self._modules[key].save_weight_visualizations(readout_folder)  # type: ignore
-
-    @property
-    def sessions(self) -> list[str]:
-        return self.readout_keys()

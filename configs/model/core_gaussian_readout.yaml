@@ -1,22 +1,22 @@
 # Core and data
-hidden_channels: [16]
+hidden_channels: [16, 16]
 in_shape: ??? # Required at top-level config
 n_neurons_dict: ??? # Set dynamically (e.g., in training script after loading sessions)
 
 core:
   _target_: openretina.modules.core.base_core.SimpleCoreWrapper
   _convert_: object
-  temporal_kernel_sizes: [35]
-  spatial_kernel_sizes: [21]
+  temporal_kernel_sizes: [21, 11]
+  spatial_kernel_sizes: [11, 5]
   gamma_input: 0.0
   gamma_in_sparse: 0.0
   gamma_hidden: 0.0
   gamma_temporal: 40.0
   input_padding: false
-  hidden_padding: false
+  hidden_padding: [0, 2, 2]
   maxpool_every_n_layers: null
   downsample_input_kernel_size: null
-  convolution_type: "separable"
+  convolution_type: "custom_separable"
   dropout_rate: 0.0
   cut_first_n_frames: 0
   channels: ??? # set dynamically based on input channels
@@ -37,7 +37,6 @@ readout:
   shared_features: null
   init_grid: null
   shared_grid: null
-  mean_activity: null
 
 # training
-learning_rate: 0.001
+learning_rate: 0.01
