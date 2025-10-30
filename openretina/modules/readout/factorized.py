@@ -35,8 +35,6 @@ class FactorizedReadout(Readout):
 
     """
 
-    mask_size: tuple[int, int]
-
     def __init__(
         self,
         in_shape: tuple[int, int, int, int],
