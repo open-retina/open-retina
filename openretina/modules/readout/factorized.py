@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from jaxtyping import Float
 
 from openretina.modules.layers import FlatLaplaceL23dnorm
 from openretina.modules.readout.base import Readout
@@ -38,8 +39,8 @@ class FactorizedReadout(Readout):
 
     def __init__(
         self,
-        num_kernels: Sequence[int],
-        num_neurons: int,
+        in_shape: tuple[int, int, int, int],
+        outdims: int,
         mask_l1_reg: float,
         weights_l1_reg: float,
         laplace_mask_reg: float,
@@ -50,12 +51,13 @@ class FactorizedReadout(Readout):
         init_mask: torch.Tensor | None = None,
         init_weights: torch.Tensor | None = None,
         init_scales: Sequence[tuple[float, float]] | None = None,
+        mean_activity: Float[torch.Tensor, " outdims"] | None = None,
     ):
         """
         Initializes the FactorizedReadout module : (2d spatial mask + feature weights) / cell.
         Args:
-            num_kernels (Sequence[int]): Number of kernels per layer.
-            num_neurons (int): Number of output neurons.
+            in_shape: The shape of the input tensor (c, t, w, h).
+            outdims (int): Number of output neurons.
             mask_l1_reg (float): L1 regularization strength for mask.
             weights_l1_reg (float): L1 regularization strength for weights.
             laplace_mask_reg (float): Laplace regularization strength for mask.
@@ -67,18 +69,21 @@ class FactorizedReadout(Readout):
             init_weights (Optional[torch.Tensor], optional): Initial weights tensor. Defaults to None.
             init_scales (Optional[Sequence[Tuple[float, float]]], optional): Initialization scales for mask
             and weights. Defaults to None.
+            mean_activity (Float[torch.Tensor, " outdims"] | None): Mean activity of neurons. Defaults to None.
         Raises:
             ValueError: If neither init_mask nor init_scales is provided.
         """
         super().__init__()
 
-        self.num_neurons = num_neurons
+        self.outdims = outdims
+        self.in_shape = in_shape
+        channels, _, _, _ = in_shape
         self.reg = [mask_l1_reg, weights_l1_reg, laplace_mask_reg]
         self.readout_bias = readout_bias
         self.weights_constraint = weights_constraint
         self.mask_constraint = mask_constraint
         self._input_weights_regularizer_spatial = FlatLaplaceL23dnorm(padding=0)
-        self.outdims = num_neurons
+        num_neurons = outdims
 
         if isinstance(mask_size, int):
             num_mask_pixels = mask_size**2
@@ -89,7 +94,7 @@ class FactorizedReadout(Readout):
             self.mask_size = mask_size
 
         if init_mask is not None:
-            num_neurons = init_mask.shape[0]
+            assert num_neurons == init_mask.shape[0], "Number of neurons in init_mask does not match outdims"
             h, w = self.mask_size
             H, W = init_mask.shape[2], init_mask.shape[3]
             h_offset = (H - h) // 2
@@ -110,14 +115,18 @@ class FactorizedReadout(Readout):
             self.mask_weights = nn.Parameter(torch.normal(mean=mean, std=std, size=(num_mask_pixels, num_neurons)))
 
         if init_weights is not None:
-            self.readout_weights = nn.Parameter(init_weights)
+            self.feature_weights = nn.Parameter(init_weights)
         else:
             assert init_scales is not None
             mean, std = init_scales[1]
-            self.readout_weights = nn.Parameter(torch.normal(mean=mean, std=std, size=(num_kernels[-1], num_neurons)))
+            self.feature_weights = nn.Parameter(torch.normal(mean=mean, std=std, size=(channels, num_neurons)))
 
-        init_bias = 0.5 if self.readout_bias else 0.0
-        self.bias = nn.Parameter(torch.full((num_neurons,), init_bias))
+        if readout_bias:
+            self.bias = nn.Parameter(torch.zeros(outdims))
+        else:
+            self.register_buffer("bias", torch.zeros(outdims))  # Non-trainable
+
+        self.initialize(mean_activity)
 
     def apply_constraints(self):
         if self.mask_constraint == "abs":
@@ -125,16 +134,16 @@ class FactorizedReadout(Readout):
                 self.mask_weights.data.abs_()
         if self.weights_constraint == "abs":
             with torch.no_grad():
-                self.readout_weights.data.abs_()
+                self.feature_weights.data.abs_()
         elif self.weights_constraint == "norm":
             with torch.no_grad():
-                norm = torch.sqrt(torch.sum(self.readout_weights**2, dim=0, keepdim=True) + 1e-5)
-                self.readout_weights.data /= norm
+                norm = torch.sqrt(torch.sum(self.feature_weights**2, dim=0, keepdim=True) + 1e-5)
+                self.feature_weights.data /= norm
         elif self.weights_constraint == "absnorm":
             with torch.no_grad():
-                self.readout_weights.data.abs_()
-                norm = torch.sqrt(torch.sum(self.readout_weights**2, dim=0, keepdim=True) + 1e-5)
-                self.readout_weights.data /= norm
+                self.feature_weights.data.abs_()
+                norm = torch.sqrt(torch.sum(self.feature_weights**2, dim=0, keepdim=True) + 1e-5)
+                self.feature_weights.data /= norm
 
     def forward(self, x: torch.Tensor, **kwargs: Any) -> torch.Tensor:
         self.apply_constraints()
@@ -144,14 +153,14 @@ class FactorizedReadout(Readout):
         x_flat = x.view(B, C, T, -1).permute(0, 2, 1, 3)
         masked = torch.matmul(x_flat, self.mask_weights)
         masked = masked.permute(0, 1, 3, 2)
-        out = (masked * self.readout_weights.T.unsqueeze(0).unsqueeze(0)).sum(dim=3)
+        out = (masked * self.feature_weights.T.unsqueeze(0).unsqueeze(0)).sum(dim=3)
         if self.readout_bias:
             out = out + self.bias
         return F.softplus(out)
 
     def regularizer(self, reduction: Optional[Literal["sum", "mean"]] = None) -> torch.Tensor:
         mask_r = self.reg[0] * torch.mean(torch.sum(torch.abs(self.mask_weights), dim=0))
-        wt_r = self.reg[1] * torch.mean(torch.sum(torch.abs(self.readout_weights), dim=0))
+        wt_r = self.reg[1] * torch.mean(torch.sum(torch.abs(self.feature_weights), dim=0))
         reshaped_masked_weights = self.mask_weights.reshape(-1, 1, 1, self.mask_size[0], self.mask_size[1])
         laplace_mask_r = self.reg[2] * self._input_weights_regularizer_spatial(reshaped_masked_weights, avg=False)
         if reduction == "mean":
@@ -175,7 +184,7 @@ class FactorizedReadout(Readout):
             weights = dict(readout.named_parameters())["mask.weight"].detach().cpu()
             weights = weights.view(-1, H, W)
         else:
-            raise AttributeError("Model does not have 'mask_weights' or 'readout_weights'.")
+            raise AttributeError("Model does not have 'mask_weights' or 'feature_weights'.")
 
         total_neurons = weights.shape[0]
         if not cell_indices:
@@ -219,7 +228,7 @@ class FactorizedReadout(Readout):
         plt.close()
 
         # Feature weights
-        feature_weights = readout.readout_weights.detach().cpu()
+        feature_weights = readout.feature_weights.detach().cpu()
         feature_weights_np = feature_weights.numpy()
 
         fig, ax = plt.subplots(figsize=(8, 6))
@@ -238,6 +247,10 @@ class FactorizedReadout(Readout):
         )
         fig.clf()
         plt.close()
+
+    def initialize(self, mean_activity: Float[torch.Tensor, " outdims"] | None = None) -> None:
+        if mean_activity is not None:
+            self.initialize_bias(mean_activity)
 
 
 # Alias for backward compatibility

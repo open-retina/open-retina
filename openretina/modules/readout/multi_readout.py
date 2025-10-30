@@ -188,10 +188,12 @@ class MultiGaussianMaskReadout(MultiReadoutBase):
         return response
 
 
-class MultiFactorizedReadout(nn.ModuleDict):
+class MultiFactorizedReadout(MultiReadoutBase):
     """
     Multiple Sessions version of the classic factorized readout.
     """
+
+    _base_readout = FactorizedReadout
 
     def __init__(
         self,
@@ -201,56 +203,31 @@ class MultiFactorizedReadout(nn.ModuleDict):
         weights_l1_reg: float,
         laplace_mask_reg: float,
         readout_bias: bool = False,
-        weights_constraint: Optional[str] = None,
-        mask_constraint: Optional[str] = None,
+        weights_constraint: Literal["abs", "norm", "absnorm"] | None = None,
+        mask_constraint: Literal["abs"] | None = None,
         init_mask: Optional[torch.Tensor] = None,
         init_weights: Optional[torch.Tensor] = None,
         init_scales: Optional[Iterable[Iterable[float]]] = None,
+        readout_reg_avg: bool = False,
+        mean_activity_dict: dict[str, float] | None = None,
     ):
-        super().__init__()
-        # set kernels and mask size based on input shape
-        num_kernels = [in_shape[0]]
         mask_size = in_shape[2:]
-        self.session_init_args = {
-            "num_kernels": num_kernels,
-            "mask_l1_reg": mask_l1_reg,
-            "weights_l1_reg": weights_l1_reg,
-            "laplace_mask_reg": laplace_mask_reg,
-            "mask_size": mask_size,
-            "readout_bias": readout_bias,
-            "weights_constraint": weights_constraint,
-            "mask_constraint": mask_constraint,
-            "init_mask": init_mask,
-            "init_weights": init_weights,
-            "init_scales": init_scales,
-        }
-
-        self.add_sessions(n_neurons_dict)
-
-        self.gamma_readout = weights_l1_reg
-        self.gamma_masks = mask_l1_reg
-        self.gamma_laplace_masks = laplace_mask_reg
-
-    def add_sessions(self, n_neurons_dict: dict[str, int]) -> None:
-        """Adds new sessions to the readout wrapper.
-        Can be called to add new sessions to an existing readout wrapper."""
-
-        if any(key in self.keys() for key in n_neurons_dict):
-            duplicate_session_names = set(self.keys()).intersection(n_neurons_dict.keys())
-            raise ValueError(
-                f"Found duplicate sessions in n_neurons_dict:  {duplicate_session_names=}. \
-                    Make sure to use different session names for each session."
-            )
-        for k in n_neurons_dict:  # iterate over sessions
-            n_neurons = n_neurons_dict[k]
-            assert len(self.session_init_args["mask_size"]) == 2  # type: ignore
-            self.add_module(
-                k,
-                FactorizedReadout(  # add a readout for each session
-                    num_neurons=n_neurons,
-                    **self.session_init_args,  # type: ignore
-                ),
-            )
+        super().__init__(
+            in_shape=in_shape,
+            n_neurons_dict=n_neurons_dict,
+            mask_size=mask_size,
+            mask_l1_reg=mask_l1_reg,
+            weights_l1_reg=weights_l1_reg,
+            laplace_mask_reg=laplace_mask_reg,
+            readout_bias=readout_bias,
+            weights_constraint=weights_constraint,
+            mask_constraint=mask_constraint,
+            init_mask=init_mask,
+            init_weights=init_weights,
+            init_scales=init_scales,
+            readout_reg_avg=readout_reg_avg,
+            mean_activity_dict=mean_activity_dict,
+        )
 
     def forward(self, *args, data_key: str | None, **kwargs) -> torch.Tensor:
         if data_key is None:
@@ -262,23 +239,6 @@ class MultiFactorizedReadout(nn.ModuleDict):
         else:
             response = self[data_key](*args, **kwargs)
         return response
-
-    def regularizer(self, data_key: str) -> torch.Tensor:
-        reg_loss = self[data_key].regularizer()
-        return reg_loss
-
-    def readout_keys(self) -> list[str]:
-        return sorted(self._modules.keys())
-
-    def save_weight_visualizations(self, folder_path: str, file_format, state_suffix: str = "") -> None:
-        for key in self.readout_keys():
-            readout_folder = os.path.join(folder_path, key)
-            os.makedirs(readout_folder, exist_ok=True)
-            self._modules[key].save_weight_visualizations(readout_folder, file_format, state_suffix)  # type: ignore
-
-    @property
-    def sessions(self) -> list[str]:
-        return self.readout_keys()
 
 
 class MultiSampledGaussianReadout(nn.ModuleDict):

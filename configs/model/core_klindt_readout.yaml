@@ -25,8 +25,9 @@ readout:
   _target_: openretina.modules.readout.multi_readout.MultiFactorizedReadout
   _convert_: object
   in_shape: ???
-  mask_l1_reg: 0.0
-  weights_l1_reg: 0.0
+  mask_l1_reg: 5.0
+  weights_l1_reg: 5.0
+  laplace_mask_reg: 1.0
   readout_bias: true
   weights_constraint: null
   mask_constraint: null

@@ -55,7 +55,7 @@ class GaussianMaskReadout(Readout):
             bias: Whether to include a bias parameter. Defaults to True.
             nonlinearity_function: torch nonlinearity function , e.g. nn.functional.softplus
             mask_l1_reg: The regularization strength for the sparsity of the spatial mask. Defaults to 1.0.
-            feature_weights_l1_reg: The regularization strength for the sparsity of the feature weights. Defaults to 1.0.
+            feature_weights_l1_reg: The regularization strength for the sparsity of feature weights. Defaults to 1.0.
         """
         super().__init__()
         self.in_shape = in_shape
