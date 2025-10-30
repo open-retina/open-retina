@@ -15,7 +15,7 @@ from omegaconf import DictConfig
 from openretina.data_io.base_dataloader import DataPoint
 from openretina.modules.core.base_core import Core, SimpleCoreWrapper
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
-from openretina.modules.readout.multi_readout import MultiGaussianReadoutWrapper, MultiReadoutBase
+from openretina.modules.readout.multi_readout import MultiGaussianMaskReadout, MultiReadoutBase
 from openretina.utils.file_utils import get_cache_directory, get_local_file_path
 
 LOGGER = logging.getLogger(__name__)
@@ -388,7 +388,7 @@ class ExampleCoreReadout(BaseCoreReadout):
         in_shape_readout = self.compute_readout_input_shape(in_shape, core)
         LOGGER.info(f"{in_shape_readout=}")
 
-        readout = MultiGaussianReadoutWrapper(
+        readout = MultiGaussianMaskReadout(
             in_shape_readout,
             n_neurons_dict,
             readout_scale,

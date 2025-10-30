@@ -11,10 +11,29 @@ from torch.nn.parameter import Parameter
 from openretina.modules.readout.base import Readout
 
 
-class FullGaussian2d(Readout):
+class PointGaussianReadout(Readout):
     """
-    A readout using a spatial transformer layer whose positions are sampled from one Gaussian per neuron. Mean
-    and covariance of that Gaussian are learned.
+    A readout module that samples the output for each neuron at a single spatial location from the core feature map,
+    where the location is drawn from a learned 2D Gaussian distribution for each neuron.
+
+    First introduced in Lurz et al., 2021:
+    https://openreview.net/forum?id=Tp7kI90Htd
+
+    Key notes:
+        - Unlike mask-based readouts (`GaussianMaskReadout`, `FactorisedReadout`), this readout
+        does NOT produce a spatial mask over the input. Instead, each neuron's response is
+        determined by interpolating the feature map at a point sampled from a Gaussian distribution
+        (parameterized by mean and covariance) for each neuron.
+
+        - This mechanism results in each neuron having a flexible receptive field
+        location within the Gaussian window during training (as the location is sampled from the Gaussian distribution),
+        and a fixed location during inference (as the location is then fixed to the mean of the Gaussian distribution).
+
+        - Instead of a spatial mask, the readout spatial location is a single "point" (x, y) in feature space
+        per neuron per sample: there is no spatial integration or summing across a spatial region as in
+        mask-based readouts.
+
+        - Feature weights are still learned and behave like in the classic FactorisedReadout and GaussianMaskReadout.
 
     Args:
         in_shape (list, tuple): shape of the input feature map [channels, width, height]
@@ -282,7 +301,7 @@ class FullGaussian2d(Readout):
     def initialize_features(self, match_ids=None, shared_features=None):
         """
         The internal attribute `_original_features` in this function denotes whether this instance of the FullGuassian2d
-        learns the original features (True) or if it uses a copy of the features from another instance of FullGaussian2d
+        learns the original features (True) or if it uses a copy of the features from another instance of PointGaussianReadout
         via the `shared_features` (False). If it uses a copy, the feature_l1 regularizer for this copy will return 0
         """
         c, _, w, h = self.in_shape
@@ -407,3 +426,8 @@ class FullGaussian2d(Readout):
         for ch in self.children():
             r += "  -> " + ch.__repr__() + "\n"
         return r
+
+
+# Alias for backward compatibility
+class FullGaussian2d(PointGaussianReadout):
+    pass

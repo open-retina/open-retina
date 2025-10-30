@@ -6,9 +6,9 @@ import torch.nn as nn
 from jaxtyping import Float
 
 from openretina.modules.readout.base import ClonedReadout, Readout
-from openretina.modules.readout.factorised_gaussian import SimpleSpatialXFeature3d
-from openretina.modules.readout.gaussian import FullGaussian2d
-from openretina.modules.readout.klindt_readout import KlindtReadoutWrapper3D
+from openretina.modules.readout.factorized import FactorizedReadout
+from openretina.modules.readout.factorized_gaussian import GaussianMaskReadout
+from openretina.modules.readout.gaussian import PointGaussianReadout
 
 
 class MultiReadoutBase(nn.ModuleDict):
@@ -141,12 +141,12 @@ class MultiReadoutBase(nn.ModuleDict):
             self._modules[key].save_weight_visualizations(readout_folder, file_format, state_suffix)  # type: ignore
 
 
-class MultiGaussianReadoutWrapper(MultiReadoutBase):
+class MultiGaussianMaskReadout(MultiReadoutBase):
     """
-    Multiple Sessions version of the SimpleSpatialXFeature3d factorised gaussian readout.
+    Multiple Sessions version of the GaussianMaskReadout factorised gaussian readout.
     """
 
-    _base_readout = SimpleSpatialXFeature3d
+    _base_readout = GaussianMaskReadout
 
     def __init__(
         self,
@@ -188,9 +188,9 @@ class MultiGaussianReadoutWrapper(MultiReadoutBase):
         return response
 
 
-class MultiKlindtReadoutWrapper(nn.ModuleDict):
+class MultiFactorizedReadout(nn.ModuleDict):
     """
-    Multiple Sessions version of the SimpleSpatialXFeature3d factorised gaussian readout.
+    Multiple Sessions version of the classic factorized readout.
     """
 
     def __init__(
@@ -246,7 +246,7 @@ class MultiKlindtReadoutWrapper(nn.ModuleDict):
             assert len(self.session_init_args["mask_size"]) == 2  # type: ignore
             self.add_module(
                 k,
-                KlindtReadoutWrapper3D(  # add a readout for each session
+                FactorizedReadout(  # add a readout for each session
                     num_neurons=n_neurons,
                     **self.session_init_args,  # type: ignore
                 ),
@@ -281,9 +281,9 @@ class MultiKlindtReadoutWrapper(nn.ModuleDict):
         return self.readout_keys()
 
 
-class MultiSampledGaussianReadoutWrapper(nn.ModuleDict):
+class MultiSampledGaussianReadout(nn.ModuleDict):
     """
-    Multiple Sessions version of the sampling gaussian readout.
+    Multiple Sessions version of the sampled point gaussian readout.
     """
 
     def __init__(
@@ -342,7 +342,7 @@ class MultiSampledGaussianReadoutWrapper(nn.ModuleDict):
             assert len(self.session_init_args["in_shape"]) == 4  # type: ignore
             self.add_module(
                 k,
-                FullGaussian2d(  # add a readout for each session
+                PointGaussianReadout(  # add a readout for each session
                     outdims=n_neurons,
                     **self.session_init_args,  # type: ignore
                 ),

@@ -23,7 +23,7 @@ core:
   channels: ??? # set dynamically based on input channels
 
 readout:
-  _target_: openretina.modules.readout.multi_readout.MultiGaussianReadoutWrapper
+  _target_: openretina.modules.readout.multi_readout.MultiGaussianMaskReadout
   _convert_: object
   in_shape: ???
   scale: true

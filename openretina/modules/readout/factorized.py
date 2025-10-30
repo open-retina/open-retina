@@ -1,6 +1,6 @@
 import os
 from math import ceil, sqrt
-from typing import Any, Literal, Optional, Sequence, Tuple
+from typing import Any, Literal, Optional, Sequence
 
 import matplotlib.pyplot as plt
 import torch
@@ -11,8 +11,30 @@ from openretina.modules.layers import FlatLaplaceL23dnorm
 from openretina.modules.readout.base import Readout
 
 
-class KlindtReadoutWrapper3D(Readout):
-    mask_size: Tuple[int, int]
+class FactorizedReadout(Readout):
+    """
+    The canonical factorized readout module: each neuron's output is the dot product
+    of a learned 2D spatial mask and feature weights.
+
+    This module implements the general Factorized (a.k.a. "Klindt") Readout, where—for
+    each neuron—the spatial integration is performed via a freeform, unconstrained (but sparse) mask,
+    and the stimulus dimensions (e.g., features, channels, time) are combined by a separate
+    learned vector of feature weights. The spatial mask is independently learned for every neuron
+    without any restriction to a particular functional form, but with sparsity penalties.
+
+    First introduced in Klindt et al., 2017:
+    https://doi.org/10.48550/arXiv.1711.02653
+
+    Key notes:
+        - Unlike parametric-masked readouts (see `GaussianMaskReadout`), this class allows the spatial mask
+        to take any shape, offering maximum expressive power for fitting the spatial receptive field.
+
+        - Typical regularizations include sparsity (L1), Laplace smoothness penalties, and optional
+        constraints (non-negativity, normalization) on the mask or weights.
+
+    """
+
+    mask_size: tuple[int, int]
 
     def __init__(
         self,
@@ -21,16 +43,16 @@ class KlindtReadoutWrapper3D(Readout):
         mask_l1_reg: float,
         weights_l1_reg: float,
         laplace_mask_reg: float,
-        mask_size: int | Tuple[int, int],
+        mask_size: int | tuple[int, int],
         readout_bias: bool = False,
-        weights_constraint: Optional[str] = None,
-        mask_constraint: Optional[str] = None,
-        init_mask: Optional[torch.Tensor] = None,
-        init_weights: Optional[torch.Tensor] = None,
-        init_scales: Optional[Sequence[Tuple[float, float]]] = None,
+        weights_constraint: Literal["abs", "norm", "absnorm"] | None = None,
+        mask_constraint: Literal["abs"] | None = None,
+        init_mask: torch.Tensor | None = None,
+        init_weights: torch.Tensor | None = None,
+        init_scales: Sequence[tuple[float, float]] | None = None,
     ):
         """
-        Initializes the Klindt readout module : (2d spatial mask + feature weights) / cell.
+        Initializes the FactorizedReadout module : (2d spatial mask + feature weights) / cell.
         Args:
             num_kernels (Sequence[int]): Number of kernels per layer.
             num_neurons (int): Number of output neurons.
@@ -216,3 +238,8 @@ class KlindtReadoutWrapper3D(Readout):
         )
         fig.clf()
         plt.close()
+
+
+# Alias for backward compatibility
+class KlindtReadoutWrapper3D(FactorizedReadout):
+    pass

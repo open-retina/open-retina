@@ -10,7 +10,25 @@ from torch import nn
 from openretina.modules.readout.base import Readout
 
 
-class SimpleSpatialXFeature3d(Readout):
+class GaussianMaskReadout(Readout):
+    """
+    A readout module that computes each neuron's output as a weighted sum (dot product) across
+    the spatial extent of the core feature map, using a 2D Gaussian mask per neuron.
+    It can be considered as an extension of the classic FactorisedReadout, where the spatial
+    mask is enforced to have a Gaussian shape.
+
+    First introduced in Hoefling et al., 2024:
+    https://doi.org/10.7554/eLife.86860
+
+    Key notes:
+        - Unlike point-based Gaussian readouts (see `PointGaussianReadout`), this class
+        produces a full spatial mask for each neuron, effectively performing spatial integration (weighted by
+        a Gaussian) across the entire input feature map in the spatial dimensions.
+
+        - Each neuron has a single mask_log_var scalar (not per-axis), used as variance for both x and y, so the
+        receptive field is circular (in the normalized grid), axis-aligned, and isotropic.
+    """
+
     def __init__(
         self,
         in_shape: tuple[int, int, int, int],
@@ -197,3 +215,8 @@ class SimpleSpatialXFeature3d(Readout):
             fig_axes_tuple[0].savefig(plot_path, bbox_inches="tight", facecolor="w", dpi=300)
             fig_axes_tuple[0].clf()
             plt.close()
+
+
+# Alias for backward compatibility
+class SimpleSpatialXFeature3d(GaussianMaskReadout):
+    pass
