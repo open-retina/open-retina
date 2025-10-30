@@ -169,7 +169,7 @@ class FactorizedReadout(Readout):
             return mask_r + wt_r + laplace_mask_r
 
     def save_weight_visualizations(
-        self, readout_folder, file_format: str, state_suffix: str = "", cell_indices=None
+        self, folder_path: str, file_format: str = "jpg", state_suffix: str = "", cell_indices: list[int] | None = None
     ) -> None:
         if hasattr(self, "mask_size"):
             H, W = self.mask_size
@@ -219,7 +219,7 @@ class FactorizedReadout(Readout):
         fig.suptitle("Spatial Masks", fontsize=14)
         fig.tight_layout()
         fig.savefig(
-            os.path.join(readout_folder, "readout_masks_" + state_suffix + f".{file_format}"),
+            os.path.join(folder_path, "readout_masks_" + state_suffix + f".{file_format}"),
             bbox_inches="tight",
             facecolor="w",
             dpi=300,
@@ -240,7 +240,7 @@ class FactorizedReadout(Readout):
         fig.tight_layout()
 
         fig.savefig(
-            os.path.join(readout_folder, "feature_weights_" + state_suffix + f".{file_format}"),
+            os.path.join(folder_path, "feature_weights_" + state_suffix + f".{file_format}"),
             bbox_inches="tight",
             facecolor="w",
             dpi=300,

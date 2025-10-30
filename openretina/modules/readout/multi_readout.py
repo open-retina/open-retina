@@ -41,26 +41,26 @@ class MultiReadoutBase(nn.ModuleDict):
         **kwargs: additional keyword arguments to be passed to the base_readout's constructor
     """
 
-    _base_readout = None
+    _base_readout_cls: type[Readout] | None = None
 
     def __init__(
         self,
         in_shape: tuple[int, int, int, int],
         n_neurons_dict: dict[str, int],
-        base_readout: Readout | None = None,
+        base_readout: type[Readout] | None = None,
         mean_activity_dict: dict[str, Float[torch.Tensor, " neurons"]] | None = None,
         clone_readout=False,
         readout_reg_avg: bool = False,
         **kwargs,
     ):
-        # The `base_readout` can be overridden only if the static property `_base_readout` is not set
-        if self._base_readout is None:
-            self._base_readout = base_readout
+        # The `base_readout` can be overridden only if the static property `_base_readout_cls` is not set
+        if self._base_readout_cls is None:
+            self._base_readout_cls = base_readout
 
         self._readout_kwargs = kwargs
         self._in_shape = in_shape
         self.readout_reg_avg = readout_reg_avg
-        if self._base_readout is None:
+        if self._base_readout_cls is None:
             raise ValueError("Attribute _base_readout must be set")
         super().__init__()
 
@@ -70,7 +70,7 @@ class MultiReadoutBase(nn.ModuleDict):
             if i == 0 or clone_readout is False:
                 self.add_module(
                     data_key,
-                    self._base_readout(
+                    self._base_readout_cls(
                         in_shape=in_shape,
                         outdims=n_neurons_dict[data_key],
                         mean_activity=mean_activity,
@@ -83,14 +83,22 @@ class MultiReadoutBase(nn.ModuleDict):
 
         self.initialize(mean_activity_dict)
 
-    def add_sessions(self, n_neurons_dict: dict[str, int], mean_activity_dict: dict[str, float] | None = None) -> None:
+    def add_sessions(
+        self,
+        n_neurons_dict: dict[str, int],
+        mean_activity_dict: dict[str, Float[torch.Tensor, " neurons"]] | None = None,
+    ) -> None:
         """Wrapper method to add new sessions to the readout wrapper.
         Can be called to add new sessions to an existing readout wrapper.
         Individual readouts should override this method to add additional checks.
         """
         self._add_sessions(n_neurons_dict, mean_activity_dict)
 
-    def _add_sessions(self, n_neurons_dict: dict[str, int], mean_activity_dict: dict[str, float] | None = None) -> None:
+    def _add_sessions(
+        self,
+        n_neurons_dict: dict[str, int],
+        mean_activity_dict: dict[str, Float[torch.Tensor, " neurons"]] | None = None,
+    ) -> None:
         """Base method to add new sessions to the readout wrapper.
         Can be called to add new sessions to an existing readout wrapper."""
 
@@ -102,9 +110,10 @@ class MultiReadoutBase(nn.ModuleDict):
             )
         for k in n_neurons_dict:  # iterate over sessions
             n_neurons = n_neurons_dict[k]
+            assert self._base_readout_cls is not None
             self.add_module(
                 k,
-                self._base_readout(
+                self._base_readout_cls(
                     in_shape=self._in_shape,
                     outdims=n_neurons,
                     mean_activity=mean_activity_dict[k] if mean_activity_dict is not None else None,
@@ -117,7 +126,7 @@ class MultiReadoutBase(nn.ModuleDict):
             data_key = list(self.keys())[0]
         return self[data_key](*args, **kwargs)
 
-    def initialize(self, mean_activity_dict: dict[str, float] | None = None):
+    def initialize(self, mean_activity_dict: dict[str, Float[torch.Tensor, " neurons"]] | None = None):
         for data_key, readout in self.items():
             mean_activity = mean_activity_dict[data_key] if mean_activity_dict is not None else None
             readout.initialize(mean_activity)
@@ -147,7 +156,7 @@ class MultiGaussianMaskReadout(MultiReadoutBase):
     Multiple Sessions version of the GaussianMaskReadout factorised gaussian readout.
     """
 
-    _base_readout = GaussianMaskReadout
+    _base_readout_cls = GaussianMaskReadout
 
     def __init__(
         self,
@@ -161,7 +170,7 @@ class MultiGaussianMaskReadout(MultiReadoutBase):
         mask_l1_reg: float = 1.0,
         feature_weights_l1_reg: float = 1.0,
         readout_reg_avg: bool = False,
-        mean_activity_dict: dict[str, float] | None = None,
+        mean_activity_dict: dict[str, Float[torch.Tensor, " neurons"]] | None = None,
     ):
         super().__init__(
             in_shape=in_shape,
@@ -177,7 +186,7 @@ class MultiGaussianMaskReadout(MultiReadoutBase):
             readout_reg_avg=readout_reg_avg,
         )
 
-    def forward(self, *args, data_key: str | None, **kwargs) -> torch.Tensor:
+    def forward(self, *args, data_key: str | None = None, **kwargs) -> torch.Tensor:
         if data_key is None:
             readout_responses = []
             for readout_key in self.readout_keys():
@@ -194,7 +203,7 @@ class MultiFactorizedReadout(MultiReadoutBase):
     Multiple Sessions version of the classic factorized readout.
     """
 
-    _base_readout = FactorizedReadout
+    _base_readout_cls = FactorizedReadout
 
     def __init__(
         self,
@@ -210,7 +219,7 @@ class MultiFactorizedReadout(MultiReadoutBase):
         init_weights: Optional[torch.Tensor] = None,
         init_scales: Optional[Iterable[Iterable[float]]] = None,
         readout_reg_avg: bool = False,
-        mean_activity_dict: dict[str, float] | None = None,
+        mean_activity_dict: dict[str, Float[torch.Tensor, " neurons"]] | None = None,
     ):
         mask_size = in_shape[2:]
         super().__init__(
@@ -230,7 +239,7 @@ class MultiFactorizedReadout(MultiReadoutBase):
             mean_activity_dict=mean_activity_dict,
         )
 
-    def forward(self, *args, data_key: str | None, **kwargs) -> torch.Tensor:
+    def forward(self, *args, data_key: str | None = None, **kwargs) -> torch.Tensor:
         if data_key is None:
             readout_responses = []
             for readout_key in self.readout_keys():
@@ -247,7 +256,7 @@ class MultiSampledGaussianReadout(MultiReadoutBase):
     Multiple Sessions version of the sampled point gaussian readout.
     """
 
-    _base_readout = PointGaussianReadout
+    _base_readout_cls = PointGaussianReadout
 
     def __init__(
         self,
@@ -266,7 +275,7 @@ class MultiSampledGaussianReadout(MultiReadoutBase):
         gamma: float = 1.0,
         reg_avg: bool = False,
         nonlinearity_function: Callable[[torch.Tensor], torch.Tensor] = torch.nn.functional.softplus,
-        mean_activity_dict: dict[str, float] | None = None,
+        mean_activity_dict: dict[str, Float[torch.Tensor, " neurons"]] | None = None,
     ):
         super().__init__(
             in_shape=in_shape,
@@ -288,7 +297,7 @@ class MultiSampledGaussianReadout(MultiReadoutBase):
 
         self.nonlinearity = nonlinearity_function
 
-    def forward(self, *args, data_key: str | None, **kwargs) -> torch.Tensor:
+    def forward(self, *args, data_key: str | None = None, **kwargs) -> torch.Tensor:
         if data_key is None:
             readout_responses = []
             for readout_key in self.readout_keys():

@@ -301,8 +301,9 @@ class PointGaussianReadout(Readout):
     def initialize_features(self, match_ids=None, shared_features=None):
         """
         The internal attribute `_original_features` in this function denotes whether this instance of the FullGuassian2d
-        learns the original features (True) or if it uses a copy of the features from another instance of PointGaussianReadout
-        via the `shared_features` (False). If it uses a copy, the feature_l1 regularizer for this copy will return 0
+        learns the original features (True) or if it uses a copy of the features from another instance of
+        PointGaussianReadout via the `shared_features` (False). If it uses a copy, the feature_l1 regularizer for
+        this copy will return 0.
         """
         c, _, w, h = self.in_shape
         self._original_features = True

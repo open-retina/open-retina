@@ -116,7 +116,7 @@ class GaussianMaskReadout(Readout):
                 + (self.mask_mean * self.gaussian_mean_scale).pow(2).sum()
             )
 
-    def regularizer(self, reduction: Literal["sum", "mean"] = "sum") -> torch.Tensor:
+    def regularizer(self, reduction: Literal["sum", "mean", None] = "sum") -> torch.Tensor:
         reg = (
             self.mask_l1(average=reduction == "mean") * self.mask_l1_reg
             + self.feature_l1(average=reduction == "mean") * self.feature_weights_l1_reg
