@@ -59,13 +59,15 @@ RUN cd ffmpeg && \
 RUN ldconfig
 RUN rm -rf nv-codec-headers ffmpeg
 
-# Install PyTorch with CUDA support
-RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && echo "${HOME}/.local/bin" >> /etc/environment
+ENV PATH="/root/.local/bin:${PATH}"
 
-# Set working directory and install OpenRetina
+# Set working directory and install OpenRetina into system Python
 WORKDIR /openretina
 COPY . /openretina/
-RUN pip install -e ".[dev]"
+
+RUN uv pip install --system --no-cache-dir --break-system-packages -e /openretina
 
 # Set default command
 CMD ["/bin/bash"]

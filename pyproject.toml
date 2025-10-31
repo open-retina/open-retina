@@ -13,14 +13,38 @@ authors = [
 description = "Open source retina model architectures and training setups"
 requires-python = ">=3.10"
 readme = "README.md"
-dynamic = ["dependencies"]
+dependencies = [
+    "IPython",
+    "jaxtyping",
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "standard-imghdr",
+    "seaborn",
+    "scipy",
+    "tenacity",
+    "tensorboard",
+    "torch<=2.7",
+    "torchaudio",
+    "torchvision",
+    "einops",
+    "lightning",
+    "wandb",
+    "hydra-core",
+    "omegaconf",
+    "h5py",
+    "opencv-python-headless",
+    "imageio>=2.36",
+    "moviepy>=2.0.0",
+    "huggingface_hub>=0.25",
+    "jupyter",
+    "ipywidgets",
+    "mlflow",
+]
 
 [project.urls]
 Homepage = "https://github.com/open-retina/open-retina"
 Issues = "https://github.com/open-retina/open-retina/issues"
-
-[tool.setuptools.dynamic]
-dependencies = { file = ["requirements.txt"] }
 
 [project.optional-dependencies]
 dev = [
@@ -38,6 +62,9 @@ dev = [
     "mkdocstrings[python]",
 ]
 devmodels = ["neuralpredictors"]
+optuna = [ # for hyperparameter tuning
+    "hydra-optuna-sweeper",
+]
 
 [tool.setuptools]
 package-dir = { "" = "." }
@@ -52,6 +79,11 @@ find = { exclude = ["tests"] }
 [project.scripts]
 openretina = "openretina.cli.openretina_main:main"
 
+[tool.uv]
+# prefer the runner's Python (from actions/setup-python or system Python)
+python-preference = "system"
+package = true
+
 
 [tool.ruff]
 line-length = 120
@@ -61,6 +93,7 @@ lint.select = ["E", "W", "F"]
 lint.extend-select = ["I"]
 lint.ignore = ["F722"]                                           # F722 prevents false positive for jaxtypes
 exclude = ["openretina/legacy/", "tests/paper_openretina_2025/"]
+
 
 [tool.mypy]
 warn_return_any = false
@@ -74,5 +107,6 @@ module = [
     "seaborn",
     "torchvision.*",
     "moviepy",
+    "sklearn.decomposition",
 ]
 ignore_missing_imports = true

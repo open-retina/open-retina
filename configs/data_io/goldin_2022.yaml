@@ -1,0 +1,23 @@
+stimuli:
+  _target_: openretina.data_io.goldin_2022.stimuli.load_all_stimuli
+  _convert_: object
+  base_data_path: ${paths.data_dir}
+  stim_type: "naturalscene"
+  specie: "mouse" # or "axolotl"
+  normalize_stimuli: true
+
+responses:
+  _target_: openretina.data_io.goldin_2022.responses.load_all_responses
+  _convert_: object
+  base_data_path: ${paths.data_dir}
+  stim_type: "naturalscene"
+  response_type: "firing_rate_300ms"
+  specie: "mouse" # or "axolotl"
+  fr_normalization: 1.0
+
+data_info:
+  response_rate_hz: null # Response is over full 300ms image presentation
+  stimulus_rate_hz: null # Images
+  stimulus_class: ${data_io.responses.stim_type}
+  retina_pixel_size_um: 28
+  animal_species: ${data_io.responses.specie}

@@ -66,14 +66,13 @@ From: nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04
     rm -rf nv-codec-headers ffmpeg
 
 
-    # --- PyTorch ---
-    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+    # --- uv install ---
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    export PATH="/root/.local/bin:$PATH"
 
-    # --- OpenRetina ---
+    # --- OpenRetina into system Python via uv pip ---
     cd /openretina
-    pip install -e ".[dev]"
-
-
+    uv pip install --system --no-cache-dir --break-system-packages -e /openretina
 
 %runscript
     exec /bin/bash -c "$@"

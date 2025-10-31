@@ -18,18 +18,15 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
-          cache: 'pip'
 
-      - name: Load openretina_cache
-        uses: actions/cache@v4
-        with:
-          path: ~/openretina_cache
-          key: openretina_cache_v2
-
-      - name: Install openretina with dependencies
+      - name: Install uv
         run: |
-          pip install --upgrade pip
-          pip install .
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "${HOME}/.local/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: |
+          uv sync
 
       - name: Core readout hoefling subset
         run: make test-corereadout
@@ -37,10 +34,9 @@ jobs:
       - name: Core readout h5 dataloader
         run: make test-h5train
 
-      - name: Install dev dependencies
+      - name: Ensure dev dependencies
         run: |
-          pip install --upgrade pip
-          pip install ".[dev]"
+          uv sync --extra dev
 
       - name: Run notebook Tests
         run: make test-notebooks
