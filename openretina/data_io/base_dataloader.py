@@ -9,7 +9,12 @@ from jaxtyping import Float
 from torch.utils.data import DataLoader, Dataset, Sampler
 from tqdm.auto import tqdm
 
-from openretina.data_io.base import MoviesTrainTestSplit, ResponsesTrainTestSplit
+import openretina_dataloading as odl
+from .pytorch_wrappers import PyTorchMoviesTrainTestSplit, PyTorchResponsesTrainTestSplit
+
+# For backward compatibility
+MoviesTrainTestSplit = PyTorchMoviesTrainTestSplit
+ResponsesTrainTestSplit = PyTorchResponsesTrainTestSplit
 
 DataPoint = namedtuple("DataPoint", ["inputs", "targets"])
 
