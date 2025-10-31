@@ -5,6 +5,7 @@ homepage: true
 hide:
   - navigation
   - toc
+  - footer
 ---
 ## Welcome!
 

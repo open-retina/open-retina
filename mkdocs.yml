@@ -35,6 +35,7 @@ theme:
     - navigation.prune
     - navigation.top
     - navigation.indexes
+    - navigation.footer
 
 plugins:
   - mkdocstrings
@@ -69,14 +70,21 @@ nav:
           - Quick Start: package_docs/quickstart.md
           - Architecture: package_docs/architecture.md
       - Core Functionality:
-          - Models:
-              - package_docs/models/index.md
-              - Core-Readout Models: package_docs/models/core_readout.md
+          - Overview: package_docs/core_functionality_overview.md
           - Data Input/Output:
               - package_docs/data_io/index.md
               - Hoefling et al., 2024: package_docs/data_io/hoefling_2024.md
+          - Training:
+              - package_docs/training/index.md
+              - Core-Readout Models: package_docs/models/core_readout.md
           - In-silico Experiments:
               - package_docs/insilico/index.md
+              - Optimised Stimuli: package_docs/insilico/optimised_stimuli.md
+              - Discriminatory Stimuli: package_docs/insilico/discriminatory_stimuli.md
+              - Weight Visualisations: package_docs/insilico/weight_visualisations.md
+              - Response Gradient Analysis: package_docs/insilico/response_tuning.md
+              - LSTAs: package_docs/insilico/lsta.md
+
       - Tutorials:
           - Loading Pre-trained Models: package_docs/tutorials/pretrained_models.md
           - Training Custom Models: package_docs/tutorials/training.md
@@ -84,17 +92,18 @@ nav:
       - Reference:
           - Model Zoo: package_docs/model_zoo.md
           - Datasets: package_docs/datasets.md
-      - API Reference:
-          - Overview: package_docs/api_reference/index.md
-          - Models: package_docs/api_reference/models.md
-          - Data I/O: package_docs/api_reference/data_io.md
-          - In-silico: package_docs/api_reference/insilico.md
-          - Modules: package_docs/api_reference/modules.md
-          - Utils: package_docs/api_reference/utils.md
       - Contributing:
           - Contributing Guide: package_docs/contributing.md
           - Development Setup: package_docs/development.md
           - Code Style: package_docs/code_style.md
+  - API Reference:
+      - index: api_reference/index.md
+      - Overview: api_reference/index.md
+      - Models: api_reference/models.md
+      - Data I/O: api_reference/data_io.md
+      - In-silico: api_reference/insilico.md
+      - Modules: api_reference/modules.md
+      - Utils: api_reference/utils.md
   - FAQs: faq.md
   - How to cite: references.md
 

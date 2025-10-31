@@ -1,5 +1,7 @@
 ---
 title: Package documentation
+hide: 
+  - toc
 ---
 # Package documentation
 
@@ -9,12 +11,11 @@ OpenRetina is an open-source neural network toolkit for modeling retinal respons
 
 - [Installation](./installation.md) - Install OpenRetina with pip or from source
 - [Quick Start](./quickstart.md) - Load and run pre-trained models in minutes
-- [Architecture Overview](./architecture.md) - Learn about the package structure
 
 ## Core Functionality
 
-- [Models](./models/index.md) - Pre-trained and customizable retina models
-- [Data I/O](./data_io/index.md) - Loading and processing datasets
+- [Datasets and Data I/O](./data_io/index.md) - Loading and processing datasets
+- [Training](./training/index.md) - Pre-trained and customizable retina models
 - [In-silico Experiments](./insilico/index.md) - Analyze models with virtual experiments
 
 ## Tutorials
@@ -29,8 +30,9 @@ OpenRetina is an open-source neural network toolkit for modeling retinal respons
 - [Model Zoo](./model_zoo.md) - Available pre-trained models
 - [Dataset Reference](./datasets.md) - Supported datasets
 
-## Contributing
+## Contribution Guides
 
 - [Contributing Guide](./contributing.md) - How to contribute to OpenRetina
 - [Development Setup](./development.md) - Set up your development environment
 - [Code Style](./code_style.md) - Coding conventions for contributors
+- [Package Structure](./architecture.md) - Learn about the package structure

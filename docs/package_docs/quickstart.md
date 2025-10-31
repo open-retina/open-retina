@@ -2,6 +2,8 @@
 title: Quick Start
 ---
 
+TODO needs to be made the paper quickstart
+
 # Quick Start Guide
 
 This guide will help you get started with `openretina` quickly by:

@@ -2,7 +2,7 @@
 title: In-silico Experiments
 ---
 
-# In-silico Experiments
+TODO: was AI generated. Potentially delete all and provide an introduction.
 
 OpenRetina provides tools for performing in-silico (computational) experiments with trained retina models. These experiments help in understanding the function and behavior of modeled retinal neurons.
 
