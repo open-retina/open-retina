@@ -1,1 +1,2 @@
-Todo
+The Local Stimulus Triggered Average (LSTA), as described in [Goldin, Nature Communications, 2022](https://www.nature.com/articles/s41467-022-33242-8), shows the direction in which a stimulus needs to be "tweaked" to increase the firing rate of a neuron.
+The notebook [notebooks/vector_field_analysis_hoefling_2024](https://github.com/open-retina/open-retina/blob/main/notebooks/vector_field_analysis_hoefling_2024.ipynb) visualises this vector field of LSTAs.

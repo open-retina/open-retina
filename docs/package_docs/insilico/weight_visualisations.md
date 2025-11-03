@@ -1,7 +1,7 @@
 While the use of optimised stimuli can give an indication of the features that a modelled neuron responds to, it does not indicate how the model computed a feature.
 Speaking in terms of retinal information processing, an MEI gives insights about the message that a retinal neuron sends to the brain, but it does not tell us about how the extraction of this message is implemented in retinal circuitry.
 Towards such a mechanistic understanding, we can extend the approach of optimising stimuli to internal neurons of the model.
-To the extent that the architecture of the model corresponds to the architecture of the retinal circuit (e.g., in terms of the number of layers, or the number of cell types or convolutional channels, respectively), a transfer of insights gained about internal model neurons to biological retinal interneurons is warranted (see e.g., [Maheswaranathan et al., Neuron, 2023](https://doi.org/10.1016/j.neuron.2023.06.007) and [Schröder et al., Neurips, 2020](https://proceedings.neurips.cc/paper/2020/file/b139e104214a08ae3f2ebcce149cdf6e-Paper.pdf)).
+To the extent that the architecture of the model corresponds to the architecture of the retinal circuit (e.g., in terms of the number of layers, or the number of cell types or convolutional channels, respectively), a transfer of insights gained about internal model neurons to biological retinal interneurons is warranted (see e.g., [Maheswaranathan et al., Neuron, 2023](https://doi.org/10.1016/j.neuron.2023.06.007) and [Schröder et al., NeurIPS, 2020](https://papers.nips.cc/paper/2020/file/b139e104214a08ae3f2ebcce149cdf6e-Paper.pdf)).
 For the default Core + Readout architecture, we support weight visualisation for both the convolutional layer and the readout layer, as illustrated in the following code example:
 
 ```python
@@ -16,7 +16,7 @@ readout_figure = model.readout[session_key].plot_weight_for_neuron(5)
 ```
 
 For convolutional layers, we visualise the weights of each channel of a convolutional layer separately.
-The spatiotemporal separable convolution layer defined in STSeparableBatchConv3d consists of a two-dimensional spatial weight and one-dimensional temporal weight.
+The spatiotemporal separable convolution layer consists of a two-dimensional spatial weight and one-dimensional temporal weight.
 This temporal component is then multiplied by the spatial weight to receive a three-dimensional tensor for the
 convolution operation.
 The conv_layer_figure of the code example plots both the spatial weight, the computed temporal component, and the sine and cosine temporal weights.
