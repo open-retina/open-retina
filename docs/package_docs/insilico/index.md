@@ -2,169 +2,23 @@
 title: In-silico Experiments
 ---
 
-TODO: was AI generated. Potentially delete all and provide an introduction.
+We now have access to a trained neural network, either by having trained our own ([see training docs](../training)) or by downloading a pre-trained one (see [pre-trained models](../../package_docs/tutorials/pretrained_models.md)), and this model can replicate the input-output relationship of the retina  to a degree.
 
-OpenRetina provides tools for performing in-silico (computational) experiments with trained retina models. These experiments help in understanding the function and behavior of modeled retinal neurons.
+In the following, we describe different in-silico experiments that help us understand what the model learned, and we give examples of how this knowledge can lead to a better understanding of the computational processes of the retina. 
 
-## What are In-silico Experiments?
+The figure below highlights workflows that we describe in more detail on the following pages.
 
-In-silico experiments are computational studies that simulate experiments you might perform on real retinal tissue. They allow researchers to:
+![Overview of in-silico methods](../../assets/insilico_methods.png)
 
-- Probe neural response properties systematically
-- Generate optimal stimuli for neurons
-- Test hypotheses about neural coding
-- Analyze population-level properties
+a) Optimised stimuli ([Page](./optimised_stimuli.md)):
+The digital twin model allows us to optimise stimuli towards any objective, e.g., towards activating a particular neuron strongly. The panel shows the spatial and temporal components of an optimised MEI stimulus for a neuron.
 
-## Available Experimental Techniques
+b) Discriminatory stimuli ([Page](./discriminatory_stimuli.md)):
+Discriminatory objective functions are used to optimise a stimulus towards activating certain neurons strongly while inhibiting other groups of neurons. The upper part of the panel shows both an MEI, optimised to activate all cells of group 28, and a most discriminatory stimulus (MDS), which was optimised to drive the activity of RGC cells of group 28, while keeping the activity of ON and OFF cells low. As seen by the average responses in the optimisation window (lower sub-plot), while for the MEI stimulus the average response of ON cells is higher than the response of group 28 cells, the MDS stimulus leads to a higher response of group 28 cells compared to other ON cells. 
 
-### Stimulus Optimization
-# TODO this page was written by AI, double check
-The `insilico.stimulus_optimization` module provides tools to find stimuli that optimally drive individual neurons or neuron groups:
+c) Internal weights ([Page](./weight_visualisations.md)):
+By zooming in and visualising individual model weights, we can better understand how the neural network reproduces the behaviour of the retina. The upper part of the panel shows a visualisation of the spatial and temporal weights of a three-dimensional convolutional layer. The lower part of the panel shows the readout mask, which determines which spatial location in the stimulus influences a modelled neuron, and the readout channel weights that determine the influence of each convolutional channel on the modelled neuron. 
 
-```python
-import torch
-from openretina.models import load_core_readout_from_remote
-from openretina.insilico.stimulus_optimization.objective import IncreaseObjective, MeanReducer
-from openretina.insilico.stimulus_optimization.optimization_stopper import OptimizationStopper
-from openretina.insilico.stimulus_optimization.optimizer import optimize_stimulus
-from openretina.insilico.stimulus_optimization.regularizer import TotalVariationRegularizer, ClipStimulus
+d) Response tuning maps ([Page](./response_tuning.md)): We can evaluate the model neurons along directions in stimulus space that we are interested in by changing stimulus parameters corresponding to those directions and examining model responses. In this example, we examined the directions along which green and UV temporal contrast selectivities, respectively, change from negative to positive.
 
-# Load a pre-trained model
-model = load_core_readout_from_remote("hoefling_2024_base_low_res", "cpu")
-
-# Initialize a random stimulus (starting point for optimization)
-stimulus_shape = model.stimulus_shape(time_steps=30, num_batches=1)
-stimulus = torch.randn(stimulus_shape, requires_grad=True)
-
-# Select a neuron index to optimize for
-neuron_idx = 5
-
-# Create an objective to maximize the response of the selected neuron
-objective = IncreaseObjective(
-    model=model,
-    reducer=MeanReducer(neuron_dim=1, indices=neuron_idx)
-)
-
-# Set regularization to promote smooth, natural-looking stimuli
-tv_reg = TotalVariationRegularizer(weight=0.01)
-
-# Set up the optimizer and stopping criteria
-optimizer_fn = lambda params: torch.optim.Adam(params, lr=0.05)
-stopper = OptimizationStopper(max_iterations=200, patience=20)
-
-# Run the optimization
-optimize_stimulus(
-    stimulus=stimulus,
-    optimizer_init_fn=optimizer_fn,
-    objective_object=objective,
-    optimization_stopper=stopper,
-    stimulus_regularization_loss=tv_reg,
-    stimulus_postprocessor=ClipStimulus(0.0, 1.0)
-)
-
-# The stimulus has been optimized in-place
-print(f"Optimized stimulus shape: {stimulus.shape}")
-```
-
-The stimulus optimization module is documented in the [API reference](../api_reference/insilico/stimulus_optimization.md).
-
-### Tuning Analysis
-
-The `insilico.tuning_analyses` module contains tools for characterizing neural tuning properties (coming soon).
-
-## Feature Visualization
-
-Techniques for visualizing what features neurons are sensitive to:
-
-```python
-from openretina.insilico import visualize_receptive_fields
-
-# Visualize receptive fields for all neurons
-receptive_fields = visualize_receptive_fields(
-    model,
-    resolution=(64, 64)  # Higher resolution for visualization
-)
-
-# Plot the receptive fields
-fig, axes = plt.subplots(3, 4, figsize=(12, 9))
-for i, ax in enumerate(axes.flat):
-    if i < len(receptive_fields):
-        ax.imshow(receptive_fields[i], cmap='RdBu_r')
-        ax.set_title(f"Neuron {i}")
-        ax.axis('off')
-plt.tight_layout()
-plt.show()
-```
-
-## Implementing Custom Experiments
-
-You can implement your own in-silico experiments using OpenRetina's models:
-
-```python
-import torch
-import numpy as np
-import matplotlib.pyplot as plt
-from openretina.data_io.artificial_stimuli import generate_gratings
-
-def custom_experiment(model, parameter_range):
-    """
-    Custom experiment testing model responses across a parameter range.
-    
-    Args:
-        model: A trained OpenRetina model
-        parameter_range: Range of parameter values to test
-        
-    Returns:
-        results: Results of the experiment
-    """
-    results = []
-    
-    for parameter in parameter_range:
-        # Generate stimulus based on parameter
-        stimulus = generate_gratings(
-            shape=model.stimulus_shape(time_steps=30),
-            temporal_frequency=parameter
-        )
-        
-        # Get model response
-        with torch.no_grad():
-            response = model(stimulus).mean(dim=0)  # Average over time
-        
-        # Store results
-        results.append(response.cpu().numpy())
-    
-    return np.array(results)  # Shape: [parameter_values, neurons]
-
-# Example usage
-model = load_core_readout_from_remote("hoefling_2024_base_low_res", "cpu")
-frequencies = np.linspace(0.5, 10, 20)  # Test 20 frequencies from 0.5 to 10 Hz
-results = custom_experiment(model, frequencies)
-
-# Plot results for a specific neuron
-neuron_idx = 0
-plt.figure()
-plt.plot(frequencies, results[:, neuron_idx])
-plt.xlabel("Temporal Frequency (Hz)")
-plt.ylabel(f"Response of Neuron {neuron_idx}")
-plt.title("Temporal Frequency Tuning")
-plt.show()
-```
-
-## Analyzing Model Behavior
-
-Understanding how your model behaves in response to different stimuli can provide insights into both the model and the biological system it represents:
-
-1. **Compare to biological data**: Test if model responses match known retinal properties
-2. **Identify specialized neurons**: Find neurons sensitive to specific stimulus features
-3. **Analyze population coding**: Study how information is represented across neurons
-4. **Test hypotheses**: Use the model to test theoretical predictions
-
-## Best Practices
-
-When performing in-silico experiments:
-
-1. **Control comparisons**: Use consistent settings when comparing across conditions
-2. **Statistical validation**: Repeat experiments with different random seeds
-3. **Parameter exploration**: Systematically explore parameter spaces
-4. **Biological plausibility**: Consider the biological relevance of your experiments
-5. **Computational efficiency**: Optimize code for large-scale experiments 
+Not shown: Local Spike Triggered Average ([Page](./lsta.md)): Given a specific stimulus, we can analyse in which directions of the stimulus spaces the response of a modelled neuron inceases most. This is mathematically equivalent to evaulating the gradient of the stimulus with respect to the activity of the modelled neuron, and experimentally equivalent to evaluating the local spike triggered average (see [paper](https://www.nature.com/articles/s41467-022-33242-8)).
