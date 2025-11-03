@@ -1,0 +1,3 @@
+The optimal stimulus is the stimulus that sits at the maximum of the model neuron’s tuning curve.
+In order to get a more comprehensive understanding of a cell’s tuning, for example in terms of how selectively it responds to a stimulus, or how sensitive it is to changes in the stimulus along different dimensions of stimulus space, we can expand our estimate of the tuning curve around the maximum.
+How this can be done within openretina is demonstrated using the example of chromatic contrast tuning in transient Suppressed-by-Contrast RGCs in the mouse, as shown in the notebook [notebooks/hoefling_gradient_analysis.ipynb](https://github.com/open-retina/open-retina/blob/main/notebooks/hoefling_gradient_analysis.ipynb).
