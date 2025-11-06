@@ -2,7 +2,7 @@
 title: In-silico Experiments
 ---
 
-We now have access to a trained neural network, either by having trained our own ([see training docs](../training)) or by downloading a pre-trained one (see [pre-trained models](../../package_docs/tutorials/pretrained_models.md)), and this model can replicate the input-output relationship of the retina to some degree.
+We now have access to a trained neural network, either by having trained our own ([see training docs](../training/index.md)) or by downloading a pre-trained one (see [pre-trained models](../../package_docs/tutorials/pretrained_models.md)), and this model can replicate the input-output relationship of the retina to some degree.
 
 In the following, we describe different in-silico experiments that help us understand what the model learned, and we give examples of how this knowledge can lead to a better understanding of the computational processes of the retina. 
 

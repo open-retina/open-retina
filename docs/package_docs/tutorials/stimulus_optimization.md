@@ -612,6 +612,6 @@ After mastering stimulus optimization:
 ## Additional Resources
 
 - [In-silico Experiments Overview](../insilico/index.md)
-- [API Reference: Stimulus Optimization](../api_reference/insilico/stimulus_optimization.md)
+- [API Reference: Stimulus Optimization](../../api_reference/insilico/stimulus_optimization.md)
 - [Example Notebook: Most Discriminative Stimuli](https://github.com/open-retina/open-retina/blob/main/notebooks/most_discriminative_stimulus.ipynb)
 - [Model Zoo](../model_zoo.md): Available pre-trained models for optimization

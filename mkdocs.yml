@@ -68,6 +68,7 @@ nav:
       - Getting Started:
           - Installation: package_docs/installation.md
           - Quick Start: package_docs/quickstart.md
+          - Command Line Interface: package_docs/command_line.md
           - Architecture: package_docs/architecture.md
       - Core Functionality:
           - Overview: package_docs/core_functionality_overview.md
@@ -76,7 +77,7 @@ nav:
               - Hoefling et al., 2024: package_docs/data_io/hoefling_2024.md
           - Training:
               - package_docs/training/index.md
-              - Core-Readout Models: package_docs/models/core_readout.md
+              - Core-Readout Models: package_docs/training/core_readout.md
           - In-silico Experiments:
               - package_docs/insilico/index.md
               - Optimised Stimuli: package_docs/insilico/optimised_stimuli.md

@@ -9,8 +9,10 @@ OpenRetina is an open-source neural network toolkit for modeling retinal respons
 
 ## Getting Started
 
-- [Installation](./installation.md) - Install OpenRetina with pip or from source
+- [Installation](./installation.md) - Install openretina with pip or from source
 - [Quick Start](./quickstart.md) - Load and run pre-trained models in minutes
+- [Command Line](./command_line.md) - Command Line Interface of openretina
+- [Architecture](./architecture.md) - Description of the architecture of openretina
 
 ## Core Functionality
 
@@ -26,7 +28,7 @@ OpenRetina is an open-source neural network toolkit for modeling retinal respons
 
 ## Reference
 
-- [API Reference](./api_reference/index.md) - Complete API documentation
+- [API Reference](../api_reference/index.md) - Complete API documentation
 - [Model Zoo](./model_zoo.md) - Available pre-trained models
 - [Dataset Reference](./datasets.md) - Supported datasets
 

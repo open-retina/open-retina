@@ -571,6 +571,6 @@ After mastering pre-trained model usage, you might want to:
 ## Additional Resources
 
 - [Model Zoo](../model_zoo.md): Complete list of available models
-- [API Reference](../api_reference/models/core_readout.md): Detailed model documentation
+- [API Reference](../../api_reference/models/core_readout.md): Detailed model documentation
 - [Datasets](../datasets.md): Information about training datasets
 - [GitHub Examples](https://github.com/open-retina/open-retina/tree/main/notebooks): Jupyter notebook examples
