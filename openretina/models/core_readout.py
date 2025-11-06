@@ -303,7 +303,7 @@ class UnifiedCoreReadout(BaseCoreReadout):
         # determine input_shape of readout if it is not already present
         if "in_shape" not in readout:
             in_shape_readout = self.compute_readout_input_shape(in_shape, core_module)
-            readout["in_shape"] = (in_shape_readout[0],) + in_shape_readout[1:]
+            readout["in_shape"] = (in_shape_readout[0],) + tuple(in_shape_readout[1:])
 
         # Extract mean_activity_dict from data_info if available
         mean_activity_dict = None
