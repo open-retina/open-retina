@@ -172,27 +172,12 @@ class SimpleCoreWrapper(Core):
 
     def spatial_laplace(self) -> torch.Tensor:
         conv_obj = self.features[0].conv
-        # check if conv_obj has weight_spatial attribute
-        if not hasattr(conv_obj, "weight_spatial"):
-            # print warning
-            warnings.warn(
-                f"conv_obj {conv_obj} does not have weight_spatial attribute, skipping spatial_laplace regularization",
-                UserWarning,
-                stacklevel=2,
-            )
-            return torch.tensor(0.0)
-
+        assert hasattr(conv_obj, "weight_spatial")
         return self._input_weights_regularizer_spatial(conv_obj.weight_spatial, avg=False)
 
     def temporal_laplace(self) -> torch.Tensor:
         conv_obj = self.features[0].conv
-        if not hasattr(conv_obj, "time_conv"):
-            warnings.warn(
-                f"conv_obj {conv_obj} does not have time_conv attribute, skipping temporal_laplace regularization",
-                UserWarning,
-                stacklevel=2,
-            )
-            return torch.tensor(0.0)
+        assert hasattr(conv_obj, "time_conv")
         time_conv_weight: torch.Tensor = conv_obj.time_conv.weight  # type: ignore
         ch_in, ch_out, t, _, _ = time_conv_weight.shape
         loss = self._input_weights_regularizer_temporal(time_conv_weight.view(ch_in * ch_out, 1, t), avg=False)
@@ -213,13 +198,7 @@ class SimpleCoreWrapper(Core):
     def group_sparsity_0(self) -> torch.Tensor:
         result_array = []
         for layer in self.features:
-            if not hasattr(layer.conv, "weight_spatial"):
-                warnings.warn(
-                    f"layer {layer} does not have weight_spatial attribute, skipping group_sparsity_0 regularization",
-                    UserWarning,
-                    stacklevel=2,
-                )
-                return torch.tensor(0.0)
+            assert hasattr(layer.conv, "weight_spatial")
             weight_spatial: torch.Tensor = layer.conv.weight_spatial  # type: ignore
             result = weight_spatial.pow(2).sum([2, 3, 4]).sqrt().sum(1) / torch.sqrt(
                 1e-8 + weight_spatial.pow(2).sum([1, 2, 3, 4])
