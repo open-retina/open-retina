@@ -596,9 +596,9 @@ def plot_clean_vectorfield(
     if responses is not None:
         # Create a grid for interpolation
         grid_resolution = 100
-        xi = np.linspace(-plot_limit, plot_limit, grid_resolution)
-        yi = np.linspace(-plot_limit, plot_limit, grid_resolution)
-        xi_grid, yi_grid = np.meshgrid(xi, yi)
+        x_interval = np.linspace(-plot_limit, plot_limit, grid_resolution)
+        y_interval = np.linspace(-plot_limit, plot_limit, grid_resolution)
+        xi_grid, yi_grid = np.meshgrid(x_interval, y_interval)
         
         # Interpolate the response values onto the grid
         zi = griddata(
@@ -610,7 +610,7 @@ def plot_clean_vectorfield(
         )
         
         # Create the density plot using pcolormesh
-        density = ax.pcolormesh(xi, yi, zi, cmap='viridis', alpha=0.4, shading='gouraud', zorder=0)
+        density = ax.pcolormesh(x_interval, y_interval, zi, cmap='viridis', alpha=0.4, shading='gouraud', zorder=0)
         
         # Add colorbar
         cbar = plt.colorbar(density, ax=ax)
