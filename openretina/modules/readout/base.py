@@ -74,7 +74,7 @@ class Readout(nn.Module):
         raise NotImplementedError("save_weight_visualizations is not implemented for ", self.__class__.__name__)
 
 
-class ClonedReadout(nn.Module):
+class ClonedReadout(Readout):
     """
     This readout clones another readout while applying a linear transformation on the output. Used for MultiDatasets
     with matched neurons where the x-y positions in the grid stay the same but the predicted responses are rescaled due
