@@ -3427,11 +3427,6 @@ optuna = [
     { name = "hydra-optuna-sweeper" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "openretina" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "einops" },
@@ -3473,9 +3468,6 @@ requires-dist = [
     { name = "wandb" },
 ]
 provides-extras = ["dev", "devmodels", "optuna"]
-
-[package.metadata.requires-dev]
-dev = [{ name = "openretina", editable = "." }]
 
 [[package]]
 name = "opentelemetry-api"
