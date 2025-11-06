@@ -81,6 +81,14 @@ openretina = "openretina.cli.openretina_main:main"
 python-preference = "system"
 package = true
 
+[tool.uv.workspace]
+members = [
+    ".",
+]
+
+[tool.uv.sources]
+openretina = { workspace = true }
+
 
 [tool.ruff]
 line-length = 120
@@ -107,3 +115,8 @@ module = [
     "sklearn.decomposition",
 ]
 ignore_missing_imports = true
+
+[dependency-groups]
+dev = [
+    "openretina",
+]
