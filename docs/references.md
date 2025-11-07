@@ -14,18 +14,18 @@ To make this easy, below we provide a starting point with the most important ref
 ## Data sources
 When using data sources through openretina, we recommend citing both the paper that originally described and analysed the data and the data source location:
 
-* hoefling\_2024: Originally published by Höfling et al. (2024), eLife
-  * Paper: [A chromatic feature detector in the retina signals visual context changes](https://doi.org/10.7554/eLife.86860).
-  * Dataset originally deposited at: https://gin.g-node.org/eulerlab/rgc-natstim
-* karamanlis\_2024: Originally published by Karamanlis et al. (2024), Nature
-  * Paper: [Nonlinear receptive fields evoke redundant retinal coding of natural scenes](https://doi.org/10.1038/s41586-024-08212-3)
-  * Dataset: Karamanlis D, Gollisch T (2023) Dataset - Marmoset and mouse retinal ganglion cell responses to natural stimuli and supporting data. G-Node. https://doi.org/10.12751/g-node.ejk8kx
-* maheswaranathan\_2023: Originally published by Maheswaranathan et al. (2023), Neuron
-  * Paper: [Interpreting the retinal neural code for natural scenes: From computations to neurons](https://doi.org/10.1016/j.neuron.2023.06.007)
-  * Dataset: Maheswaranathan, N., McIntosh, L., Tanaka, H., Grant, S., Kastner, D., Melander, J., Nayebi, A., Brezovec, L., Wang, J., Ganguli, S., Baccus, S. (2023). Interpreting the retinal neural code for natural scenes: from computations to neurons. Stanford Digital Repository. Available at https://purl.stanford.edu/rk663dm5577
-* goldin\_2022: Originally published by Goldin et al. (2022), Nature Communications
-  * Paper: [Context-dependent selectivity to natural images in the retina](https://doi.org/10.1038/s41467-022-33242-8)
-  * Dataset originally deposited at: https://zenodo.org/records/6868362
+- **hoefling\_2024**: Originally published by Höfling et al. (2024), eLife
+    - **Paper:** [A chromatic feature detector in the retina signals visual context changes](https://doi.org/10.7554/eLife.86860)
+    - **Dataset:** originally deposited at https://gin.g-node.org/eulerlab/rgc-natstim
+- **karamanlis\_2024**: Originally published by Karamanlis et al. (2024), Nature
+    - **Paper:** [Nonlinear receptive fields evoke redundant retinal coding of natural scenes](https://doi.org/10.1038/s41586-024-08212-3)
+    - **Dataset:** Karamanlis D, Gollisch T (2023). Dataset — Marmoset and mouse retinal ganglion cell responses to natural stimuli and supporting data. G-Node. [https://doi.org/10.12751/g-node.ejk8kx](https://doi.org/10.12751/g-node.ejk8kx)
+- **maheswaranathan\_2023**: Originally published by Maheswaranathan et al. (2023), Neuron
+    - **Paper:** [Interpreting the retinal neural code for natural scenes: From computations to neurons](https://doi.org/10.1016/j.neuron.2023.06.007)
+    - **Dataset:** Maheswaranathan, N., McIntosh, L., Tanaka, H., Grant, S., Kastner, D., Melander, J., Nayebi, A., Brezovec, L., Wang, J., Ganguli, S., Baccus, S. (2023). Interpreting the retinal neural code for natural scenes: from computations to neurons. Stanford Digital Repository. Available at https://purl.stanford.edu/rk663dm5577
+- **goldin\_2022**: Originally published by Goldin et al. (2022), Nature Communications
+    - **Paper:** [Context-dependent selectivity to natural images in the retina](https://doi.org/10.1038/s41467-022-33242-8)
+    - **Dataset:** originally deposited at https://zenodo.org/records/6868362
 
 ## Modelling
 
