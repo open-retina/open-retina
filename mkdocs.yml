@@ -41,6 +41,7 @@ plugins:
   - mkdocstrings
   - search
   - social
+  - glightbox
 
 site_url: https://open-retina.org
 
@@ -74,10 +75,12 @@ nav:
           - Overview: package_docs/core_functionality_overview.md
           - Data Input/Output:
               - package_docs/data_io/index.md
-              - Hoefling et al., 2024: package_docs/data_io/hoefling_2024.md
+              # - Hoefling et al., 2024: package_docs/data_io/hoefling_2024.md
           - Training:
               - package_docs/training/index.md
               - Core-Readout Models: package_docs/training/core_readout.md
+              - Training and Evaluation: package_docs/training/training_and_evaluation.md
+              - Unified Training Script: package_docs/training/unified_training.md
           - In-silico Experiments:
               - package_docs/insilico/index.md
               - Optimised Stimuli: package_docs/insilico/optimised_stimuli.md

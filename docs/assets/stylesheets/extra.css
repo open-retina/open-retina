@@ -26,3 +26,11 @@
   padding: 0.3rem 0.6rem !important;
   border-radius: 15px !important;
 }
+
+.md-typeset h1 {
+  font-weight: bold;
+}
+
+.md-typeset h2 {
+  font-weight: bold;
+}

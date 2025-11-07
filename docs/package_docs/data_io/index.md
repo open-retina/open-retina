@@ -1,198 +1,180 @@
----
-title: Data Input/Output
----
+# Data I/O
 
-## TODO check:
+`openretina` supports any dataset where both the visual stimuli (inputs) and the retinal responses (outputs) can be expressed as time-aligned sequences. During training, the package consumes these data as tuples `(input_t, output_t)` emitted by PyTorch dataloaders.
 
-This page was partly written by AI. needs proofreading.
+Throughout the documentation we use *session* or *experimental session* to describe a single recording of retinal tissue under controlled conditions. Each session includes both the stimulus presentation and the corresponding neural responses, ensuring a shared temporal reference for inputs and outputs. Unless stated otherwise, we describe the general case of datasets that contain multiple sessions.
 
-`openretina` provides tools for loading, processing, and generating visual stimuli and neural responses for retina modeling.
+If you are still surveying which datasets are already available, take a look at the [dataset reference](../datasets.md). For an end-to-end overview of how data flows into the training pipeline, see the [training guide](../training/index.md).
 
-## Supported Datasets
+## Integrating a New Dataset
 
-`openretina` includes loaders for several published datasets:
+You can bring a new dataset into `openretina` in two main ways:
 
-### Höfling et al., 2024
+1. **Write custom loaders** for your native data format and register the configuration with the package.
+2. **Convert the data to the built-in HDF5 layout**, which is the format native to our utilities.
 
-This dataset contains two-photon calcium imaging responses from mouse retinal ganglion cells to visual stimuli.
+Both approaches are covered in this page. Worked examples are also available as an interactive tutorial notebook in the repository: [notebooks/new\_datasets\_guide.ipynb](https://github.com/open-retina/open-retina/blob/main/notebooks/new_datasets_guide.ipynb).
 
-```python
-# First, import the necessary modules
-from openretina.data_io.hoefling_2024.dataloaders import natmov_dataloaders_v2
-from openretina.data_io.hoefling_2024.responses import get_all_responses
-from openretina.data_io.hoefling_2024.stimuli import get_all_movies
+## Loading Stimuli
 
-# Load responses and movies
-responses = get_all_responses()
-movies = get_all_movies()
+Movies are represented as 4D tensors with shape `(channels, time, height, width)`. In typical experiments, stimuli are delivered as separate training and testing sequences, with testing parts often repeated to estimate response reliability. The `MoviesTrainTestSplit` data class captures this structure.
 
-# Create dataloaders with validation clips 0 and 1
-dataloaders = natmov_dataloaders_v2(
-    neuron_data_dictionary=responses,
-    movies_dictionary=movies,
-    validation_clip_indices=[0, 1],
-    batch_size=32
-)
-
-# Access specific splits
-train_loaders = dataloaders["train"]  # Dictionary mapping session IDs to training dataloaders
-validation_loaders = dataloaders["validation"]
-test_loaders = dataloaders["test"]
-```
-
-Learn more about the [Höfling et al. dataset](./hoefling_2024.md).
-
-### Karamanlis et al., 2024
-
-This dataset contains calcium imaging responses from mouse retinal ganglion cells.
+### Quick start
 
 ```python
-from openretina.data_io.karamanlis_2024 import get_karamanlis_dataloaders
-
-# Load the dataset
-dataloaders = get_karamanlis_dataloaders(
-    batch_size=32,
-    download=True
-)
-```
-
-### Maheswaranathan et al., 2023
-
-This dataset contains electrophysiology recordings from primate retinal ganglion cells.
-
-```python
-from openretina.data_io.maheswaranathan_2023 import get_maheswaranathan_dataloaders
-
-# Load the dataset
-dataloaders = get_maheswaranathan_dataloaders(
-    batch_size=32,
-    download=True
-)
-```
-
-## Base Classes
-
-`openretina` provides abstract base classes for creating custom data loaders:
-
-```python
-from openretina.data_io.base_dataloader import BaseDataLoader
-from pytorch_lightning import LightningDataModule
-
-class MyCustomDataset(BaseDataLoader):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Your implementation here
-        
-    def get_item(self, idx):
-        # Return stimulus and response for a given index
-        pass
-```
-
-## Stimulus Generation
-
-You can generate artificial stimuli for model training and testing:
-
-```python
-from openretina.data_io.artificial_stimuli import (
-    generate_gratings,
-    generate_noise_stimulus,
-    generate_moving_bar
-)
-
-# Generate a drifting grating stimulus
-grating = generate_gratings(
-    shape=(2, 30, 16, 18),  # (channels, time, height, width)
-    temporal_frequency=2.0,  # Hz
-    spatial_frequency=0.1,   # cycles per pixel
-    orientation=45           # degrees
-)
-
-# Generate white noise stimulus
-noise = generate_noise_stimulus(
-    shape=(2, 30, 16, 18),
-    distribution="gaussian"
-)
-
-# Generate a moving bar stimulus
-bar = generate_moving_bar(
-    shape=(2, 30, 16, 18),
-    width=2,                # pixels
-    speed=1,                # pixels per frame
-    direction=0             # degrees
-)
-```
-
-## Data Cyclers
-
-For training models, `openretina` uses data cyclers that efficiently batch and preprocess data:
-
-```python
-from torch.utils.data import DataLoader
-from openretina.data_io.cyclers import LongCycler, ShortCycler
-
-# Example dataloaders
-session_dataloaders = {
-    "session1": DataLoader(...),
-    "session2": DataLoader(...),
-    "session3": DataLoader(...)
-}
-
-# Create a LongCycler that cycles through sessions until all data is exhausted
-long_cycler = LongCycler(
-    loaders=session_dataloaders,
-    shuffle=True
-)
-
-# Create a ShortCycler that cycles through each session exactly once
-short_cycler = ShortCycler(
-    loaders=session_dataloaders
-)
-
-# Get the next batch from the cycler
-for session_key, batch in long_cycler:
-    # Process the batch
-    inputs, targets = batch
-    print(f"Processing batch from {session_key}")
-```
-
-## Custom Data Formats
-
-To use your own data with `openretina`, you need to:
-
-1. Prepare your stimuli as tensors of shape `(channels, time, height, width)`
-2. Prepare your responses as tensors of shape `(neurons, time)`
-3. Create a custom DataLoader that inherits from `BaseDataLoader`
-
-For example:
-
-```python
-import torch
+from openretina.data_io.base import MoviesTrainTestSplit
 import numpy as np
-from openretina.data_io.base_dataloader import BaseDataLoader
 
-class MyExperimentDataLoader(BaseDataLoader):
-    def __init__(self, data_path, **kwargs):
-        super().__init__(**kwargs)
-        # Load your data
-        self.stimuli = torch.from_numpy(np.load(f"{data_path}/stimuli.npy"))
-        self.responses = torch.from_numpy(np.load(f"{data_path}/responses.npy"))
-        
-    def __len__(self):
-        return len(self.stimuli)
-        
-    def get_item(self, idx):
-        return {
-            "stimulus": self.stimuli[idx],
-            "response": self.responses[idx]
-        }
+example_stimulus = MoviesTrainTestSplit(
+    train=np.random.rand(1, 200, 50, 50),  # channels, train_time, height, width
+    test=np.random.rand(1, 100, 50, 50),   # channels, test_time, height, width
+    stim_id=None,
+    norm_mean=None,
+    norm_std=None,
+)
 ```
 
-## Performance Tips
+When dealing with multiple sessions, group the movies in a dictionary where keys are session identifiers and values are `MoviesTrainTestSplit` instances.
 
-When working with large datasets:
+### Example: Maheswaranathan et al. (2023)
 
-- Use memory-mapped files for large arrays
-- Apply appropriate preprocessing (normalization, cropping, etc.)
-- Consider using PyTorch's DataLoader with multiple workers
-- Cache processed data when possible
+```python
+from openretina.data_io.maheswaranathan_2023.stimuli import load_all_stimuli
 
+# Primary download: https://doi.org/10.25740/rk663dm5577
+# Mirror: OpenRetina HuggingFace hub
+
+movies_dictionary = load_all_stimuli(
+    base_data_path=...,          # Path to the "ganglion_cell_data" folder in the archive
+    stim_type="naturalscene",   # "whitenoise" is also available
+    normalize_stimuli=True,      # Recommended for stable training
+)
+```
+
+The resulting dictionary maps session names to `MoviesTrainTestSplit` objects:
+
+```python
+{
+    "15-10-07": MoviesTrainTestSplit(train=numpy.ndarray(shape=(1, 359802, 50, 50)),
+                                      test=numpy.ndarray(shape=(1, 5996, 50, 50)),
+                                      stim_id="naturalscene",
+                                      random_sequences=None,
+                                      norm_mean=51.4911,
+                                      norm_std=53.6271),
+    "15-11-21a": MoviesTrainTestSplit(...),
+    "15-11-21b": MoviesTrainTestSplit(...),
+}
+```
+
+## Loading Neural Responses
+
+Neural activity for each session is stored as a 2D tensor `(neurons, time)`, aligned with the stimulus frames. The `ResponsesTrainTestSplit` class mirrors the structure of `MoviesTrainTestSplit` and optionally stores trial-resolved repetitions as well as session-level metadata.
+
+### Quick start
+
+```python
+from openretina.data_io.base import ResponsesTrainTestSplit
+import numpy as np
+
+example_responses = ResponsesTrainTestSplit(
+    train=np.random.rand(60, 200),      # neurons, train_time
+    test=np.random.rand(60, 100),       # neurons, test_time
+    test_by_trial=np.random.rand(10, 60, 100),  # trials, neurons, test_time
+    stim_id=None,
+    session_kwargs={"cell_types": np.random.randint(1, 42, 60)},
+)
+```
+
+As with stimuli, organise multi-session recordings in a dictionary keyed by session names.
+
+### Example: Maheswaranathan et al. (2023)
+
+```python
+from openretina.data_io.maheswaranathan_2023.responses import load_all_responses
+
+responses_dictionary = load_all_responses(
+    base_data_path=...,              # Same root used for stimuli
+    response_type="firing_rate_20ms",  # 5 ms and 10 ms binning also available
+    stim_type="naturalscene",
+)
+```
+
+Typical output looks like:
+
+```python
+{
+    "15-10-07": ResponsesTrainTestSplit(train=numpy.ndarray(shape=(9, 359802)),
+                                          test=numpy.ndarray(shape=(9, 5997)),
+                                          test_by_trial=None,
+                                          stim_id="naturalscene",
+                                          session_kwargs={}),
+    "15-11-21a": ResponsesTrainTestSplit(...),
+    "15-11-21b": ResponsesTrainTestSplit(...),
+}
+```
+
+## Composing Complete Dataloaders
+
+Once stimuli and responses are stored in matching dictionaries, the next step before training is to create PyTorch dataloaders that yield clipped stimulus-response pairs. This is handled by utilities in `openretina.data_io.base_dataloader`.
+
+```python
+from openretina.data_io.base_dataloader import multiple_movies_dataloaders
+
+dataloaders = multiple_movies_dataloaders(
+    neuron_data_dictionary=responses_dictionary,
+    movies_dictionary=movies_dictionary,
+    train_chunk_size=50,
+    batch_size=64,
+    seed=42,
+    clip_length=90,
+    num_val_clips=50,
+    allow_over_boundaries=True,
+)
+```
+
+The returned object is a dictionary with `train`, `validation`, and `test` keys, each of which contains session-specific `torch.utils.data.DataLoader` instances.
+
+### Single-session helper
+
+In rapid-prototyping scenarios, you may want a single dataloader for a single movie/response pair. Use `get_movie_dataloader` for that case:
+
+```python
+import numpy as np
+from openretina.data_io.base_dataloader import get_movie_dataloader
+
+random_stimulus = np.random.rand(1, 300, 50, 50)  # channels, time, height, width
+random_responses = np.random.rand(300, 42)        # time, neurons
+
+single_dataloader = get_movie_dataloader(
+    movie=random_stimulus,
+    responses=random_responses,
+    split="train",
+    scene_length=300,
+    chunk_size=50,
+    batch_size=1,
+)
+```
+
+For guidance on how these dataloaders plug into the training loop, refer back to the [training overview](../training/index.md).
+
+## HDF5-based Data Structure
+
+If your lab's export format is still evolving, it can be simpler to adapt the preprocessing pipeline than to maintain custom Python loaders. `openretina` therefore ships with a reference HDF5 structure that works out-of-the-box with the utilities above.
+
+Each session lives in its own `.hdf5` file, while the corresponding stimuli are stored as NumPy arrays under a `stimuli/` subdirectory.
+
+You can generate synthetic data that matches the expected layout via the command-line interface (see the [CLI reference](../command_line.md)):
+
+```bash
+# Print help
+openretina create-data --help
+
+# Create data in ./test_data
+openretina create-data ./test_data --num-colors 3 --num-stimuli 4 --num-sessions 2
+```
+
+Running this command produces two `.hdf5` files—one per session—in `test_data/`, plus stimulus files under `test_data/stimuli/`. Each HDF5 file contains a `session_info` attribute where you can store metadata such as cell types.
+
+To keep stimuli and responses aligned, ensure they share the same sampling frequency and number of temporal bins. All stimuli should also have identical channel counts and spatial dimensions. Once exported, the data can be loaded with the helpers in `openretina.data_io.h5_dataset_reader` and used directly in existing configuration files (for example the `hoefling_2024` setup described in [data\_io/hoefling\_2024.md](./hoefling_2024.md)).
+
+With these options, you should be ready to import new retinal datasets into `openretina` and move on to model training.
