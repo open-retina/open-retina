@@ -40,12 +40,14 @@ def unzip_and_cleanup(zip_path: Path) -> Path:
             extracted_file = zip_path.parent / zip_contents[0]
             zf.extract(zip_contents[0], zip_path.parent)
             LOGGER.info(f"Extracted single file to {extracted_file.resolve()}.")
-            target_path = extracted_file  # the target_path we return is the path of the extracted file
+            # the target_path we return is the path of the extracted file
+            target_path = extracted_file
         else:
             # Check if zip contains a single folder with the same name as the zip
             top_level_items = {Path(item).parts[0] for item in zip_contents}  # Get unique top-level names
             if len(top_level_items) == 1 and next(iter(top_level_items)) == extract_to.name:
-                extract_to = zip_path.parent  # Extract directly to parent folder. Target path to return will stay the same.
+                # Extract directly to parent folder. Target path to return will stay the same.
+                extract_to = zip_path.parent
 
             shutil.unpack_archive(zip_path, extract_to)
             LOGGER.info(f"Extracted files to {target_path.resolve()}.")
