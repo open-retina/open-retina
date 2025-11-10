@@ -215,8 +215,3 @@ class GaussianMaskReadout(Readout):
             fig_axes_tuple[0].savefig(plot_path, bbox_inches="tight", facecolor="w", dpi=300)
             fig_axes_tuple[0].clf()
             plt.close()
-
-
-# Alias for backward compatibility
-class SimpleSpatialXFeature3d(GaussianMaskReadout):
-    pass

@@ -48,7 +48,7 @@ class BaseCoreReadout(LightningModule):
         readout: MultiReadoutBase,
         learning_rate: float,
         loss: nn.Module | None = None,
-        correlation_loss: nn.Module | None = None,
+        validation_loss: nn.Module | None = None,
         data_info: dict[str, Any] | None = None,
     ):
         """
@@ -60,7 +60,7 @@ class BaseCoreReadout(LightningModule):
                 per session.
             learning_rate (float): Learning rate for network training.
             loss (nn.Module, optional): Loss function for training. Defaults to PoissonLoss3d if None.
-            correlation_loss (nn.Module, optional): Loss used to compute correlation performance metric.
+            validation_loss (nn.Module, optional): Loss used to compute correlation performance metric.
                 Defaults to CorrelationLoss3d (avg=True) if None.
             data_info (dict[str, Any], optional): Dictionary containing data-specific metadata, such as input_shape,
                 session neuron counts, etc. If None, defaults to empty dict.
@@ -71,7 +71,7 @@ class BaseCoreReadout(LightningModule):
         self.readout = readout
         self.learning_rate = learning_rate
         self.loss = loss if loss is not None else PoissonLoss3d()
-        self.correlation_loss = correlation_loss if correlation_loss is not None else CorrelationLoss3d(avg=True)
+        self.validation_loss = validation_loss if validation_loss is not None else CorrelationLoss3d(avg=True)
         if data_info is None:
             data_info = {}
         self.data_info = data_info
@@ -95,7 +95,7 @@ class BaseCoreReadout(LightningModule):
         regularization_loss_core = self.core.regularizer()
         regularization_loss_readout = self.readout.regularizer(session_id)  # type: ignore
         total_loss = loss + regularization_loss_core + regularization_loss_readout
-        correlation = -self.correlation_loss.forward(model_output, data_point.targets)
+        correlation = -self.validation_loss.forward(model_output, data_point.targets)
 
         self.log("regularization_loss_core", regularization_loss_core, on_step=False, on_epoch=True)
         self.log("regularization_loss_readout", regularization_loss_readout, on_step=False, on_epoch=True)
@@ -112,7 +112,7 @@ class BaseCoreReadout(LightningModule):
         regularization_loss_core = self.core.regularizer()
         regularization_loss_readout = self.readout.regularizer(session_id)  # type: ignore
         total_loss = loss + regularization_loss_core + regularization_loss_readout
-        correlation = -self.correlation_loss.forward(model_output, data_point.targets)
+        correlation = -self.validation_loss.forward(model_output, data_point.targets)
 
         self.log("val_loss", loss, logger=True, prog_bar=True)
         self.log("val_regularization_loss_core", regularization_loss_core, logger=True)
@@ -126,12 +126,12 @@ class BaseCoreReadout(LightningModule):
         session_id, data_point = batch
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
-        avg_correlation = -self.correlation_loss.forward(model_output, data_point.targets)
-        per_neuron_correlation = self.correlation_loss._per_neuron_correlations
+        avg_correlation = -self.validation_loss.forward(model_output, data_point.targets)
+        per_neuron_correlation = self.validation_loss._per_neuron_correlations
 
         # Add metric and performances to data_info for downstream tasks
         if "pretrained_performance_metric" not in self.data_info:
-            self.data_info["pretrained_performance_metric"] = "test " + type(self.correlation_loss).__name__
+            self.data_info["pretrained_performance_metric"] = "test " + type(self.validation_loss).__name__
 
         if "pretrained_performance" not in self.data_info:
             self.data_info["pretrained_performance"] = {}
@@ -251,12 +251,12 @@ class BaseCoreReadout(LightningModule):
 
 class UnifiedCoreReadout(BaseCoreReadout):
     """
-    A highly flexible core-readout model for multi-session neural data, designed for Hydra config workflows.
+    A flexible core-readout model for multi-session neural data, designed for Hydra config workflows.
 
     This class is the recommended entry point for defining core-readout models via config files using Hydra.
     It allows unified instantiation of arbitrary core and readout modules, specified via DictConfig,
     enabling rapid experimentation and extensibility. Supports all multi-session settings, custom core/readout
-    combinations, and seamless integration with configuration-driven pipelines.
+    combinations, and integration with configuration-driven pipelines (including hyperparameter optimization).
 
     """
 
@@ -289,8 +289,9 @@ class UnifiedCoreReadout(BaseCoreReadout):
             data_info (dict[str, Any], optional):
                 Additional metadata dictionary, e.g., with input shape and neuron mapping.
         """
-        # force in_shape and hidden_channels to be a tuple, they can be a dictConfig due to hydra
-        # this lead to an error when logging hyperparameters with the csv logger during training
+        # Make sure in_shape and hidden_channels are a tuple
+        # (with hydra configs they can be a `omegaconf.listconfig.ListConfig`).
+        # This lead to an error when logging hyperparameters with the csv logger during training.
         hidden_channels = tuple(hidden_channels)
         in_shape = tuple(in_shape)
 
@@ -306,9 +307,7 @@ class UnifiedCoreReadout(BaseCoreReadout):
             readout["in_shape"] = (in_shape_readout[0],) + in_shape_readout[1:]
 
         # Extract mean_activity_dict from data_info if available
-        mean_activity_dict = None
-        if data_info is not None and "mean_activity_dict" in data_info:
-            mean_activity_dict = data_info["mean_activity_dict"]
+        mean_activity_dict = None if data_info is None else data_info.get("mean_activity_dict")
 
         readout_module = hydra.utils.instantiate(
             readout,

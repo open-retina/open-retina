@@ -1,4 +1,5 @@
 import os
+import warnings
 from typing import Callable, Iterable, Literal, Optional
 
 import torch
@@ -55,13 +56,15 @@ class MultiReadoutBase(nn.ModuleDict):
     ):
         # The `base_readout` can be overridden only if the static property `_base_readout_cls` is not set
         if self._base_readout_cls is None:
+            assert base_readout is not None, (
+                "Argument `base_readout` must be provided if the class variable `_base_readout_cls` is not set"
+            )
             self._base_readout_cls = base_readout
 
         self._readout_kwargs = kwargs
         self._in_shape = in_shape
         self.readout_reg_avg = readout_reg_avg
-        if self._base_readout_cls is None:
-            raise ValueError("Attribute _base_readout must be set")
+        self.readout_reg_reduction: Literal["mean", "sum"] = "mean" if readout_reg_avg else "sum"
         super().__init__()
 
         for i, data_key in enumerate(n_neurons_dict):
@@ -121,18 +124,30 @@ class MultiReadoutBase(nn.ModuleDict):
                 ),
             )
 
-    def forward(self, *args, data_key: str | None = None, **kwargs):
-        if data_key is None and len(self) == 1:
-            data_key = list(self.keys())[0]
-        return self[data_key](*args, **kwargs)
+    def forward(self, *args, data_key: str | None = None, **kwargs) -> torch.Tensor:
+        if data_key is None:
+            warnings.warn(
+                "No data key provided, returning concatenated responses from all readouts",
+                stacklevel=2,
+                category=UserWarning,
+            )
+            readout_responses = []
+            for readout_key in self.readout_keys():
+                resp = self[readout_key](*args, **kwargs)
+                readout_responses.append(resp)
+            response = torch.cat(readout_responses, dim=-1)
+        else:
+            response = self[data_key](*args, **kwargs)
+        return response
 
     def initialize(self, mean_activity_dict: dict[str, Float[torch.Tensor, " neurons"]] | None = None):
         for data_key, readout in self.items():
             mean_activity = mean_activity_dict[data_key] if mean_activity_dict is not None else None
             readout.initialize(mean_activity)
 
-    def regularizer(self, data_key: str | None = None, reduction: Literal["sum", "mean"] = "sum"):
-        reduction = "mean" if self.readout_reg_avg else reduction
+    def regularizer(self, data_key: str | None = None, reduction: Literal["sum", "mean"] | None = None):
+        if reduction is None:
+            reduction = self.readout_reg_reduction
         if data_key is None and len(self) == 1:
             data_key = list(self.keys())[0]
         return self[data_key].regularizer(reduction=reduction)
@@ -186,17 +201,6 @@ class MultiGaussianMaskReadout(MultiReadoutBase):
             readout_reg_avg=readout_reg_avg,
         )
 
-    def forward(self, *args, data_key: str | None = None, **kwargs) -> torch.Tensor:
-        if data_key is None:
-            readout_responses = []
-            for readout_key in self.readout_keys():
-                resp = self[readout_key](*args, **kwargs)
-                readout_responses.append(resp)
-            response = torch.concatenate(readout_responses, dim=-1)
-        else:
-            response = self[data_key](*args, **kwargs)
-        return response
-
 
 class MultiFactorizedReadout(MultiReadoutBase):
     """
@@ -238,17 +242,6 @@ class MultiFactorizedReadout(MultiReadoutBase):
             readout_reg_avg=readout_reg_avg,
             mean_activity_dict=mean_activity_dict,
         )
-
-    def forward(self, *args, data_key: str | None = None, **kwargs) -> torch.Tensor:
-        if data_key is None:
-            readout_responses = []
-            for readout_key in self.readout_keys():
-                resp = self[readout_key](*args, **kwargs)
-                readout_responses.append(resp)
-            response = torch.concatenate(readout_responses, dim=-1)
-        else:
-            response = self[data_key](*args, **kwargs)
-        return response
 
 
 class MultiSampledGaussianReadout(MultiReadoutBase):

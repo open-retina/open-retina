@@ -15,6 +15,7 @@ from openretina.models.core_readout import UnifiedCoreReadout, load_core_readout
 from openretina.utils.log_to_mlflow import log_to_mlflow
 
 log = logging.getLogger(__name__)
+logging.captureWarnings(True)
 
 
 @hydra.main(
