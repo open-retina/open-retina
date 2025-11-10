@@ -136,7 +136,8 @@ class GaussianMaskReadout(Readout):
         """Gets the actual mask values in terms of a PDF from the mean and SD"""
         scaled_log_var = self.mask_log_var * self.gaussian_var_scale
         mask_var_ = torch.exp(torch.clamp(scaled_log_var, min=-20, max=20)).view(-1, 1, 1)
-        pdf = self.grid - self.mask_mean.view(self.outdims, 1, 1, -1) * self.gaussian_mean_scale
+        grid: torch.Tensor = self.grid  # type: ignore
+        pdf = grid - self.mask_mean.view(self.outdims, 1, 1, -1) * self.gaussian_mean_scale
         pdf = torch.sum(pdf**2, dim=-1) / (mask_var_ + 1e-8)
         pdf = torch.exp(-0.5 * torch.clamp(pdf, max=20))
         normalisation = torch.sum(pdf, dim=(1, 2), keepdim=True)

@@ -82,7 +82,8 @@ class MultiReadoutBase(nn.ModuleDict):
                 )
                 original_readout = data_key
             elif i > 0 and clone_readout is True:
-                self.add_module(data_key, ClonedReadout(self[original_readout]))
+                original_readout_object: Readout = self[original_readout]  # type: ignore
+                self.add_module(data_key, ClonedReadout(original_readout_object))
 
         self.initialize(mean_activity_dict)
 
@@ -143,6 +144,7 @@ class MultiReadoutBase(nn.ModuleDict):
     def initialize(self, mean_activity_dict: dict[str, Float[torch.Tensor, " neurons"]] | None = None):
         for data_key, readout in self.items():
             mean_activity = mean_activity_dict[data_key] if mean_activity_dict is not None else None
+            assert isinstance(readout, Readout)
             readout.initialize(mean_activity)
 
     def regularizer(self, data_key: str | None = None, reduction: Literal["sum", "mean"] | None = None):
@@ -150,10 +152,23 @@ class MultiReadoutBase(nn.ModuleDict):
             reduction = self.readout_reg_reduction
         if data_key is None and len(self) == 1:
             data_key = list(self.keys())[0]
+        elif data_key is None:
+            raise ValueError("data_key is required when there are multiple sessions")
         return self[data_key].regularizer(reduction=reduction)
 
     def readout_keys(self) -> list[str]:
         return sorted(self._modules.keys())
+
+    def __getitem__(self, key: str) -> Readout:
+        """For type checking purposes"""
+        res = self._modules[key]
+        assert isinstance(res, Readout)
+        return res
+
+    def __setitem__(self, key: str, module: torch.nn.Module) -> None:
+        """To ensure we only add Readout objects to the module dictionary"""
+        assert isinstance(module, Readout)
+        self.add_module(key, module)
 
     @property
     def sessions(self) -> list[str]:
