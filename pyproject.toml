@@ -61,6 +61,7 @@ dev = [
     "mkdocs-material[imaging]",
     "mkdocstrings[python]",
     "mkdocs-glightbox",
+    "mkdocs-jupyter",
 ]
 devmodels = ["neuralpredictors"]
 optuna = [ # for hyperparameter tuning

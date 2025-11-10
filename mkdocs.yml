@@ -42,6 +42,12 @@ plugins:
   - search
   - social
   - glightbox
+  - mkdocs-jupyter:
+      execute: false
+      include_source: true
+
+hooks:
+  - docs/mkdocs_hooks.py
 
 site_url: https://open-retina.org
 
@@ -90,6 +96,7 @@ nav:
               - LSTAs: package_docs/insilico/lsta.md
 
       - Tutorials:
+          - Gradient Analysis Example: notebooks/hoefling_gradient_analysis.ipynb
           - Loading Pre-trained Models: package_docs/tutorials/pretrained_models.md
           - Training Custom Models: package_docs/tutorials/training.md
           - Stimulus Optimization: package_docs/tutorials/stimulus_optimization.md
@@ -99,7 +106,7 @@ nav:
       - Contributing:
           - Contributing Guide: package_docs/contributing.md
           - Development Setup: package_docs/development.md
-          - Code Style: package_docs/code_style.md
+          - Code Style: package_docs/code_style.m
   - API Reference:
       - index: api_reference/index.md
       - Overview: api_reference/index.md

@@ -1,10 +1,17 @@
----
-title: API Reference
----
+# API reference 
 
-# API Reference
+## What is this page?
 
-This section provides detailed documentation for all modules, classes, and functions in OpenRetina.
+This is the API (Application Programming Interface) reference for OpenRetina. It provides comprehensive documentation of all public classes, functions, and modules available in the package.
+
+**How to use this reference:**
+
+- **Browse by module**: Navigate through the sections below to find specific components
+- **Search for functionality**: Use the search function to find specific classes or functions
+- **Understand parameters**: Each entry includes detailed parameter descriptions, return types, and usage examples
+- **Link to source**: Most entries link to the source code for deeper understanding
+
+If you're new to OpenRetina, start with the [Getting Started Guide](../getting_started.md) or [Tutorials](../tutorials/index.md) before diving into the API reference.
 
 ## Core Components
 
