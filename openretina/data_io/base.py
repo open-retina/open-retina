@@ -216,9 +216,9 @@ def compute_data_info(
         norm_means = [movie.norm_mean for movie in movies_dictionary.values()]
         norm_stds = [movie.norm_std for movie in movies_dictionary.values()]
 
-        if any(mean != norm_means[0] for mean in norm_means):
+        if not np.allclose(norm_means, norm_means[0], atol=1, rtol=0):
             raise ValueError(f"Normalization means are not consistent across stimuli: {norm_means}")
-        if any(std != norm_stds[0] for std in norm_stds):
+        if not np.allclose(norm_stds, norm_stds[0], atol=1, rtol=0):
             raise ValueError(f"Normalization stds are not consistent across stimuli: {norm_stds}")
 
         stim_mean = norm_means[0]
