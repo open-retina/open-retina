@@ -5,6 +5,7 @@ from pathlib import Path
 
 NOTEBOOK_NAMES = [
     "hoefling_gradient_analysis.ipynb",
+    "hyperparameter_search_hoefling_2024.ipynb",
     # Add more notebook filenames here as needed
 ]
 

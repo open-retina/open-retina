@@ -80,8 +80,7 @@ nav:
       - Core Functionality:
           - Overview: package_docs/core_functionality_overview.md
           - Data Input/Output:
-              - package_docs/data_io/index.md
-              # - Hoefling et al., 2024: package_docs/data_io/hoefling_2024.md
+              - package_docs/data_io.md
           - Training:
               - package_docs/training/index.md
               - Core-Readout Models: package_docs/training/core_readout.md
@@ -95,8 +94,14 @@ nav:
               - Response Gradient Analysis: package_docs/insilico/response_tuning.md
               - LSTAs: package_docs/insilico/lsta.md
 
+      - Data Sources:
+          - package_docs/datasets/index.md
+          - Hoefling et al., 2024: package_docs/datasets/hoefling_2024.md
+          - Goldin et al., 2022: package_docs/datasets/goldin_2022.md
+
       - Tutorials:
           - Gradient Analysis Example: notebooks/hoefling_gradient_analysis.ipynb
+          - Hyperparameter Tuning: notebooks/hyperparameter_search_hoefling_2024.ipynb
           - Loading Pre-trained Models: package_docs/tutorials/pretrained_models.md
           - Training Custom Models: package_docs/tutorials/training.md
           - Stimulus Optimization: package_docs/tutorials/stimulus_optimization.md
