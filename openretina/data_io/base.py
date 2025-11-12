@@ -213,13 +213,15 @@ def compute_data_info(
             *movies_dictionary.train.shape[2:],
         )
     else:
-        norm_means = [movie.norm_mean for movie in movies_dictionary.values()]
-        norm_stds = [movie.norm_std for movie in movies_dictionary.values()]
+        norm_means = [movie.norm_mean for movie in movies_dictionary.values() if movie.norm_mean is not None]
+        norm_stds = [movie.norm_std for movie in movies_dictionary.values() if movie.norm_std is not None]
 
-        if not np.allclose(norm_means, norm_means[0], atol=1, rtol=0):
-            raise ValueError(f"Normalization means are not consistent across stimuli: {norm_means}")
-        if not np.allclose(norm_stds, norm_stds[0], atol=1, rtol=0):
-            raise ValueError(f"Normalization stds are not consistent across stimuli: {norm_stds}")
+        if len(norm_means) > 0:
+            if not np.allclose(norm_means, norm_means[0], atol=1, rtol=0):
+                raise ValueError(f"Normalization means are not consistent across stimuli: {norm_means}")
+        if len(norm_stds) > 0:
+            if not np.allclose(norm_stds, norm_stds[0], atol=1, rtol=0):
+                raise ValueError(f"Normalization stds are not consistent across stimuli: {norm_stds}")
 
         stim_mean = norm_means[0]
         stim_std = norm_stds[0]
