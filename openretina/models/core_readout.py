@@ -76,6 +76,13 @@ class BaseCoreReadout(LightningModule):
             data_info = {}
         self.data_info = data_info
 
+        # Finally, save hyperparameters without logging them to the logger objects for now
+        self.save_hyperparameters(ignore=["n_neurons_dict"], logger=False)
+
+    def on_fit_start(self):
+        for lg in self.trainer.loggers:
+            lg.log_hyperparams({k: v for k, v in self.hparams.items() if k != "data_info"})
+
     def on_train_epoch_end(self):
         # Compute the 2-norm for each layer at the end of the epoch
         core_norms = grad_norm(self.core, norm_type=2)
@@ -316,7 +323,6 @@ class UnifiedCoreReadout(BaseCoreReadout):
         )
 
         super().__init__(core=core_module, readout=readout_module, learning_rate=learning_rate, data_info=data_info)
-        self.save_hyperparameters(ignore=["n_neurons_dict"])
 
 
 class ExampleCoreReadout(BaseCoreReadout):
@@ -406,7 +412,6 @@ class ExampleCoreReadout(BaseCoreReadout):
         )
 
         super().__init__(core=core, readout=readout, learning_rate=learning_rate, data_info=data_info)
-        self.save_hyperparameters(ignore=["n_neurons_dict"])
 
 
 def load_core_readout_from_remote(
