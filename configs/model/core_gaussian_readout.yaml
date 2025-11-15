@@ -24,7 +24,8 @@ core:
 readout:
   _target_: openretina.modules.readout.multi_readout.MultiSampledGaussianReadoutWrapper
   _convert_: object
-  in_shape: ???
+  in_shape: ??? # set dynamically based on core output shape
+  n_neurons_dict: ???
   bias: true
   gamma: 0.4
   init_mu_range: 0.1
