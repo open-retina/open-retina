@@ -1,8 +1,9 @@
+import math
 from contextlib import contextmanager
 
 import torch
 from lightning.pytorch.callbacks import Callback
-import math
+
 
 @contextmanager
 def eval_state(model: torch.nn.Module):
@@ -52,6 +53,7 @@ class OptimizerResetCallback(Callback):
 
         self.prev_lr = current_lr
 
+
 def get_core_output_based_on_dimensions(model_config):
     if len(model_config.in_shape) == 5:
         input_shape = model_config.in_shape[1:]
@@ -65,21 +67,17 @@ def get_core_output_based_on_dimensions(model_config):
         spatial_kernel_size = model_config.core.spatial_kernel_sizes[i]
         if isinstance(spatial_kernel_size, int):
             spatial_kernel_size = (spatial_kernel_size, spatial_kernel_size)
-        temporal_dilation = 1 if "temporal_dilation" not in model_config.core.keys() else model_config.core.temporal_dilation
-        spatial_dilation = 1 if "spatial_dilation" not in model_config.core.keys() else model_config.core.spatial_dilation
-        stride = [1]*layers if "stride" not in model_config.core.keys() else model_config.core.stride
+        temporal_dilation = (
+            1 if "temporal_dilation" not in model_config.core.keys() else model_config.core.temporal_dilation
+        )
+        spatial_dilation = (
+            1 if "spatial_dilation" not in model_config.core.keys() else model_config.core.spatial_dilation
+        )
+        stride = [1] * layers if "stride" not in model_config.core.keys() else model_config.core.stride
 
         t = math.floor(t - (temp_kernel_size - 1) * temporal_dilation)
-        h = math.floor(
-            (h - (spatial_kernel_size[0] - 1) * spatial_dilation - 1)
-            / stride[i]
-            + 1
-        )
-        w = math.floor(
-            (w - (spatial_kernel_size[1] - 1) * spatial_dilation - 1)
-            / stride[i]
-            + 1
-        )
+        h = math.floor((h - (spatial_kernel_size[0] - 1) * spatial_dilation - 1) / stride[i] + 1)
+        w = math.floor((w - (spatial_kernel_size[1] - 1) * spatial_dilation - 1) / stride[i] + 1)
 
     output_shape = model_config.core.channels[layers], t, h, w
     print("factorized core output shape:", output_shape)

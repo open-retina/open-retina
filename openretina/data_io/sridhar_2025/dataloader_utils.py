@@ -9,6 +9,7 @@ from torch.utils.data import Sampler
 from openretina.data_io.sridhar_2025.constants import NM_DATASET, WN_DATASET
 from openretina.utils.misc import set_seed
 
+
 def download_nm_dataset(cache_dir, base_path, hf_token):
     """Download the natural movie (NM) marmoset dataset from Hugging Face.
     Original data source: https://gin.g-node.org/gollischlab/Sridhar_Gollisch_2025_Marmoset_RGC_Responses_Naturalistic_Movies/src/master/README.md
@@ -116,15 +117,16 @@ def make_file_name(cell, retina_index):
 
 def get_locations_from_stas(sta_dir, retina_index, cells, crop=0, flip_sta=False):
     """
-    Get the source grid -- i.e. all the locations from the STAs in the sta directory for the specified cells and file name.
+    Get the source grid -- i.e. all the locations from the STAs in the sta directory for
+    the specified cells and file name.
     Args:
         sta_dir (str): Directory where the STAs are stored.
         retina_index (str): Key of the retina dataset.
         cells (list): List of cell indices for which to get the locations.
         crop (int or tuple): Amount to crop from the STA. If int, crops the same amount from all sides.
                              If tuple, crops (top, bottom, left, right).
-        flip_sta (bool): Whether to flip the STA horizontally. - this is useful as the STAs are all computed from the white noise dataset
-                         and the natural movie dataset is flipped horizontally.
+        flip_sta (bool): Whether to flip the STA horizontally. - this is useful as the STAs are all
+                         computed from the white noise dataset and the natural movie dataset is flipped horizontally.
     """
     all_locations = []
     for cell in cells:
@@ -146,7 +148,7 @@ def filter_trials(
         hard_coded (tuple, optional): If provided, uses these IDs instead of filtering.
         num_of_trials_to_use (int, optional): Number of trials to use. If None, all trials are used.
         starting_trial (int): The starting trial index to consider.
-        """
+    """
     if num_of_trials_to_use is None:
         # If num_of_trials_to_use is not provided, use all trials
         num_of_trials_to_use = len(all_train_ids) + len(all_validation_ids)
