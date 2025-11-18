@@ -1,0 +1,10 @@
+basepath_wn: '/projects/extern/nhr/nhr_ni/nim00010/dir.project/wn_marmoset_data/'
+cache_dir: '/projects/extern/nhr/nhr_ni/nim00010/dir.project/'
+response_path:
+  'responses'
+image_path:
+  'stimuli_padded_4/'
+stas_path:
+  'stas'
+sta_file:
+  'cell_data_01_WN_stas_cell'

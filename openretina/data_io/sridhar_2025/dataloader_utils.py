@@ -182,7 +182,6 @@ class ChunkedSampler(Sampler):
         It loads one trial file, shuffles chunks within trial and then continues on to the next trial.
         Args:
             dataset (Dataset): The dataset.
-            num_chunks (int): Number of chunks.
             seed (int): Random seed for reproducibility.
         """
         super().__init__()

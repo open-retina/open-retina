@@ -619,9 +619,9 @@ def frame_movie_loader(
             starting_trial=start_using_trial,
         )
 
-        print(f"Trial separation for {retina_index}")
-        print("training trials: ", len(train_ids), train_ids)
-        print("validation trials: ", len(valid_ids), valid_ids, "\n")
+        # print(f"Trial separation for {retina_index}")
+        # print("training trials: ", len(train_ids), train_ids)
+        # print("validation trials: ", len(valid_ids), valid_ids, "\n")
 
         if retina_specific_crops:
             crop = big_crops[retina_index]
@@ -792,14 +792,13 @@ class NoiseDataset(Dataset):
                               used to calculate the shrink in dimensions or padding
         :param device:
         :param time_chunk_size: Indicates how many predictions should be made at once by the model.
-               The 'images' in datapoints are padded accordingly in the temporal dimension with respect to num_of_frames
+               The 'inputs' in datapoints are padded accordingly in the temporal dimension with respect to num_of_frames
                and num_of_layers. Only valid if single_prediction is false.
         """
 
         self.use_cache = use_cache
         self.data_keys = data_keys
         if set(data_keys) == {"inputs", "targets"}:
-            # this version IS serializable in pickle
             self.data_point = default_image_datapoint
         if self.use_cache:
             self.cache_maxsize = cache_maxsize
@@ -922,11 +921,12 @@ class NoiseDataset(Dataset):
         starting_img_index -= trial_portion * self.frame_overhead
         ending_img_index = int(starting_img_index + self.time_chunk_size)
         ret = []
+        # print(f'getting item {item} from trial {trial_file_index}, portion {trial_portion}, indices from {starting_img_index} to {ending_img_index}')
 
         for data_key in self.data_keys:
-            if data_key == "images":
+            if data_key == "inputs":
                 value = self.get_trial_portion(trial_file_index, data_key, starting_img_index, ending_img_index)
-                value = torch.unsqueeze(value, 0)
+                value = torch.unsqueeze(value, 0).float()
             else:
                 if not self._test:
                     value = self.train_responses[
@@ -934,7 +934,7 @@ class NoiseDataset(Dataset):
                         starting_img_index + self.frame_overhead + self.extra_frame : ending_img_index
                         + self.extra_frame,
                         trial_file_index,
-                    ]
+                    ].T
                 else:
                     value = self.test_responses[
                         :,
@@ -942,7 +942,7 @@ class NoiseDataset(Dataset):
                         + self.extra_frame,
                     ]
 
-            ret.append(value)
+            ret.append(value.float())
 
         x = self.data_point(*ret)
         return x
@@ -1016,8 +1016,8 @@ def get_noise_dataloader(
     data = NoiseDataset(
         response_dict,
         path,
-        "images",
-        "responses",
+        "inputs",
+        "targets",
         indices=indices,
         use_cache=use_cache,
         test=test,
@@ -1057,6 +1057,7 @@ def white_noise_loader(
     crop=20,
     use_cache=True,
     cache_maxsize=5,
+    retina_index=None,
     num_of_trials_to_use=None,
     start_using_trial=0,
     num_of_frames=None,
@@ -1070,12 +1071,15 @@ def white_noise_loader(
     retina_specific_crops=True,
     extra_frame=0,
     hard_coded=None,
-    chunked_sampling=False,
+    chunked_sampling=True,
     get_locations=True,
     sta_dir="stas",
 ):
     dataloaders = {"train": {}, "validation": {}, "test": {}}
-    retina_indices = list(files.keys())
+    if retina_index is None:
+        retina_indices = list(files.keys())
+    else:
+        retina_indices = [retina_index]
     responses = load_responses(basepath, files=files, excluded_cells=excluded_cells, cell_index=cell_index)
 
     for retina_index in retina_indices:
@@ -1123,7 +1127,7 @@ def white_noise_loader(
             path=dataset_train_image_path,
             indices=train_ids,
             test=False,
-            shuffle=True,
+            shuffle=False,
             batch_size=batch_size,
             use_cache=use_cache,
             cache_maxsize=cache_maxsize,
@@ -1161,7 +1165,7 @@ def white_noise_loader(
             temporal_dilation=temporal_dilation,
             hidden_temporal_dilation=hidden_temporal_dilation,
             extra_frame=extra_frame,
-            chunked_sampling=False,
+            chunked_sampling=chunked_sampling,
             locations=locations,
             excluded_cells=excluded_cells,
         )

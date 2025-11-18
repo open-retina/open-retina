@@ -1,8 +1,3 @@
-# Config file for loading white noise data from the Sridhar et al. (2025) dataset
-# Data originally from: https://gin.g-node.org/gollischlab/Sridhar_Gollisch_2025_Marmoset_RGC_Responses_Naturalistic_Movies
-# Paper: https://www.biorxiv.org/content/10.1101/2024.03.05.583449v2
-
-
 _target_: openretina.data_io.sridhar_2025.dataloaders.white_noise_loader
 _convert_: object
 basepath: '/projects/extern/nhr/nhr_ni/nim00010/dir.project/wn_marmoset_data/'
@@ -45,15 +40,14 @@ num_of_frames: 30
 num_of_hidden_frames: 5
 temporal_dilation: 1
 hidden_temporal_dilation: 1
-cell_index: null
+cell_index: 2
 device: 'cuda'
 time_chunk_size: 100
 num_of_layers: 1
+retina_index: '04'
 retina_specific_crops: True
 extra_frame: 0
 hard_coded: null
-retina_index: '04'
 chunked_sampling: True
-
-
-
+get_locations: True
+sta_dir: 'stas'
