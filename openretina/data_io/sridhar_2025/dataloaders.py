@@ -921,7 +921,6 @@ class NoiseDataset(Dataset):
         starting_img_index -= trial_portion * self.frame_overhead
         ending_img_index = int(starting_img_index + self.time_chunk_size)
         ret = []
-        # print(f'getting item {item} from trial {trial_file_index}, portion {trial_portion}, indices from {starting_img_index} to {ending_img_index}')
 
         for data_key in self.data_keys:
             if data_key == "inputs":
