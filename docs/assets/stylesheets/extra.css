@@ -1,0 +1,36 @@
+/* Make the header logo bigger */
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  height: 2rem !important;
+  /* Default is around 1.2rem */
+  width: auto;
+}
+
+/* Make the header title bigger */
+.md-header__title {
+  font-size: 1.5rem !important;
+  /* Default is around 1.25rem */
+}
+
+/* If needed, adjust padding to accommodate bigger elements */
+.md-header__inner {
+  padding: 0.6rem 0.2rem;
+}
+
+/* Landing page title styling - subtle background using theme colors */
+.landing-title {
+  font-family: monospace !important;
+  font-weight: bold !important;
+  text-align: center !important;
+  background-color: var(--md-code-bg-color) !important;
+  padding: 0.3rem 0.6rem !important;
+  border-radius: 15px !important;
+}
+
+.md-typeset h1 {
+  font-weight: bold;
+}
+
+.md-typeset h2 {
+  font-weight: bold;
+}

@@ -57,6 +57,11 @@ dev = [
     "types-requests",
     "nbmake",
     "jupyterlab",
+    "mkdocs",
+    "mkdocs-material[imaging]",
+    "mkdocstrings[python]",
+    "mkdocs-glightbox",
+    "mkdocs-jupyter",
 ]
 devmodels = ["neuralpredictors"]
 optuna = [ # for hyperparameter tuning

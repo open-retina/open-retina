@@ -34,19 +34,18 @@ class NeuronDataSplitHoefling:
         Customized for compatibility with the data format in Hoefling et al., 2024.
 
         Args:
+            neural_responses (ResponsesTrainTestSplit): The responses of neurons.
+            val_clip_idx (List[int]): The indices of validation clips.
+            num_clips (int): The number of clips.
+            clip_length (int): The length of each clip.
+            roi_mask: region of interest mask of the neurons
+            roi_ids (Float[np.ndarray, "n_neurons"]): The IDs of regions of interest (ROIs).
+            scan_sequence_idx (int): The index of the scan sequence.
+            random_sequences (Float[np.ndarray, "n_clips n_sequences"]): The random sequences of clips.
             eye (str): The eye from which the neuron data is recorded.
             group_assignment (Float[np.ndarray, "n_neurons"]): The group assignment of neurons.
             key (dict): The key information for the neuron data,
                         includes date, exp_num, experimenter, field_id, stim_id.
-            responses_final (Float[np.ndarray, "n_neurons n_timepoints"]): The responses of neurons.
-            roi_coords (Float[np.ndarray, "n_neurons 2"]): The coordinates of regions of interest (ROIs).
-            roi_ids (Float[np.ndarray, "n_neurons"]): The IDs of regions of interest (ROIs).
-            scan_sequence_idx (int): The index of the scan sequence.
-            stim_id (int): The ID of the stimulus. 5 is mouse natural scenes.
-            random_sequences (Float[np.ndarray, "n_clips n_sequences"]): The random sequences of clips.
-            val_clip_idx (List[int]): The indices of validation clips.
-            num_clips (int): The number of clips.
-            clip_length (int): The length of each clip.
             use_base_sequence (bool): Whether to re-order all training responses to use the same "base" sequence.
         """
         self.neural_responses = neural_responses
@@ -449,7 +448,7 @@ def upsample_all_responses(
     qi_logic: Literal["and", "or"] = "or",
     scale_traces: float = 1.0,
     norm_by_std: bool = True,
-):
+) -> dict:
     """
     Converts inferred spikes into final responses by upsampling the traces of all sessions of a given response_type.
     This is to match the framerate used in the stimulus presentation.

@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block sitenav %}
+
+{% endblock %}
+
+{% block tabs %}
+
+{% endblock %}
+
+{% block extrahead %}
+<style>
+  /* Hide header on landing page but keep it functional */
+  .md-header {
+    display: none !important;
+  }
+
+  /* Add floating theme toggle button */
+  .landing-theme-toggle {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1000;
+    background: var(--md-default-bg-color, #ffffff);
+    border: 1px solid var(--md-default-fg-color--lighter, #cccccc);
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    transition: all 0.25s;
+  }
+
+  .landing-theme-toggle:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    transform: translateY(-1px);
+  }
+
+  /* Dark mode styling for toggle button */
+  [data-md-color-scheme="slate"] .landing-theme-toggle {
+    background: var(--md-default-bg-color, #1a1a1a);
+    border-color: var(--md-default-fg-color--lighter, #666666);
+  }
+
+  /* Icon styling */
+  .landing-theme-toggle .md-icon {
+    width: 24px;
+    height: 24px;
+    fill: var(--md-default-fg-color, #000000);
+  }
+
+  [data-md-color-scheme="slate"] .landing-theme-toggle .md-icon {
+    fill: var(--md-default-fg-color, #ffffff);
+  }
+</style>
+{% endblock %}
+
+
+
+{% block content %}
+<!-- Custom floating theme toggle -->
+<div class="landing-theme-toggle" onclick="toggleTheme()">
+  <svg class="md-icon" viewBox="0 0 24 24">
+    <path
+      d="M12 2.25c5.385 0 9.75 4.365 9.75 9.75s-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12 6.615 2.25 12 2.25zM12 16.5c2.485 0 4.5-2.015 4.5-4.5S14.485 7.5 12 7.5 7.5 9.515 7.5 12s2.015 4.5 4.5 4.5z"
+      fill-rule="evenodd" />
+  </svg>
+</div>
+
+<div class="md-content" style="max-width: 1000px; margin: 0 auto;">
+  <article class="md-content__inner md-typeset">
+    <div class="landing-container"
+      style="display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; flex-wrap: wrap;">
+      <img src="assets/openretina_logo.png" width="200px" alt="openretina logo" style="margin: 0 2rem 1rem 2rem;">
+      <h1 class="landing-title">openretina</h1>
+      <hr style="width: 100%">
+    </div>
+    <!-- Additional custom HTML content -->
+
+    <!-- Markdown content from index.md will be rendered here -->
+    {{ page.content }}
+
+  </article>
+</div>
+
+<script>
+  function toggleTheme() {
+    // Get the current theme
+    const currentScheme = document.body.getAttribute('data-md-color-scheme');
+
+    // Cycle through themes: auto -> light -> dark -> auto
+    if (!currentScheme || currentScheme === 'auto') {
+      document.body.setAttribute('data-md-color-scheme', 'default');
+      localStorage.setItem('data-md-color-scheme', 'default');
+    } else if (currentScheme === 'default') {
+      document.body.setAttribute('data-md-color-scheme', 'slate');
+      localStorage.setItem('data-md-color-scheme', 'slate');
+    } else {
+      document.body.removeAttribute('data-md-color-scheme');
+      localStorage.removeItem('data-md-color-scheme');
+    }
+  }
+
+  // Initialize theme from localStorage on page load
+  document.addEventListener('DOMContentLoaded', function () {
+    const savedScheme = localStorage.getItem('data-md-color-scheme');
+    if (savedScheme) {
+      document.body.setAttribute('data-md-color-scheme', savedScheme);
+    }
+  });
+</script>
+{% endblock %}
