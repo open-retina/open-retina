@@ -77,11 +77,11 @@ class BaseCoreReadout(LightningModule):
         self.data_info = data_info
 
         # Finally, save hyperparameters without logging them to the logger objects for now
-        self.save_hyperparameters(ignore=["n_neurons_dict"], logger=False)
+        self.save_hyperparameters(logger=False)
 
     def on_fit_start(self):
         for lg in self.trainer.loggers:
-            lg.log_hyperparams({k: v for k, v in self.hparams.items() if k != "data_info"})
+            lg.log_hyperparams({k: v for k, v in self.hparams.items() if k not in {"data_info", "n_neurons_dict"}})
 
     def on_train_epoch_end(self):
         # Compute the 2-norm for each layer at the end of the epoch
