@@ -74,10 +74,23 @@ def train_model(cfg: DictConfig) -> float | None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
         model = load_core_readout_model(load_model_path, device)
 
+        new_session_keys = {k for k in data_info["n_neurons_dict"].keys() if k not in model.readout.keys()}
         # add new readouts and modify stored data in model
-        mean_activity_dict = data_info.get("mean_activity_dict")
-        model.readout.add_sessions(data_info["n_neurons_dict"], mean_activity_dict)  # type: ignore
-        model.update_model_data_info(data_info)
+        if len(new_session_keys) > 0:
+            log.info(f"Adding additional sessions to pretrained model: {new_session_keys}")
+            n_neurons_dict_subset = {k: v for k, v in data_info["n_neurons_dict"].items() if k in new_session_keys}
+            if "mean_activity_dict" in data_info:
+                mean_activity_dict = {k: v for k, v in data_info["mean_activity_dict"].items() if k in new_session_keys}
+            else:
+                mean_activity_dict = None
+            model.readout.add_sessions(n_neurons_dict_subset, mean_activity_dict)  # type: ignore
+            for k in ["n_neurons_dict", "mean_activity_dict", "sessions_kwargs"]:
+                if model.data_info.get(k) is not None:
+                    data_info[k] = model.data_info[k] | data_info[k]
+                else:
+                    log.warning(f"data_info key {k} when loading model: {model.data_info.keys()=}")
+            data_info["n_neurons_dict"] = model.data_info
+            model.update_model_data_info(data_info)
     else:
         # Assign missing n_neurons_dict to model
         cfg.model.n_neurons_dict = data_info["n_neurons_dict"]
