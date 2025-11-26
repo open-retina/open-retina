@@ -95,4 +95,5 @@ The openretina package is structured as follows:
 https://doi.gin.g-node.org/10.12751/g-node.3dfiti/
   * Models: Models trained on this dataset were developed as part of [A systematic comparison of predictive models on the retina](https://www.biorxiv.org/content/10.1101/2024.03.06.583740v2)
   
+
 The paper [Most discriminative stimuli for functional cell type clustering](https://openreview.net/forum?id=9W6KaAcYlr) explains the discriminatory stimulus objective we showcase in [notebooks/most\_discriminative\_stimulus](https://github.com/open-retina/open-retina/blob/main/notebooks/most_discriminative_stimulus.ipynb).
