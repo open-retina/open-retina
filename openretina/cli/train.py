@@ -41,6 +41,10 @@ def train_model(cfg: DictConfig) -> float | None:
     ### Display log directory for ease of access
     log.info(f"Saving run logs at: {cfg.paths.output_dir}")
 
+    ### Set matmul precision if defined
+    if "matmul_precision" in cfg:
+        hydra.utils.call(cfg.matmul_precision)
+
     movies_dict = hydra.utils.call(cfg.data_io.stimuli)
     neuron_data_dict = hydra.utils.call(cfg.data_io.responses)
 
