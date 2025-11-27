@@ -423,7 +423,7 @@ def load_core_readout_from_remote(
         cache_directory_path = get_cache_directory()
     if model_name not in _MODEL_NAME_TO_REMOTE_LOCATION:
         raise ValueError(
-            f"Model name {model_name} not supported for download yet."
+            f"Model name {model_name} not supported for download yet. "
             f"The following names are supported: {sorted(_MODEL_NAME_TO_REMOTE_LOCATION.keys())}"
         )
     remote_path = _MODEL_NAME_TO_REMOTE_LOCATION[model_name]
