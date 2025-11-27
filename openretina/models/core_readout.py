@@ -25,10 +25,10 @@ _HUGGINGFACE_CHECKPOINTS_BASE_PATH = (
     "https://huggingface.co/datasets/open-retina/open-retina/tree/main/model_checkpoints"
 )
 _MODEL_NAME_TO_REMOTE_LOCATION = {
-    "hoefling_2024_base_low_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/hoefling_2024_base_low_res.ckpt",
-    "hoefling_2024_base_high_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/hoefling_2024_base_high_res.ckpt",
-    "karamanlis_2024_base": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/karamanlis_2024_base.ckpt",
-    "maheswaranathan_2023_base": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/maheswaranathan_2023_base.ckpt",
+    "hoefling_2024_base_low_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/hoefling_2024_base_low_res.ckpt",
+    # "hoefling_2024_base_high_res": f"",  # Todo: update
+    # "karamanlis_2024_base": f"",  # Todo: update
+    # "maheswaranathan_2023_base": f"",  # Todo: update
 }
 
 
