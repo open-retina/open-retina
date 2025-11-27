@@ -219,12 +219,17 @@ def compute_data_info(
         if len(norm_means) > 0:
             if not np.allclose(norm_means, norm_means[0], atol=1, rtol=0):
                 raise ValueError(f"Normalization means are not consistent across stimuli: {norm_means}")
+            stim_mean = norm_means[0]
+        else:
+            stim_mean = 0.0
+            warnings.warn(f"No stimulus mean set, setting {stim_mean=}")
         if len(norm_stds) > 0:
             if not np.allclose(norm_stds, norm_stds[0], atol=1, rtol=0):
                 raise ValueError(f"Normalization stds are not consistent across stimuli: {norm_stds}")
-
-        stim_mean = norm_means[0]
-        stim_std = norm_stds[0]
+            stim_std = norm_stds[0]
+        else:
+            stim_std = 1.0
+            warnings.warn(f"No stimulus stds set, setting {stim_std=}")
 
         # Do the same for the input shape
         input_shapes = [(movie.train.shape[0], *movie.train.shape[2:]) for movie in movies_dictionary.values()]
