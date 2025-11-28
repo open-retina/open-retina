@@ -1,6 +1,7 @@
 import inspect
 import logging
 import os
+import warnings
 from typing import Any, Iterable, Optional
 
 import hydra.utils
@@ -14,9 +15,7 @@ from omegaconf import DictConfig
 from openretina.data_io.base_dataloader import DataPoint
 from openretina.modules.core.base_core import Core, SimpleCoreWrapper
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
-from openretina.modules.readout.multi_readout import (
-    MultiGaussianReadoutWrapper,
-)
+from openretina.modules.readout.multi_readout import MultiGaussianMaskReadout, MultiReadoutBase
 from openretina.utils.file_utils import get_cache_directory, get_local_file_path
 
 LOGGER = logging.getLogger(__name__)
@@ -26,33 +25,66 @@ _HUGGINGFACE_CHECKPOINTS_BASE_PATH = (
     "https://huggingface.co/datasets/open-retina/open-retina/tree/main/model_checkpoints"
 )
 _MODEL_NAME_TO_REMOTE_LOCATION = {
-    "hoefling_2024_base_low_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/hoefling_2024_base_low_res.ckpt",
-    "hoefling_2024_base_high_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/hoefling_2024_base_high_res.ckpt",
-    "karamanlis_2024_base": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/karamanlis_2024_base.ckpt",
-    "maheswaranathan_2023_base": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/24-01-2025/maheswaranathan_2023_base.ckpt",
+    "hoefling_2024_base_low_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/hoefling_2024_base_low_res.ckpt",
+    "hoefling_2024_base_low_res_grey_scale": (
+        f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/hoefling_2024_base_low_res_grey_scale.ckpt"
+    ),
+    "hoefling_2024_base_high_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/hoefling_2024_base_high_res.ckpt",
+    # "karamanlis_2024_base": f"",  # Todo: update
+    # "maheswaranathan_2023_base": f"",  # Todo: update
 }
 
 
 class BaseCoreReadout(LightningModule):
+    """
+    Base module for models combining a shared core and a multi-session readout.
+    All models following the Core Readout pattern should inherit from this class.
+
+    This LightningModule encapsulates a model made of a shared core and a flexible multi-session readout,
+    suitable for training across-session architectures. It defines training, validation, and testing steps,
+    provides hooks for optimizer and scheduler configuration, and methods for handling data info and visualization.
+    """
+
     def __init__(
         self,
         core: Core,
-        readout: nn.Module,
+        readout: MultiReadoutBase,
         learning_rate: float,
         loss: nn.Module | None = None,
-        correlation_loss: nn.Module | None = None,
+        validation_loss: nn.Module | None = None,
         data_info: dict[str, Any] | None = None,
     ):
+        """
+        Initializes a BaseCoreReadout module.
+
+        Args:
+            core (Core): The shared feature extraction core network.
+            readout (MultiReadoutBase): The multi-session readout module mapping core features to neuron outputs
+                per session.
+            learning_rate (float): Learning rate for network training.
+            loss (nn.Module, optional): Loss function for training. Defaults to PoissonLoss3d if None.
+            validation_loss (nn.Module, optional): Loss used to compute correlation performance metric.
+                Defaults to CorrelationLoss3d (avg=True) if None.
+            data_info (dict[str, Any], optional): Dictionary containing data-specific metadata, such as input_shape,
+                session neuron counts, etc. If None, defaults to empty dict.
+        """
         super().__init__()
 
         self.core = core
         self.readout = readout
         self.learning_rate = learning_rate
         self.loss = loss if loss is not None else PoissonLoss3d()
-        self.correlation_loss = correlation_loss if correlation_loss is not None else CorrelationLoss3d(avg=True)
+        self.validation_loss = validation_loss if validation_loss is not None else CorrelationLoss3d(avg=True)
         if data_info is None:
             data_info = {}
         self.data_info = data_info
+
+        # Finally, save hyperparameters without logging them to the logger objects for now
+        self.save_hyperparameters(logger=False)
+
+    def on_fit_start(self):
+        for lg in self.trainer.loggers:
+            lg.log_hyperparams({k: v for k, v in self.hparams.items() if k not in {"data_info", "n_neurons_dict"}})
 
     def on_train_epoch_end(self):
         # Compute the 2-norm for each layer at the end of the epoch
@@ -73,7 +105,7 @@ class BaseCoreReadout(LightningModule):
         regularization_loss_core = self.core.regularizer()
         regularization_loss_readout = self.readout.regularizer(session_id)  # type: ignore
         total_loss = loss + regularization_loss_core + regularization_loss_readout
-        correlation = -self.correlation_loss.forward(model_output, data_point.targets)
+        correlation = -self.validation_loss.forward(model_output, data_point.targets)
 
         self.log("regularization_loss_core", regularization_loss_core, on_step=False, on_epoch=True)
         self.log("regularization_loss_readout", regularization_loss_readout, on_step=False, on_epoch=True)
@@ -90,7 +122,7 @@ class BaseCoreReadout(LightningModule):
         regularization_loss_core = self.core.regularizer()
         regularization_loss_readout = self.readout.regularizer(session_id)  # type: ignore
         total_loss = loss + regularization_loss_core + regularization_loss_readout
-        correlation = -self.correlation_loss.forward(model_output, data_point.targets)
+        correlation = -self.validation_loss.forward(model_output, data_point.targets)
 
         self.log("val_loss", loss, logger=True, prog_bar=True)
         self.log("val_regularization_loss_core", regularization_loss_core, logger=True)
@@ -104,12 +136,12 @@ class BaseCoreReadout(LightningModule):
         session_id, data_point = batch
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
-        avg_correlation = -self.correlation_loss.forward(model_output, data_point.targets)
-        per_neuron_correlation = self.correlation_loss._per_neuron_correlations
+        avg_correlation = -self.validation_loss.forward(model_output, data_point.targets)
+        per_neuron_correlation = self.validation_loss._per_neuron_correlations
 
         # Add metric and performances to data_info for downstream tasks
         if "pretrained_performance_metric" not in self.data_info:
-            self.data_info["pretrained_performance_metric"] = "test " + type(self.correlation_loss).__name__
+            self.data_info["pretrained_performance_metric"] = "test " + type(self.validation_loss).__name__
 
         if "pretrained_performance" not in self.data_info:
             self.data_info["pretrained_performance"] = {}
@@ -165,7 +197,8 @@ class BaseCoreReadout(LightningModule):
         }
 
     def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg", state_suffix: str = "") -> None:
-        """Save weight visualizations for core and readout modules.
+        """
+        Save weight visualizations for core and readout modules.
 
         Args:
             folder_path: Base directory to save visualizations
@@ -227,16 +260,51 @@ class BaseCoreReadout(LightningModule):
 
 
 class UnifiedCoreReadout(BaseCoreReadout):
+    """
+    A flexible core-readout model for multi-session neural data, designed for Hydra config workflows.
+
+    This class is the recommended entry point for defining core-readout models via config files using Hydra.
+    It allows unified instantiation of arbitrary core and readout modules, specified via DictConfig,
+    enabling rapid experimentation and extensibility. Supports all multi-session settings, custom core/readout
+    combinations, and integration with configuration-driven pipelines (including hyperparameter optimization).
+
+    """
+
     def __init__(
         self,
         in_shape: Int[tuple, "channels time height width"],
-        hidden_channels: Iterable[int],
+        hidden_channels: tuple[int, ...] | Iterable[int],
         n_neurons_dict: dict[str, int],
         core: DictConfig,
         readout: DictConfig,
         learning_rate: float = 0.001,
         data_info: dict[str, Any] | None = None,
     ):
+        """
+        Initializes a UnifiedCoreReadout for multi-session configurable neural modeling via Hydra configs.
+
+        Args:
+            in_shape (tuple[int, int, int, int]):
+                Input shape as (channels, time, height, width) for the core module.
+            hidden_channels (Iterable[int]):
+                List of hidden channels for the core; used in core config initialization.
+            n_neurons_dict (dict[str, int]):
+                Mapping from session/dataset identifier to neuron count for each session.
+            core (DictConfig):
+                Hydra config for instantiating the core module (should specify class and params).
+            readout (DictConfig):
+                Hydra config for the readout module (specifies type and custom session-aware params).
+            learning_rate (float, optional):
+                Learning rate for model training. Defaults to 0.001.
+            data_info (dict[str, Any], optional):
+                Additional metadata dictionary, e.g., with input shape and neuron mapping.
+        """
+        # Make sure in_shape and hidden_channels are a tuple
+        # (with hydra configs they can be a `omegaconf.listconfig.ListConfig`).
+        # This lead to an error when logging hyperparameters with the csv logger during training.
+        hidden_channels = tuple(hidden_channels)
+        in_shape = tuple(in_shape)
+
         core.channels = (in_shape[0], *hidden_channels)
         core_module = hydra.utils.instantiate(
             core,
@@ -246,19 +314,32 @@ class UnifiedCoreReadout(BaseCoreReadout):
         # determine input_shape of readout if it is not already present
         if "in_shape" not in readout:
             in_shape_readout = self.compute_readout_input_shape(in_shape, core_module)
-            readout["in_shape"] = (in_shape_readout[0],) + in_shape_readout[1:]
+            readout["in_shape"] = (in_shape_readout[0],) + tuple(in_shape_readout[1:])
+
+        # Extract mean_activity_dict from data_info if available
+        mean_activity_dict = None if data_info is None else data_info.get("mean_activity_dict")
+
         readout_module = hydra.utils.instantiate(
             readout,
             n_neurons_dict=n_neurons_dict,
+            mean_activity_dict=mean_activity_dict,
         )
 
-        # if calling save_hyperparameters after __init__ it leads to errors related to data_info["session_kwargs"]
-        self.save_hyperparameters()
         super().__init__(core=core_module, readout=readout_module, learning_rate=learning_rate, data_info=data_info)
 
 
-class CoreReadout(BaseCoreReadout):
-    # Legacy: keep to load old models
+class ExampleCoreReadout(BaseCoreReadout):
+    """
+    Example implementation of a custom Core-Readout model, using a convolutional core and a Gaussian readout.
+
+    This class serves as a guide for constructing custom Core-Readout models without using the unified Hydra
+    configuration system and the `UnifiedCoreReadout` class. Use this model as a reference if you wish to instantiate
+    or design core/readout units directly in code rather than through configuration files. For most workflows,
+    especially those using Hydra, `UnifiedCoreReadout` is preferred for maximum flexibility.
+
+    N.B., this class is provided as a reference example.
+    """
+
     def __init__(
         self,
         in_shape: Int[tuple, "channels time height width"],
@@ -290,6 +371,14 @@ class CoreReadout(BaseCoreReadout):
         color_squashing_weights: tuple[float, ...] | None = None,
         data_info: dict[str, Any] | None = None,
     ):
+        warnings.warn(
+            "You are using ExampleCoreReadout, which is intended as a reference/example class for custom "
+            "core-readout model implementations. For most configuration-driven workflows, especially if you "
+            "use Hydra, consider using UnifiedCoreReadout instead, or writing your own class that inherits "
+            "from BaseCoreReadout.",
+            UserWarning,
+            stacklevel=2,
+        )
         core = SimpleCoreWrapper(
             channels=(in_shape[0], *hidden_channels),
             temporal_kernel_sizes=tuple(temporal_kernel_sizes),
@@ -312,12 +401,11 @@ class CoreReadout(BaseCoreReadout):
         in_shape_readout = self.compute_readout_input_shape(in_shape, core)
         LOGGER.info(f"{in_shape_readout=}")
 
-        readout = MultiGaussianReadoutWrapper(
+        readout = MultiGaussianMaskReadout(
             in_shape_readout,
             n_neurons_dict,
             readout_scale,
             readout_bias,
-            readout_gaussian_masks,
             readout_gaussian_mean_scale,
             readout_gaussian_var_scale,
             readout_positive,
@@ -327,7 +415,6 @@ class CoreReadout(BaseCoreReadout):
         )
 
         super().__init__(core=core, readout=readout, learning_rate=learning_rate, data_info=data_info)
-        self.save_hyperparameters()
 
 
 def load_core_readout_from_remote(
@@ -339,7 +426,7 @@ def load_core_readout_from_remote(
         cache_directory_path = get_cache_directory()
     if model_name not in _MODEL_NAME_TO_REMOTE_LOCATION:
         raise ValueError(
-            f"Model name {model_name} not supported for download yet."
+            f"Model name {model_name} not supported for download yet. "
             f"The following names are supported: {sorted(_MODEL_NAME_TO_REMOTE_LOCATION.keys())}"
         )
     remote_path = _MODEL_NAME_TO_REMOTE_LOCATION[model_name]
@@ -348,8 +435,8 @@ def load_core_readout_from_remote(
     try:
         return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
     except:  # noqa: E722
-        # Support for legacy CoreReadout model
-        return CoreReadout.load_from_checkpoint(local_path, map_location=device)
+        # Support for legacy ExampleCoreReadout model
+        return ExampleCoreReadout.load_from_checkpoint(local_path, map_location=device)
 
 
 def load_core_readout_model(
@@ -366,5 +453,5 @@ def load_core_readout_model(
     try:
         return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
     except:  # noqa: E722
-        # Support for legacy CoreReadout model
-        return CoreReadout.load_from_checkpoint(local_path, map_location=device)
+        # Support for legacy ExampleCoreReadout model
+        return ExampleCoreReadout.load_from_checkpoint(local_path, map_location=device)

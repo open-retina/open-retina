@@ -28,11 +28,11 @@ model:
   core:
     temporal_kernel_sizes: [15, 15, 7, 7]
     spatial_kernel_sizes: [15, 15, 7, 7]
-    hidden_padding: true
-    input_padding: true
-    cut_first_n_frames: 30
+    input_padding: 0
+    hidden_padding: [0, 5, 5]
+    cut_first_n_frames: 0
     maxpool_every_n_layers: 2
-    # downsample_input_kernel_size: [1, 4, 4]  # to reproduce 18x16px lowres input
+    # downsample_input_kernel_size: [1, 4, 4]  # to reproduce 18x16px low-res input
 
 paths:
   load_model_path: null  # e.g. hoefling_2024_base_high_res or path to a .ckpt model
