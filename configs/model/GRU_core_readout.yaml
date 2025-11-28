@@ -1,8 +1,7 @@
 # Core and data
 hidden_channels: [32, 64]
-in_shape: ???  # Required at top-level config
-n_neurons_dict: ???  # Set dynamically (e.g., in training script after loading sessions)
-
+in_shape: ??? # Required at top-level config
+n_neurons_dict: ??? # Set dynamically (e.g., in training script after loading sessions)
 
 core:
   _target_: openretina.modules.core.gru_core.ConvGRUCore
@@ -20,7 +19,7 @@ core:
   use_projections: true
   batch_adaptation: false
   convolution_type: "custom_separable"
-  channels: ???  # set dynamically based on input channels
+  channels: ??? # set dynamically based on input channels
   gru_kwargs:
     rec_channels: 64
     input_kern: 4
@@ -30,7 +29,7 @@ core:
     pad_input: true
 
 readout:
-  _target_: openretina.modules.readout.multi_readout.MultiGaussianReadoutWrapper
+  _target_: openretina.modules.readout.multi_readout.MultiGaussianMaskReadout
   _convert_: object
   in_shape: ???
   scale: true

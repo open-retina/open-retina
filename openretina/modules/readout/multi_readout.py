@@ -1,299 +1,16 @@
 import os
+import warnings
 from typing import Callable, Iterable, Literal, Optional
 
 import torch
 import torch.nn as nn
+from einops import rearrange
+from jaxtyping import Float
 
 from openretina.modules.readout.base import ClonedReadout, Readout
-from openretina.modules.readout.factorised_gaussian import SimpleSpatialXFeature3d
-from openretina.modules.readout.gaussian import FullGaussian2d
-from openretina.modules.readout.klindt_readout import KlindtReadoutWrapper3D
-
-
-class MultiGaussianReadoutWrapper(nn.ModuleDict):
-    """
-    Multiple Sessions version of the SimpleSpatialXFeature3d factorised gaussian readout.
-    """
-
-    def __init__(
-        self,
-        in_shape: tuple[int, int, int, int],
-        n_neurons_dict: dict[str, int],
-        scale: bool,
-        bias: bool,
-        gaussian_masks: bool,
-        gaussian_mean_scale: float,
-        gaussian_var_scale: float,
-        positive: bool,
-        gamma_readout: float,
-        gamma_masks: float = 0.0,
-        readout_reg_avg: bool = False,
-    ):
-        super().__init__()
-        self.session_init_args = {
-            "in_shape": in_shape,
-            "gaussian_mean_scale": gaussian_mean_scale,
-            "gaussian_var_scale": gaussian_var_scale,
-            "positive": positive,
-            "scale": scale,
-            "bias": bias,
-        }
-
-        self.add_sessions(n_neurons_dict)
-
-        self.gamma_readout = gamma_readout
-        self.gamma_masks = gamma_masks
-        self.gaussian_masks = gaussian_masks
-        self.readout_reg_avg = readout_reg_avg
-
-    def add_sessions(self, n_neurons_dict: dict[str, int]) -> None:
-        """Adds new sessions to the readout wrapper.
-        Can be called to add new sessions to an existing readout wrapper."""
-
-        if any(key in self.keys() for key in n_neurons_dict):
-            duplicate_session_names = set(self.keys()).intersection(n_neurons_dict.keys())
-            raise ValueError(
-                f"Found duplicate sessions in n_neurons_dict:  {duplicate_session_names=}. \
-                    Make sure to use different session names for each session."
-            )
-        for k in n_neurons_dict:  # iterate over sessions
-            n_neurons = n_neurons_dict[k]
-            assert len(self.session_init_args["in_shape"]) == 4  # type: ignore
-            self.add_module(
-                k,
-                SimpleSpatialXFeature3d(  # add a readout for each session
-                    outdims=n_neurons,
-                    **self.session_init_args,  # type: ignore
-                ),
-            )
-
-    def forward(self, *args, data_key: str | None, **kwargs) -> torch.Tensor:
-        if data_key is None:
-            readout_responses = []
-            for readout_key in self.readout_keys():
-                resp = self[readout_key](*args, **kwargs)
-                readout_responses.append(resp)
-            response = torch.concatenate(readout_responses, dim=-1)
-        else:
-            response = self[data_key](*args, **kwargs)
-        return response
-
-    def regularizer(self, data_key: str) -> torch.Tensor:
-        feature_loss = self[data_key].feature_l1(average=self.readout_reg_avg) * self.gamma_readout
-        mask_loss = self[data_key].mask_l1(average=self.readout_reg_avg) * self.gamma_masks
-        return feature_loss + mask_loss
-
-    def readout_keys(self) -> list[str]:
-        return sorted(self._modules.keys())
-
-    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg", state_suffix: str = "") -> None:
-        for key in self.readout_keys():
-            readout_folder = os.path.join(folder_path, key)
-            os.makedirs(readout_folder, exist_ok=True)
-            self._modules[key].save_weight_visualizations(readout_folder, file_format, state_suffix)  # type: ignore
-
-    @property
-    def sessions(self) -> list[str]:
-        return self.readout_keys()
-
-
-class MultiKlindtReadoutWrapper(nn.ModuleDict):
-    """
-    Multiple Sessions version of the SimpleSpatialXFeature3d factorised gaussian readout.
-    """
-
-    def __init__(
-        self,
-        in_shape: tuple[int, int, int, int],
-        n_neurons_dict: dict[str, int],
-        mask_l1_reg: float,
-        weights_l1_reg: float,
-        laplace_mask_reg: float,
-        readout_bias: bool = False,
-        weights_constraint: Optional[str] = None,
-        mask_constraint: Optional[str] = None,
-        init_mask: Optional[torch.Tensor] = None,
-        init_weights: Optional[torch.Tensor] = None,
-        init_scales: Optional[Iterable[Iterable[float]]] = None,
-    ):
-        super().__init__()
-        # set kernels and mask size based on input shape
-        num_kernels = [in_shape[0]]
-        mask_size = in_shape[2:]
-        self.session_init_args = {
-            "num_kernels": num_kernels,
-            "mask_l1_reg": mask_l1_reg,
-            "weights_l1_reg": weights_l1_reg,
-            "laplace_mask_reg": laplace_mask_reg,
-            "mask_size": mask_size,
-            "readout_bias": readout_bias,
-            "weights_constraint": weights_constraint,
-            "mask_constraint": mask_constraint,
-            "init_mask": init_mask,
-            "init_weights": init_weights,
-            "init_scales": init_scales,
-        }
-
-        self.add_sessions(n_neurons_dict)
-
-        self.gamma_readout = weights_l1_reg
-        self.gamma_masks = mask_l1_reg
-        self.gamma_laplace_masks = laplace_mask_reg
-
-    def add_sessions(self, n_neurons_dict: dict[str, int]) -> None:
-        """Adds new sessions to the readout wrapper.
-        Can be called to add new sessions to an existing readout wrapper."""
-
-        if any(key in self.keys() for key in n_neurons_dict):
-            duplicate_session_names = set(self.keys()).intersection(n_neurons_dict.keys())
-            raise ValueError(
-                f"Found duplicate sessions in n_neurons_dict:  {duplicate_session_names=}. \
-                    Make sure to use different session names for each session."
-            )
-        for k in n_neurons_dict:  # iterate over sessions
-            n_neurons = n_neurons_dict[k]
-            assert len(self.session_init_args["mask_size"]) == 2  # type: ignore
-            self.add_module(
-                k,
-                KlindtReadoutWrapper3D(  # add a readout for each session
-                    num_neurons=n_neurons,
-                    **self.session_init_args,  # type: ignore
-                ),
-            )
-
-    def forward(self, *args, data_key: str | None, **kwargs) -> torch.Tensor:
-        if data_key is None:
-            readout_responses = []
-            for readout_key in self.readout_keys():
-                resp = self[readout_key](*args, **kwargs)
-                readout_responses.append(resp)
-            response = torch.concatenate(readout_responses, dim=-1)
-        else:
-            response = self[data_key](*args, **kwargs)
-        return response
-
-    def regularizer(self, data_key: str) -> torch.Tensor:
-        reg_loss = self[data_key].regularizer()
-        return reg_loss
-
-    def readout_keys(self) -> list[str]:
-        return sorted(self._modules.keys())
-
-    def save_weight_visualizations(self, folder_path: str, file_format, state_suffix: str = "") -> None:
-        for key in self.readout_keys():
-            readout_folder = os.path.join(folder_path, key)
-            os.makedirs(readout_folder, exist_ok=True)
-            self._modules[key].save_weight_visualizations(readout_folder, file_format, state_suffix)  # type: ignore
-
-    @property
-    def sessions(self) -> list[str]:
-        return self.readout_keys()
-
-
-class MultiSampledGaussianReadoutWrapper(nn.ModuleDict):
-    """
-    Multiple Sessions version of the sampling gaussian readout.
-    """
-
-    def __init__(
-        self,
-        in_shape: tuple[int, int, int, int],
-        n_neurons_dict: dict[str, int],
-        bias: bool,
-        init_mu_range: float,
-        init_sigma_range: float,
-        batch_sample: bool = True,
-        align_corners: bool = True,
-        gauss_type: Literal["full", "iso"] = "full",
-        grid_mean_predictor=None,
-        shared_features=None,
-        shared_grid=None,
-        init_grid=None,
-        mean_activity=None,
-        gamma: float = 1.0,
-        reg_avg: bool = False,
-        nonlinearity_function: Callable[[torch.Tensor], torch.Tensor] = torch.nn.functional.softplus,
-    ):
-        super().__init__()
-        self.session_init_args = {
-            "in_shape": in_shape,
-            "init_mu_range": init_mu_range,
-            "init_sigma": init_sigma_range,
-            "batch_sample": batch_sample,
-            "align_corners": align_corners,
-            "gauss_type": gauss_type,
-            "grid_mean_predictor": grid_mean_predictor,
-            "shared_features": shared_features,
-            "shared_grid": shared_grid,
-            "init_grid": init_grid,
-            "mean_activity": mean_activity,
-            "bias": bias,
-        }
-
-        self.add_sessions(n_neurons_dict)
-
-        self.gamma = gamma
-        self.readout_reg_avg = reg_avg
-        self.nonlinearity = nonlinearity_function
-
-    def add_sessions(self, n_neurons_dict: dict[str, int]) -> None:
-        """Adds new sessions to the readout wrapper.
-        Can be called to add new sessions to an existing readout wrapper."""
-
-        if any(key in self.keys() for key in n_neurons_dict):
-            duplicate_session_names = set(self.keys()).intersection(n_neurons_dict.keys())
-            raise ValueError(
-                f"Found duplicate sessions in n_neurons_dict:  {duplicate_session_names=}. \
-                    Make sure to use different session names for each session."
-            )
-        for k in n_neurons_dict:  # iterate over sessions
-            n_neurons = n_neurons_dict[k]
-            assert len(self.session_init_args["in_shape"]) == 4  # type: ignore
-            self.add_module(
-                k,
-                FullGaussian2d(  # add a readout for each session
-                    outdims=n_neurons,
-                    **self.session_init_args,  # type: ignore
-                ),
-            )
-
-    def forward(self, *args, data_key: str | None, **kwargs) -> torch.Tensor:
-        if data_key is None:
-            readout_responses = []
-            for readout_key in self.readout_keys():
-                out_core = torch.transpose(args[0], 1, 2)
-                out_core = out_core.reshape(((-1,) + out_core.size()[2:]))
-                resp = self[readout_key](out_core, **kwargs)
-                resp = resp.reshape((args[0].size(0), -1, resp.size(-1)))
-                resp = self.nonlinearity(resp)
-                readout_responses.append(resp)
-
-            response = torch.concatenate(readout_responses, dim=-1)
-        else:
-            out_core = torch.transpose(args[0], 1, 2)
-            out_core = out_core.reshape(((-1,) + out_core.size()[2:]))
-            response = self[data_key](out_core, **kwargs)
-            response = response.reshape((args[0].size(0), -1, response.size(-1)))
-            response = self.nonlinearity(response)
-
-        return response
-
-    def regularizer(self, data_key: str) -> torch.Tensor:
-        feature_loss = self[data_key].feature_l1() * self.gamma
-        return feature_loss
-
-    def readout_keys(self) -> list[str]:
-        return sorted(self._modules.keys())
-
-    def save_weight_visualizations(self, folder_path: str) -> None:
-        for key in self.readout_keys():
-            readout_folder = os.path.join(folder_path, key)
-            os.makedirs(readout_folder, exist_ok=True)
-            self._modules[key].save_weight_visualizations(readout_folder)  # type: ignore
-
-    @property
-    def sessions(self) -> list[str]:
-        return self.readout_keys()
+from openretina.modules.readout.factorized import FactorizedReadout
+from openretina.modules.readout.factorized_gaussian import GaussianMaskReadout
+from openretina.modules.readout.gaussian import PointGaussianReadout
 
 
 class MultiReadoutBase(nn.ModuleDict):
@@ -325,23 +42,29 @@ class MultiReadoutBase(nn.ModuleDict):
         **kwargs: additional keyword arguments to be passed to the base_readout's constructor
     """
 
-    _base_readout = None
+    _base_readout_cls: type[Readout] | None = None
 
     def __init__(
         self,
         in_shape: tuple[int, int, int, int],
         n_neurons_dict: dict[str, int],
-        base_readout: Readout | None = None,
-        mean_activity_dict: dict[str, float] | None = None,
+        base_readout: type[Readout] | None = None,
+        mean_activity_dict: dict[str, Float[torch.Tensor, " neurons"]] | None = None,
         clone_readout=False,
+        readout_reg_avg: bool = False,
         **kwargs,
     ):
-        # The `base_readout` can be overridden only if the static property `_base_readout` is not set
-        if self._base_readout is None:
-            self._base_readout = base_readout
+        # The `base_readout` can be overridden only if the static property `_base_readout_cls` is not set
+        if self._base_readout_cls is None:
+            assert base_readout is not None, (
+                "Argument `base_readout` must be provided if the class variable `_base_readout_cls` is not set"
+            )
+            self._base_readout_cls = base_readout
 
-        if self._base_readout is None:
-            raise ValueError("Attribute _base_readout must be set")
+        self._readout_kwargs = kwargs
+        self._in_shape = in_shape
+        self.readout_reg_avg = readout_reg_avg
+        self.readout_reg_reduction: Literal["mean", "sum"] = "mean" if readout_reg_avg else "sum"
         super().__init__()
 
         for i, data_key in enumerate(n_neurons_dict):
@@ -350,7 +73,7 @@ class MultiReadoutBase(nn.ModuleDict):
             if i == 0 or clone_readout is False:
                 self.add_module(
                     data_key,
-                    self._base_readout(
+                    self._base_readout_cls(
                         in_shape=in_shape,
                         outdims=n_neurons_dict[data_key],
                         mean_activity=mean_activity,
@@ -359,21 +82,244 @@ class MultiReadoutBase(nn.ModuleDict):
                 )
                 original_readout = data_key
             elif i > 0 and clone_readout is True:
-                self.add_module(data_key, ClonedReadout(self[original_readout]))
+                original_readout_object: Readout = self[original_readout]  # type: ignore
+                self.add_module(data_key, ClonedReadout(original_readout_object))
 
         self.initialize(mean_activity_dict)
 
-    def forward(self, *args, data_key: str | None = None, **kwargs):
-        if data_key is None and len(self) == 1:
-            data_key = list(self.keys())[0]
-        return self[data_key](*args, **kwargs)
+    def add_sessions(
+        self,
+        n_neurons_dict: dict[str, int],
+        mean_activity_dict: dict[str, Float[torch.Tensor, " neurons"]] | None = None,
+    ) -> None:
+        """Wrapper method to add new sessions to the readout wrapper.
+        Can be called to add new sessions to an existing readout wrapper.
+        Individual readouts should override this method to add additional checks.
+        """
+        self._add_sessions(n_neurons_dict, mean_activity_dict)
 
-    def initialize(self, mean_activity_dict: dict[str, float] | None = None):
+    def _add_sessions(
+        self,
+        n_neurons_dict: dict[str, int],
+        mean_activity_dict: dict[str, Float[torch.Tensor, " neurons"]] | None = None,
+    ) -> None:
+        """Base method to add new sessions to the readout wrapper.
+        Can be called to add new sessions to an existing readout wrapper."""
+
+        if any(key in self.keys() for key in n_neurons_dict):
+            duplicate_session_names = set(self.keys()).intersection(n_neurons_dict.keys())
+            raise ValueError(
+                f"Found duplicate sessions in n_neurons_dict:  {duplicate_session_names=}. \
+                    Make sure to use different session names for each session."
+            )
+        for k in n_neurons_dict:  # iterate over sessions
+            n_neurons = n_neurons_dict[k]
+            assert self._base_readout_cls is not None
+            self.add_module(
+                k,
+                self._base_readout_cls(
+                    in_shape=self._in_shape,
+                    outdims=n_neurons,
+                    mean_activity=mean_activity_dict[k] if mean_activity_dict is not None else None,
+                    **self._readout_kwargs,
+                ),
+            )
+
+    def forward(self, *args, data_key: str | None = None, **kwargs) -> torch.Tensor:
+        if data_key is None:
+            warnings.warn(
+                "No data key provided, returning concatenated responses from all readouts",
+                stacklevel=2,
+                category=UserWarning,
+            )
+            readout_responses = []
+            for readout_key in self.readout_keys():
+                resp = self[readout_key](*args, **kwargs)
+                readout_responses.append(resp)
+            response = torch.cat(readout_responses, dim=-1)
+        else:
+            response = self[data_key](*args, **kwargs)
+        return response
+
+    def initialize(self, mean_activity_dict: dict[str, Float[torch.Tensor, " neurons"]] | None = None):
         for data_key, readout in self.items():
             mean_activity = mean_activity_dict[data_key] if mean_activity_dict is not None else None
+            assert isinstance(readout, Readout)
             readout.initialize(mean_activity)
 
-    def regularizer(self, data_key: str | None = None, reduction: Literal["sum", "mean", None] = "sum"):
+    def regularizer(self, data_key: str | None = None, reduction: Literal["sum", "mean"] | None = None):
+        if reduction is None:
+            reduction = self.readout_reg_reduction
         if data_key is None and len(self) == 1:
             data_key = list(self.keys())[0]
+        elif data_key is None:
+            raise ValueError("data_key is required when there are multiple sessions")
         return self[data_key].regularizer(reduction=reduction)
+
+    def readout_keys(self) -> list[str]:
+        return sorted(self._modules.keys())
+
+    def __getitem__(self, key: str) -> Readout:
+        """For type checking purposes"""
+        res = self._modules[key]
+        assert isinstance(res, Readout)
+        return res
+
+    def __setitem__(self, key: str, module: torch.nn.Module) -> None:
+        """To ensure we only add Readout objects to the module dictionary"""
+        assert isinstance(module, Readout)
+        self.add_module(key, module)
+
+    @property
+    def sessions(self) -> list[str]:
+        return self.readout_keys()
+
+    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg", state_suffix: str = "") -> None:
+        for key in self.readout_keys():
+            readout_folder = os.path.join(folder_path, key)
+            os.makedirs(readout_folder, exist_ok=True)
+            self._modules[key].save_weight_visualizations(readout_folder, file_format, state_suffix)  # type: ignore
+
+
+class MultiGaussianMaskReadout(MultiReadoutBase):
+    """
+    Multiple Sessions version of the GaussianMaskReadout factorised gaussian readout.
+    """
+
+    _base_readout_cls = GaussianMaskReadout
+
+    def __init__(
+        self,
+        in_shape: tuple[int, int, int, int],
+        n_neurons_dict: dict[str, int],
+        scale: bool,
+        bias: bool,
+        gaussian_mean_scale: float,
+        gaussian_var_scale: float,
+        positive: bool,
+        mask_l1_reg: float = 1.0,
+        feature_weights_l1_reg: float = 1.0,
+        readout_reg_avg: bool = False,
+        mean_activity_dict: dict[str, Float[torch.Tensor, " neurons"]] | None = None,
+    ):
+        super().__init__(
+            in_shape=in_shape,
+            n_neurons_dict=n_neurons_dict,
+            mean_activity_dict=mean_activity_dict,
+            scale=scale,
+            bias=bias,
+            gaussian_mean_scale=gaussian_mean_scale,
+            gaussian_var_scale=gaussian_var_scale,
+            positive=positive,
+            mask_l1_reg=mask_l1_reg,
+            feature_weights_l1_reg=feature_weights_l1_reg,
+            readout_reg_avg=readout_reg_avg,
+        )
+
+
+class MultiFactorizedReadout(MultiReadoutBase):
+    """
+    Multiple Sessions version of the classic factorized readout.
+    """
+
+    _base_readout_cls = FactorizedReadout
+
+    def __init__(
+        self,
+        in_shape: tuple[int, int, int, int],
+        n_neurons_dict: dict[str, int],
+        mask_l1_reg: float,
+        weights_l1_reg: float,
+        laplace_mask_reg: float,
+        readout_bias: bool = False,
+        weights_constraint: Literal["abs", "norm", "absnorm"] | None = None,
+        mask_constraint: Literal["abs"] | None = None,
+        init_mask: Optional[torch.Tensor] = None,
+        init_weights: Optional[torch.Tensor] = None,
+        init_scales: Optional[Iterable[Iterable[float]]] = None,
+        readout_reg_avg: bool = False,
+        mean_activity_dict: dict[str, Float[torch.Tensor, " neurons"]] | None = None,
+    ):
+        mask_size = in_shape[2:]
+        super().__init__(
+            in_shape=in_shape,
+            n_neurons_dict=n_neurons_dict,
+            mask_size=mask_size,
+            mask_l1_reg=mask_l1_reg,
+            weights_l1_reg=weights_l1_reg,
+            laplace_mask_reg=laplace_mask_reg,
+            readout_bias=readout_bias,
+            weights_constraint=weights_constraint,
+            mask_constraint=mask_constraint,
+            init_mask=init_mask,
+            init_weights=init_weights,
+            init_scales=init_scales,
+            readout_reg_avg=readout_reg_avg,
+            mean_activity_dict=mean_activity_dict,
+        )
+
+
+class MultiSampledGaussianReadout(MultiReadoutBase):
+    """
+    Multiple Sessions version of the sampled point gaussian readout.
+    """
+
+    _base_readout_cls = PointGaussianReadout
+
+    def __init__(
+        self,
+        in_shape: tuple[int, int, int, int],
+        n_neurons_dict: dict[str, int],
+        bias: bool,
+        init_mu_range: float,
+        init_sigma_range: float,
+        batch_sample: bool = True,
+        align_corners: bool = True,
+        gauss_type: Literal["full", "iso"] = "full",
+        grid_mean_predictor=None,
+        shared_features=None,
+        shared_grid=None,
+        init_grid=None,
+        gamma: float = 1.0,
+        reg_avg: bool = False,
+        nonlinearity_function: Callable[[torch.Tensor], torch.Tensor] = torch.nn.functional.softplus,
+        mean_activity_dict: dict[str, Float[torch.Tensor, " neurons"]] | None = None,
+    ):
+        super().__init__(
+            in_shape=in_shape,
+            n_neurons_dict=n_neurons_dict,
+            bias=bias,
+            init_mu_range=init_mu_range,
+            init_sigma_range=init_sigma_range,
+            batch_sample=batch_sample,
+            align_corners=align_corners,
+            gauss_type=gauss_type,
+            grid_mean_predictor=grid_mean_predictor,
+            shared_features=shared_features,
+            shared_grid=shared_grid,
+            init_grid=init_grid,
+            gamma_readout=gamma,
+            readout_reg_avg=reg_avg,
+            mean_activity_dict=mean_activity_dict,
+        )
+
+        self.nonlinearity = nonlinearity_function
+
+    def forward(self, *args, data_key: str | None = None, **kwargs) -> torch.Tensor:
+        if data_key is None:
+            readout_responses = []
+            for readout_key in self.readout_keys():
+                out_core = rearrange(args[0], "batch channels time height width -> (batch time) channels height width")
+                resp = self[readout_key](out_core, **kwargs)
+                resp = rearrange(resp, "(batch time) neurons -> batch time neurons", batch=args[0].size(0))
+                resp = self.nonlinearity(resp)
+                readout_responses.append(resp)
+
+            response = torch.concatenate(readout_responses, dim=-1)
+        else:
+            out_core = rearrange(args[0], "batch channels time height width -> (batch time) channels height width")
+            response = self[data_key](out_core, **kwargs)
+            response = rearrange(response, "(batch time) neurons -> batch time neurons", batch=args[0].size(0))
+            response = self.nonlinearity(response)
+
+        return response
