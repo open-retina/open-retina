@@ -51,6 +51,3 @@ flip_imgs: False
 shuffle: null
 get_locations: True
 sta_dir: 'stas'
-
-
-

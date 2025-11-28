@@ -120,11 +120,11 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-openretina/env
+.env
 .venv
-openretina/env/
+env/
 venv/
-openretina/env/
+ENV/
 env.bak/
 venv.bak/
 
