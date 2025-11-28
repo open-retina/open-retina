@@ -122,13 +122,19 @@ def download_file(url: str, target_path: Path):
         raise
 
 
-def is_target_present(cache_folder: Path, file_name: Path) -> Path | None:
+def is_target_present(cache_folder: Path, file_path: Path) -> Path | None:
     """Checks if the requested file, an extracted folder, or a single extracted file exists."""
-    existing_matches = list(cache_folder.rglob(file_name.stem + "*"))
+    if file_path.is_relative_to(cache_folder):
+        file_path = file_path.relative_to(cache_folder)
+    if file_path.is_absolute():
+        raise ValueError(f"Expected relative path, but got: {file_path=}")
+
+    parent_with_stem = file_path.parent / file_path.stem
+    existing_matches = list(cache_folder.rglob(str(parent_with_stem) + "*"))
     if len(existing_matches) > 0:
         # Prioritize an exact file match
         for match in existing_matches:
-            if match.name == file_name.name:
+            if match.name == file_path.name:
                 LOGGER.info(f"Found target file at {match.resolve()}")
                 return match
 
