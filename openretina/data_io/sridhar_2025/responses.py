@@ -15,11 +15,11 @@ def average_repeated_stimuli_responses(repeated_responses: np.ndarray) -> np.nda
 
 def load_responses(
     base_path: str | os.PathLike,
-    files,
+    files: dict[str, str],
     stimulus_seed: int = 0,
     excluded_cells: Optional[dict[Any, list[int]]] = None,
     cell_index: Optional[int] = None,
-) -> dict:
+) -> dict[str, dict[str, np.ndarray]]:
     base_path = get_local_file_path(str(base_path))
     responses = {}
 
@@ -37,9 +37,9 @@ def load_responses(
             test_responses = np.delete(test_responses, excluded_cells[session_id], axis=0)
 
         if "seeds" in neural_data.keys():
-            seed_info = neural_data["seeds"]
+            seed_info: list[int] = neural_data["seeds"]
             if stimulus_seed in seed_info:
-                trials_assigned_to_seed = neural_data["trial_separation"][stimulus_seed]
+                trials_assigned_to_seed: list[int] = neural_data["trial_separation"][stimulus_seed]
                 train_responses = train_responses[:, :, trials_assigned_to_seed]
                 test_responses = test_responses[:, :, trials_assigned_to_seed]
             elif session_id == "01":
@@ -54,7 +54,7 @@ def load_responses(
 
 def response_splits_from_pickles(
     base_path: str | os.PathLike,
-    files,
+    files: dict[str, str],
     stimulus_seed: int = 0,
     excluded_cells: Optional[dict[Any, list[int]]] = None,
     cell_index: Optional[int] = None,

@@ -752,7 +752,7 @@ class NoiseDataset(Dataset):
         time_chunk_size: Optional[int] = None,
         temporal_dilation: int = 1,
         hidden_temporal_dilation: int | str | tuple = 1,
-        num_of_hidden_frames: int | tuple = 15,
+        num_of_hidden_frames: int | tuple | None = 15,
         extra_frame: int = 0,
         locations: Optional[list] = None,
         excluded_cells: Optional[list] = None,
