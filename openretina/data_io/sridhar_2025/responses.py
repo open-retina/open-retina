@@ -47,7 +47,7 @@ def load_responses(
                 # the responses do not match between seeds 2022 and 2023
                 test_responses = test_responses[:, :, :10]
 
-            test_responses = average_repeated_stimuli_responses(test_responses)
+        test_responses = average_repeated_stimuli_responses(test_responses)
         responses[session_id] = {"train_responses": train_responses, "test_responses": test_responses}
     return responses
 

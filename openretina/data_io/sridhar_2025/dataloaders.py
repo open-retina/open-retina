@@ -943,7 +943,7 @@ class NoiseDataset(Dataset):
                         :,
                         starting_img_index + self.frame_overhead + self.extra_frame : ending_img_index
                         + self.extra_frame,
-                    ]
+                    ].T
 
             ret.append(value.float())
 
