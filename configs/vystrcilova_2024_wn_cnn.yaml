@@ -4,12 +4,12 @@ defaults:
   - dataloader: sridhar_wn_2025
   - model: core_gaussian_readout
   - training_callbacks:
-    - early_stopping
-    - lr_monitor
-    - model_checkpoint
+      - early_stopping
+      - lr_monitor
+      - model_checkpoint
   - logger:
-    - wandb
-    - csv
+      - wandb
+      - csv
   - trainer: default_deterministic
   - hydra: default
   - _self_ # values in this config will overwrite the defaults
@@ -22,15 +22,18 @@ dataloader:
   batch_size: 16
 
 model:
-  in_shape: ???
+  in_shape:
+    - ${data_io.input_channels}
+    - ${data_io.placeholder_time_bins}
+    - ${data_io.placeholder_height}
+    - ${data_io.placeholder_width}
 
 paths:
-  load_model_path: null  # e.g. hoefling_2024_base_low_res or path to a .ckpt model
+  load_model_path: null
   cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Remote files are downloaded to this location
-  data_dir: ${paths.cache_dir}/wn_marmoset_data/ # Folder where local files are read from.
+  data_dir: "https://huggingface.co/datasets/open-retina/open-retina/tree/main/gollisch_lab/sridhar_2025/marmoset/whitenoise"
   log_dir: "./logs/cnn_wn" # Used as parent for output_dir. Will store train logs.
   output_dir: ${hydra:runtime.output_dir} # Modify subpaths in the "hydra/default.yaml" config
-  dataset_path: "https://huggingface.co/datasets/open-retina/wn_marmoset_data"
 
 matmul_precision:
   _target_: torch.set_float32_matmul_precision

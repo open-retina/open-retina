@@ -1,44 +1,38 @@
 import os
 
-import datasets  # type: ignore
 import numpy as np
 import torch
-from datasets import load_dataset
 from torch.utils.data import Sampler
 
 from openretina.data_io.sridhar_2025.constants import NM_DATASET, WN_DATASET
+from openretina.utils.file_utils import huggingface_download
 from openretina.utils.misc import set_seed
 
 
-def download_nm_dataset(cache_dir, base_path, hf_token):
+def download_nm_dataset(target_dir):
     """Download the natural movie (NM) marmoset dataset from Hugging Face.
     Original data source: https://gin.g-node.org/gollischlab/Sridhar_Gollisch_2025_Marmoset_RGC_Responses_Naturalistic_Movies/src/master/README.md
     Original paper: https://www.biorxiv.org/content/10.1101/2024.03.05.583449v2
     Creates a folder structure to work with the MarmosetMovieDataset class."""
-    datasets.logging.set_verbosity_debug()
-    load_dataset(
+    target_path = huggingface_download(
         NM_DATASET,
-        name="nm_marmoset_data",
-        cache_dir=cache_dir,
-        token=hf_token,
-        trust_remote_code=True,
-        unzip_path=base_path,
+        local_dir=target_dir,
+        unzip=True,
     )
+    return target_path
 
 
-def download_wn_dataset(cache_dir, base_path, hf_token):
+def download_wn_dataset(target_dir):
     """Download the white noise (WN) marmoset dataset from Hugging Face.
     Original data source: https://gin.g-node.org/gollischlab/Sridhar_Gollisch_2025_Marmoset_RGC_Responses_Naturalistic_Movies/src/master/README.md
     Original paper: https://www.biorxiv.org/content/10.1101/2024.03.05.583449v2
     Creates a folder structure to work with the NoiseDataset class."""
-    load_dataset(
+    target_path = huggingface_download(
         WN_DATASET,
-        name="wn_marmoset_data",
-        cache_dir=cache_dir,
-        token=hf_token,
-        trust_remote_code=True,
-        unzip_path=base_path,
+        local_dir=target_dir,
+        unzip=True,
     )
+    return target_path
 
 
 def get_trial_wise_validation_split(train_responses, train_frac, seed=None, final_training=False, hard_coded=None):

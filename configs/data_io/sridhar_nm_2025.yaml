@@ -1,10 +1,40 @@
-basepath_nm: '/projects/extern/nhr/nhr_ni/nim00010/dir.project/marmoset_data/'
-cache_dir: '/projects/extern/nhr/nhr_ni/nim00010/dir.project/'
-response_path:
-  'responses'
-image_path:
-  'stimuli_padded_4/'
-stas_path:
-  'stas'
-sta_file:
-  'cell_data_01_WN_stas_cell'
+sessions: ["01", "02", "03", "04"]
+input_channels: 1
+placeholder_time_bins: 100
+placeholder_height: 80
+placeholder_width: 90
+stimulus_seed: 0
+
+response_files:
+  "01": "responses/cell_responses_01_fixation_movie.pkl"
+  "02": "responses/cell_responses_02_fixation_movie.pkl"
+  "03": "responses/cell_responses_03_fixation_movie.pkl"
+  "04": "responses/cell_responses_04_fixation_movie.pkl"
+
+excluded_cells:
+  "01": []
+  "02": []
+  "03": []
+  "04": []
+
+stimuli:
+  _target_: openretina.data_io.sridhar_2025.stimuli.build_placeholder_movies
+  session_ids: ${data_io.sessions}
+  channels: ${data_io.input_channels}
+  height: ${data_io.placeholder_height}
+  width: ${data_io.placeholder_width}
+  time_bins: ${data_io.placeholder_time_bins}
+  stim_id_prefix: "sridhar_nm_2025"
+
+responses:
+  _target_: openretina.data_io.sridhar_2025.responses.response_splits_from_pickles
+  base_path: ${paths.data_dir}
+  files: ${data_io.response_files}
+  excluded_cells: ${data_io.excluded_cells}
+  stimulus_seed: ${data_io.stimulus_seed}
+
+data_info:
+  response_rate_hz: null # TODO fill this in
+  stimulus_rate_hz: null # TODO fill this in
+  stimulus_class: "natural_movie"
+  retina_pixel_size_um: null # TODO fill this in

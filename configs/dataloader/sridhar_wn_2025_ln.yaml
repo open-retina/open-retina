@@ -1,31 +1,31 @@
 _target_: openretina.data_io.sridhar_2025.dataloaders.white_noise_loader
 _convert_: object
-basepath: '/projects/extern/nhr/nhr_ni/nim00010/dir.project/wn_marmoset_data/'
+basepath: "${paths.data_dir}"
 files:
-  '01': 'responses/cell_responses_01_wn.pkl'
-  '02': 'responses/cell_responses_02_wn.pkl'
-  '04': 'responses/cell_responses_04_wn.pkl'
+  "01": "responses/cell_responses_01_wn.pkl"
+  "02": "responses/cell_responses_02_wn.pkl"
+  "04": "responses/cell_responses_04_wn.pkl"
 
 big_crops:
-  '01': [35, 35, 55, 55]
-  '02': [35, 35, 55, 55]
-  '04': [35, 35, 55, 55]
+  "01": [35, 35, 55, 55]
+  "02": [35, 35, 55, 55]
+  "04": [35, 35, 55, 55]
 
 train_image_path:
-  '01': 'non_repeating_stimuli_1'
-  '02': 'non_repeating_stimuli_1'
-  '04': 'non_repeating_stimuli_2'
+  "01": "non_repeating_stimuli_1"
+  "02": "non_repeating_stimuli_1"
+  "04": "non_repeating_stimuli_2"
 
 test_image_path:
-  '01': 'repeating_stimuli_1'
-  '02': 'repeating_stimuli_1'
-  '04': 'repeating_stimuli_2'
+  "01": "repeating_stimuli_1"
+  "02": "repeating_stimuli_1"
+  "04": "repeating_stimuli_2"
 
 excluded_cells:
-  '01': []
-  '02': []
-  '03': []
-  '04': []
+  "01": []
+  "02": []
+  "03": []
+  "04": []
 
 batch_size: 16
 seed: null
@@ -41,13 +41,13 @@ num_of_hidden_frames: 5
 temporal_dilation: 1
 hidden_temporal_dilation: 1
 cell_index: 2
-device: 'cuda'
+device: "cuda"
 time_chunk_size: 100
 num_of_layers: 1
-retina_index: '04'
+retina_index: "04"
 retina_specific_crops: True
 extra_frame: 0
 hard_coded: null
 chunked_sampling: True
 get_locations: True
-sta_dir: 'stas'
+sta_dir: "stas"

@@ -16,6 +16,7 @@ from openretina.data_io.sridhar_2025.dataloader_utils import (
 )
 from openretina.data_io.sridhar_2025.responses import load_responses
 from openretina.data_io.sridhar_2025.stimuli import load_frames, process_fixations
+from openretina.utils.file_utils import get_local_file_path
 
 default_image_datapoint = namedtuple("default_image_datapoint", ["inputs", "targets"])
 
@@ -443,6 +444,7 @@ def frame_movie_loader(
     shuffle=None,
     sta_dir="stas",
     get_locations=True,
+    **kwargs,
 ):
     """
     Build train/validation/test PyTorch dataloaders for *movie–response* experiments
@@ -571,6 +573,8 @@ def frame_movie_loader(
       to the number of available trials).
     - **Printing side effects.** The function prints the selected training and
       validation trial IDs to stdout."""
+
+    basepath = get_local_file_path(str(basepath))
 
     dataloaders = {"train": {}, "validation": {}, "test": {}}
     if retina_index is None:
@@ -1073,7 +1077,9 @@ def white_noise_loader(
     chunked_sampling=True,
     get_locations=True,
     sta_dir="stas",
+    **kwargs,
 ):
+    basepath = get_local_file_path(str(basepath))
     dataloaders = {"train": {}, "validation": {}, "test": {}}
     if retina_index is None:
         retina_indices = list(files.keys())
