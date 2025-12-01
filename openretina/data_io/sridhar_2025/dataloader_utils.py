@@ -35,7 +35,9 @@ def download_wn_dataset(target_dir):
     return target_path
 
 
-def get_trial_wise_validation_split(train_responses, train_frac, seed=None, final_training=False, hard_coded=None):
+def get_trial_wise_validation_split(
+    train_responses, train_frac: float, seed: int | None = None, final_training: bool = False, hard_coded=None
+):
     """
     Get a trial-wise validation split of the training responses.
     """
@@ -63,7 +65,7 @@ def get_trial_wise_validation_split(train_responses, train_frac, seed=None, fina
         train_idx, val_idx = np.split(np.random.permutation(int(num_of_trials)), [int(num_of_trials * train_frac)])
 
     if final_training:
-        train_idx = list(train_idx) + list(val_idx)
+        train_idx = list(train_idx) + list(val_idx)  # type: ignore
     else:
         assert not np.any(np.isin(train_idx, val_idx)), "train_set and val_set are overlapping sets"
 
@@ -82,7 +84,7 @@ def flatten_collate_fn(batch):
     return xs, ys
 
 
-def get_location_from_sta(sta_dir, file_name, flip_sta=False, crop=0):
+def get_location_from_sta(sta_dir, file_name, flip_sta: bool = False, crop: int | tuple[int, int, int, int] = 0):
     """Get the location of the pixel with maximum variance of the spatial-temporal average (STA).
     The STA is loaded from a file."""
     sta = np.load(os.path.join(sta_dir, file_name))
@@ -100,7 +102,7 @@ def get_location_from_sta(sta_dir, file_name, flip_sta=False, crop=0):
     return location
 
 
-def make_file_name(cell, retina_index):
+def make_file_name(cell, retina_index) -> str:
     """
     Create a file name based on the provided dataset index and cell index.
     Works for the natural movie marmoset dataset "nm_marmoset_data" and
@@ -131,7 +133,12 @@ def get_locations_from_stas(sta_dir, retina_index, cells, crop=0, flip_sta=False
 
 
 def filter_trials(
-    train_responses, all_train_ids, all_validation_ids, hard_coded=None, num_of_trials_to_use=None, starting_trial=0
+    train_responses: np.ndarray,
+    all_train_ids: np.ndarray,
+    all_validation_ids: np.ndarray,
+    hard_coded=None,
+    num_of_trials_to_use: int | None = None,
+    starting_trial: int = 0,
 ):
     """
     Selects a subset of trials based on the provided parameters.
@@ -160,9 +167,11 @@ def filter_trials(
     else:
         # If hard_coded is provided, use those IDs directly
         num_trials = train_responses.shape[-1]
-        train_ids = [int(x) for x in all_train_ids if int(x) < min(num_trials, num_of_trials_to_use + starting_trial)]
+        train_ids = [int(x) for x in all_train_ids if int(x) < min(num_trials, num_of_trials_to_use + starting_trial)]  # type: ignore
         valid_ids = [
-            int(x) for x in all_validation_ids if int(x) < min(num_trials, num_of_trials_to_use + starting_trial)
+            int(x)
+            for x in all_validation_ids
+            if int(x) < min(num_trials, num_of_trials_to_use + starting_trial)  # type: ignore
         ]
 
     return train_ids, valid_ids

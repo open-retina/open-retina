@@ -1,7 +1,7 @@
 import os
 from collections import namedtuple
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 import numpy as np
 import torch
@@ -118,14 +118,14 @@ class MarmosetMovieDataset(Dataset):
         self,
         responses: dict,
         dir,
-        *data_keys: list,
+        *data_keys: str,
         indices: list,
-        frames,
+        frames: np.ndarray,
         fixations,
-        temporal_dilation=1,
-        hidden_temporal_dilation=1,
+        temporal_dilation: int | tuple[int, ...] = 1,
+        hidden_temporal_dilation: int | tuple[int, ...] = 1,
         test_frames: int = TEST_DATA_FRAMES,
-        img_dir_name="stimuli",
+        img_dir_name: str = "stimuli",
         frame_file: str = "_img_",
         test: bool = False,
         crop: int | tuple = 0,
@@ -135,15 +135,15 @@ class MarmosetMovieDataset(Dataset):
         num_of_layers: int = 1,
         device: str = "cpu",
         time_chunk_size: Optional[int] = None,
-        full_img_w=1000,
-        full_img_h=800,
-        img_w=800,
-        img_h=600,
-        padding=200,
+        full_img_w: int = 1000,
+        full_img_h: int = 800,
+        img_w: int = 800,
+        img_h: int = 600,
+        padding: int = 200,
         excluded_cells=None,
         locations=None,
     ):
-        self.data_keys = data_keys
+        self.data_keys: tuple[str, ...] = data_keys
         if set(data_keys) == {"inputs", "targets"}:
             self.data_point = default_image_datapoint
 
@@ -174,7 +174,7 @@ class MarmosetMovieDataset(Dataset):
             num_of_hidden_frames = (num_of_hidden_frames,) * (self.num_of_layers - 1)
 
         if self.num_of_layers > 1:
-            hidden_reach = sum((f - 1) * d for f, d in zip(num_of_hidden_frames, hidden_temporal_dilation))
+            hidden_reach = sum((f - 1) * d for f, d in zip(num_of_hidden_frames, hidden_temporal_dilation, strict=True))
         else:
             hidden_reach = 0
 
@@ -269,7 +269,7 @@ class MarmosetMovieDataset(Dataset):
             )
         return images
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self._len
 
     def __getitem__(self, item):
@@ -356,23 +356,23 @@ def get_dataloader(
     indices,
     test,
     frames,
-    batch_size,
+    batch_size: int,
     fixations,
     temporal_dilation=1,
     shuffle=True,
-    num_of_frames=15,
+    num_of_frames: int = 15,
     num_of_hidden_frames=None,
-    device="cpu",
-    crop=0,
-    subsample=1,
-    time_chunk_size=1,
-    num_of_layers=1,
-    hidden_temporal_dilation=1,
-    padding=200,
-    full_img_w=1000,
-    full_img_h=800,
-    img_h=600,
-    img_w=800,
+    device: str = "cpu",
+    crop: int | tuple[int, int, int, int] = 0,
+    subsample: int = 1,
+    time_chunk_size: int = 1,
+    num_of_layers: int = 1,
+    hidden_temporal_dilation: int | tuple[int, ...] = 1,
+    padding: int = 200,
+    full_img_w: int = 1000,
+    full_img_h: int = 800,
+    img_h: int = 600,
+    img_w: int = 800,
     excluded_cells=None,
     locations=None,
 ):
@@ -409,41 +409,41 @@ def get_dataloader(
 
 def frame_movie_loader(
     files,
-    fixation_files,
-    big_crops,
+    fixation_files: dict[int, str],
+    big_crops: dict[int, int | tuple[int, int, int, int]],
     basepath,
-    batch_size=16,
+    batch_size: int = 16,
     seed=None,
-    train_frac=0.8,
-    subsample=1,
-    crop=0,
-    num_of_trials_to_use=None,
-    start_using_trial=0,
+    train_frac: float = 0.8,
+    subsample: int = 1,
+    crop: int | tuple[int, int, int, int] = 0,
+    num_of_trials_to_use: int | None = None,
+    start_using_trial: int = 0,
     num_of_frames=None,
-    num_of_hidden_frames=None,
-    temporal_dilation=1,
-    hidden_temporal_dilation=1,
+    num_of_hidden_frames: int | None = None,
+    temporal_dilation: int | tuple[int, ...] = 1,
+    hidden_temporal_dilation: int | tuple[int, ...] = 1,
     cell_index=None,
     retina_index=None,
-    device="cpu",
+    device: str = "cpu",
     time_chunk_size=None,
     num_of_layers=None,
     excluded_cells=None,
     frame_file="_img_",
     img_dir_name="stimuli",
-    full_img_w=1400,
-    full_img_h=1200,
+    full_img_w: int = 1400,
+    full_img_h: int = 1200,
     img_h=None,
     img_w=None,
-    final_training=False,
-    padding=200,
-    retina_specific_crops=True,
-    stimulus_seed=0,
+    final_training: bool = False,
+    padding: int = 200,
+    retina_specific_crops: bool = True,
+    stimulus_seed: int = 0,
     hard_coded=None,
-    flip_imgs=False,
+    flip_imgs: bool = False,
     shuffle=None,
     sta_dir="stas",
-    get_locations=True,
+    get_locations: bool = True,
     **kwargs,
 ):
     """
@@ -576,7 +576,7 @@ def frame_movie_loader(
 
     basepath = get_local_file_path(str(basepath))
 
-    dataloaders = {"train": {}, "validation": {}, "test": {}}
+    dataloaders: dict[str, dict] = {"train": {}, "validation": {}, "test": {}}
     if retina_index is None:
         retina_indices = list(fixation_files.keys())
     else:
@@ -751,8 +751,8 @@ class NoiseDataset(Dataset):
         device: str = "cpu",
         time_chunk_size: Optional[int] = None,
         temporal_dilation: int = 1,
-        hidden_temporal_dilation: Union[int | str | tuple] = 1,
-        num_of_hidden_frames: Union[int | tuple] = 15,
+        hidden_temporal_dilation: int | str | tuple = 1,
+        num_of_hidden_frames: int | tuple = 15,
         extra_frame: int = 0,
         locations: Optional[list] = None,
         excluded_cells: Optional[list] = None,
@@ -872,7 +872,7 @@ class NoiseDataset(Dataset):
 
         self._cache: dict[Any, Any] = {data_key: {} for data_key in data_keys}
 
-    def purge_cache(self):
+    def purge_cache(self) -> None:
         self._cache = {data_key: {} for data_key in self.data_keys}
 
     def transform_image(self, images):
@@ -904,7 +904,7 @@ class NoiseDataset(Dataset):
             )
         return images
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self._len
 
     def __getitem__(self, item):
@@ -950,7 +950,7 @@ class NoiseDataset(Dataset):
         x = self.data_point(*ret)
         return x
 
-    def get_trial_file(self, trial_file_index, data_key):
+    def get_trial_file(self, trial_file_index, data_key: str):
         if not self._test:
             imgs = np.load(
                 os.path.join(

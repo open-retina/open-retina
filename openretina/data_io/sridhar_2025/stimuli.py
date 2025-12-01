@@ -1,13 +1,16 @@
 import os
 
 import numpy as np
+from jaxtyping import Float
 from tqdm import tqdm
 
 from openretina.data_io.base import MoviesTrainTestSplit
 from openretina.utils.file_utils import get_local_file_path
 
 
-def load_frames(img_dir_name: str | os.PathLike, frame_file: str, full_img_w: int, full_img_h: int):
+def load_frames(
+    img_dir_name: str | os.PathLike, frame_file: str, full_img_w: int, full_img_h: int
+) -> Float[np.ndarray, "frames width height"]:
     """
     loads all stimulus frames of the movie into memory
     """
@@ -25,7 +28,7 @@ def load_frames(img_dir_name: str | os.PathLike, frame_file: str, full_img_w: in
     return all_frames
 
 
-def process_fixations(fixations, flip_imgs=False, select_flip=None):
+def process_fixations(fixations, flip_imgs: bool = False, select_flip: int | None = None) -> list[dict[str, int]]:
     if not flip_imgs:
         fixations = [
             {
@@ -63,7 +66,7 @@ def build_placeholder_movies(
     stim_id_prefix: str = "sridhar_2025",
     norm_mean: float = 0.0,
     norm_std: float = 1.0,
-):
+) -> dict[int, MoviesTrainTestSplit]:
     """
     Create lightweight MoviesTrainTestSplit placeholders that encode spatial dimensions of the stimuli.
     Will not be used directly by the dataloader and model, but rather for `data_info` computation.

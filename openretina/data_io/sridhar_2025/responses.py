@@ -8,7 +8,7 @@ from openretina.data_io.base import ResponsesTrainTestSplit
 from openretina.utils.file_utils import get_local_file_path
 
 
-def average_repeated_stimuli_responses(repeated_responses: np.ndarray):
+def average_repeated_stimuli_responses(repeated_responses: np.ndarray) -> np.ndarray:
     # shape num_of_cells x number of repeated images x number of repetitions of repeated stimuli
     return np.mean(repeated_responses, axis=-1)
 
@@ -16,10 +16,10 @@ def average_repeated_stimuli_responses(repeated_responses: np.ndarray):
 def load_responses(
     base_path: str | os.PathLike,
     files,
-    stimulus_seed=0,
+    stimulus_seed: int = 0,
     excluded_cells: Optional[dict[Any, list[int]]] = None,
     cell_index: Optional[int] = None,
-):
+) -> dict:
     base_path = get_local_file_path(str(base_path))
     responses = {}
 
