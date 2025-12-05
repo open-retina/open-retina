@@ -34,6 +34,9 @@ jobs:
       - name: Core readout h5 dataloader
         run: make test-h5train
 
+      - name: LNP maheswaranathan
+        run: make test-lnp
+
       - name: Ensure dev dependencies
         run: |
           uv sync --extra dev
