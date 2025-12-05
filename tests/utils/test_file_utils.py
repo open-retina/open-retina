@@ -45,20 +45,19 @@ def test_get_local_file_path(possibly_remote_file_path: str) -> None:
         ),
         # trivial case, two times the same file
         (
-                "hoefling_2024_base_low_res.ckpt",
-                ["hoefling_2024_base_low_res.ckpt"],
-                True,
+            "hoefling_2024_base_low_res.ckpt",
+            ["hoefling_2024_base_low_res.ckpt"],
+            True,
         ),
         # same file names in different folders should not match
         (
-                "2025-01-01/hoefling_2024_base_low_res.ckpt",
-                ["2025-12-12/hoefling_2024_base_low_res.ckpt"],
-                False,
+            "2025-01-01/hoefling_2024_base_low_res.ckpt",
+            ["2025-12-12/hoefling_2024_base_low_res.ckpt"],
+            False,
         ),
     ],
 )
 def test_is_target_present(file_path: str, existing_file_paths: list[str], expect_match: bool) -> None:
-
     with tempfile.TemporaryDirectory() as temp_dir:
         for fp in existing_file_paths:
             local_path = Path(temp_dir) / fp
