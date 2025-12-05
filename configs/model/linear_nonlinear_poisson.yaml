@@ -12,6 +12,7 @@ readout:
   nonlinearity: "softplus"
   smooth_weight: 1.0
   sparse_weight: 1.0
+  bias: False
 
 # training
 learning_rate: 0.001

@@ -14,11 +14,13 @@ class LNPReadout(Readout):
         self,
         in_shape: Int[tuple, "channel time height width"],
         outdims: int,
+        mean_activity: Float[torch.Tensor, " outdims"] | None = None,
         smooth_weight: float = 0.0,
         sparse_weight: float = 0.0,
         smooth_regularizer: str = "LaplaceL2norm",
         laplace_padding=None,
         nonlinearity: str = "exp",
+        bias: bool = False,
         **kwargs,
     ):
         super().__init__()
@@ -33,7 +35,7 @@ class LNPReadout(Readout):
             in_channels=self.in_channels,
             out_channels=self.n_neurons,  # Each neuron gets its own kernel
             kernel_size=(1, *self.kernel_size),  # Not using time
-            bias=False,
+            bias=bias,
             stride=1,
         )
 
@@ -46,6 +48,7 @@ class LNPReadout(Readout):
         )
 
         self._smooth_reg_fn = regularizers.__dict__[smooth_regularizer](**regularizer_config)
+        self.initialize(mean_activity)
 
     def forward(self, x: Float[torch.Tensor, "batch channels t h w"], data_key=None, **kwargs):
         out = self.inner_product_kernel(x)
@@ -71,5 +74,6 @@ class LNPReadout(Readout):
     def regularizer(self, **kwargs):
         return self.smooth_weight * self.laplace() + self.sparse_weight * self.weights_l1()
 
-    def initialize(self, *args, **kwargs):
-        pass
+    def initialize(self, mean_activity: Float[torch.Tensor, " n_neurons"] | None = None) -> None:
+        if self.inner_product_kernel.bias is not None and mean_activity is not None:
+            self.inner_product_kernel.bias.data = mean_activity
