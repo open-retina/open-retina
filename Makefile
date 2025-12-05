@@ -33,8 +33,10 @@ test-corereadout:
 	+trainer.limit_train_batches=1 trainer.max_epochs=1 +trainer.limit_val_batches=1 +trainer.limit_test_batches=1 dataloader.batch_size=2
 
 test-lnp:
-	uv run openretina train --config-path configs --config-name maheswaranathan_2023_LNP \
-	trainer.max_epochs=1 +trainer.limit_test_batches=5 +trainer.limit_train_batches=7
+	uv run openretina train --config-path configs --config-name hoefling_2024_core_readout_low_res \
+	paths.responses_path=https://huggingface.co/datasets/open-retina/open-retina/blob/main/euler_lab/hoefling_2024/responses/rgc_natsim_subset_only_naturalspikes_2024-08-14.h5 \
+	paths.output_dir=exp exp_name=test_hoefling_2024_low_res_lnp \
+	model=linear_nonlinear_poisson
 
 test-h5train:
 	uv run openretina create-data ./test_data --num-colors 3 --num-stimuli 4 --num-sessions 2; \
