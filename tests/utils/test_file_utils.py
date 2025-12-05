@@ -29,6 +29,48 @@ def test_get_local_file_path(possibly_remote_file_path: str) -> None:
 
 
 @pytest.mark.parametrize(
+    "file_path, existing_file_paths, expect_match",
+    [
+        # file_name should not match grey scale model (even though they have same prefix)
+        (
+            "hoefling_2024_base_low_res.ckpt",
+            ["hoefling_2024_base_low_res_grey_scale.ckpt"],
+            False,
+        ),
+        # zip file that got unpacked
+        (
+            "baccus_lab/maheswaranathan_2023/neural_code_data.zip",
+            ["baccus_lab/maheswaranathan_2023/neural_code_data"],
+            True,
+        ),
+        # trivial case, two times the same file
+        (
+                "hoefling_2024_base_low_res.ckpt",
+                ["hoefling_2024_base_low_res.ckpt"],
+                True,
+        ),
+        # same file names in different folders should not match
+        (
+                "2025-01-01/hoefling_2024_base_low_res.ckpt",
+                ["2025-12-12/hoefling_2024_base_low_res.ckpt"],
+                False,
+        ),
+    ],
+)
+def test_is_target_present(file_path: str, existing_file_paths: list[str], expect_match: bool) -> None:
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        for fp in existing_file_paths:
+            local_path = Path(temp_dir) / fp
+            local_path.parent.mkdir(exist_ok=True, parents=True)
+            local_path.touch(exist_ok=True)
+
+        local_path = is_target_present(Path(temp_dir), Path(file_path))
+        local_path_is_none = local_path is not None
+        assert local_path_is_none == expect_match
+
+
+@pytest.mark.parametrize(
     "url",
     [
         # single file
