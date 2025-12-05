@@ -229,7 +229,7 @@ class BaseCoreReadout(LightningModule):
             device = next(core.parameters()).device
         except StopIteration:
             # No parameters (e.g., when using DummyCore), assume core can be run on cpu
-            device = torch.device('cpu')
+            device = torch.device("cpu")
 
         with torch.no_grad():
             stimulus = torch.zeros((1,) + tuple(core_in_shape), device=device)

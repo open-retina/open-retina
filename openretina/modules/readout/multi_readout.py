@@ -331,10 +331,10 @@ class MultipleLNPReadout(MultiReadoutBase):
     _base_readout_cls = LNPReadout
 
     def __init__(
-            self,
-            in_shape: tuple[int, int, int, int],
-            n_neurons_dict: dict[str, int],
-            **kwargs,
+        self,
+        in_shape: tuple[int, int, int, int],
+        n_neurons_dict: dict[str, int],
+        **kwargs,
     ):
         super().__init__(
             in_shape=in_shape,
