@@ -60,9 +60,9 @@ def test_get_local_file_path(possibly_remote_file_path: str) -> None:
 def test_is_target_present(file_path: str, existing_file_paths: list[str], expect_match: bool) -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         for fp in existing_file_paths:
-            local_path = Path(temp_dir) / fp
-            local_path.parent.mkdir(exist_ok=True, parents=True)
-            local_path.touch(exist_ok=True)
+            cache_path = Path(temp_dir) / fp
+            cache_path.parent.mkdir(exist_ok=True, parents=True)
+            cache_path.touch(exist_ok=True)
 
         local_path = is_target_present(Path(temp_dir), Path(file_path))
         local_path_is_none = local_path is not None
