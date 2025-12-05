@@ -11,6 +11,7 @@ from openretina.modules.readout.base import ClonedReadout, Readout
 from openretina.modules.readout.factorized import FactorizedReadout
 from openretina.modules.readout.factorized_gaussian import GaussianMaskReadout
 from openretina.modules.readout.gaussian import PointGaussianReadout
+from openretina.modules.readout.linear_nonlinear_poison import LNPReadout
 
 
 class MultiReadoutBase(nn.ModuleDict):
@@ -323,3 +324,20 @@ class MultiSampledGaussianReadout(MultiReadoutBase):
             response = self.nonlinearity(response)
 
         return response
+
+
+class MultipleLNPReadout(MultiReadoutBase):
+    # The multiple LNP model acts like a readout reading directly from the frames of the videos
+    _base_readout_cls = LNPReadout
+
+    def __init__(
+            self,
+            in_shape: tuple[int, int, int, int],
+            n_neurons_dict: dict[str, int],
+            **kwargs,
+    ):
+        super().__init__(
+            in_shape=in_shape,
+            n_neurons_dict=n_neurons_dict,
+            **kwargs,
+        )

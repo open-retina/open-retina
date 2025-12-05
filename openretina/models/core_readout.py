@@ -225,7 +225,11 @@ class BaseCoreReadout(LightningModule):
         self, core_in_shape: tuple[int, int, int, int], core: Core
     ) -> tuple[int, int, int, int]:
         # Use the same device as the core's parameters to avoid potential errors at init.
-        device = next(core.parameters()).device
+        try:
+            device = next(core.parameters()).device
+        except StopIteration:
+            # No parameters (e.g., when using DummyCore), assume core can be run on cpu
+            device = torch.device('cpu')
 
         with torch.no_grad():
             stimulus = torch.zeros((1,) + tuple(core_in_shape), device=device)
@@ -273,10 +277,10 @@ class UnifiedCoreReadout(BaseCoreReadout):
     def __init__(
         self,
         in_shape: Int[tuple, "channels time height width"],
-        hidden_channels: tuple[int, ...] | Iterable[int],
         n_neurons_dict: dict[str, int],
         core: DictConfig,
         readout: DictConfig,
+        hidden_channels: tuple[int, ...] | Iterable[int] | None = None,
         learning_rate: float = 0.001,
         data_info: dict[str, Any] | None = None,
     ):
@@ -302,10 +306,11 @@ class UnifiedCoreReadout(BaseCoreReadout):
         # Make sure in_shape and hidden_channels are a tuple
         # (with hydra configs they can be a `omegaconf.listconfig.ListConfig`).
         # This lead to an error when logging hyperparameters with the csv logger during training.
-        hidden_channels = tuple(hidden_channels)
         in_shape = tuple(in_shape)
+        if hidden_channels is not None:
+            hidden_channels = tuple(hidden_channels)
+            core.channels = (in_shape[0], *hidden_channels)
 
-        core.channels = (in_shape[0], *hidden_channels)
         core_module = hydra.utils.instantiate(
             core,
             n_neurons_dict=n_neurons_dict,
