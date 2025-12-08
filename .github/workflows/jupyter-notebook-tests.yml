@@ -1,4 +1,4 @@
-name: End-to-End Tests
+name: Jupyter Notebook Tests
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
-  train-model:
+  jupyter-notebooks:
     runs-on: ubuntu-latest
 
     steps:
@@ -27,15 +27,6 @@ jobs:
       - name: Install dependencies
         run: |
           uv sync
-
-      - name: Core readout hoefling subset
-        run: make test-corereadout
-
-      - name: Core readout h5 dataloader
-        run: make test-h5train
-
-      - name: LNP maheswaranathan
-        run: make test-lnp
 
       - name: Ensure dev dependencies
         run: |
