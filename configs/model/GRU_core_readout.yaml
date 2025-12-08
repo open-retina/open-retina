@@ -34,7 +34,6 @@ readout:
   in_shape: ???
   scale: true
   bias: true
-  gaussian_masks: true
   gaussian_mean_scale: 6.0
   gaussian_var_scale: 4.0
   positive: true
