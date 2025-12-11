@@ -30,7 +30,10 @@ _MODEL_NAME_TO_REMOTE_LOCATION = {
         f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/hoefling_2024_base_low_res_grey_scale.ckpt"
     ),
     "hoefling_2024_base_high_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/hoefling_2024_base_high_res.ckpt",
-    # "karamanlis_2024_base": f"",  # Todo: update
+    "karamanlis_2024_base_mouse": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/karamanlis_2024_base_mouse.ckpt",
+    "karamanlis_2024_base_marmoset": (
+        f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/karamanlis_2024_base_marmoset.ckpt"
+    ),
     # "maheswaranathan_2023_base": f"",  # Todo: update
 }
 
@@ -431,7 +434,6 @@ def load_core_readout_from_remote(
         )
     remote_path = _MODEL_NAME_TO_REMOTE_LOCATION[model_name]
     local_path = get_local_file_path(remote_path, cache_directory_path)
-
     try:
         return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
     except:  # noqa: E722

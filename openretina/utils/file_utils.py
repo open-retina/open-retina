@@ -130,22 +130,20 @@ def is_target_present(cache_folder: Path, file_path: Path) -> Path | None:
     if file_path.is_absolute():
         raise ValueError(f"Expected relative path, but got: {file_path=}")
 
-    parent_with_stem = file_path.parent / file_path.stem
-    existing_matches = list(cache_folder.rglob(str(parent_with_stem) + "*"))
-    if len(existing_matches) > 0:
-        # Prioritize an exact file match
-        for match in existing_matches:
-            if match.name == file_path.name:
-                LOGGER.info(f"Found target file at {match.resolve()}")
-                return match
+    # the file path exists as is
+    expected_file_path = cache_folder / file_path
+    if expected_file_path.exists():
+        LOGGER.info(f"Found target file at {expected_file_path.resolve()}")
+        return expected_file_path
 
-        # Otherwise, look for valid folders, zip files or target files
+    # Otherwise, look for indirect matches, like zip files or valid folders
+    parent_with_stem = file_path.parent / file_path.stem
+    existing_matches = [x for x in cache_folder.rglob(str(parent_with_stem) + "*") if x.stem == file_path.stem]
+
+    if len(existing_matches) > 0:
         for match in existing_matches:
             if match.is_dir():
                 LOGGER.info(f"Found extracted folder at {match.resolve()}")
-                return match
-            if match.suffix == ".zip":
-                LOGGER.info(f"Found zip archive at {match.resolve()}")
                 return match
             if match.is_file() and match.suffix not in [".metadata", ".lock"]:
                 LOGGER.info(f"Found target file at {match.resolve()}")
