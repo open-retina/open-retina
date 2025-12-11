@@ -31,7 +31,7 @@ def main(cfg: DictConfig) -> float | None:
     return score
 
 
-def evaluate_model(cfg: DictConfig) -> None:
+def evaluate_model(cfg: DictConfig) -> float:
     log.info("Logging full config:")
     log.info(OmegaConf.to_yaml(cfg))
 
@@ -78,12 +78,14 @@ def evaluate_model(cfg: DictConfig) -> None:
         movies = dataset.movies.to(device).unsqueeze(0)
         with torch.no_grad():
             model_responses_torch = model.forward(movies, data_key=session)
-            poisson_loss_session = poisson_loss(model_responses_torch, dataset.responses.unsqueeze(0))
-        results["poisson_loss"].append(poisson_loss_session.numpy())
+            targets = dataset.responses.to(device).unsqueeze(0)
+            poisson_loss_session = poisson_loss(model_responses_torch, targets)
 
-        model_responses = model_responses_torch.squeeze(0).numpy()
+        results["poisson_loss"].append(poisson_loss_session.cpu().numpy())
 
-        responses_by_trial = dataset.test_responses_by_trial.numpy()
+        model_responses = model_responses_torch.squeeze(0).cpu().numpy()
+
+        responses_by_trial = dataset.test_responses_by_trial.cpu().numpy()
         responses_by_trial = np.swapaxes(responses_by_trial, 0, 2)
         avg_responses = dataset.responses.numpy()
 
@@ -107,6 +109,13 @@ def evaluate_model(cfg: DictConfig) -> None:
         results["corr"].append(correlation_numpy(avg_responses, model_responses, axis=0))
         results["mse"].append(MSE_numpy(avg_responses, model_responses, axis=0))
         results["feve"].append(feve(responses_by_trial, model_responses))
+
+        for i in range(responses_by_trial.shape[1]):
+            resp = responses_by_trial[:, i, :]
+            results[f"corr_{i}"].append(correlation_numpy(avg_responses, model_responses, axis=0))
+            results[f"mse_{i}"].append(MSE_numpy(avg_responses, model_responses, axis=0))
+            results[f"feve_{i}"].append(feve(responses_by_trial, model_responses))
+
 
     print(f"{cfg.paths.load_model_path} ({lag=})")
     for k, v in results.items():
