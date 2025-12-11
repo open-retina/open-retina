@@ -9,6 +9,8 @@ on:
 jobs:
   jupyter-notebooks:
     runs-on: ubuntu-latest
+    env:
+      OPENRETINA_CACHE_DIRECTORY: /tmp/openretina_cache
 
     steps:
       - name: Checkout repository
@@ -28,6 +30,12 @@ jobs:
         run: |
           uv sync --extra dev
 
-      - name: Run notebook Tests
-        run: make test-notebooks
+      - name: Run data notebook
+        run: uv run pytest --nbmake notebooks/new_datasets_guide.ipynb
 
+      - name: Clean notebook cache
+        if: always()
+        run: rm -rf "${OPENRETINA_CACHE_DIRECTORY}"
+
+      - name: Run remaining notebooks
+        run: make test-notebooks
