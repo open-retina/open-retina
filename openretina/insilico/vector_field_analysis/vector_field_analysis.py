@@ -586,12 +586,12 @@ def plot_clean_vectorfield(
     binned_arrowheads = np.array([[np.dot(PC1, lsta), np.dot(PC2, lsta)] for lsta in flatten_binned_lstas])
 
     fig, ax = plt.subplots(figsize=(20, 20))
-    
+
     # Calculate plot limits
     xlim = max(np.abs(binned_arrowtails[:, 0]).max(), np.abs(images_coordinate[:, 0]).max()) * 1.1
     ylim = max(np.abs(binned_arrowtails[:, 1]).max(), np.abs(images_coordinate[:, 1]).max()) * 1.1
     plot_limit = max(xlim, ylim)
-    
+
     # Overlay response magnitudes as density plot if provided
     if responses is not None:
         # Create a grid for interpolation
@@ -599,23 +599,17 @@ def plot_clean_vectorfield(
         x_interval = np.linspace(-plot_limit, plot_limit, grid_resolution)
         y_interval = np.linspace(-plot_limit, plot_limit, grid_resolution)
         xi_grid, yi_grid = np.meshgrid(x_interval, y_interval)
-        
+
         # Interpolate the response values onto the grid
-        zi = griddata(
-            binned_arrowtails,
-            binned_responses,
-            (xi_grid, yi_grid),
-            method='linear',
-            fill_value=np.nan
-        )
-        
+        zi = griddata(binned_arrowtails, binned_responses, (xi_grid, yi_grid), method="linear", fill_value=np.nan)
+
         # Create the density plot using pcolormesh
-        density = ax.pcolormesh(x_interval, y_interval, zi, cmap='viridis', alpha=0.4, shading='gouraud', zorder=0)
-        
+        density = ax.pcolormesh(x_interval, y_interval, zi, cmap="viridis", alpha=0.4, shading="gouraud", zorder=0)
+
         # Add colorbar
         cbar = plt.colorbar(density, ax=ax)
-        cbar.set_label('Response magnitude', size=14)
-    
+        cbar.set_label("Response magnitude", size=14)
+
     ax.quiver(
         binned_arrowtails[:, 0],
         binned_arrowtails[:, 1],
@@ -626,7 +620,7 @@ def plot_clean_vectorfield(
         scale_units="xy",
         angles="xy",
         scale=binned_arrowheads.max(),
-        zorder=2
+        zorder=2,
     )
 
     ax.spines["right"].set_visible(False)
@@ -636,10 +630,26 @@ def plot_clean_vectorfield(
 
     # Add arrowheads to axes using matplotlib arrow function
     ax.arrow(
-        -plot_limit * 0.75, 0, 1.5 * plot_limit, 0, head_width=plot_limit * 0.02, head_length=plot_limit * 0.02, fc="k", ec="k", linewidth=1
+        -plot_limit * 0.75,
+        0,
+        1.5 * plot_limit,
+        0,
+        head_width=plot_limit * 0.02,
+        head_length=plot_limit * 0.02,
+        fc="k",
+        ec="k",
+        linewidth=1,
     )
     ax.arrow(
-        0, -plot_limit * 0.75, 0, 1.5 * plot_limit, head_width=plot_limit * 0.02, head_length=plot_limit * 0.02, fc="k", ec="k", linewidth=1
+        0,
+        -plot_limit * 0.75,
+        0,
+        1.5 * plot_limit,
+        head_width=plot_limit * 0.02,
+        head_length=plot_limit * 0.02,
+        fc="k",
+        ec="k",
+        linewidth=1,
     )
     ax.set_xticks([])
     ax.set_yticks([])
