@@ -47,6 +47,27 @@ class HydraRunner:
 
         _train()
 
+    @staticmethod
+    def eval(config_path: str, args: list[str]) -> None:
+        # Modify sys.argv to work with Hydra
+        sys.argv = [sys.argv[0]] + args
+
+        @hydra.main(
+            version_base="1.3",
+            config_path=get_config_path(config_path),
+            config_name="hoefling_2024_core_readout_high_res",
+        )
+        def _eval(cfg: DictConfig) -> float | None:
+            from openretina.cli.eval import evaluate_model  # Import actual training function
+
+            # Check if cache_dir is set or left as none, in which case we set it to the cache directory
+            if cfg.paths.cache_dir is None:
+                cfg.paths.cache_dir = get_cache_directory()
+
+            return evaluate_model(cfg)
+
+        _eval()
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="OpenRetina CLI")
@@ -54,6 +75,10 @@ def main() -> None:
 
     # Train command
     train_parser = subparsers.add_parser("train", help="Train a model")
+    train_parser.add_argument("--config-path", default=None, help="Path to config directory")
+
+    # Test command
+    train_parser = subparsers.add_parser("eval", help="Evaluate a model")
     train_parser.add_argument("--config-path", default=None, help="Path to config directory")
 
     # Visualize command
@@ -69,6 +94,8 @@ def main() -> None:
 
     if command == "train":
         return HydraRunner.train(args.config_path, unknown_args)
+    if command == "eval":
+        return HydraRunner.eval(args.config_path, unknown_args)
     elif command == "visualize":
         if len(unknown_args) > 0:
             print(f"Warn: found the following unknown args: {unknown_args}")
@@ -78,4 +105,4 @@ def main() -> None:
     elif command is None:
         parser.print_help()
     else:
-        raise ValueError(f"Unknown command: {args.command}")
+        raise ValueError(f"Unknown command: {command}")

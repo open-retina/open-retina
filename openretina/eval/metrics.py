@@ -202,21 +202,24 @@ def feve(
 
     Args:
         targets (array-like): Neuron responses (ground truth) over time / different images across repetitions.
-        Dimensions: np.array(images/time, num_repeats, num_neurons)
         predictions (array-like): Model predictions to the repeated images, either including or excluding
         repetitions. Dimensions: np.array(images/time, num_repeats, num_neurons) or np.array(images/time, num_neurons)
     Returns:
         FEVe (np.array): the fraction of explainable variance explained per neuron
 
     """
+    if len(targets.shape) != 3:
+        raise ValueError(f"Targets must be 3d 'frames repeats neurons', but {targets.shape=}")
+
     if predictions.shape[1] != targets.shape[1] and predictions.ndim == 2:
         predictions = np.repeat(predictions[:, np.newaxis, :], targets.shape[1], axis=1)
 
-    assert targets.shape == predictions.shape, (
-        f"Targets and predictions must have the same shape, got {targets.shape} and {predictions.shape}"
-    )
+    if targets.shape != predictions.shape:
+        raise ValueError(f"Targets and predictions must have the same shape,"
+                         f" got {targets.shape} and {predictions.shape}")
 
-    sum_square_res = [(target - prediction) ** 2 for target, prediction in zip(targets, predictions)]
+    sum_square_res = [(target - prediction) ** 2 for target, prediction in
+                      zip(targets, predictions, strict=True)]
     sum_square_res = np.concatenate(sum_square_res, axis=0)
 
     var_ratio, explainable_var = explainable_vs_total_var(targets)
@@ -225,11 +228,11 @@ def feve(
     noise_var = total_var - explainable_var
 
     mse = np.mean(sum_square_res, axis=0)  # mean over time and reps
-    fev_e = 1 - np.clip(mse - noise_var, 0, None) / (explainable_var)
+    fev_e = 1 - np.clip(mse - noise_var, 0, None) / explainable_var
     return np.clip(fev_e, 0, None)
 
 
-def crop_responses(responses: np.ndarray, predictions: np.ndarray) -> np.ndarray:
+def crop_responses(responses: np.ndarray, predictions: np.ndarray) -> tuple[np.ndarray, int]:
     """
 
     :param responses: array of responses, last axis is time
@@ -238,4 +241,6 @@ def crop_responses(responses: np.ndarray, predictions: np.ndarray) -> np.ndarray
     """
 
     lag = responses.shape[-1] - predictions.shape[0]
-    return responses[..., lag:]
+    if lag < 0:
+        raise ValueError(f"Lag is negative: {lag}")
+    return responses[..., lag:], lag
