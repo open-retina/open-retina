@@ -33,7 +33,7 @@ jobs:
       - name: Run data notebook
         run: uv run pytest --nbmake notebooks/new_datasets_guide.ipynb
 
-      - name: Clean notebook cache
+      - name: Clean openretina cache
         if: always()
         run: rm -rf "${OPENRETINA_CACHE_DIRECTORY}"
 
