@@ -9,6 +9,9 @@ from openretina.modules.readout.multi_readout import Readout
 
 
 class LNPReadout(Readout):
+    """ Linear Nonlinear Poisson Readout (LNP)
+        For use as an LNP Model use this readout with a DummyCore that passes the input through.
+    """
     # Linear nonlinear Poisson
     def __init__(
         self,

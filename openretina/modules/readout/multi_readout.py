@@ -327,7 +327,9 @@ class MultiSampledGaussianReadout(MultiReadoutBase):
 
 
 class MultipleLNPReadout(MultiReadoutBase):
-    # The multiple LNP model acts like a readout reading directly from the frames of the videos
+    """ Multiple Linear Nonlinear Poisson Readout (LNP)
+        For use as an LNP Model use this readout with a DummyCore that passes the input through.
+    """
     _base_readout_cls = LNPReadout
 
     def __init__(
