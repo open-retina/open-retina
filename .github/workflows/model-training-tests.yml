@@ -1,0 +1,83 @@
+name: Model Training Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  train-model:
+    runs-on: ubuntu-latest
+
+    env:
+      TRAIN_FLAGS: >-
+        paths.responses_path=https://huggingface.co/datasets/open-retina/open-retina/blob/main/euler_lab/hoefling_2024/responses/rgc_natsim_subset_only_naturalspikes_2024-08-14.h5 
+        paths.output_dir=exp 
+        +trainer.limit_train_batches=1 
+        trainer.max_epochs=1 
+        +trainer.limit_val_batches=1 
+        +trainer.limit_test_batches=1 
+        dataloader.batch_size=2
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "${HOME}/.local/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: |
+          uv sync
+
+      - name: Core readout h5 dataloader
+        run: make test-h5train
+
+      - name: Base readout
+        run: |
+          uv run openretina train \
+          --config-path configs \
+          --config-name hoefling_2024_core_readout_low_res \
+          model=core_klindt_readout \
+          $TRAIN_FLAGS
+
+      - name: Core klindt readout
+        run: |
+          uv run openretina train \
+          --config-path configs \
+          --config-name hoefling_2024_core_readout_low_res \
+          model=core_klindt_readout \
+          $TRAIN_FLAGS
+
+      - name: Core Gaussian Readout
+        run: |
+          uv run openretina train \
+          --config-path configs \
+          --config-name hoefling_2024_core_readout_low_res \
+          model=core_gaussian_readout \
+          $TRAIN_FLAGS
+
+      - name: LNP readout
+        run: |
+          uv run openretina train \
+          --config-path configs \
+          --config-name hoefling_2024_core_readout_low_res \
+          model=linear_nonlinear_poisson.yaml \
+          $TRAIN_FLAGS
+
+      - name: GRU core readout
+        run: |
+          uv run openretina train \
+          --config-path configs \
+          --config-name hoefling_2024_core_readout_low_res \
+          model=GRU_core_readout \
+          $TRAIN_FLAGS
+

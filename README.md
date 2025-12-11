@@ -86,5 +86,8 @@ The openretina package is structured as follows:
 * maheswaranathan\_2023: Originally published by Maheswaranathan et al. (2023), Neuron
   * Paper: [Interpreting the retinal neural code for natural scenes: From computations to neurons](https://doi.org/10.1016/j.neuron.2023.06.007)
   * Dataset: Maheswaranathan, N., McIntosh, L., Tanaka, H., Grant, S., Kastner, D., Melander, J., Nayebi, A., Brezovec, L., Wang, J. Ganguli, S. Baccus, S. (2023). Interpreting the retinal neural code for natural scenes: from computations to neurons. Stanford Digital Repository. Available at https://purl.stanford.edu/rk663dm5577
+* goldin\_2022: Originally published by Goldin et al. (2022), Nature Communications
+  * Paper: [Context-dependent selectivity to natural images in the retina](https://doi.org/10.1038/s41467-022-33242-8)
+  * Dataset originally deposited at: https://zenodo.org/records/6868362
 
 The paper [Most discriminative stimuli for functional cell type clustering](https://openreview.net/forum?id=9W6KaAcYlr) explains the discriminatory stimulus objective we showcase in [notebooks/most\_discriminative\_stimulus](https://github.com/open-retina/open-retina/blob/main/notebooks/most_discriminative_stimulus.ipynb).

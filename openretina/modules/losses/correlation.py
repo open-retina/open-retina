@@ -9,6 +9,9 @@ class CorrelationLoss3d(nn.Module):
         self.per_neuron = per_neuron
         self.avg = avg
 
+        # Placeholder to store last-computed per-neuron correlations
+        self.register_buffer("_per_neuron_correlations", torch.tensor([]), persistent=False)
+
     def forward(self, output, target):
         lag = target.size(1) - output.size(1)
         delta_out = output - output.mean(1, keepdim=True)
@@ -18,6 +21,11 @@ class CorrelationLoss3d(nn.Module):
         corrs = (delta_out * delta_target).mean(1, keepdim=True) / (
             (var_out + self.eps) * (var_target + self.eps)
         ).sqrt()
+
+        per_neuron_correlations = corrs.view(-1, corrs.shape[-1]).mean(dim=0)
+        self._per_neuron_correlations = per_neuron_correlations.detach()  # Not a loss, so no need to negate
+
+        # Return scalar for possible backprop
         if not self.per_neuron:
             return -corrs.mean() if self.avg else -corrs.sum()
         else:
@@ -30,6 +38,8 @@ class CelltypeCorrelationLoss3d(nn.Module):
         self.eps = bias
         self.per_neuron = per_neuron
         self.avg = avg
+        # Placeholder to store last-computed per-neuron correlations
+        self.register_buffer("_per_neuron_correlations", torch.tensor([]), persistent=False)
 
     def forward(self, output, target, group_assignment, group_counts):
         lag = target.size(1) - output.size(1)
@@ -41,6 +51,11 @@ class CelltypeCorrelationLoss3d(nn.Module):
             (var_out + self.eps) * (var_target + self.eps)
         ).sqrt()
         corrs = corrs * (group_counts.sum() / group_counts.size(0) / group_counts[group_assignment - 1])[:, None, ...]
+
+        per_neuron_correlations = -corrs.view(-1, corrs.shape[-1]).mean(dim=0)
+        self._per_neuron_correlations = per_neuron_correlations.detach()
+
+        # Return scalar for backprop
         if not self.per_neuron:
             return -corrs.mean() if self.avg else -corrs.sum()
         else:
@@ -54,6 +69,8 @@ class L1CorrelationLoss3d(nn.Module):
         self.per_neuron = per_neuron
         self.avg = avg
         self.gamma_L1 = 0.0002
+        # Placeholder to store last-computed per-neuron correlations
+        self.register_buffer("_per_neuron_correlations", torch.tensor([]), persistent=False)
 
     def forward(self, output, target, **kwargs):
         pre_ca = output[1]
@@ -66,6 +83,10 @@ class L1CorrelationLoss3d(nn.Module):
         corrs = (delta_out * delta_target).mean(1, keepdim=True) / (
             (var_out + self.eps) * (var_target + self.eps)
         ).sqrt()
+
+        per_neuron_correlations = -corrs.view(-1, corrs.shape[-1]).mean(dim=0)
+        self._per_neuron_correlations = per_neuron_correlations.detach()
+
         if not self.per_neuron:
             ret1 = -corrs.mean() if self.avg else -corrs.sum()
             ret2 = self.gamma_L1 * (pre_ca.abs().mean() if self.avg else pre_ca.abs().sum())
@@ -85,6 +106,8 @@ class ScaledCorrelationLoss3d(nn.Module):
         self.scale = scale
         self.per_neuron = per_neuron
         self.avg = avg
+        # Placeholder to store last-computed per-neuron correlations
+        self.register_buffer("_per_neuron_correlations", torch.tensor([]), persistent=False)
 
     def forward(self, output, target, **kwargs):
         lag = target.size(1) - output.size(1)
@@ -104,6 +127,10 @@ class ScaledCorrelationLoss3d(nn.Module):
             ).sqrt()
             count += 1
         corrs /= count
+
+        per_neuron_correlations = -corrs.view(-1, corrs.shape[-1]).mean(dim=0)
+        self._per_neuron_correlations = per_neuron_correlations.detach()
+
         if not self.per_neuron:
             return -corrs.mean() if self.avg else -corrs.sum()
         else:

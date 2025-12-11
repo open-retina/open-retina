@@ -13,7 +13,7 @@ defaults:
   - hydra: default
   - _self_ # values in this config will overwrite the defaults
 
-exp_name: core_readout_karamanlis_2024
+exp_name: core_readout_karamanlis_2024_mouse
 seed: 42
 check_stimuli_responses_match: true
 
@@ -23,6 +23,7 @@ paths:
   data_dir: https://huggingface.co/datasets/open-retina/open-retina/tree/main/gollisch_lab/karamanlis_2024/sessions
   log_dir: "." # Used as parent for output_dir. Will store train logs.
   output_dir: ${hydra:runtime.output_dir} # Modify in the "hydra/default.yaml" config
+  load_model_path: null
 
 # Overwrite model defaults with specifics for Karamanlis 2024 data format
 model:
@@ -35,7 +36,7 @@ model:
   core:
     spatial_kernel_sizes: [21, 15, 11]
     temporal_kernel_sizes: [11, 11, 11]
-    hidden_padding: true
+    hidden_padding: [0, 5, 5]
 
 trainer:
   max_epochs: 50

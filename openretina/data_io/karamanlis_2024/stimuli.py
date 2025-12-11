@@ -142,7 +142,7 @@ def load_all_stimuli(
 
     assert len(exp_sessions) > 0, (
         f"No data directories found in {base_data_path} for animal {specie}."
-        "Please check the path and the animal species provided, and that you unrared the data files."
+        "Please check the path and the animal species provided, and that you un-archived the data files."
     )
 
     for session in tqdm(exp_sessions, desc="Processing sessions"):

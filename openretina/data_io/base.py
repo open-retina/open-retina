@@ -179,33 +179,75 @@ def normalize_train_test_movies(
 def compute_data_info(
     neuron_data_dictionary: dict[str, ResponsesTrainTestSplit],
     movies_dictionary: dict[str, MoviesTrainTestSplit] | MoviesTrainTestSplit,
+    partial_data_info: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Computes information related to the data used to train a model, including the number of neurons, the shape of the
-    movies, and the normalization statistics. This information can be fed to and saved with the models.
+    movies, and the normalization statistics. This information should be fed to and saved with the models.
 
     Parameters:
     - neuron_data_dictionary: dictionary of responses for each session
     - movies_dictionary: dictionary of movies for each session
+    - partial_data_info: dictionary of partial data info from the config, to be merged with the computed data info
 
     Returns:
-    - data_info: dictionary containing the number of neurons, the shape of the movies, the movie normalization
-        statistics, and any extra session kwargs related to the data.
+    - data_info: dictionary containing various data info useful for downstream tasks, including the number of neurons,
+    the shape of the movies, the movie normalization statistics, and any extra session kwargs related to the data,
+    including partial data information passed in the training config.
     """
     n_neurons_dict = get_n_neurons_per_session(neuron_data_dictionary)
+
+    # Compute mean activity for each session from training responses
+    mean_activity_dict = {}
+    for session_name, responses in neuron_data_dictionary.items():
+        # responses.train has shape (n_neurons, n_timepoints)
+        # Compute mean across time dimension
+        mean_activity = torch.tensor(responses.train.mean(axis=1), dtype=torch.float32)
+        mean_activity_dict[session_name] = mean_activity
+
     if isinstance(movies_dictionary, MoviesTrainTestSplit):
-        movies_dictionary = {"default": movies_dictionary}
-    input_shape = tuple((movie.train.shape[0], *movie.train.shape[2:]) for movie in movies_dictionary.values())[0]
+        stim_mean = movies_dictionary.norm_mean
+        stim_std = movies_dictionary.norm_std
+        input_shape = (
+            movies_dictionary.train.shape[0],
+            *movies_dictionary.train.shape[2:],
+        )
+    else:
+        norm_means = [movie.norm_mean for movie in movies_dictionary.values() if movie.norm_mean is not None]
+        norm_stds = [movie.norm_std for movie in movies_dictionary.values() if movie.norm_std is not None]
+
+        if len(norm_means) > 0:
+            if not np.allclose(norm_means, norm_means[0], atol=1, rtol=0):
+                raise ValueError(f"Normalization means are not consistent across stimuli: {norm_means}")
+            stim_mean = norm_means[0]
+        else:
+            stim_mean = 0.0
+            warnings.warn(f"No stimulus mean set, setting {stim_mean=}")
+        if len(norm_stds) > 0:
+            if not np.allclose(norm_stds, norm_stds[0], atol=1, rtol=0):
+                raise ValueError(f"Normalization stds are not consistent across stimuli: {norm_stds}")
+            stim_std = norm_stds[0]
+        else:
+            stim_std = 1.0
+            warnings.warn(f"No stimulus stds set, setting {stim_std=}")
+
+        # Do the same for the input shape
+        input_shapes = [(movie.train.shape[0], *movie.train.shape[2:]) for movie in movies_dictionary.values()]
+        if any(shape != input_shapes[0] for shape in input_shapes):
+            raise ValueError(f"Input shapes are not consistent across stimuli: {input_shapes}")
+
+        input_shape = input_shapes[0]
+
     sessions_kwargs = {
         session_name: responses.session_kwargs for session_name, responses in neuron_data_dictionary.items()
     }
 
     return {
         "n_neurons_dict": n_neurons_dict,
+        "mean_activity_dict": mean_activity_dict,
         "input_shape": input_shape,
         "sessions_kwargs": sessions_kwargs,
-        "movie_norm_dict": {
-            name: {"norm_mean": movie.norm_mean, "norm_std": movie.norm_std}
-            for name, movie in movies_dictionary.items()
-        },
+        "stim_mean": stim_mean,
+        "stim_std": stim_std,
+        **(partial_data_info or {}),
     }
