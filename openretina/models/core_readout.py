@@ -424,6 +424,15 @@ class ExampleCoreReadout(BaseCoreReadout):
 
         super().__init__(core=core, readout=readout, learning_rate=learning_rate, data_info=data_info)
 
+    def on_load_checkpoint(self, checkpoint) -> None:
+        state_dict = checkpoint["state_dict"]
+
+        readout_bias_keys = [k for k in state_dict.keys() if k.startswith("readout.") and k.endswith(".bias_param")]
+        for key in readout_bias_keys:
+            new_key = key.removesuffix(".bias_param") + ".bias"
+            state_dict[new_key] = state_dict.pop(key)
+        LOGGER.warning(f"Renamed the following readout bias keys: {readout_bias_keys}")
+
 
 def load_core_readout_from_remote(
     model_name: str,
