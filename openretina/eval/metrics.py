@@ -215,11 +215,11 @@ def feve(
         predictions = np.repeat(predictions[:, np.newaxis, :], targets.shape[1], axis=1)
 
     if targets.shape != predictions.shape:
-        raise ValueError(f"Targets and predictions must have the same shape,"
-                         f" got {targets.shape} and {predictions.shape}")
+        raise ValueError(
+            f"Targets and predictions must have the same shape, got {targets.shape} and {predictions.shape}"
+        )
 
-    sum_square_res = [(target - prediction) ** 2 for target, prediction in
-                      zip(targets, predictions, strict=True)]
+    sum_square_res = [(target - prediction) ** 2 for target, prediction in zip(targets, predictions, strict=True)]
     sum_square_res = np.concatenate(sum_square_res, axis=0)
 
     var_ratio, explainable_var = explainable_vs_total_var(targets)

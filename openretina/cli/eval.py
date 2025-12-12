@@ -1,22 +1,20 @@
 #!/usr/bin/env python3
 
-from collections import defaultdict
 import logging
 import os
 import pickle
+from collections import defaultdict
 
 import hydra
-import numpy as np
 import lightning.pytorch
+import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
 
+from openretina.eval.metrics import MSE_numpy, correlation_numpy, feve
+from openretina.eval.oracles import oracle_corr_jackknife
 from openretina.models.core_readout import load_core_readout_model
-
-from openretina.eval.metrics import feve, correlation_numpy, MSE_numpy
-from openretina.eval.oracles import oracle_corr_jackknife, global_mean_oracle
 from openretina.modules.losses import PoissonLoss3d
-
 
 log = logging.getLogger(__name__)
 logging.captureWarnings(True)
@@ -81,7 +79,7 @@ def evaluate_model(cfg: DictConfig) -> float:
         movies = dataset.movies.to(device).unsqueeze(0)
         neuron_data = neuron_data_dict[session]
         # other potentially useful keys: "roi_mask", "group_assignment", "eye"
-        roi_ids = neuron_data.session_kwargs["roi_ids"]
+        # roi_ids = neuron_data.session_kwargs["roi_ids"]
 
         with torch.no_grad():
             model_responses_torch = model.forward(movies, data_key=session)
@@ -108,11 +106,11 @@ def evaluate_model(cfg: DictConfig) -> float:
         responses_by_trial = responses_by_trial[lag:]
 
         if model_responses.shape != avg_responses.shape:
-            raise ValueError(f"Inconsistent Shapes: "
-                             f"{model_responses.shape=}, {avg_responses.shape}, {lag=}")
+            raise ValueError(f"Inconsistent Shapes: {model_responses.shape=}, {avg_responses.shape}, {lag=}")
         if responses_by_trial[:, 0, :].shape != avg_responses.shape:
-            raise ValueError(f"Inconsistent responses by trial shape: "
-                             f"{avg_responses.shape=} {responses_by_trial.shape=}")
+            raise ValueError(
+                f"Inconsistent responses by trial shape: {avg_responses.shape=} {responses_by_trial.shape=}"
+            )
 
         results["corr"].append(correlation_numpy(avg_responses, model_responses, axis=0))
         results["mse"].append(MSE_numpy(avg_responses, model_responses, axis=0))

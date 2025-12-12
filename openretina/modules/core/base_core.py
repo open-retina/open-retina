@@ -253,7 +253,7 @@ class DummyCore(Core):
         self._cut_first_n_frames = cut_first_n_frames
 
     def forward(self, x, data_key=None, **kwargs):
-        res = x[:, :, self._cut_first_n_frames:]
+        res = x[:, :, self._cut_first_n_frames :]
         return res
 
     def regularizer(self):
