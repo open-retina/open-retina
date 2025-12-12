@@ -24,7 +24,7 @@ dependencies = [
     "scipy",
     "tenacity",
     "tensorboard",
-    "torch<=2.7",
+    "torch",
     "torchaudio",
     "torchvision",
     "einops",

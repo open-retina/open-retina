@@ -1,7 +1,7 @@
 # core + data
 hidden_channels: [16, 16]
 in_shape: ??? # Required for core init. Needs to be assigned in the top level config.
-n_neurons_dict: ???  # Set dynamically (e.g., in training script after loading sessions)
+n_neurons_dict: ??? # Set dynamically (e.g., in training script after loading sessions)
 
 core:
   _target_: openretina.modules.core.base_core.SimpleCoreWrapper
@@ -19,14 +19,15 @@ core:
   convolution_type: "custom_separable"
   cut_first_n_frames: 0
   dropout_rate: 0.0
-  channels: ???  # set dynamically based on input channels
+  channels: ??? # set dynamically based on input channels
 
 readout:
-  _target_: openretina.modules.readout.multi_readout.MultiKlindtReadoutWrapper
+  _target_: openretina.modules.readout.multi_readout.MultiFactorizedReadout
   _convert_: object
   in_shape: ???
-  mask_l1_reg: 0.0
-  weights_l1_reg: 0.0
+  mask_l1_reg: 5.0
+  weights_l1_reg: 5.0
+  laplace_mask_reg: 1.0
   readout_bias: true
   weights_constraint: null
   mask_constraint: null

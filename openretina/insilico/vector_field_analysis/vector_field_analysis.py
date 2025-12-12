@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from git import Optional
 from PIL import Image
+from scipy.interpolate import griddata
 from sklearn.decomposition import PCA
 
 from openretina.models.core_readout import BaseCoreReadout
@@ -482,6 +483,7 @@ def plot_clean_vectorfield(
     explained_variance: np.ndarray,
     x_bins: int = 31,
     y_bins: int = 31,
+    responses: Optional[np.ndarray] = None,
 ) -> plt.Figure:
     """
     Plots a cleaned vector field representation of binned image and LSTA data projected onto principal components.
@@ -513,6 +515,9 @@ def plot_clean_vectorfield(
         Number of bins along the x-axis for spatial binning (default is 31).
     y_bins : int, optional
         Number of bins along the y-axis for spatial binning (default is 31).
+    responses : np.ndarray, optional
+        Array of response values for each image, shape (n_samples,). If provided, will overlay
+        response magnitudes as colored markers at each location.
     Returns
     -------
     fig : matplotlib.figure.Figure
@@ -528,6 +533,7 @@ def plot_clean_vectorfield(
     - The vector field arrows represent the projection of binned images and LSTA responses onto the first two
     principal components.
     - Insets display the spatial structure of PC1 and PC2 for interpretability.
+    - If responses are provided, they will be averaged within bins and displayed as colored markers.
     """
     lsta_library = lsta_library[:, channel, :, :]
     x_size = lsta_library.shape[-2]
@@ -548,6 +554,7 @@ def plot_clean_vectorfield(
     binned_imgs_list = []
     binned_lstas_list = []
     bin_coords_list = []
+    binned_responses_list = []
 
     # For each bin, average images and lstas assigned to it
     for xi in range(x_bins):
@@ -558,10 +565,15 @@ def plot_clean_vectorfield(
                 binned_lstas_list.append(lsta_library[bin_mask].mean(axis=0))
                 # Use bin center as coordinate
                 bin_coords_list.append([0.5 * (x_edges[xi] + x_edges[xi + 1]), 0.5 * (y_edges[yi] + y_edges[yi + 1])])
+                # Average responses within bin if provided
+                if responses is not None:
+                    binned_responses_list.append(responses[bin_mask].mean())
 
     binned_imgs = np.array(binned_imgs_list)
     binned_lstas = np.array(binned_lstas_list)
     images_coordinate = np.array(bin_coords_list)
+    if responses is not None:
+        binned_responses = np.array(binned_responses_list)
     # Check if we have any binned data
 
     if len(binned_imgs) == 0:
@@ -574,6 +586,30 @@ def plot_clean_vectorfield(
     binned_arrowheads = np.array([[np.dot(PC1, lsta), np.dot(PC2, lsta)] for lsta in flatten_binned_lstas])
 
     fig, ax = plt.subplots(figsize=(20, 20))
+
+    # Calculate plot limits
+    xlim = max(np.abs(binned_arrowtails[:, 0]).max(), np.abs(images_coordinate[:, 0]).max()) * 1.1
+    ylim = max(np.abs(binned_arrowtails[:, 1]).max(), np.abs(images_coordinate[:, 1]).max()) * 1.1
+    plot_limit = max(xlim, ylim)
+
+    # Overlay response magnitudes as density plot if provided
+    if responses is not None:
+        # Create a grid for interpolation
+        grid_resolution = 100
+        x_interval = np.linspace(-plot_limit, plot_limit, grid_resolution)
+        y_interval = np.linspace(-plot_limit, plot_limit, grid_resolution)
+        xi_grid, yi_grid = np.meshgrid(x_interval, y_interval)
+
+        # Interpolate the response values onto the grid
+        zi = griddata(binned_arrowtails, binned_responses, (xi_grid, yi_grid), method="linear", fill_value=np.nan)
+
+        # Create the density plot using pcolormesh
+        density = ax.pcolormesh(x_interval, y_interval, zi, cmap="viridis", alpha=0.4, shading="gouraud", zorder=0)
+
+        # Add colorbar
+        cbar = plt.colorbar(density, ax=ax)
+        cbar.set_label("Response magnitude", size=14)
+
     ax.quiver(
         binned_arrowtails[:, 0],
         binned_arrowtails[:, 1],
@@ -584,6 +620,7 @@ def plot_clean_vectorfield(
         scale_units="xy",
         angles="xy",
         scale=binned_arrowheads.max(),
+        zorder=2,
     )
 
     ax.spines["right"].set_visible(False)
@@ -592,18 +629,33 @@ def plot_clean_vectorfield(
     ax.spines["left"].set_visible(False)
 
     # Add arrowheads to axes using matplotlib arrow function
-    xlim = max(np.abs(binned_arrowtails).max(), np.abs(images_coordinate).max()) * 1.1
     ax.arrow(
-        -xlim * 0.75, 0, 1.5 * xlim, 0, head_width=xlim * 0.02, head_length=xlim * 0.02, fc="k", ec="k", linewidth=1
+        -plot_limit * 0.75,
+        0,
+        1.5 * plot_limit,
+        0,
+        head_width=plot_limit * 0.02,
+        head_length=plot_limit * 0.02,
+        fc="k",
+        ec="k",
+        linewidth=1,
     )
     ax.arrow(
-        0, -xlim * 0.75, 0, 1.5 * xlim, head_width=xlim * 0.02, head_length=xlim * 0.02, fc="k", ec="k", linewidth=1
+        0,
+        -plot_limit * 0.75,
+        0,
+        1.5 * plot_limit,
+        head_width=plot_limit * 0.02,
+        head_length=plot_limit * 0.02,
+        fc="k",
+        ec="k",
+        linewidth=1,
     )
     ax.set_xticks([])
     ax.set_yticks([])
 
-    ax.set_xlim((-xlim, xlim))
-    ax.set_ylim((-xlim, xlim))
+    ax.set_xlim((-plot_limit, plot_limit))
+    ax.set_ylim((-plot_limit, plot_limit))
 
     plot_pc_insets(fig, PC1, PC2, x_size, y_size, explained_variance)
     return fig

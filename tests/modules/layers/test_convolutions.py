@@ -12,7 +12,7 @@ from openretina.modules.layers.convolutions import STSeparableBatchConv3d
         (5, 3),
     ],
 )
-def test_load_core_readout_from_remote(
+def test_st_separable_batch_conv3d(
     temporal_kernel_size: int,
     spatial_kernel_size: int,
 ) -> None:
