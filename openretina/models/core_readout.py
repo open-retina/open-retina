@@ -431,7 +431,8 @@ class ExampleCoreReadout(BaseCoreReadout):
         for key in readout_bias_keys:
             new_key = key.removesuffix(".bias_param") + ".bias"
             state_dict[new_key] = state_dict.pop(key)
-        LOGGER.warning(f"Renamed the following readout bias keys: {readout_bias_keys}")
+        if len(readout_bias_keys) > 0:
+            LOGGER.warning(f"Renamed the following readout bias keys: {readout_bias_keys}")
 
 
 def load_core_readout_from_remote(
