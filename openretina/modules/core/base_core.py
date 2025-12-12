@@ -248,11 +248,13 @@ class DummyCore(Core):
     A dummy core that does nothing. Used for readout only models, like the LNP model.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, cut_first_n_frames: int | None = None, **kwargs):
         super().__init__()
+        self._cut_first_n_frames = cut_first_n_frames
 
     def forward(self, x, data_key=None, **kwargs):
-        return x
+        res = x[:, :, self._cut_first_n_frames :]
+        return res
 
     def regularizer(self):
         return 0
