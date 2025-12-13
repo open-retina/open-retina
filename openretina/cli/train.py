@@ -12,16 +12,18 @@ from omegaconf import DictConfig, OmegaConf
 from openretina.data_io.base import compute_data_info
 from openretina.data_io.cyclers import LongCycler, ShortCycler
 from openretina.models.core_readout import UnifiedCoreReadout, load_core_readout_model
+from openretina.utils.config_resolvers import register_resolvers
 from openretina.utils.log_to_mlflow import log_to_mlflow
 
 log = logging.getLogger(__name__)
 logging.captureWarnings(True)
 
+register_resolvers()
 
 @hydra.main(
     version_base="1.3",
     config_path="../../configs",
-    config_name="hoefling_2024_core_readout_high_res",
+    config_name="vystrcilova_2024_nm_cnn",
 )
 def main(cfg: DictConfig) -> float | None:
     score = train_model(cfg)
@@ -60,12 +62,16 @@ def train_model(cfg: DictConfig) -> float | None:
 
     data_info = compute_data_info(neuron_data_dict, movies_dict, partial_data_info=cfg.data_io.get("data_info"))
 
+    print(data_info)
     train_loader = data.DataLoader(
         LongCycler(dataloaders["train"], shuffle=True),
         batch_size=None,
         num_workers=0,
         pin_memory=True,
     )
+    batch = next(iter(dataloaders["train"]["01"]))
+    print("input img shape", batch[0].shape)
+    print("response shape", batch[1].shape)
     valid_loader = ShortCycler(dataloaders["validation"])
 
     if cfg.seed is not None:

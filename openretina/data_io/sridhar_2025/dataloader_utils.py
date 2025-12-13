@@ -198,7 +198,7 @@ class ChunkedSampler(Sampler):
         self.seed = seed
         self.indices = np.arange(len(dataset))
         self.num_chunks = int(np.ceil(self.len / self.chunk_size))
-        print(f"chunk size: {self.chunk_size}, frames in trial: {self.dataset.num_of_imgs}")  # Size of each chunk
+        # print(f"chunk size: {self.chunk_size}, frames in trial: {self.dataset.num_of_imgs}")  # Size of each chunk
 
     def _create_shuffled_chunks(self):
         """Create shuffled chunks of indices for each epoch."""

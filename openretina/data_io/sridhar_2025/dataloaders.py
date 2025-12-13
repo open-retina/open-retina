@@ -95,9 +95,6 @@ class MarmosetMovieDataset(Dataset):
         Spatial down-sample factor.  ``1`` keeps full resolution.
     num_of_frames : int, default 15
         Number of *visible* frames given to the first network layer.
-    num_of_hidden_frames : int | tuple[int], optional
-        Look-back window per hidden layer.  If ``None`` it defaults to
-        ``num_of_frames``.
     num_of_layers : int, optional
         Total depth of the model (visible + hidden).  Required if
         ``hidden_temporal_dilation`` or ``num_of_hidden_frames`` are tuples.
@@ -420,7 +417,6 @@ def frame_movie_loader(
     num_of_trials_to_use: int | None = None,
     start_using_trial: int = 0,
     num_of_frames=None,
-    num_of_hidden_frames: int | None = None,
     temporal_dilation: int | tuple[int, ...] = 1,
     hidden_temporal_dilation: int | tuple[int, ...] = 1,
     cell_index=None,
@@ -645,6 +641,8 @@ def frame_movie_loader(
                 crop=crop,
                 flip_sta=True,
             )
+        if isinstance(num_of_frames, int):
+            num_of_frames = [num_of_frames]
         train_loader = get_dataloader(
             {"train_responses": train_responses, "test_responses": test_responses},
             fixations=fixations,
@@ -652,7 +650,7 @@ def frame_movie_loader(
             indices=train_ids,
             test=False,
             batch_size=batch_size,
-            num_of_frames=num_of_frames,
+            num_of_frames=num_of_frames[0],
             device=device,
             crop=crop,
             shuffle=True if shuffle is None else shuffle,
@@ -660,7 +658,7 @@ def frame_movie_loader(
             time_chunk_size=time_chunk_size,
             num_of_layers=num_of_layers,
             frames=frames,
-            num_of_hidden_frames=num_of_hidden_frames,
+            num_of_hidden_frames=num_of_frames[1:] if len(num_of_frames) > 1 else None,
             padding=padding,
             full_img_h=full_img_h,
             full_img_w=full_img_w,
@@ -679,7 +677,7 @@ def frame_movie_loader(
             test=False,
             batch_size=batch_size,
             fixations=fixations,
-            num_of_frames=num_of_frames,
+            num_of_frames=num_of_frames[0],
             device=device,
             crop=crop,
             shuffle=False if shuffle is None else shuffle,
@@ -687,7 +685,7 @@ def frame_movie_loader(
             time_chunk_size=time_chunk_size,
             num_of_layers=num_of_layers,
             frames=frames,
-            num_of_hidden_frames=num_of_hidden_frames,
+            num_of_hidden_frames=num_of_frames[1:] if len(num_of_frames) > 1 else None,
             padding=padding,
             full_img_h=full_img_h,
             full_img_w=full_img_w,
@@ -706,7 +704,7 @@ def frame_movie_loader(
             indices=train_ids,
             test=True,
             batch_size=batch_size,
-            num_of_frames=num_of_frames,
+            num_of_frames=num_of_frames[0],
             device=device,
             crop=crop,
             shuffle=False,
@@ -714,7 +712,7 @@ def frame_movie_loader(
             time_chunk_size=time_chunk_size,
             num_of_layers=num_of_layers,
             frames=frames,
-            num_of_hidden_frames=num_of_hidden_frames,
+            num_of_hidden_frames=num_of_frames[1:] if len(num_of_frames) > 1 else None,
             padding=padding,
             full_img_h=full_img_h,
             full_img_w=full_img_w,
@@ -1064,7 +1062,6 @@ def white_noise_loader(
     num_of_trials_to_use=None,
     start_using_trial=0,
     num_of_frames=None,
-    num_of_hidden_frames=None,
     temporal_dilation=1,
     hidden_temporal_dilation=1,
     cell_index=0,
@@ -1127,6 +1124,8 @@ def white_noise_loader(
                 crop=crop,
                 flip_sta=False,
             )
+        if isinstance(num_of_frames, int):
+            num_of_frames = [num_of_frames]
         train_loader = get_noise_dataloader(
             {"train_responses": train_responses, "test_responses": test_responses},
             path=dataset_train_image_path,
@@ -1136,8 +1135,8 @@ def white_noise_loader(
             batch_size=batch_size,
             use_cache=use_cache,
             cache_maxsize=cache_maxsize,
-            num_of_frames=num_of_frames,
-            num_of_hidden_frames=num_of_hidden_frames,
+            num_of_frames=num_of_frames[0],
+            num_of_hidden_frames=num_of_frames[1:] if len(num_of_frames) > 1 else None,
             device=device,
             crop=crop,
             subsample=subsample,
@@ -1160,8 +1159,8 @@ def white_noise_loader(
             use_cache=use_cache,
             cache_maxsize=cache_maxsize,
             shuffle=False,
-            num_of_frames=num_of_frames,
-            num_of_hidden_frames=num_of_hidden_frames,
+            num_of_frames=num_of_frames[0],
+            num_of_hidden_frames=num_of_frames[1:] if len(num_of_frames) > 1 else None,
             device=device,
             crop=crop,
             subsample=subsample,
@@ -1184,8 +1183,8 @@ def white_noise_loader(
             use_cache=use_cache,
             shuffle=False,
             cache_maxsize=20,
-            num_of_frames=num_of_frames,
-            num_of_hidden_frames=num_of_hidden_frames,
+            num_of_frames=num_of_frames[0],
+            num_of_hidden_frames=num_of_frames[1:] if len(num_of_frames) > 1 else None,
             device=device,
             crop=crop,
             subsample=subsample,

@@ -1,6 +1,6 @@
-sessions: ["01", "02", "04"]
+sessions: ["04"]
 input_channels: 1
-placeholder_time_bins: 100
+placeholder_time_bins: 130
 placeholder_height: 80
 placeholder_width: 90
 stimulus_seed: 0
@@ -10,10 +10,12 @@ response_files:
   "02": "responses/cell_responses_02_wn.pkl"
   "04": "responses/cell_responses_04_wn.pkl"
 
-excluded_cells:
-  "01": []
-  "02": []
-  "04": []
+excluded_cells: ${dataloader.excluded_cells}
+
+#excluded_cells:
+#  "01": []
+#  "02": []
+#  "04": []
 
 stimuli:
   _target_: openretina.data_io.sridhar_2025.stimuli.build_placeholder_movies
@@ -32,7 +34,7 @@ responses:
   stimulus_seed: ${data_io.stimulus_seed}
 
 data_info:
-  response_rate_hz: null # TODO fill this in
-  stimulus_rate_hz: null # TODO fill this in
+  response_rate_hz: 85 Hz
+  stimulus_rate_hz: 85 Hz
   stimulus_class: "whitenoise"
-  retina_pixel_size_um: null # TODO fill this in
+  retina_pixel_size_um: 30

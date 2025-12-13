@@ -102,6 +102,102 @@ class MultipleLNP(BaseCoreReadout):
 
 
 class SingleCellSeparatedLNP(LightningModule):
+    """
+        Single-cell, separable LNP model implemented as a PyTorch LightningModule.
+
+        This model implements an LNP-style encoding model where the linear filter is
+        constrained to be *space-time separable.
+
+        Spatial filtering is performed with a 3D convolution whose kernel size is
+        (1, H, W), i.e. no temporal mixing in the first stage. Temporal filtering
+        is performed with a second 3D convolution spanning the full input time axis
+        (T, 1, 1). The separable rank controls the number of spatial and temporal components used.
+
+        The module crops the input around a receptive-field
+        location so that the spatial kernel operates on a local patch rather than
+        the full image.
+
+        Parameters
+        ----------
+        in_shape:
+            Tuple (channels, time, height, width) describing the expected stimulus shape
+            *excluding* batch dimension.
+        rf_location:
+            Optional (y, x) center location (in input pixel coordinates) used when
+            cropping to a spatial patch of size `spat_kernel_size`. If None, defaults
+            to the spatial center of the input.
+        spat_kernel_size:
+            (height, width) of the spatial kernel / crop window.
+        learning_rate:
+            Learning rate used by optimizer.
+        rank:
+            Separable rank specifies the number of spatial and temporal filter pairs that can be learned to predict.
+            rank=1 corresponds to a single spatial filter and a single temporal filter. 
+            max rank can be  which corresponds to a full 3d convolution.
+        smooth_weight_spat:
+            Weight for spatial smoothness regularization (applied to `space_conv`).
+        smooth_weight_temp:
+            Weight for temporal smoothness regularization (applied to `time_conv`).
+        sparse_weight:
+            Weight for L1 sparsity penalty on both spatial and temporal kernels.
+        smooth_regularizer_spat:
+            Name of the spatial regularizer class in `regularizers.__dict__`.
+            Examples in this code path include "LaplaceL2norm" or "GaussianLaplaceL2".
+        smooth_regularizer_temp:
+            Name of the temporal regularizer class in `regularizers.__dict__`.
+        smooth_regularizer:
+            Currently stored but not used directly in this implementation (kept for API
+            compatibility / future use).
+        laplace_padding:
+            Passed through to regularizer constructors as `padding=...`. For GaussianLaplaceL2,
+            a `kernel=...` argument is also supplied.
+        nonlinearity:
+            Output nonlinearity applied after the temporal stage. If "parametrized_softplus",
+            uses `ParametrizedSoftplus()`. Otherwise, uses `torch.nn.functional.<nonlinearity>`
+            via `F.__dict__[nonlinearity]` (e.g. "exp", "softplus", ...).
+        fit_gaussian:
+            Currently stored but not used directly in this implementation (likely intended
+            for fitting / initializing a Gaussian RF).
+        normalize_weights:
+            If True, renormalizes spatial and temporal kernels to unit norm at every
+            forward pass (in-place, under no_grad).
+        loss:
+            Training loss. Defaults to `PoissonLoss3d()` if None.
+        validation_loss:
+            Validation metric/loss. Defaults to `CorrelationLoss3d(avg=True)` if None.
+            During training/validation, correlation is logged as the negative of this loss.
+
+        Input / Output shapes
+        ---------------------
+        Forward input `x`:
+            Tensor of shape (batch, channels, time, height, width).
+        Forward output:
+            Tensor of shape (batch, time, neurons) where neurons=1.
+
+        Notes
+        -----
+        *Cropping*: If `spat_kernel_size` does not match the full input spatial size,
+        the module crops a patch centered at `rf_location` before applying convolutions.
+        Cropping is boundary-safe (it clips at edges).
+
+        *Regularization*:
+            regularizer() = laplace() + sparse_weight * weights_l1()
+        where laplace() applies the configured smoothness penalties to spatial and
+        temporal kernels, and weights_l1() applies L1 to both kernels.
+
+        Logged metrics
+        --------------
+        Training:
+            - regularization_loss_core
+            - train_total_loss
+            - train_loss
+            - train_correlation
+        Validation:
+            - val_loss
+            - val_regularization_loss
+            - val_total_loss
+            - val_correlation
+        """
     def __init__(
         self,
         in_shape: Int[tuple, "channel time height width"],

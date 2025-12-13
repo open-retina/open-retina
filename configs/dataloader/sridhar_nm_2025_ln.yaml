@@ -1,6 +1,6 @@
 _target_: openretina.data_io.sridhar_2025.dataloaders.frame_movie_loader
 _convert_: object
-basepath: "${paths.data_dir}"
+basepath: "${paths.cache_dir}"
 files:
   "01": "responses/cell_responses_01_fixation_movie.pkl"
   "02": "responses/cell_responses_02_fixation_movie.pkl"
