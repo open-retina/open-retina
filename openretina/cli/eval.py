@@ -36,8 +36,8 @@ def evaluate_model(cfg: DictConfig) -> float:
 
     if cfg.paths.cache_dir is None:
         raise ValueError("Please provide a cache_dir for the data in the config file or as a command line argument.")
-    if cfg.paths.load_model_path is None:
-        raise ValueError("Please provide paths.load_model_path to define which model to test.")
+    if cfg.evaluation.model_path is None:
+        raise ValueError("Please provide evaluation.model_path to define which model to test.")
 
     # Set cache folder
     os.environ["OPENRETINA_CACHE_DIRECTORY"] = cfg.paths.cache_dir
