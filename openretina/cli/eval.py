@@ -2,12 +2,12 @@
 
 import logging
 import os
-import pickle
 from collections import defaultdict
 
 import hydra
 import lightning.pytorch
 import numpy as np
+import pandas
 import torch
 from omegaconf import DictConfig, OmegaConf
 
@@ -69,7 +69,6 @@ def evaluate_model(cfg: DictConfig) -> float:
     if cfg.seed is not None:
         lightning.pytorch.seed_everything(cfg.seed)
 
-    model_responses_dict = {}
     results = defaultdict(list)
     dataloader_dict = dataloaders[test_key]
     poisson_loss = PoissonLoss3d(per_neuron=True)
@@ -77,23 +76,25 @@ def evaluate_model(cfg: DictConfig) -> float:
     for session, dl in dataloader_dict.items():
         dataset = dl.dataset
         movies = dataset.movies.to(device).unsqueeze(0)
-        neuron_data = neuron_data_dict[session]
-        # other potentially useful keys: "roi_mask", "group_assignment", "eye"
-        # roi_ids = neuron_data.session_kwargs["roi_ids"]
 
         with torch.no_grad():
             model_responses_torch = model.forward(movies, data_key=session)
             targets = dataset.responses.to(device).unsqueeze(0)
             poisson_loss_session = poisson_loss(model_responses_torch, targets)
 
-        results["poisson_loss"].append(poisson_loss_session.cpu().numpy())
+        results["poisson_loss_to_average"].extend(poisson_loss_session.cpu().numpy().tolist())
 
         model_responses = model_responses_torch.squeeze(0).cpu().numpy()
-        model_responses_dict[session] = model_responses
+        if cfg.evaluation.get("add_responses_to_model_results", False):
+            results["model_response"].extend([x.tolist() for x in model_responses.T])
 
-        responses_by_trial = dataset.test_responses_by_trial.cpu().numpy()
-        responses_by_trial = np.swapaxes(responses_by_trial, 0, 2)
         avg_responses = dataset.responses.numpy()
+        try:
+            responses_by_trial = dataset.test_responses_by_trial.cpu().numpy()
+            responses_by_trial = np.swapaxes(responses_by_trial, 0, 2)
+        except Exception as e:
+            print(f"Could not retrieve responses by trial: {e}")
+            responses_by_trial = avg_responses[:, np.newaxis, :]
 
         # adjust responses to lag
         new_lag = avg_responses.shape[0] - model_responses.shape[0]
@@ -103,6 +104,7 @@ def evaluate_model(cfg: DictConfig) -> float:
             raise ValueError(f"Inconsistent lag: {new_lag=} {lag=}")
 
         avg_responses = avg_responses[lag:]
+        n_neurons_session = avg_responses.shape[1]
         responses_by_trial = responses_by_trial[lag:]
 
         if model_responses.shape != avg_responses.shape:
@@ -112,27 +114,46 @@ def evaluate_model(cfg: DictConfig) -> float:
                 f"Inconsistent responses by trial shape: {avg_responses.shape=} {responses_by_trial.shape=}"
             )
 
-        results["corr"].append(correlation_numpy(avg_responses, model_responses, axis=0))
-        results["mse"].append(MSE_numpy(avg_responses, model_responses, axis=0))
-        results["feve"].append(feve(responses_by_trial, model_responses))
+        # Add evaluation specific
+        results["corr_to_average"].extend(correlation_numpy(avg_responses, model_responses, axis=0).tolist())
+        results["mse_to_average"].extend(MSE_numpy(avg_responses, model_responses, axis=0).tolist())
+        results["feve"].extend(feve(responses_by_trial, model_responses).tolist())
         jackknife, _ = oracle_corr_jackknife(responses_by_trial, cut_first_n_frames=lag)
-        results["jackknife"].append(jackknife)
+        results["jackknife"].extend(jackknife.tolist())
 
         for i in range(responses_by_trial.shape[1]):
             resp = responses_by_trial[:, i, :]
-            results[f"corr_{i}"].append(correlation_numpy(resp, model_responses, axis=0))
-            results[f"mse_{i}"].append(MSE_numpy(resp, model_responses, axis=0))
+            results[f"corr_{i}"].extend(correlation_numpy(resp, model_responses, axis=0).tolist())
+            results[f"mse_{i}"].extend(MSE_numpy(resp, model_responses, axis=0).tolist())
 
+        # Add neuron specific information
+        neuron_data_info = neuron_data_dict[session].session_kwargs
+        results["session"].extend([session] * n_neurons_session)
+        if "roi_ids" in neuron_data_info:
+            results["roi_ids"].extend(neuron_data_info["roi_ids"].tolist())
+        if "group_assignment" in neuron_data_info:
+            results["group_assignment"].extend(neuron_data_info["group_assignment"].tolist())
+        if "scan_sequence_idx" in neuron_data_info:
+            scan_sequence_idx = int(neuron_data_info["scan_sequence_idx"])
+            results["scan_sequence_idx"].extend([scan_sequence_idx] * n_neurons_session)
+
+    # print statistics
+    df = pandas.DataFrame(results)
     print(f"{cfg.paths.load_model_path} ({lag=})")
-    for k, v in results.items():
-        avg = np.average(np.concatenate(v))
-        print(f"{k}: {avg:.3f}")
-
-    avg_correlation = float(np.average(np.concatenate(results["corr"])))
+    for k in ["corr_to_average", "mse_to_average", "feve", "poisson_loss_to_average"]:
+        print(f"{k}: {df[k].mean():.3f}")
+    # comparison to individual traces
+    for k in ["corr", "mse"]:
+        avgs, i = [], 0
+        while (key_ := f"{k}_{i}") in df:
+            avgs.append(df[key_].mean())
+            i += 1
+        print(f"{k}: {np.mean(avgs):.3f} (+-{np.std(avgs):.3f})")
 
     if cfg.evaluation.get("model_results_path") is not None:
-        with open(cfg.evaluation.model_results_path, "wb") as f:
-            pickle.dump(model_responses_dict, f)
+        df.to_csv(cfg.evaluation.model_results_path)
+
+    avg_correlation = float(df["corr_to_average"].mean())
     return avg_correlation
 
 
