@@ -12,7 +12,7 @@ Response to flashed images from the Van Hateren dataset (http://bethgelab.org/da
 All images are shown for 300ms and precedeed by 300ms of grey (~3000 images).  
 Some images are repeated and form the test set (30 images).
 The 'stimulus' section of the dataset contained only the image themselves.
-The reported firing rate are sumemd over the presentation of the entire image (300 ms).
+The reported firing rate are summed over the presentation of the entire image (300 ms).
 
 ## Unique characteristics
 This data was collected to train and test 2 layers CNN model of RGCs on flashed natural images. 
