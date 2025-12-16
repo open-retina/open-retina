@@ -2,6 +2,7 @@
 # Data originally from: https://gin.g-node.org/gollischlab/Sridhar_Gollisch_2025_Marmoset_RGC_Responses_Naturalistic_Movies
 # Paper: https://www.biorxiv.org/content/10.1101/2024.03.05.583449v2
 
+
 _target_: openretina.data_io.sridhar_2025.dataloaders.white_noise_loader
 _convert_: object
 basepath: "${paths.cache_dir}"
@@ -45,9 +46,12 @@ hidden_temporal_dilation: 1
 cell_index: null
 device: "cuda"
 time_chunk_size: 100
-num_of_layers: 3
+num_of_layers: 2
 retina_specific_crops: True
 extra_frame: 0
 hard_coded: null
-retina_index: null
+retina_index: "04"
 chunked_sampling: True
+
+
+

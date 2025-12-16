@@ -1,13 +1,13 @@
 # Core and data
-hidden_channels: [16, 16, 32]
-in_shape: ??? # Required at top-level config
-n_neurons_dict: ??? # Set dynamically (e.g., in training script after loading sessions)
+hidden_channels: [8, 16]
+in_shape: ???  # Required at top-level config
+n_neurons_dict: ???  # Set dynamically (e.g., in training script after loading sessions)
 
 core:
   _target_: openretina.modules.core.base_core.SimpleCoreWrapper
   _convert_: object
-  temporal_kernel_sizes: [27, 3, 3]
-  spatial_kernel_sizes: [21, 5, 5]
+  temporal_kernel_sizes: [30, 5]
+  spatial_kernel_sizes: [21, 5]
   gamma_input: 0.0
   gamma_in_sparse: 0.0
   gamma_hidden: 0.0
