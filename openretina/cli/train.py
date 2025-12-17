@@ -69,9 +69,9 @@ def train_model(cfg: DictConfig) -> float | None:
         num_workers=0,
         pin_memory=True,
     )
-    batch = next(iter(dataloaders["train"]["01"]))
-    print("input img shape", batch[0].shape)
-    print("response shape", batch[1].shape)
+    # batch = next(iter(dataloaders["train"]["01"]))
+    # print("input img shape", batch[0].shape)
+    # print("response shape", batch[1].shape)
     valid_loader = ShortCycler(dataloaders["validation"])
 
     if cfg.seed is not None:

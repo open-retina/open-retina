@@ -41,9 +41,9 @@ class PointGaussianReadout(Readout):
         bias (bool): adds a bias term
         init_mu_range (float): initialises the mean with Uniform([-init_range, init_range])
                             [expected: positive value <=1]. Default: 0.1
-        init_sigma (float): The standard deviation of the Gaussian with `init_sigma` when `gauss_type` is
+        init_sigma_range (float): The standard deviation of the Gaussian with `init_sigma_range` when `gauss_type` is
             'isotropic' or 'uncorrelated'. When `gauss_type='full'` initialize the square root of the
-            covariance matrix with Uniform([-init_sigma, init_sigma]). Default: 1
+            covariance matrix with Uniform([-init_sigma_range, init_sigma_range]). Default: 1
         batch_sample (bool): if True, samples a position for each image in the batch separately
                             [default: True as it decreases convergence time and performs just as well]
         align_corners (bool): Keyword agrument to gridsample for bilinear interpolation.
@@ -91,7 +91,7 @@ class PointGaussianReadout(Readout):
         outdims,
         bias,
         init_mu_range=0.1,
-        init_sigma=1,
+        init_sigma_range=0.15,
         batch_sample=True,
         align_corners=True,
         gauss_type="full",
@@ -110,7 +110,7 @@ class PointGaussianReadout(Readout):
         # determines whether the Gaussian is isotropic or not
         self.gauss_type = gauss_type
 
-        if init_mu_range > 1.0 or init_mu_range <= 0.0 or init_sigma <= 0.0:
+        if init_mu_range > 1.0 or init_mu_range <= 0.0 or init_sigma_range <= 0.0:
             raise ValueError("either init_mu_range doesn't belong to [0.0, 1.0] or init_sigma_range is non-positive")
 
         # store statistics about the images and neurons
@@ -148,7 +148,7 @@ class PointGaussianReadout(Readout):
         else:
             raise ValueError(f'gauss_type "{gauss_type}" not known')
 
-        self.init_sigma = init_sigma
+        self.init_sigma_range = init_sigma_range
         self.sigma = Parameter(torch.Tensor(*self.sigma_shape))  # standard deviation for gaussian for each neuron
 
         self.initialize_features(**(shared_features or {}))
@@ -289,9 +289,9 @@ class PointGaussianReadout(Readout):
             self._mu.data.uniform_(-self.init_mu_range, self.init_mu_range)
 
         if self.gauss_type != "full":
-            self.sigma.data.fill_(self.init_sigma)
+            self.sigma.data.fill_(self.init_sigma_range)
         else:
-            self.sigma.data.uniform_(-self.init_sigma, self.init_sigma)
+            self.sigma.data.uniform_(-self.init_sigma_range, self.init_sigma_range)
         self._features.data.fill_(1 / self.in_shape[0])
         if self._shared_features:
             self.scales.data.fill_(1.0)
