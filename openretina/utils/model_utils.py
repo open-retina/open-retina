@@ -68,9 +68,7 @@ def get_core_output_based_on_dimensions(model_config):
         if isinstance(spatial_kernel_size, int):
             spatial_kernel_size = (spatial_kernel_size, spatial_kernel_size)
         temporal_dilation = model_config.core.get("temporal_dilation", 1)
-        spatial_dilation = (
-            1 if "spatial_dilation" not in model_config.core.keys() else model_config.core.spatial_dilation
-        )
+        spatial_dilation = model_config.core.get("spatial_dilation", 1)
         stride = [1] * layers if "stride" not in model_config.core.keys() else model_config.core.stride
 
         t = math.floor(t - (temp_kernel_size - 1) * temporal_dilation)
