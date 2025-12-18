@@ -67,9 +67,7 @@ def get_core_output_based_on_dimensions(model_config):
         spatial_kernel_size = model_config.core.spatial_kernel_sizes[i]
         if isinstance(spatial_kernel_size, int):
             spatial_kernel_size = (spatial_kernel_size, spatial_kernel_size)
-        temporal_dilation = (
-            1 if "temporal_dilation" not in model_config.core.keys() else model_config.core.temporal_dilation
-        )
+        temporal_dilation = model_config.core.get("temporal_dilation", 1)
         spatial_dilation = (
             1 if "spatial_dilation" not in model_config.core.keys() else model_config.core.spatial_dilation
         )
