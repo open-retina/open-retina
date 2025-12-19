@@ -29,8 +29,8 @@ model:
 
 paths:
   load_model_path: null
-  cache_dir: "/scratch-grete/projects/nim00010/data/gollisch_lab/sridhar_2025/marmoset/natural_movie/" # ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Remote files are downloaded to this location
-  data_dir: "/scratch-grete/projects/nim00010/data/gollisch_lab/sridhar_2025/marmoset/natural_movie/"
+  cache_dir:  ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Remote files are downloaded to this location
+  data_dir: "https://huggingface.co/datasets/open-retina/open-retina/tree/main/gollisch_lab/sridhar_2025/marmoset/natural_movie"
   log_dir: "./logs/cnn_nm" # Used as parent for output_dir. Will store train logs.
   output_dir: ${hydra:runtime.output_dir} # Modify subpaths in the "hydra/default.yaml" config
 

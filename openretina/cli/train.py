@@ -62,16 +62,12 @@ def train_model(cfg: DictConfig) -> float | None:
 
     data_info = compute_data_info(neuron_data_dict, movies_dict, partial_data_info=cfg.data_io.get("data_info"))
 
-    print(data_info)
     train_loader = data.DataLoader(
         LongCycler(dataloaders["train"], shuffle=True),
         batch_size=None,
         num_workers=0,
         pin_memory=True,
     )
-    # batch = next(iter(dataloaders["train"]["01"]))
-    # print("input img shape", batch[0].shape)
-    # print("response shape", batch[1].shape)
     valid_loader = ShortCycler(dataloaders["validation"])
 
     if cfg.seed is not None:
