@@ -14,6 +14,7 @@ import omegaconf
 import requests
 import torch
 import yaml
+from einops import rearrange
 
 
 def set_seed(seed: int | None = None, seed_torch: bool = True) -> int:
@@ -177,3 +178,40 @@ def check_server_responding(url: str) -> bool:
         return False
 
     return response.status_code == 200
+
+
+def reorder_like_a(a, b):
+    """
+    Reorder b so that it matches a's two dims, with the extra dim first.
+
+    a: shape (D1, D2)
+    b: shape (X, Y, Z), where two of these match (D1, D2) in any order
+
+    Returns:
+        b_reordered: shape (extra, D1, D2)
+    """
+    D1, D2 = a.shape
+    shape_to_axis = {dim: i for i, dim in enumerate(b.shape)}
+
+    if D1 not in shape_to_axis or D2 not in shape_to_axis:
+        raise ValueError("b does not contain both dimensions of a")
+
+    extra_dim = [d for d in b.shape if d not in (D1, D2)]
+    if len(extra_dim) != 1:
+        raise ValueError("Could not uniquely identify extra dimension")
+
+    extra = extra_dim[0]
+
+    # Map dimension sizes to einops axis names
+    pattern_in = []
+    for s in b.shape:
+        if s == extra:
+            pattern_in.append("extra")
+        elif s == D1:
+            pattern_in.append("d1")
+        elif s == D2:
+            pattern_in.append("d2")
+
+    pattern_in = " ".join(pattern_in)
+
+    return rearrange(b, f"{pattern_in} -> extra d1 d2")
