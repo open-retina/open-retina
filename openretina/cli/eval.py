@@ -201,8 +201,7 @@ def evaluate_model(cfg: DictConfig) -> float:
     # Create DataFrame from list of dictionaries
     df = pandas.DataFrame(results)
 
-    model_path_display = cfg.paths.get("load_model_path", cfg.evaluation.model_path)
-    print(f"{model_path_display} ({data_split=}, {lag=})")
+    print(f"{cfg.evaluation.model_path} ({data_split=}, {lag=})")
     for k in ["corr_to_average", "mse_to_average", "feve", "poisson_loss_to_average"]:
         print(f"{k}: {np.nanmean(df[k]):.3f}")
     # comparison to individual traces
