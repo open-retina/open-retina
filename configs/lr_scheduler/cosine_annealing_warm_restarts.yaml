@@ -1,0 +1,12 @@
+# CosineAnnealingWarmRestarts scheduler configuration
+# Set the learning rate using a cosine annealing schedule with warm restarts
+_target_: torch.optim.lr_scheduler.CosineAnnealingWarmRestarts
+T_0: 10 # Number of iterations for the first restart
+T_mult: 2 # Factor increases T_i after a restart
+eta_min: 1.0e-6 # Minimum learning rate
+last_epoch: -1
+
+# PyTorch Lightning specific parameters
+monitor: null
+interval: epoch
+frequency: 1
