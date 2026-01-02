@@ -2,13 +2,15 @@ defaults:
   - data_io: karamanlis_2024
   - dataloader: karamanlis_2024
   - model: base_core_readout
+  - optimizer: adamw
+  - lr_scheduler: reduce_lr_on_plateau
   - training_callbacks:
-    - early_stopping
-    - lr_monitor
-    - model_checkpoint
+      - early_stopping
+      - lr_monitor
+      - model_checkpoint
   - logger:
-    - tensorboard
-    - csv
+      - tensorboard
+      - csv
   - trainer: default_deterministic
   - hydra: default
   - _self_ # values in this config will overwrite the defaults
@@ -27,10 +29,10 @@ paths:
 
 # Overwrite model defaults with specifics for Karamanlis 2024 data format
 model:
-  in_shape: 
+  in_shape:
     - 1
     - 100
-    - ${data_io.video_height} 
+    - ${data_io.video_height}
     - ${data_io.video_width}
   hidden_channels: [16, 32, 64]
   core:

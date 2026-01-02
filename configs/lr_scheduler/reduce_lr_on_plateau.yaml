@@ -1,0 +1,19 @@
+# ReduceLROnPlateau scheduler configuration
+# This is the default scheduler used in the codebase
+# Reduces learning rate when a metric has stopped improving
+_target_: torch.optim.lr_scheduler.ReduceLROnPlateau
+mode: max # max for metrics that should increase (e.g., correlation), min for loss
+factor: 0.3
+patience: 5
+threshold: 0.0005
+threshold_mode: abs
+# min_lr is computed automatically as: learning_rate * (factor ** 3) if not explicitly set
+# You can override it explicitly if needed: min_lr: 1.0e-6
+cooldown: 0
+eps: 1.0e-8
+
+# PyTorch Lightning specific parameters
+monitor: val_correlation # Metric to monitor
+interval: epoch # Unit of the scheduler's step (epoch or step)
+frequency: 1 # How many epochs/steps between scheduler steps
+

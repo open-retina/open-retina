@@ -17,6 +17,7 @@ from openretina.modules.core.base_core import Core, SimpleCoreWrapper
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
 from openretina.modules.readout.multi_readout import MultiGaussianMaskReadout, MultiReadoutBase
 from openretina.utils.file_utils import get_cache_directory, get_local_file_path
+from openretina.utils.optimizer_utils import instantiate_optimizer, instantiate_scheduler
 
 LOGGER = logging.getLogger(__name__)
 
@@ -285,7 +286,11 @@ class UnifiedCoreReadout(BaseCoreReadout):
         readout: DictConfig,
         hidden_channels: tuple[int, ...] | Iterable[int] | None = None,
         learning_rate: float = 0.001,
+        loss: nn.Module | DictConfig | None = None,
+        validation_loss: nn.Module | DictConfig | None = None,
         data_info: dict[str, Any] | None = None,
+        optimizer: DictConfig | None = None,
+        lr_scheduler: DictConfig | None = None,
     ):
         """
         Initializes a UnifiedCoreReadout for multi-session configurable neural modeling via Hydra configs.
@@ -303,8 +308,16 @@ class UnifiedCoreReadout(BaseCoreReadout):
                 Hydra config for the readout module (specifies type and custom session-aware params).
             learning_rate (float, optional):
                 Learning rate for model training. Defaults to 0.001.
+            loss (nn.Module, optional):
+                Loss function for training. Defaults to PoissonLoss3d if None.
+            validation_loss (nn.Module, optional):
+                Loss used to compute correlation performance metric. Defaults to CorrelationLoss3d(avg=True) if None.
             data_info (dict[str, Any], optional):
                 Additional metadata dictionary, e.g., with input shape and neuron mapping.
+            optimizer (DictConfig, optional):
+                Hydra config for optimizer instantiation. If None, defaults to AdamW.
+            lr_scheduler (DictConfig, optional):
+                Hydra config for learning rate scheduler. If None, defaults to ReduceLROnPlateau.
         """
         # Make sure in_shape and hidden_channels are a tuple
         # (with hydra configs they can be a `omegaconf.listconfig.ListConfig`).
@@ -333,7 +346,56 @@ class UnifiedCoreReadout(BaseCoreReadout):
             mean_activity_dict=mean_activity_dict,
         )
 
-        super().__init__(core=core_module, readout=readout_module, learning_rate=learning_rate, data_info=data_info)
+        if loss is not None and isinstance(loss, DictConfig):
+            loss_module = hydra.utils.instantiate(loss)
+        else:
+            loss_module = loss
+
+        if validation_loss is not None and isinstance(validation_loss, DictConfig):
+            validation_loss_module = hydra.utils.instantiate(validation_loss)
+        else:
+            validation_loss_module = validation_loss
+
+        # Store optimizer and scheduler configs for use in configure_optimizers
+        self.optimizer_config = optimizer
+        self.lr_scheduler_config = lr_scheduler
+
+        super().__init__(
+            core=core_module,
+            readout=readout_module,
+            learning_rate=learning_rate,
+            loss=loss_module,
+            validation_loss=validation_loss_module,
+            data_info=data_info,
+        )
+
+    def configure_optimizers(self):
+        """
+        Configure optimizers and schedulers using Hydra configs.
+
+        This method overrides BaseCoreReadout.configure_optimizers() to use
+        configurable optimizers and schedulers via the utility functions.
+        """
+
+        # Instantiate optimizer using utility function
+        optimizer = instantiate_optimizer(
+            self.optimizer_config,
+            self.parameters(),
+            self.learning_rate,
+        )
+
+        # Instantiate scheduler using utility function
+        scheduler_dict = instantiate_scheduler(
+            self.lr_scheduler_config,
+            optimizer,
+            self.learning_rate,
+            trainer=getattr(self, "trainer", None),
+        )
+
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": scheduler_dict,
+        }
 
 
 class ExampleCoreReadout(BaseCoreReadout):
