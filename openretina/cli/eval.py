@@ -160,9 +160,7 @@ def evaluate_model(cfg: DictConfig) -> float:
         per_neuron_fields = {}
         scalar_fields = {}
         for key, value in neuron_data_info.items():
-            if value is None:
-                scalar_fields[key] = None
-            elif isinstance(value, (np.ndarray, list, tuple)):
+            if isinstance(value, (np.ndarray, list, tuple)):
                 # Check if it's a per-neuron array (length matches n_neurons_session)
                 arr = np.asarray(value)
                 if len(arr) == n_neurons_session:
