@@ -12,13 +12,11 @@ from omegaconf import DictConfig, OmegaConf
 from openretina.data_io.base import compute_data_info
 from openretina.data_io.cyclers import LongCycler, ShortCycler
 from openretina.models.core_readout import UnifiedCoreReadout, load_core_readout_model
-from openretina.utils.config_resolvers import register_resolvers
 from openretina.utils.log_to_mlflow import log_to_mlflow
 
 log = logging.getLogger(__name__)
 logging.captureWarnings(True)
 
-register_resolvers()
 
 @hydra.main(
     version_base="1.3",
