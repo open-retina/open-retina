@@ -115,7 +115,11 @@ def evaluate_model(cfg: DictConfig) -> float:
         if lag < 0:
             lag = new_lag
         elif new_lag != lag:
-            raise ValueError(f"Inconsistent lag: {new_lag=} {lag=}")
+            log.error(
+                f"Inconsistent lag between sessions: {new_lag=} {lag=}"
+                "\nThis might indicate a problem with the model or the data."
+            )
+            lag = new_lag
 
         avg_responses = avg_responses[lag:]
         n_neurons_session = avg_responses.shape[1]
