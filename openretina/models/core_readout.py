@@ -30,7 +30,10 @@ _MODEL_NAME_TO_REMOTE_LOCATION = {
         f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/hoefling_2024_base_low_res_grey_scale.ckpt"
     ),
     "hoefling_2024_base_high_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/hoefling_2024_base_high_res.ckpt",
-    # "karamanlis_2024_base": f"",  # Todo: update
+    "karamanlis_2024_base_mouse": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/karamanlis_2024_base_mouse.ckpt",
+    "karamanlis_2024_base_marmoset": (
+        f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/karamanlis_2024_base_marmoset.ckpt"
+    ),
     # "maheswaranathan_2023_base": f"",  # Todo: update
 }
 
@@ -225,7 +228,11 @@ class BaseCoreReadout(LightningModule):
         self, core_in_shape: tuple[int, int, int, int], core: Core
     ) -> tuple[int, int, int, int]:
         # Use the same device as the core's parameters to avoid potential errors at init.
-        device = next(core.parameters()).device
+        try:
+            device = next(core.parameters()).device
+        except StopIteration:
+            # No parameters (e.g., when using DummyCore), assume core can be run on cpu
+            device = torch.device("cpu")
 
         with torch.no_grad():
             stimulus = torch.zeros((1,) + tuple(core_in_shape), device=device)
@@ -273,10 +280,10 @@ class UnifiedCoreReadout(BaseCoreReadout):
     def __init__(
         self,
         in_shape: Int[tuple, "channels time height width"],
-        hidden_channels: tuple[int, ...] | Iterable[int],
         n_neurons_dict: dict[str, int],
         core: DictConfig,
         readout: DictConfig,
+        hidden_channels: tuple[int, ...] | Iterable[int] | None = None,
         learning_rate: float = 0.001,
         data_info: dict[str, Any] | None = None,
     ):
@@ -302,10 +309,11 @@ class UnifiedCoreReadout(BaseCoreReadout):
         # Make sure in_shape and hidden_channels are a tuple
         # (with hydra configs they can be a `omegaconf.listconfig.ListConfig`).
         # This lead to an error when logging hyperparameters with the csv logger during training.
-        hidden_channels = tuple(hidden_channels)
         in_shape = tuple(in_shape)
+        if hidden_channels is not None:
+            hidden_channels = tuple(hidden_channels)
+            core.channels = (in_shape[0], *hidden_channels)
 
-        core.channels = (in_shape[0], *hidden_channels)
         core_module = hydra.utils.instantiate(
             core,
             n_neurons_dict=n_neurons_dict,
@@ -416,6 +424,17 @@ class ExampleCoreReadout(BaseCoreReadout):
 
         super().__init__(core=core, readout=readout, learning_rate=learning_rate, data_info=data_info)
 
+    def on_load_checkpoint(self, checkpoint) -> None:
+        """To support legacy models that use `bias_param` instead of `bias` in their readout layers."""
+        state_dict = checkpoint["state_dict"]
+
+        readout_bias_keys = [k for k in state_dict.keys() if k.startswith("readout.") and k.endswith(".bias_param")]
+        for key in readout_bias_keys:
+            new_key = key.removesuffix(".bias_param") + ".bias"
+            state_dict[new_key] = state_dict.pop(key)
+        if len(readout_bias_keys) > 0:
+            LOGGER.warning(f"Renamed the following readout bias keys: {readout_bias_keys}")
+
 
 def load_core_readout_from_remote(
     model_name: str,
@@ -431,7 +450,6 @@ def load_core_readout_from_remote(
         )
     remote_path = _MODEL_NAME_TO_REMOTE_LOCATION[model_name]
     local_path = get_local_file_path(remote_path, cache_directory_path)
-
     try:
         return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
     except:  # noqa: E722

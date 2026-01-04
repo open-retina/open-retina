@@ -34,12 +34,11 @@ readout:
   in_shape: ???
   scale: true
   bias: true
-  gaussian_masks: true
   gaussian_mean_scale: 6.0
   gaussian_var_scale: 4.0
   positive: true
-  gamma_readout: 0.4
-  gamma_masks: 0.1
+  mask_l1_reg: 1.0
+  feature_weights_l1_reg: 1.0
   readout_reg_avg: false
 
 # training
