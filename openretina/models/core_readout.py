@@ -399,7 +399,6 @@ class ExampleCoreReadout(BaseCoreReadout):
 
         # Run one forward pass to determine output shape of core
         in_shape_readout = self.compute_readout_input_shape(in_shape, core)
-        print('in_shape_readout:', {in_shape_readout})
         LOGGER.info(f"{in_shape_readout=}")
 
         readout = MultiGaussianMaskReadout(
