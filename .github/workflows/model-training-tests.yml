@@ -77,8 +77,6 @@ jobs:
           --config-path configs \
           --config-name hoefling_2024_core_readout_low_res \
           model=linear_nonlinear_poisson.yaml \
-          model.core.temporal_kernel_sizes="[21,11]" \
-          model.core.spatial_kernel_sizes="[11,5]" \
           $TRAIN_FLAGS
 
       - name: GRU core readout
