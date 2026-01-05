@@ -8,9 +8,7 @@ from omegaconf import DictConfig
 
 from openretina.cli import create_data, visualize_model_neurons
 from openretina.utils.file_utils import get_cache_directory
-from openretina.utils.config_resolvers import register_resolvers
 
-register_resolvers()
 
 def get_config_path(config_path: str | None) -> str:
     """Get the absolute path to the configs directory"""
