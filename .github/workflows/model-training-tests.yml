@@ -2,9 +2,9 @@ name: Model Training Tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   train-model:
@@ -47,6 +47,8 @@ jobs:
           --config-path configs \
           --config-name hoefling_2024_core_readout_low_res \
           model=core_klindt_readout \
+          model.core.temporal_kernel_sizes="[21,11]" \
+          model.core.spatial_kernel_sizes="[11,5]" \
           $TRAIN_FLAGS
 
       - name: Core klindt readout
@@ -55,6 +57,8 @@ jobs:
           --config-path configs \
           --config-name hoefling_2024_core_readout_low_res \
           model=core_klindt_readout \
+          model.core.temporal_kernel_sizes="[21,11]" \
+          model.core.spatial_kernel_sizes="[11,5]" \
           $TRAIN_FLAGS
 
       - name: Core Gaussian Readout
@@ -63,6 +67,8 @@ jobs:
           --config-path configs \
           --config-name hoefling_2024_core_readout_low_res \
           model=core_gaussian_readout \
+          model.core.temporal_kernel_sizes="[21,11]" \
+          model.core.spatial_kernel_sizes="[11,5]" \
           $TRAIN_FLAGS
 
       - name: LNP readout
@@ -79,5 +85,6 @@ jobs:
           --config-path configs \
           --config-name hoefling_2024_core_readout_low_res \
           model=GRU_core_readout \
+          model.core.temporal_kernel_sizes="[21,11]" \
+          model.core.spatial_kernel_sizes="[11,5]" \
           $TRAIN_FLAGS
-

@@ -1,0 +1,46 @@
+defaults:
+  - data_io: sridhar_nm_2025
+  - quality_checks: null
+  - dataloader: sridhar_nm_2025
+  - model: core_gaussian_readout
+  - training_callbacks:
+      - early_stopping
+      - lr_monitor
+      - model_checkpoint
+  - logger:
+      - csv
+  - trainer: default_deterministic
+  - hydra: default
+  - _self_ # values in this config will overwrite the defaults
+
+exp_name: vystrcilova_2024_nm_core_readout
+seed: 42
+check_stimuli_responses_match: false
+
+dataloader:
+  batch_size: 64
+
+model:
+  in_shape:
+    - ${data_io.input_channels}
+    - ${data_io.placeholder_time_bins}
+    - ${data_io.placeholder_height}
+    - ${data_io.placeholder_width}
+
+paths:
+  load_model_path: null
+  cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Remote files are downloaded to this location
+  data_dir: "https://huggingface.co/datasets/open-retina/open-retina/tree/main/gollisch_lab/sridhar_2025/marmoset/natural_movie"
+  log_dir: "./logs/cnn_nm" # Used as parent for output_dir. Will store train logs.
+  output_dir: ${hydra:runtime.output_dir} # Modify subpaths in the "hydra/default.yaml" config
+
+matmul_precision:
+  _target_: torch.set_float32_matmul_precision
+  precision: highest
+
+trainer:
+  max_epochs: 100
+  accumulate_grad_batches: 1
+  gradient_clip_val: 1
+
+only_train_readout: false # whether or not to freeze core parameters and only train readout (eg. when finetuning model to new data)
