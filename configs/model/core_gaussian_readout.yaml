@@ -1,7 +1,7 @@
 # Core and data
 hidden_channels: [8, 16]
-in_shape: ???  # Required at top-level config
-n_neurons_dict: ???  # Set dynamically (e.g., in training script after loading sessions)
+in_shape: ??? # Required at top-level config
+n_neurons_dict: ??? # Set dynamically (e.g., in training script after loading sessions)
 
 core:
   _target_: openretina.modules.core.base_core.SimpleCoreWrapper
@@ -25,7 +25,6 @@ readout:
   _target_: openretina.modules.readout.multi_readout.MultiSampledGaussianReadout
   _convert_: object
   in_shape: ???
-  n_neurons_dict: ???
   bias: true
   gamma: 0.4
   init_mu_range: 0.1

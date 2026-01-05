@@ -1,6 +1,6 @@
 _target_: openretina.data_io.sridhar_2025.dataloaders.white_noise_loader
 _convert_: object
-basepath: "${paths.cache_dir}"
+basepath: "${paths.data_dir}"
 files:
   "01": "responses/cell_responses_01_wn.pkl"
   "02": "responses/cell_responses_02_wn.pkl"

@@ -40,7 +40,7 @@ class MarmosetMovieDataset(Dataset):
     """
     A PyTorch‐style dataset that delivers *time chunks* of marmoset movie
     stimuli together with the corresponding neuronal responses recorded from
-    visual cortex.
+    the retina.
 
     Specifically designed for the *Sridhar et al. 2025* dataset.
     Original dataset is available at: https://doi.gin.g-node.org/10.12751/g-node.3dfiti/
