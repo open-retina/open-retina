@@ -2,9 +2,9 @@ name: Model Training Tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   train-model:
@@ -19,6 +19,8 @@ jobs:
         +trainer.limit_val_batches=1 
         +trainer.limit_test_batches=1 
         dataloader.batch_size=2
+        model.core.temporal_kernel_sizes="[21, 11]"
+        model.core.spatial_kernel_sizes="[11, 5]"
 
     steps:
       - name: Checkout repository
@@ -80,4 +82,3 @@ jobs:
           --config-name hoefling_2024_core_readout_low_res \
           model=GRU_core_readout \
           $TRAIN_FLAGS
-
