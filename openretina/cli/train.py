@@ -21,7 +21,7 @@ logging.captureWarnings(True)
 @hydra.main(
     version_base="1.3",
     config_path="../../configs",
-    config_name="hoefling_2024_core_readout_high_res",
+    config_name="vystrcilova_2024_nm_cnn",
 )
 def main(cfg: DictConfig) -> float | None:
     score = train_model(cfg)

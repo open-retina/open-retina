@@ -89,5 +89,11 @@ The openretina package is structured as follows:
 * goldin\_2022: Originally published by Goldin et al. (2022), Nature Communications
   * Paper: [Context-dependent selectivity to natural images in the retina](https://doi.org/10.1038/s41467-022-33242-8)
   * Dataset originally deposited at: https://zenodo.org/records/6868362
+* sridhar\_2025: Originally published by Sridhar et al. (2025), biorxiv
+  * Paper: [Modeling spatial contrast sensitivity in responses of primate retinal ganglion cells to natural movies](https://www.biorxiv.org/content/10.1101/2024.03.05.583449v1)
+  * Dataset: Sridhar S, Gollisch T (2025) Dataset -  Marmoset retinal ganglion cell responses to naturalistic movies and spatiotemporal white noise. G-Node. 
+https://doi.gin.g-node.org/10.12751/g-node.3dfiti/
+  * Models: Models trained on this dataset were developed as part of [A systematic comparison of predictive models on the retina](https://www.biorxiv.org/content/10.1101/2024.03.06.583740v2)
+  
 
 The paper [Most discriminative stimuli for functional cell type clustering](https://openreview.net/forum?id=9W6KaAcYlr) explains the discriminatory stimulus objective we showcase in [notebooks/most\_discriminative\_stimulus](https://github.com/open-retina/open-retina/blob/main/notebooks/most_discriminative_stimulus.ipynb).
