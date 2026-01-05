@@ -194,6 +194,12 @@ class MarmosetMovieDataset(Dataset):
         if indices is not None:
             self.train_responses = torch.from_numpy(responses["train_responses"]).float()
         self.test_responses = torch.from_numpy(responses["test_responses"]).float()
+        raw_test_by_trial = responses.get("test_responses_by_trial")
+        self._test_responses_by_trial: torch.Tensor | None = (
+            torch.from_numpy(np.transpose(raw_test_by_trial, (2, 1, 0))).float()
+            if raw_test_by_trial is not None
+            else None
+        )
 
         self.fixations = fixations
         self.indices = indices
@@ -268,6 +274,54 @@ class MarmosetMovieDataset(Dataset):
 
     def __len__(self) -> int:
         return self._len
+
+    @property
+    def responses(self) -> torch.Tensor:
+        """Return test responses time-major for evaluation."""
+        if not self._test:
+            raise AttributeError("responses are only defined for the test split.")
+        return self.test_responses.T
+
+    @property
+    def test_responses_by_trial(self) -> torch.Tensor | None:
+        return self._test_responses_by_trial
+
+    @property
+    def movies(self) -> torch.Tensor:
+        """
+        Build the full test movie once and cache it.
+        Used for evaluation only.
+
+        Shape: (channels=1, time, height, width)
+        """
+        if not self._test:
+            raise AttributeError("movies are only defined for the test split.")
+
+        if not hasattr(self, "_movies_cache"):
+            self._movies_cache = torch.unsqueeze(self._build_full_movie(), 0)
+        return self._movies_cache
+
+    def _build_full_movie(self) -> torch.Tensor:
+        """Render the entire test movie based on pre-loaded frames and fixations."""
+        frames = torch.zeros((self.num_of_imgs, self.img_h, self.img_w), dtype=torch.float32)
+        fixations = self.fixations[: self.num_of_imgs]
+        for i, fixation in enumerate(fixations):
+            img = torch.from_numpy(self.frames[fixation["img_index"]].astype(np.float32))
+            img = crop_based_on_fixation(
+                img=img,
+                x_center=fixation["center_x"],
+                y_center=fixation["center_y"],
+                flip=fixation["flip"] == 0,
+                img_h=self.img_h,
+                img_w=self.img_w,
+                padding=self.padding,
+            )
+            img = torch.movedim(img, 0, 1)
+            frames[i] = img
+        frames = torch.movedim(frames, 0, 2)
+        frames = self.transform(frames)
+        frames = torch.movedim(frames, 2, 0)
+        return frames
 
     def __getitem__(self, item):
         trial_index = int(
@@ -644,7 +698,11 @@ def frame_movie_loader(
         if isinstance(num_of_frames, int):
             num_of_frames = [num_of_frames]
         train_loader = get_dataloader(
-            {"train_responses": train_responses, "test_responses": test_responses},
+            {
+                "train_responses": train_responses,
+                "test_responses": test_responses,
+                "test_responses_by_trial": responses[retina_index].get("test_responses_by_trial"),
+            },
             fixations=fixations,
             path=basepath,
             indices=train_ids,
@@ -671,7 +729,11 @@ def frame_movie_loader(
         )
 
         valid_loader = get_dataloader(
-            {"train_responses": train_responses, "test_responses": test_responses},
+            {
+                "train_responses": train_responses,
+                "test_responses": test_responses,
+                "test_responses_by_trial": responses[retina_index].get("test_responses_by_trial"),
+            },
             path=basepath,
             indices=valid_ids,
             test=False,
@@ -698,7 +760,11 @@ def frame_movie_loader(
         )
 
         test_loader = get_dataloader(
-            {"train_responses": train_responses, "test_responses": test_responses},
+            {
+                "train_responses": train_responses,
+                "test_responses": test_responses,
+                "test_responses_by_trial": responses[retina_index].get("test_responses_by_trial"),
+            },
             fixations=fixations,
             path=basepath,
             indices=train_ids,
@@ -841,6 +907,12 @@ class NoiseDataset(Dataset):
             self.train_responses = torch.from_numpy(responses["train_responses"]).float()
 
         self.test_responses = torch.from_numpy(responses["test_responses"]).float()
+        raw_test_by_trial = responses.get("test_responses_by_trial")
+        self._test_responses_by_trial: torch.Tensor | None = (
+            torch.from_numpy(np.transpose(raw_test_by_trial, (2, 0, 1))).float()
+            if raw_test_by_trial is not None
+            else None
+        )
         self.indices = indices
         self.random_indices = np.random.permutation(indices)
         self.n_neurons = self.train_responses.shape[0]
@@ -872,6 +944,33 @@ class NoiseDataset(Dataset):
 
     def purge_cache(self) -> None:
         self._cache = {data_key: {} for data_key in self.data_keys}
+
+    @property
+    def responses(self) -> torch.Tensor:
+        if not self._test:
+            raise AttributeError("responses are only defined for the test split.")
+        return self.test_responses.T
+
+    @property
+    def test_responses_by_trial(self) -> torch.Tensor | None:
+        return self._test_responses_by_trial
+
+    @property
+    def movies(self) -> torch.Tensor:
+        if not self._test:
+            raise AttributeError("movies are only defined for the test split.")
+        if not hasattr(self, "_movies_cache"):
+            movie = self._build_full_movie()
+            self._movies_cache = torch.unsqueeze(movie, 0)
+        return self._movies_cache
+
+    def _build_full_movie(self) -> torch.Tensor:
+        """Load the full repeating stimulus used for test evaluation."""
+        imgs = np.load(os.path.join(self.basepath, "all_images.npy"))
+        imgs = torch.from_numpy(imgs.astype(np.float32))
+        imgs = self.transform_image(imgs)
+        movie = torch.permute(imgs, (2, 0, 1))  # time, h, w
+        return movie
 
     def transform_image(self, images):
         """
@@ -1127,7 +1226,11 @@ def white_noise_loader(
         if isinstance(num_of_frames, int):
             num_of_frames = [num_of_frames]
         train_loader = get_noise_dataloader(
-            {"train_responses": train_responses, "test_responses": test_responses},
+            {
+                "train_responses": train_responses,
+                "test_responses": test_responses,
+                "test_responses_by_trial": responses[retina_index].get("test_responses_by_trial"),
+            },
             path=dataset_train_image_path,
             indices=train_ids,
             test=False,
@@ -1151,7 +1254,11 @@ def white_noise_loader(
         )
 
         valid_loader = get_noise_dataloader(
-            {"train_responses": train_responses, "test_responses": test_responses},
+            {
+                "train_responses": train_responses,
+                "test_responses": test_responses,
+                "test_responses_by_trial": responses[retina_index].get("test_responses_by_trial"),
+            },
             path=dataset_train_image_path,
             indices=valid_ids,
             test=False,
@@ -1175,7 +1282,11 @@ def white_noise_loader(
         )
 
         test_loader = get_noise_dataloader(
-            {"train_responses": train_responses, "test_responses": test_responses},
+            {
+                "train_responses": train_responses,
+                "test_responses": test_responses,
+                "test_responses_by_trial": responses[retina_index].get("test_responses_by_trial"),
+            },
             path=dataset_test_image_path,
             indices=train_ids,
             test=True,
