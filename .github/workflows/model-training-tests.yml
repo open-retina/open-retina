@@ -19,8 +19,8 @@ jobs:
         +trainer.limit_val_batches=1 
         +trainer.limit_test_batches=1 
         dataloader.batch_size=2
-        model.core.temporal_kernel_sizes="[21, 11]"
-        model.core.spatial_kernel_sizes="[11, 5]"
+        'model.core.temporal_kernel_sizes=[21,11]'
+        'model.core.spatial_kernel_sizes=[11,5]'
 
     steps:
       - name: Checkout repository
