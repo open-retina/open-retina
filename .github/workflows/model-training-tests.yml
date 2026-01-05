@@ -19,8 +19,6 @@ jobs:
         +trainer.limit_val_batches=1 
         +trainer.limit_test_batches=1 
         dataloader.batch_size=2
-        'model.core.temporal_kernel_sizes=[21,11]'
-        'model.core.spatial_kernel_sizes=[11,5]'
 
     steps:
       - name: Checkout repository
@@ -49,6 +47,8 @@ jobs:
           --config-path configs \
           --config-name hoefling_2024_core_readout_low_res \
           model=core_klindt_readout \
+          model.core.temporal_kernel_sizes="[21,11]" \
+          model.core.spatial_kernel_sizes="[11,5]" \
           $TRAIN_FLAGS
 
       - name: Core klindt readout
@@ -57,6 +57,8 @@ jobs:
           --config-path configs \
           --config-name hoefling_2024_core_readout_low_res \
           model=core_klindt_readout \
+          model.core.temporal_kernel_sizes="[21,11]" \
+          model.core.spatial_kernel_sizes="[11,5]" \
           $TRAIN_FLAGS
 
       - name: Core Gaussian Readout
@@ -65,6 +67,8 @@ jobs:
           --config-path configs \
           --config-name hoefling_2024_core_readout_low_res \
           model=core_gaussian_readout \
+          model.core.temporal_kernel_sizes="[21,11]" \
+          model.core.spatial_kernel_sizes="[11,5]" \
           $TRAIN_FLAGS
 
       - name: LNP readout
@@ -73,6 +77,8 @@ jobs:
           --config-path configs \
           --config-name hoefling_2024_core_readout_low_res \
           model=linear_nonlinear_poisson.yaml \
+          model.core.temporal_kernel_sizes="[21,11]" \
+          model.core.spatial_kernel_sizes="[11,5]" \
           $TRAIN_FLAGS
 
       - name: GRU core readout
@@ -81,4 +87,6 @@ jobs:
           --config-path configs \
           --config-name hoefling_2024_core_readout_low_res \
           model=GRU_core_readout \
+          model.core.temporal_kernel_sizes="[21,11]" \
+          model.core.spatial_kernel_sizes="[11,5]" \
           $TRAIN_FLAGS
