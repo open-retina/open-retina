@@ -101,6 +101,13 @@ def evaluate_model(cfg: DictConfig) -> float:
             responses_by_trial = reorder_like_a(a=avg_responses, b=responses_by_trial)
             # rearrange to match feve function expectations
             responses_by_trial = rearrange(responses_by_trial, "trials time neurons -> time trials neurons")
+        except RuntimeError as e:
+            log.warning(
+                f"Could not infer reordering of responses by trial for {session}: {e}. "
+                f"Assuming they are ordered as `trials, neurons, time` on data loading.",
+                exc_info=True,
+            )
+            responses_by_trial = rearrange(responses_by_trial, "trials neurons time -> time trials neurons")
         except Exception as e:
             log.warning(
                 f"Could not retrieve responses by trial for session {session}: {e}. Using avg responses instead. "

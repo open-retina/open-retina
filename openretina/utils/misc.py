@@ -198,7 +198,7 @@ def reorder_like_a(a, b):
 
     extra_dim = [d for d in b.shape if d not in (D1, D2)]
     if len(extra_dim) != 1:
-        raise ValueError("Could not uniquely identify extra dimension")
+        raise RuntimeError("Could not uniquely identify extra dimension")
 
     extra = extra_dim[0]
 
