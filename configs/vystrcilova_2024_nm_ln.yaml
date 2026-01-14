@@ -26,10 +26,10 @@ model:
 
 paths:
   load_model_path: null
-  cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Remote files are downloaded to this location
-  data_dir: "https://huggingface.co/datasets/open-retina/open-retina/tree/main/gollisch_lab/sridhar_2025/marmoset/natural_movie"
+  cache_dir: "/mnt/vast-nhr/projects/nim00012/michaela/open-retina/cache_dir/"  #  cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Remote files are downloaded to this location
+  data_dir: "/mnt/vast-nhr/projects/nim00012/michaela/open-retina/cache_dir/gollisch_lab/sridhar_2025/marmoset/natural_movie/" #"https://huggingface.co/datasets/open-retina/open-retina/tree/main/gollisch_lab/sridhar_2025/marmoset/natural_movie"
   log_dir: "./logs/ln_nm" # Used as parent for output_dir. Will store train logs.
-  output_dir: ${hydra:runtime.output_dir} # Modify subpaths in the "hydra/default.yaml" config
+  output_dir: runs/${exp_name}/${now:%Y-%m-%d_%H-%M-%S} # Modify subpaths in the "hydra/default.yaml" config
 
 matmul_precision:
   _target_: torch.set_float32_matmul_precision

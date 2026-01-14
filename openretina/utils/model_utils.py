@@ -78,3 +78,39 @@ def get_core_output_based_on_dimensions(model_config):
     output_shape = model_config.core.channels[layers], t, h, w
     print("factorized core output shape:", output_shape)
     return output_shape
+
+
+def get_cholesky_covariance(l11_raw, l22_raw, l21):
+    l11 = torch.exp(l11_raw)
+    l22 = torch.exp(l22_raw)
+
+    L = torch.cat([
+        torch.stack([l11, torch.zeros_like(l11)]),
+        torch.stack([l21, l22])
+    ], dim=1)
+
+    covariance_matrix = L @ L.T
+    return covariance_matrix
+
+
+def create_gaussian_kernel_cholesky(
+    l11_raw, l22_raw, l21,
+    x, y, mean_x, mean_y,
+    kernel_size, amplitude,
+        lower=None, upper=None,
+):
+    if lower is not None:
+        amplitude.data.clamp_(lower, upper)
+
+    covariance_matrix = get_cholesky_covariance(l11_raw, l22_raw, l21)
+    inverse_covariance_matrix = torch.inverse(covariance_matrix)
+
+    x_coord = x - mean_x
+    y_coord = y - mean_y
+    coords = torch.stack([x_coord.flatten(), y_coord.flatten()], dim=1)
+
+    exponent = -0.5 * (coords @ inverse_covariance_matrix.to(coords.device) * coords).sum(dim=1)
+    kernel = amplitude * torch.exp(exponent)
+
+    return kernel.view(1, 1, 1, kernel_size[0], kernel_size[1])
+
