@@ -1,7 +1,7 @@
 import bisect
 import collections
 from collections import namedtuple
-from typing import Any, List, Literal, Optional
+from typing import Any, List, Literal, Optional, SupportsIndex, cast
 
 import numpy as np
 import torch
@@ -20,7 +20,8 @@ class MovieDataSet(Dataset):
 
     Args:
         movies (Float[np.ndarray | torch.Tensor, "n_channels n_frames h w"]): The movie data.
-        responses (Float[np.ndarray, "n_frames n_neurons"]): The neural responses.
+        responses (Float[np.ndarray, "n_frames n_neurons"] | dict[str, Float[np.ndarray, "n_frames n_neurons"]]):
+        The neural responses. Can be a single array or a dictionary of arrays, containing "avg" and "by_trial" keys.
         roi_ids (Optional[Float[np.ndarray, " n_neurons"]]): A list of ROI IDs.
         roi_coords (Optional[Float[np.ndarray, "n_neurons 2"]]): A list of ROI coordinates.
         group_assignment (Optional[Float[np.ndarray, " n_neurons"]]): A list of group assignments (cell types).
@@ -50,18 +51,22 @@ class MovieDataSet(Dataset):
     def __init__(
         self,
         movies: Float[np.ndarray | torch.Tensor, "n_channels n_frames h w"],
-        responses: Float[np.ndarray | torch.Tensor, "n_frames n_neurons"],
+        responses: Float[np.ndarray | torch.Tensor, "n_frames n_neurons"] | dict[str, Any],
         roi_ids: Float[np.ndarray, " n_neurons"] | None,
         roi_coords: Float[np.ndarray, "n_neurons 2"] | None,
         group_assignment: Float[np.ndarray, " n_neurons"] | None,
         split: str | Literal["train", "validation", "val", "test"],
         chunk_size: int,
     ):
-        # Will only be a dictionary for certain types of datasets, i.e. Hoefling 2022
+        self.roi_ids = roi_ids
+        self.test_responses_by_trial: torch.Tensor | None = None
+
+        # Test responses can be passed as a dictionary by other constructors,
+        # with key "avg" for the averaged responses and "by_trial" for the per-trial responses.
         if split == "test" and isinstance(responses, dict):
-            self.samples: tuple = movies, responses["avg"]
-            self.test_responses_by_trial = responses["by_trial"]
-            self.roi_ids = roi_ids
+            responses_dict = cast(dict[str, Any], responses)
+            self.samples: tuple = movies, responses_dict["avg"]
+            self.test_responses_by_trial = responses_dict.get("by_trial")
         else:
             self.samples = movies, responses
 
@@ -71,14 +76,15 @@ class MovieDataSet(Dataset):
         self.group_assignment = group_assignment
         self.roi_coords = roi_coords
 
-    def __getitem__(self, idx: int | slice) -> DataPoint:
+    def __getitem__(self, idx: SupportsIndex) -> DataPoint:  # type: ignore[override]
         if isinstance(idx, slice):
             return DataPoint(*[self.samples[0][:, idx, ...], self.samples[1][idx, ...]])
         else:
+            start = int(idx)
             return DataPoint(
                 *[
-                    self.samples[0][:, idx : idx + self.chunk_size, ...],
-                    self.samples[1][idx : idx + self.chunk_size, ...],
+                    self.samples[0][:, start : start + self.chunk_size, ...],
+                    self.samples[1][start : start + self.chunk_size, ...],
                 ]
             )
 
@@ -281,7 +287,7 @@ def handle_missing_start_indices(
 
 def get_movie_dataloader(
     movie: Float[np.ndarray | torch.Tensor, "n_channels n_frames h w"],
-    responses: Float[np.ndarray | torch.Tensor, "n_frames n_neurons"],
+    responses: Float[np.ndarray | torch.Tensor, "n_frames n_neurons"] | dict[str, Any],
     *,
     split: str | Literal["train", "validation", "val", "test"],
     scene_length: int,
@@ -360,6 +366,16 @@ def get_movie_dataloader(
 
 
 class NeuronDataSplit:
+    """
+    Preprocesses `ResponsesTrainTestSplit` objects before feeding them to dataloaders.
+
+    Responsibilities:
+        * Remove validation clips from the training responses while storing them separately.
+        * Expose torch tensors for train/val/test splits via `response_dict`.
+        * Surface averaged and per-trial test responses per each test stimulus name so that downstream
+        `MovieDataSet` instances can provide `dataset.test_responses_by_trial`.
+    """
+
     def __init__(
         self,
         responses: ResponsesTrainTestSplit,
@@ -394,7 +410,11 @@ class NeuronDataSplit:
         self.responses_train_and_val = self.neural_responses.train.T
 
         self.responses_train, self.responses_val = self.split_data_train_val()
-        self.test_responses_by_trial = np.array([])  # Added for compatibility with Hoefling et al., 2024
+        self.test_responses_by_trial: dict[str, np.ndarray] = (
+            {name: np.asarray(by_trial) for name, by_trial in self.neural_responses.test_by_trial_dict.items()}
+            if self.neural_responses.test_by_trial_dict is not None
+            else {}
+        )
 
     def split_data_train_val(self) -> tuple[np.ndarray, np.ndarray]:
         """
@@ -430,19 +450,55 @@ class NeuronDataSplit:
     def response_dict(self) -> dict:
         """
         Create and return a dictionary of neural responses for train, validation, and test datasets.
+
+        Structure:
+            {
+                "train": Tensor[T_train, neurons],
+                "validation": Tensor[T_val, neurons],
+                "test": {
+                    stimulus_name: {
+                        "avg": Tensor[T_test, neurons],
+                        "by_trial": Optional[Tensor[trials, T_test, neurons]]
+                    },
+                    ...
+                }
+            }
         """
+        test_entries = {
+            name: {
+                "avg": torch.tensor(responses.T, dtype=torch.float),
+                "by_trial": torch.tensor(self.test_responses_by_trial[name], dtype=torch.float)
+                if name in self.test_responses_by_trial
+                else None,
+            }
+            for name, responses in self.neural_responses.test_dict.items()
+        }
         return {
             "train": torch.tensor(self.responses_train, dtype=torch.float),
             "validation": torch.tensor(self.responses_val, dtype=torch.float),
-            "test": {
-                "avg": self.response_dict_test,
-                "by_trial": torch.tensor(self.test_responses_by_trial, dtype=torch.float),
-            },
+            "test": test_entries,
         }
 
     @property
-    def response_dict_test(self) -> dict[str, torch.Tensor]:
-        return {name: torch.tensor(responses.T) for name, responses in self.neural_responses.test_dict.items()}
+    def response_dict_test(self) -> dict[str, dict[str, torch.Tensor | None]]:
+        """
+        Torch representation of the averaged and per-trial test responses keyed by stimulus name.
+
+        Returns:
+            {
+                stimulus_name: {"avg": Tensor[t_test, neurons], "by_trial": Optional[Tensor[trials, t_test, neurons]]}
+            }
+        """
+        test_entries: dict[str, dict[str, torch.Tensor | None]] = {}
+        for name, responses in self.neural_responses.test_dict.items():
+            avg_tensor = torch.tensor(responses.T, dtype=torch.float)
+            by_trial = (
+                torch.tensor(self.test_responses_by_trial[name], dtype=torch.float)
+                if name in self.test_responses_by_trial
+                else None
+            )
+            test_entries[name] = {"avg": avg_tensor, "by_trial": by_trial}
+        return test_entries
 
 
 def multiple_movies_dataloaders(

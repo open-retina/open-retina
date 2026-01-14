@@ -4,6 +4,7 @@ n_neurons_dict: ??? # Required for init. Set dynamically in scripts/train.py bas
 core:
   _target_: openretina.modules.core.base_core.DummyCore
   _convert_: object
+  cut_first_n_frames: 30
 
 readout:
   _target_: openretina.modules.readout.multi_readout.MultipleLNPReadout
@@ -12,7 +13,7 @@ readout:
   nonlinearity: "softplus"
   smooth_weight: 1.0
   sparse_weight: 1.0
-  bias: False
+  bias: True
 
 # training
 learning_rate: 0.005
