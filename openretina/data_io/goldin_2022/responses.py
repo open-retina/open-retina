@@ -91,15 +91,18 @@ def load_test_repeats_for_session(
 
         # Each dataset is expected to be shape (repeats, time)
         repeat_groups_sorted = sorted(repeat_groups, key=lambda x: int(x.split("cell")[-1]))
-        stacked = []
+        stacked_list: list[np.ndarray] = []
         for cell_key in repeat_groups_sorted:
             cell_dataset = repeats_group.get(cell_key)
             if not isinstance(cell_dataset, h5py.Dataset):
                 continue
             cell_repeats = cell_dataset[...]
-            stacked.append(cell_repeats)
+            stacked_list.append(cell_repeats)
+
+        if len(stacked_list) == 0:
+            return None
 
         # shape: neurons x repeats x time -> repeats x neurons x time
-        stacked = np.stack(stacked, axis=0) / fr_normalization
+        stacked = np.stack(stacked_list, axis=0) / fr_normalization
         stacked = rearrange(stacked, "neurons repeats time -> repeats neurons time")
         return stacked
