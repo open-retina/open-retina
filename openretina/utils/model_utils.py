@@ -84,20 +84,24 @@ def get_cholesky_covariance(l11_raw, l22_raw, l21):
     l11 = torch.exp(l11_raw)
     l22 = torch.exp(l22_raw)
 
-    L = torch.cat([
-        torch.stack([l11, torch.zeros_like(l11)]),
-        torch.stack([l21, l22])
-    ], dim=1)
+    L = torch.cat([torch.stack([l11, torch.zeros_like(l11)]), torch.stack([l21, l22])], dim=1)
 
     covariance_matrix = L @ L.T
     return covariance_matrix
 
 
 def create_gaussian_kernel_cholesky(
-    l11_raw, l22_raw, l21,
-    x, y, mean_x, mean_y,
-    kernel_size, amplitude,
-        lower=None, upper=None,
+    l11_raw,
+    l22_raw,
+    l21,
+    x,
+    y,
+    mean_x,
+    mean_y,
+    kernel_size,
+    amplitude,
+    lower=None,
+    upper=None,
 ):
     if lower is not None:
         amplitude.data.clamp_(lower, upper)
@@ -113,4 +117,3 @@ def create_gaussian_kernel_cholesky(
     kernel = amplitude * torch.exp(exponent)
 
     return kernel.view(1, 1, 1, kernel_size[0], kernel_size[1])
-
