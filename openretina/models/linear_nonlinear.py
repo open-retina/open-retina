@@ -192,10 +192,9 @@ class SingleCellSeparatedLNP(LightningModule):
                 raise ValueError("Currently cannot have a multi-rank model and fit a Gaussian to the spatial filter")
             if l11 is None or l22 is None:
                 raise ValueError("Must provide sigma_x and sigma y when fit Gaussian to spatial filter")
-            self.space_conv = GaussianConv3d(in_channels=self.in_channels, out_channels=rank,
-                                             kernel_size=self.kernel_size,
-                                             l11 = l11,
-                                             l22 = l22)
+            self.space_conv = GaussianConv3d(
+                in_channels=self.in_channels, out_channels=rank, kernel_size=self.kernel_size, l11=l11, l22=l22
+            )
         self.time_conv = nn.Conv3d(
             in_channels=rank, out_channels=1, kernel_size=(in_shape[1], 1, 1), bias=False, stride=1
         )
@@ -320,9 +319,9 @@ class SingleCellSeparatedLNP(LightningModule):
     def regularizer(self):
         return self.laplace() + self.sparse_weight * self.weights_l1()
 
+
 class GaussianConv3d(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size,
-                 l11: float = 0.5, l22: float = 0.5):
+    def __init__(self, in_channels, out_channels, kernel_size, l11: float = 0.5, l22: float = 0.5):
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -339,17 +338,25 @@ class GaussianConv3d(nn.Module):
         y_coord = torch.linspace(-kernel_size[1] // 2, kernel_size[1] // 2, kernel_size[1])
         x, y = torch.meshgrid(x_coord, y_coord)
 
-        self.register_buffer('x_coord', x_coord.clone())
-        self.register_buffer('y_coord', y_coord.clone())
-        self.register_buffer('x', x.clone())
-        self.register_buffer('y', y.clone())
-
+        self.register_buffer("x_coord", x_coord.clone())
+        self.register_buffer("y_coord", y_coord.clone())
+        self.register_buffer("x", x.clone())
+        self.register_buffer("y", y.clone())
 
     def forward(self, x, data_key=None):
-        kernel = create_gaussian_kernel_cholesky(self.l11_raw, self.l22_raw, self.l12,
-                    self.x, self.y, self.mean_x, self.mean_y,
-                    self.kernel_size, amplitude=1.0,
-                    lower=None, upper=None)
+        kernel = create_gaussian_kernel_cholesky(
+            self.l11_raw,
+            self.l22_raw,
+            self.l12,
+            self.x,
+            self.y,
+            self.mean_x,
+            self.mean_y,
+            self.kernel_size,
+            amplitude=1.0,
+            lower=None,
+            upper=None,
+        )
         x = F.conv3d(x, kernel, padding=0)
 
         return x
