@@ -97,7 +97,7 @@ def train_model(cfg: DictConfig) -> float | None:
             model.update_model_data_info(data_info)
     else:
         # Assign missing n_neurons_dict to model
-        # cfg.model.n_neurons_dict = data_info["n_neurons_dict"]
+        cfg.model.n_neurons_dict = data_info["n_neurons_dict"]
         if hasattr(cfg.model, "_target_"):
             log.info(f"Instantiating model <{cfg.model._target_}>")
             model = hydra.utils.instantiate(cfg.model, data_info=data_info)
