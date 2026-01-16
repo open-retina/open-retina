@@ -255,7 +255,7 @@ class SingleCellSeparatedLNP(LightningModule):
         return loss
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
         lr_decay_factor = 0.3
         patience = 5
         tolerance = 0.0005
