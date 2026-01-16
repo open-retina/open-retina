@@ -11,6 +11,7 @@ from openretina.data_io.base_dataloader import DataPoint
 from openretina.modules.layers import regularizers
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
 from openretina.modules.nonlinearities import ParametrizedSoftplus
+from openretina.utils.model_utils import create_gaussian_kernel_cholesky
 
 
 class SingleCellSeparatedLNP(LightningModule):
@@ -66,6 +67,9 @@ class SingleCellSeparatedLNP(LightningModule):
     laplace_padding:
         Passed through to regularizer constructors as `padding=...`. For GaussianLaplaceL2,
         a `kernel=...` argument is also supplied.
+    fig_gaussian:
+        if True, the spatial kernel learns the parameters of a single 2d gaussian instead of
+        learning each pixel value
     nonlinearity:
         Output nonlinearity applied after the temporal stage. If "parametrized_softplus",
         uses `ParametrizedSoftplus()`. Otherwise, uses `torch.nn.functional.<nonlinearity>`
@@ -129,6 +133,9 @@ class SingleCellSeparatedLNP(LightningModule):
         normalize_weights: bool = True,
         loss=None,
         validation_loss=None,
+        fit_gaussian: bool = False,
+        l11: Optional[float] = None,
+        l22: Optional[float] = None,
         **kwargs,
     ):
         super().__init__()
@@ -147,6 +154,8 @@ class SingleCellSeparatedLNP(LightningModule):
         if rf_location is None:
             rf_location = (in_shape[2] // 2, in_shape[3] // 2)
         self.location = rf_location
+
+        self.fit_gaussian = fit_gaussian
 
         regularizer_config_spat = (
             dict(padding=laplace_padding, kernel=self.spat_kernel_size)
@@ -167,18 +176,29 @@ class SingleCellSeparatedLNP(LightningModule):
         self.nonlinearity = (
             ParametrizedSoftplus() if nonlinearity == "parametrized_softplus" else F.__dict__[nonlinearity]
         )
-        self.space_conv = nn.Conv3d(
-            in_channels=self.in_channels,
-            out_channels=rank,
-            kernel_size=(1, *self.kernel_size),  # Not using time
-            bias=False,
-            stride=1,
-        )
+
+        if not self.fit_gaussian:
+            self.space_conv = nn.Conv3d(
+                in_channels=self.in_channels,
+                out_channels=rank,
+                kernel_size=(1, *self.kernel_size),  # Not using time
+                bias=False,
+                stride=1,
+            )
+            nn.init.xavier_normal_(self.space_conv.weight.data)
+
+        else:
+            if rank != 1:
+                raise ValueError("Currently cannot have a multi-rank model and fit a Gaussian to the spatial filter")
+            if l11 is None or l22 is None:
+                raise ValueError("Must provide sigma_x and sigma y when fit Gaussian to spatial filter")
+            self.space_gauss_conv = GaussianConv3d(
+                in_channels=self.in_channels, out_channels=rank, kernel_size=self.kernel_size, l11=l11, l22=l22
+            )
         self.time_conv = nn.Conv3d(
             in_channels=rank, out_channels=1, kernel_size=(in_shape[1], 1, 1), bias=False, stride=1
         )
 
-        nn.init.xavier_normal_(self.space_conv.weight.data)
         nn.init.xavier_normal_(self.time_conv.weight.data)
 
     # TODO: Think about whether or not to leave this to the dataloader
@@ -235,7 +255,7 @@ class SingleCellSeparatedLNP(LightningModule):
         return loss
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
         lr_decay_factor = 0.3
         patience = 5
         tolerance = 0.0005
@@ -259,6 +279,8 @@ class SingleCellSeparatedLNP(LightningModule):
         }
 
     def laplace(self):
+        if self.fit_gaussian:
+            return self.smooth_weight_temp * self._smooth_reg_fn_temp(self.time_conv.weight.squeeze(-1, -2))
         return self.smooth_weight_spat * self._smooth_reg_fn_spat(
             self.space_conv.weight.squeeze(2)
         ) + self.smooth_weight_temp * self._smooth_reg_fn_temp(self.time_conv.weight.squeeze(-1, -2))
@@ -270,9 +292,13 @@ class SingleCellSeparatedLNP(LightningModule):
             average (bool, optional): use mean of weights instead of sum. Defaults to True.
         """
         if average:
-            return self.space_conv.weight.abs().mean() + self.time_conv.weight.abs().mean()
+            if self.fit_gaussian:
+                return self.time_conv.weight.abs().mean()
+            return torch.abs(self.space_conv.weight).mean() + torch.abs(self.time_conv.weight).mean()
         else:
-            return self.space_conv.weight.abs().sum() + self.time_conv.weight.abs().sum()
+            if self.fit_gaussian:
+                return self.time_conv.weight.abs().sum()
+            return torch.abs(self.space_conv.weight).sum() + torch.abs(self.time_conv.weight).sum()
 
     def normalize_kernels(self):
         """Normalizes the kernels to have unit norm."""
@@ -283,8 +309,10 @@ class SingleCellSeparatedLNP(LightningModule):
     def forward(self, x: Float[torch.Tensor, "batch channels t h w"], data_key=None, **kwargs):
         if self.normalize_weights:
             self.normalize_kernels()
-
-        out = self.space_conv(x)
+        if self.fit_gaussian:
+            out = self.space_gauss_conv(x)
+        else:
+            out = self.space_conv(x)
         out = self.time_conv(out)
         out = self.nonlinearity(out)
         out = rearrange(out, "batch neurons t 1 1 -> batch t neurons", neurons=1)
@@ -292,3 +320,45 @@ class SingleCellSeparatedLNP(LightningModule):
 
     def regularizer(self):
         return self.laplace() + self.sparse_weight * self.weights_l1()
+
+
+class GaussianConv3d(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, l11: float = 0.5, l22: float = 0.5):
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+
+        # Learnable parameters for mean and sigma
+        self.mean_x = nn.Parameter(torch.zeros(1), requires_grad=True)
+        self.mean_y = nn.Parameter(torch.zeros(1), requires_grad=True)
+        self.l11_raw = nn.Parameter(torch.ones(1) * l11, requires_grad=True)
+        self.l22_raw = nn.Parameter(torch.ones(1) * l22, requires_grad=True)
+        self.l12 = nn.Parameter(torch.zeros(1), requires_grad=True)
+
+        x_coord = torch.linspace(-kernel_size[0] // 2, kernel_size[0] // 2, kernel_size[0])
+        y_coord = torch.linspace(-kernel_size[1] // 2, kernel_size[1] // 2, kernel_size[1])
+        x, y = torch.meshgrid(x_coord, y_coord)
+
+        self.register_buffer("x_coord", x_coord.clone())
+        self.register_buffer("y_coord", y_coord.clone())
+        self.register_buffer("x", x.clone())
+        self.register_buffer("y", y.clone())
+
+    def forward(self, x, data_key=None):
+        kernel = create_gaussian_kernel_cholesky(
+            self.l11_raw,
+            self.l22_raw,
+            self.l12,
+            self.x,
+            self.y,
+            self.mean_x,
+            self.mean_y,
+            self.kernel_size,
+            amplitude=1.0,
+            lower=None,
+            upper=None,
+        )
+        x = F.conv3d(x, kernel, padding=0)
+
+        return x
