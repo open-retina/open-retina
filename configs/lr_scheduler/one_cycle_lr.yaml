@@ -12,8 +12,10 @@ final_div_factor: 10000.0 # min_lr = initial_lr/final_div_factor
 three_phase: false # If True, use a third phase of the schedule
 last_epoch: -1
 
-# IMPORTANT: You must specify either total_steps OR steps_per_epoch + epochs
+# IMPORTANT: You can specify either total_steps OR steps_per_epoch + epochs
 # If none is specified, we try to get it from the trainer.estimated_stepping_batches
+# This will work by using trainer.max_epochs as the number of epochs the cycle will run for.
+
 # total_steps: ???  # Total number of steps in the cycle
 # steps_per_epoch: ???  # Number of steps per epoch (if using epochs instead of total_steps)
 # epochs: ???  # Number of epochs to train (if using steps_per_epoch)
