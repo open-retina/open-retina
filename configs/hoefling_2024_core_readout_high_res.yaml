@@ -3,13 +3,15 @@ defaults:
   - quality_checks: hoefling_2024
   - dataloader: hoefling_2024
   - model: base_core_readout
+  - optimizer: adamw
+  - scheduler: reduce_lr_on_plateau
   - training_callbacks:
-    - early_stopping
-    - lr_monitor
-    - model_checkpoint
+      - early_stopping
+      - lr_monitor
+      - model_checkpoint
   - logger:
-    - tensorboard
-    - csv
+      - tensorboard
+      - csv
   - trainer: default_deterministic
   - hydra: default
   - _self_ # values in this config will overwrite the defaults
@@ -20,7 +22,6 @@ check_stimuli_responses_match: false
 
 dataloader:
   batch_size: 64
-
 
 model:
   in_shape: [2, 150, 72, 64]
@@ -35,7 +36,7 @@ model:
     # downsample_input_kernel_size: [1, 4, 4]  # to reproduce 18x16px low-res input
 
 paths:
-  load_model_path: null  # e.g. hoefling_2024_base_high_res or path to a .ckpt model
+  load_model_path: null # e.g. hoefling_2024_base_high_res or path to a .ckpt model
   cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Remote files are downloaded to this location
   data_dir: ${paths.cache_dir}/data/ # Folder where local files are read from.
   log_dir: "." # Used as parent for output_dir. Will store train logs.
@@ -46,7 +47,6 @@ paths:
 matmul_precision:
   _target_: torch.set_float32_matmul_precision
   precision: medium
-
 
 trainer:
   max_epochs: 100
