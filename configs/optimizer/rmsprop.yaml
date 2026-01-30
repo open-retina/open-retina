@@ -1,8 +1,0 @@
-# RMSprop optimizer configuration
-_target_: torch.optim.RMSprop
-lr: ${model.learning_rate}
-alpha: 0.99
-eps: 1.0e-8
-weight_decay: 0.0
-momentum: 0.0
-centered: false

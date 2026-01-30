@@ -1,5 +1,4 @@
 # ReduceLROnPlateau scheduler configuration
-# This is the default scheduler used in the codebase
 # Reduces learning rate when a metric has stopped improving
 _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
 mode: max # max for metrics that should increase (e.g., correlation), min for loss
