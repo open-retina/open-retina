@@ -50,6 +50,7 @@ Issues = "https://github.com/open-retina/open-retina/issues"
 dev = [
     "ruff>=0.9",
     "mypy>=1.0",
+    "pandas-stubs",
     "pytest",
     "types-psutil",
     "types-tqdm",

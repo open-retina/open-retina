@@ -11,6 +11,10 @@ https://huggingface.co/datasets/open-retina/open-retina/tree/main/marre_lab/gold
 import os
 from typing import Literal
 
+import h5py
+import numpy as np
+from einops import rearrange
+
 from openretina.data_io.base import ResponsesTrainTestSplit
 from openretina.utils.file_utils import get_local_file_path
 from openretina.utils.h5_handling import load_dataset_from_h5
@@ -53,9 +57,52 @@ def load_all_responses(
             "Train and test responses should have the same number of neurons."
         )
 
+        test_by_trial = load_test_repeats_for_session(recording_file, fr_normalization)
+
         responses_all_sessions[str(session).removesuffix(".h5")] = ResponsesTrainTestSplit(
             train=train_session_data / fr_normalization,
             test=test_session_data / fr_normalization,
+            test_by_trial=test_by_trial,
             stim_id=stim_type,
         )
     return responses_all_sessions
+
+
+def load_test_repeats_for_session(
+    session_path: str | os.PathLike,
+    fr_normalization: float = 1,
+) -> np.ndarray | None:
+    """
+    Load repeated test responses stored under /test/repeats/cell_{idx}.
+
+    Returns repeats x neurons x time or None if no repeats are present.
+    """
+    with h5py.File(session_path, "r") as f:
+        test_group = f.get("test")
+        if not isinstance(test_group, h5py.Group):
+            return None
+        repeats_group = test_group.get("repeats")
+        if not isinstance(repeats_group, h5py.Group):
+            return None
+
+        repeat_groups = [k for k in repeats_group.keys() if "cell" in k]
+        if len(repeat_groups) == 0:
+            return None
+
+        # Each dataset is expected to be shape (repeats, time)
+        repeat_groups_sorted = sorted(repeat_groups, key=lambda x: int(x.split("cell")[-1]))
+        stacked_list: list[np.ndarray] = []
+        for cell_key in repeat_groups_sorted:
+            cell_dataset = repeats_group.get(cell_key)
+            if not isinstance(cell_dataset, h5py.Dataset):
+                continue
+            cell_repeats = cell_dataset[...]
+            stacked_list.append(cell_repeats)
+
+        if len(stacked_list) == 0:
+            return None
+
+        # shape: neurons x repeats x time -> repeats x neurons x time
+        stacked = np.stack(stacked_list, axis=0) / fr_normalization
+        stacked = rearrange(stacked, "neurons repeats time -> repeats neurons time")
+        return stacked

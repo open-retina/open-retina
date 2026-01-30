@@ -12,6 +12,19 @@ from jaxtyping import Float
 
 @dataclass(frozen=True)
 class MoviesTrainTestSplit:
+    """
+    Container for stimulus movies used during training and evaluation.
+
+    Attributes:
+        train: Continuous movie shown during training.
+        test_dict: Named dictionary of frozen test stimuli. For legacy single-test datasets
+            pass `test`; it will automatically be wrapped into `{"test": test}`.
+        test: Convenience field to pass a single frozen movie.
+        stim_id: Optional identifier (e.g. "natural") to keep responses/movies aligned.
+        random_sequences: Optional clip permutations (Höfling 2024 format).
+        norm_mean / norm_std: Normalization statistics applied to both train and test movies.
+    """
+
     train: Float[np.ndarray, "channels train_time height width"]
     # test_dict: dict[str, Float[np.ndarray, "channels train_time height width"]]
     # (dataclass complains about unsupported value type when using full annotation)
@@ -73,12 +86,21 @@ class MoviesTrainTestSplit:
 
 @dataclass
 class ResponsesTrainTestSplit:
+    """
+    Container for neural responses paired with `MoviesTrainTestSplit`.
+
+    Supports multiple test stimuli via `test_dict` and per-trial traces via
+    `test_by_trial_dict`. For single-test datasets you may provide `test` and
+    optionally `test_by_trial`; both will be lifted into the matching dictionaries.
+    """
+
     train: Float[np.ndarray, "neurons train_time"]
     # test_dict: dict[str, Float[np.ndarray, "neurons test_time"]]
-    # (dataclass complains about unsupported value type when using full annotation)
+    # (dataclass and Omegaconf complain about unsupported value type when using full annotation)
     test_dict: dict = field(default_factory=lambda: {})
     test: InitVar[Float[np.ndarray, "neurons test_time"] | None] = None
     test_by_trial: Float[np.ndarray, "trials neurons test_time"] | None = None
+    test_by_trial_dict: dict = field(default_factory=lambda: {})
     stim_id: str | None = None
     session_kwargs: dict[str, Any] = field(default_factory=lambda: {})
 
@@ -87,6 +109,21 @@ class ResponsesTrainTestSplit:
             raise ValueError(f"Exactly one of test_dict and test should be set, but {test=} {self.test_dict=}.")
         if len(self.test_dict) == 0:
             self.test_dict["test"] = test
+
+        # When only a single test stimulus exists we can lift the array into a dict automatically.
+        if self.test_by_trial is not None:
+            if len(self.test_dict) > 1:
+                raise ValueError(
+                    "Provide test_by_trial_dict when multiple test stimuli are present to keep keys disambiguated."
+                )
+            key = next(iter(self.test_dict.keys()))
+            self.test_by_trial_dict.setdefault(key, self.test_by_trial)
+
+        extra_trial_keys = set(self.test_by_trial_dict.keys()) - set(self.test_dict.keys())
+        if extra_trial_keys:
+            raise ValueError(
+                f"test_by_trial_dict contains keys without matching test stimuli: {sorted(extra_trial_keys)}"
+            )
 
         assert self.train.shape[0] == self.test_neurons, (
             "Train and test responses should have the same number of neurons."
@@ -134,6 +171,20 @@ class ResponsesTrainTestSplit:
         if len(self.test_dict) > 1:
             raise ValueError(f"Multiple test stimuli: {list(self.test_dict.keys())}")
         return self.test_dict[next(iter(self.test_dict.keys()))]
+
+    def get_test_by_trial(self, name: str = "test") -> Float[np.ndarray, "trials neurons test_time"] | None:
+        """
+        Return the per-trial responses for a specific stimulus.
+
+        Args:
+            name: Key inside `test_dict`. Default is "test", for the default single test stimulus case.
+
+        Returns:
+            Array of shape (trials, neurons, time) if available, otherwise `None`.
+        """
+        if not self.test_by_trial_dict:
+            return None
+        return self.test_by_trial_dict.get(name)
 
 
 def get_n_neurons_per_session(responses_dict: dict[str, ResponsesTrainTestSplit]) -> dict[str, int]:

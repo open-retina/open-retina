@@ -27,7 +27,7 @@ model:
   in_shape: [2, 150, 72, 64]
   hidden_channels: [16, 16, 16, 16]
   core:
-    temporal_kernel_sizes: [15, 15, 7, 7]
+    temporal_kernel_sizes: [13, 11, 5, 5]
     spatial_kernel_sizes: [15, 15, 7, 7]
     input_padding: 0
     hidden_padding: [0, 5, 5]

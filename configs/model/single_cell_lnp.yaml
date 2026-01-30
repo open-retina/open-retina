@@ -1,0 +1,16 @@
+_target_: openretina.models.linear_nonlinear.SingleCellSeparatedLNP
+_convert_: all
+in_shape: ???
+spat_kernel_size: [15, 15]
+rf_location: null # Required for init. Set dynamically in scripts/train.py based on loaded sessions.
+learning_rate: 0.005
+nonlinearity: "softplus"
+rank: 1
+smooth_weight_spat: 1.0
+smooth_weight_temp: 1.0
+sparse_weight: 1.0
+smooth_regularizer_spat: "LaplaceL2norm"
+smooth_regularizer_temp: "Laplace1d"
+laplace_padding: null
+fit_gaussian: false
+normalize_weights: false

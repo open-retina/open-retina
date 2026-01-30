@@ -11,7 +11,8 @@ def test_load_core_readout_from_remote(model_name: str) -> None:
 
     model = load_core_readout_from_remote(model_name, "cpu")
     stimulus = torch.rand(model.stimulus_shape(time_steps=50, num_batches=num_batches))
-    responses = model.forward(stimulus)
+    sample_data_key = next(iter(model.readout.keys()))
+    responses = model.forward(stimulus, data_key=sample_data_key)
 
     assert responses.shape[0] == num_batches
 
