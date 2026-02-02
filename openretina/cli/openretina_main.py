@@ -52,7 +52,7 @@ class HydraRunner:
             except Exception as e:
                 # If we are running hyperparameter tuning, we return the worst score on exceptions,
                 # otherwise we re-raise the exception
-                objective_direction: str = str(cfg.get("objective_direction")).lower()
+                objective_direction = str(cfg.get("objective_direction")).lower()
                 if objective_direction == "maximize":
                     score = float("-inf")
                 elif objective_direction == "minimize":
