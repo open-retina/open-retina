@@ -48,8 +48,7 @@ class HydraRunner:
                 cfg.paths.cache_dir = get_cache_directory()
 
             try:
-                score = train_model(cfg)
-                return score
+                return train_model(cfg)
             except Exception as e:
                 # If we are running hyperparameter tuning, we return the worst score on exceptions,
                 # otherwise we re-raise the exception
