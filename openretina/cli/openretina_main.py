@@ -53,19 +53,16 @@ class HydraRunner:
             except Exception as e:
                 # If we are running hyperparameter tuning, we return the worst score on exceptions,
                 # otherwise we re-raise the exception
-                try:
-                    direction: str | None = str(cfg.hydra.sweeper.direction).lower()
-                except Exception:
-                    direction = None
+                objective_direction: str = str(cfg.get("objective_direction")).lower()
 
-                if direction == "maximize":
-                    log.exception("Error during training, score=-inf")
-                    return float("-inf")
-                elif direction == "minimize":
-                    log.exception("Error during training, score=inf")
-                    return float("inf")
+                if objective_direction == "maximize":
+                    score = float("-inf")
+                elif objective_direction == "minimize":
+                    score = float("inf")
                 else:
                     raise e
+
+                log.exception(f"Error during training, {objective_direction=}, {score=}")
 
         _train()
 
