@@ -1,22 +1,15 @@
 defaults:
   - data_io: goldin_2022
   - dataloader: goldin_2022
-  - model: core_klindt_readout
-  - optimizer: adamw
-  - lr_scheduler: reduce_lr_on_plateau
+  - model: base_core_readout
   - training_callbacks:
       - early_stopping
       - lr_monitor
       - model_checkpoint
-      - weight_visualization
   - logger:
       - tensorboard
       - csv
-      - mlflow
   - trainer: default_deterministic
-  - hydra: default
-  - override hydra/sweeper: optuna # make sure to `pip install -e ".[optuna]"`
-  - override hydra/sweeper/sampler: tpe
   - _self_ # values in this config will overwrite the defaults
 
 exp_name: core_readout_goldin_2022
@@ -36,28 +29,6 @@ data_io:
   responses:
     specie: "mouse"
 
-objective_target: val_loss
-
-hydra:
-  run:
-    dir: ${paths.log_dir}/openretina_assets/runs/${exp_name}/${now:%Y-%m-%d_%H-%M-%S}
-  sweep:
-    dir: ${paths.log_dir}/openretina_assets/runs/${exp_name}/${now:%Y-%m-%d_%H-%M-%S}
-  sweeper:
-    sampler:
-      seed: 42
-    direction: minimize
-    study_name: ${exp_name}
-    storage: null
-    n_trials: 50
-    n_jobs: 1
-    params:
-      model.core.spatial_kernel_sizes: choice([20],[25],[30])
-      model.core.gamma_input: interval(1e-3, 10)
-      model.readout.weights_l1_reg: interval(1e-3, 10)
-      model.readout.laplace_mask_reg: interval(1e-3, 10)
-      model.readout.mask_l1_reg: interval(1e-3, 10)
-
 # Overwrite model defaults
 model:
   in_shape: [1, 1, 108, 108]
@@ -70,8 +41,7 @@ model:
     convolution_type: "time_independent"
   readout:
     mask_l1_reg: 5.924553274051563
-    weights_l1_reg: 6.075840974162483
-    laplace_mask_reg: 1.706070712749228
+    feature_weights_l1_reg: 6.075840974162483
 
 matmul_precision:
   _target_: torch.set_float32_matmul_precision
@@ -89,6 +59,8 @@ training_callbacks:
     patience: 10
     monitor: "val_loss"
     mode: "min"
+    min_delta: 0.0001
   model_checkpoint:
     monitor: "val_loss"
     mode: "min"
+    min_delta: 0.0001

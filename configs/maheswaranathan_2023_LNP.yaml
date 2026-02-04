@@ -2,17 +2,18 @@ defaults:
   - data_io: maheswaranathan_2023
   - dataloader: maheswaranathan_2023
   - model: linear_nonlinear_poisson
+  - optimizer: adamw
+  - lr_scheduler: reduce_lr_on_plateau
   - training_callbacks:
-    - early_stopping
-    - lr_monitor
-    - model_checkpoint
+      - early_stopping
+      - lr_monitor
+      - model_checkpoint
   - trainer: default_deterministic
   - logger:
-    - tensorboard
-    - csv
+      - tensorboard
+      - csv
   - hydra: default
   - _self_ # values in this config will overwrite the defaults
-
 
 exp_name: example_linear_nonlinear_poisson
 seed: 42

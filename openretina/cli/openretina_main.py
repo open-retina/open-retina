@@ -1,4 +1,5 @@
 import argparse
+import logging
 import os
 import sys
 from pathlib import Path
@@ -8,6 +9,9 @@ from omegaconf import DictConfig
 
 from openretina.cli import create_data, visualize_model_neurons
 from openretina.utils.file_utils import get_cache_directory
+
+log = logging.getLogger(__name__)
+logging.captureWarnings(True)
 
 
 def get_config_path(config_path: str | None) -> str:
@@ -43,7 +47,21 @@ class HydraRunner:
             if cfg.paths.cache_dir is None:
                 cfg.paths.cache_dir = get_cache_directory()
 
-            return train_model(cfg)
+            try:
+                return train_model(cfg)
+            except Exception as e:
+                # If we are running hyperparameter tuning, we return the worst score on exceptions,
+                # otherwise we re-raise the exception
+                objective_direction = str(cfg.get("objective_direction")).lower()
+                if objective_direction == "maximize":
+                    score = float("-inf")
+                elif objective_direction == "minimize":
+                    score = float("inf")
+                else:
+                    raise e
+
+                log.exception(f"Error during training, {objective_direction=}, {score=}")
+                return score
 
         _train()
 
