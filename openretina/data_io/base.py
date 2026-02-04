@@ -191,6 +191,127 @@ def get_n_neurons_per_session(responses_dict: dict[str, ResponsesTrainTestSplit]
     return {name: responses.n_neurons for name, responses in responses_dict.items()}
 
 
+@dataclass
+class DatasetStatistics:
+    """Statistics about unique frames across sessions.
+
+    Attributes:
+        unique_train_frames: Number of unique training frames (0 if train/val split unknown).
+        unique_val_frames: Number of unique validation frames (0 if train/val split unknown).
+        unique_train_val_frames: Total unique train+val frames (always computed).
+        unique_test_frames: Dict mapping test stimulus name to unique frame count.
+        n_sessions: Total number of sessions.
+        n_unique_stimuli: Number of unique stimulus IDs (sessions sharing stimuli counted once).
+    """
+
+    unique_train_frames: int
+    unique_val_frames: int
+    unique_train_val_frames: int
+    unique_test_frames: dict[str, int]
+    n_sessions: int
+    n_unique_stimuli: int
+
+
+def _compute_movie_fingerprint(movie: np.ndarray, n_samples: int = 10) -> tuple[float, ...]:
+    """
+    Compute a fingerprint from a movie by sampling frames and computing their mean values.
+
+    This provides a fast heuristic to identify identical movies without comparing all frames.
+    Two movies with the same fingerprint are very likely identical.
+
+    Args:
+        movie: Movie array with shape (channels, time, height, width).
+        n_samples: Number of evenly spaced frames to sample.
+
+    Returns:
+        Tuple of mean values from sampled frames, suitable as a dict key.
+    """
+    time_dim = movie.shape[1]
+    if time_dim == 0:
+        return ()
+
+    # Sample evenly spaced frame indices
+    n_samples = min(n_samples, time_dim)
+    indices = np.linspace(0, time_dim - 1, n_samples, dtype=int)
+
+    # Compute mean of each sampled frame (across channels and spatial dims)
+    fingerprint = tuple(float(movie[:, idx, :, :].mean()) for idx in indices)
+    return fingerprint
+
+
+def compute_unique_frame_counts(
+    movies_dict: dict[str, MoviesTrainTestSplit],
+    clip_length: int | None = None,
+    num_val_clips: int | None = None,
+) -> DatasetStatistics:
+    """
+    Compute unique frame counts across sessions.
+
+    Sessions with the same stim_id share the same stimulus and are counted once.
+    If stim_id is not set, sessions are compared using a fingerprint computed from
+    sampled frames (mean values of ~10 evenly spaced frames).
+
+    Args:
+        movies_dict: Dictionary mapping session names to MoviesTrainTestSplit.
+        clip_length: Length of each clip in frames. Required to compute train/val split.
+        num_val_clips: Number of validation clips. Required to compute train/val split.
+
+    Returns:
+        DatasetStatistics with unique frame counts.
+    """
+    # Group sessions by stimulus identity
+    # Key: stim_id, or (shape, fingerprint) tuple as fallback
+    stim_groups: dict[str | tuple[tuple[int, ...], tuple[float, ...]], MoviesTrainTestSplit] = {}
+
+    for session_name, movies in movies_dict.items():
+        if movies.stim_id is not None:
+            key: str | tuple[tuple[int, ...], tuple[float, ...]] = movies.stim_id
+        else:
+            # Fallback: use shape + frame fingerprint to identify unique movies
+            # This catches cases where different movies have the same shape
+            shape = movies.train.shape
+            fingerprint = _compute_movie_fingerprint(movies.train)
+            key = (shape, fingerprint)
+
+        if key not in stim_groups:
+            stim_groups[key] = movies
+
+    # Compute unique frames across unique stimuli
+    unique_train_val_frames = 0
+    unique_test_frames: dict[str, int] = {}
+
+    for movies in stim_groups.values():
+        unique_train_val_frames += movies.train.shape[1]
+
+        for test_name, test_movie in movies.test_dict.items():
+            if test_name not in unique_test_frames:
+                unique_test_frames[test_name] = 0
+            unique_test_frames[test_name] += test_movie.shape[1]
+
+    # Split train/val if parameters provided
+    if clip_length is not None and num_val_clips is not None:
+        unique_val_frames = 0
+        unique_train_frames = 0
+        for movies in stim_groups.values():
+            num_clips = movies.train.shape[1] // clip_length
+            val_frames = num_val_clips * clip_length
+            train_frames = (num_clips - num_val_clips) * clip_length
+            unique_val_frames += val_frames
+            unique_train_frames += train_frames
+    else:
+        unique_train_frames = 0
+        unique_val_frames = 0
+
+    return DatasetStatistics(
+        unique_train_frames=unique_train_frames,
+        unique_val_frames=unique_val_frames,
+        unique_train_val_frames=unique_train_val_frames,
+        unique_test_frames=unique_test_frames,
+        n_sessions=len(movies_dict),
+        n_unique_stimuli=len(stim_groups),
+    )
+
+
 def normalize_train_test_movies(
     train: Float[np.ndarray, "channels train_time height width"],
     test: Float[np.ndarray, "channels test_time height width"],

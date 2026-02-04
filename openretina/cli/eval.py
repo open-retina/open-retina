@@ -12,6 +12,7 @@ from einops import rearrange
 from omegaconf import DictConfig, OmegaConf
 from tqdm.auto import tqdm
 
+from openretina.data_io.base import compute_unique_frame_counts
 from openretina.eval.metrics import MSE_numpy, correlation_numpy, explainable_vs_total_var, feve
 from openretina.eval.oracles import oracle_corr_jackknife
 from openretina.models.core_readout import load_core_readout_model
@@ -245,6 +246,11 @@ def evaluate_model(cfg: DictConfig) -> float:
         n_neurons_excluded = n_neurons_total - n_neurons_filtered
         filtering_applied = True
 
+    # Compute dataset statistics
+    clip_length = cfg.dataloader.get("clip_length") if hasattr(cfg, "dataloader") else None
+    num_val_clips = cfg.dataloader.get("num_val_clips") if hasattr(cfg, "dataloader") else None
+    dataset_stats = compute_unique_frame_counts(movies_dict, clip_length, num_val_clips)
+
     # Print header with model info
     print("=" * 80)
     print("Model Evaluation Results")
@@ -252,6 +258,22 @@ def evaluate_model(cfg: DictConfig) -> float:
     print(f"Model path: {cfg.evaluation.model_path}")
     print(f"Data split: {data_split}")
     print(f"Lag: {lag}")
+
+    # Print dataset statistics
+    print("-" * 80)
+    print("Dataset Statistics (unique frames across sessions):")
+    if dataset_stats.n_unique_stimuli < dataset_stats.n_sessions:
+        print(f"  Sessions: {dataset_stats.n_sessions} ({dataset_stats.n_unique_stimuli} unique stimuli)")
+    else:
+        print(f"  Sessions: {dataset_stats.n_sessions}")
+    if dataset_stats.unique_train_frames > 0 and dataset_stats.unique_val_frames > 0:
+        print(f"  Training frames: {dataset_stats.unique_train_frames:,}")
+        print(f"  Validation frames: {dataset_stats.unique_val_frames:,}")
+    else:
+        print(f"  Training + validation frames: {dataset_stats.unique_train_val_frames:,}")
+    for test_name, test_frames in sorted(dataset_stats.unique_test_frames.items()):
+        print(f"  Test frames ({test_name}): {test_frames:,}")
+
     print("-" * 80)
     print(f"Total neurons: {n_neurons_total}")
     if can_filter:
@@ -289,6 +311,7 @@ def evaluate_model(cfg: DictConfig) -> float:
         "corr_to_average": "Correlation",
         "mse_to_average": "MSE",
         "feve": "FEVe",
+        "var_ratio": "FEV (expl. var ratio)",
         "poisson_loss_to_average": "Poisson loss",
     }
     for k, display_name in metric_names.items():
