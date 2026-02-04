@@ -240,7 +240,7 @@ def _compute_movie_fingerprint(movie: np.ndarray, n_samples: int = 10) -> tuple[
 
 
 def compute_unique_frame_counts(
-    movies_dict: dict[str, MoviesTrainTestSplit],
+    movies_dict: dict[str, MoviesTrainTestSplit] | MoviesTrainTestSplit,
     clip_length: int | None = None,
     num_val_clips: int | None = None,
 ) -> DatasetStatistics:
@@ -252,13 +252,18 @@ def compute_unique_frame_counts(
     sampled frames (mean values of ~10 evenly spaced frames).
 
     Args:
-        movies_dict: Dictionary mapping session names to MoviesTrainTestSplit.
+        movies_dict: Dictionary mapping session names to MoviesTrainTestSplit, or a single
+            MoviesTrainTestSplit (for datasets where all sessions share the same stimulus).
         clip_length: Length of each clip in frames. Required to compute train/val split.
         num_val_clips: Number of validation clips. Required to compute train/val split.
 
     Returns:
         DatasetStatistics with unique frame counts.
     """
+    # Handle single MoviesTrainTestSplit (e.g., hoefling_2024 where all sessions share one stimulus)
+    if isinstance(movies_dict, MoviesTrainTestSplit):
+        movies_dict = {"_shared": movies_dict}
+
     # Group sessions by stimulus identity
     # Key: stim_id, or (shape, fingerprint) tuple as fallback
     stim_groups: dict[str | tuple[tuple[int, ...], tuple[float, ...]], MoviesTrainTestSplit] = {}

@@ -17,6 +17,7 @@ from openretina.eval.metrics import MSE_numpy, correlation_numpy, explainable_vs
 from openretina.eval.oracles import oracle_corr_jackknife
 from openretina.models.core_readout import load_core_readout_model
 from openretina.modules.losses import PoissonLoss3d
+from openretina.utils.eval_utils import EvaluationSummary
 from openretina.utils.misc import reorder_like_a
 
 log = logging.getLogger(__name__)
@@ -229,21 +230,16 @@ def evaluate_model(cfg: DictConfig) -> float:
     # Check if var_ratio can be used for filtering
     n_neurons_total = len(df)
     n_neurons_with_var_ratio = df["var_ratio"].notna().sum()
-    can_filter = n_neurons_with_var_ratio > 0
 
-    if not can_filter:
+    if n_neurons_with_var_ratio == 0:
         log.warning(
             f"No neurons have valid variance ratio values. "
             f"Skipping var_ratio_cutoff filtering. All {n_neurons_total} neurons will be included in evaluation."
         )
         df_filtered = df.copy()
-        n_neurons_filtered = n_neurons_total
-        n_neurons_excluded = 0
         filtering_applied = False
     else:
         df_filtered = df[df["var_ratio"].notna() & (df["var_ratio"] >= var_ratio_cutoff)].copy()
-        n_neurons_filtered = len(df_filtered)
-        n_neurons_excluded = n_neurons_total - n_neurons_filtered
         filtering_applied = True
 
     # Compute dataset statistics
@@ -251,99 +247,46 @@ def evaluate_model(cfg: DictConfig) -> float:
     num_val_clips = cfg.dataloader.get("num_val_clips") if hasattr(cfg, "dataloader") else None
     dataset_stats = compute_unique_frame_counts(movies_dict, clip_length, num_val_clips)
 
-    # Print header with model info
-    print("=" * 80)
-    print("Model Evaluation Results")
-    print("=" * 80)
-    print(f"Model path: {cfg.evaluation.model_path}")
-    print(f"Data split: {data_split}")
-    print(f"Lag: {lag}")
+    # Extract metadata from config
+    model_tag = cfg.evaluation.get("model_tag", cfg.evaluation.model_path)
+    dataset_name = cfg.get("exp_name", "unknown")
+    species = None
+    if hasattr(cfg, "data_io") and hasattr(cfg.data_io, "responses"):
+        species = cfg.data_io.responses.get("specie", None)
+    if species is None and hasattr(cfg, "data_io") and hasattr(cfg.data_io, "stimuli"):
+        species = cfg.data_io.stimuli.get("specie", None)
 
-    # Print dataset statistics
-    print("-" * 80)
-    print("Dataset Statistics (unique frames across sessions):")
-    if dataset_stats.n_unique_stimuli < dataset_stats.n_sessions:
-        print(f"  Sessions: {dataset_stats.n_sessions} ({dataset_stats.n_unique_stimuli} unique stimuli)")
-    else:
-        print(f"  Sessions: {dataset_stats.n_sessions}")
-    if dataset_stats.unique_train_frames > 0 and dataset_stats.unique_val_frames > 0:
-        print(f"  Training frames: {dataset_stats.unique_train_frames:,}")
-        print(f"  Validation frames: {dataset_stats.unique_val_frames:,}")
-    else:
-        print(f"  Training + validation frames: {dataset_stats.unique_train_val_frames:,}")
-    for test_name, test_frames in sorted(dataset_stats.unique_test_frames.items()):
-        print(f"  Test frames ({test_name}): {test_frames:,}")
+    # Build evaluation summary from DataFrame
+    summary = EvaluationSummary.from_dataframe(
+        df_filtered,
+        model_path=str(cfg.evaluation.model_path),
+        model_tag=str(model_tag),
+        dataset_name=str(dataset_name),
+        species=str(species) if species else None,
+        data_split=data_split,
+        lag=lag,
+        n_trials_per_session=n_trials_per_session,
+        n_neurons_total=n_neurons_total,
+        var_ratio_cutoff=var_ratio_cutoff,
+        filtering_applied=filtering_applied,
+        dataset_stats=dataset_stats,
+    )
 
-    print("-" * 80)
-    print(f"Total neurons: {n_neurons_total}")
-    if can_filter:
-        print(f"Variance ratio cutoff: {var_ratio_cutoff}")
-        if filtering_applied:
-            print(f"Neurons above var_ratio threshold (≥{var_ratio_cutoff}): {n_neurons_filtered}")
-            excluded_pct = n_neurons_excluded / n_neurons_total * 100
-            print(f"Neurons excluded: {n_neurons_excluded} ({excluded_pct:.1f}%)")
-        else:
-            print("Note: var_ratio filtering not applied (no valid var_ratio values)")
-    else:
-        print(f"Variance ratio cutoff: {var_ratio_cutoff} (NOT APPLIED - no trial/repeats data available)")
-        print("Note: var_ratio could not be computed (no trial/repeats data). All neurons included.")
-    print("-" * 80)
+    # Print formatted report
+    summary.print_report()
 
-    # Print metrics (using filtered data)
-    if filtering_applied and can_filter:
-        print("\nTrial/repeats-averaged metrics (computed on neurons above var_ratio threshold):")
-    else:
-        print("\nTrial/repeats-averaged metrics (computed on all neurons - var_ratio filtering not applied):")
-
-    # Print statistics about number of trials/repeats across sessions
-    if not n_trials_per_session or all(n == 1 for n in n_trials_per_session):
-        print("\n(Number of trials/repeats: N/A)")
-    else:
-        n_trials_min = min(n_trials_per_session)
-        n_trials_max = max(n_trials_per_session)
-        n_trials_avg = np.mean(n_trials_per_session)
-        if n_trials_min == n_trials_max:
-            print(f"(Number of trials/repeats: {n_trials_min} (constant across all sessions))")
-        else:
-            print(f"(Number of trials/repeats: min={n_trials_min}, max={n_trials_max}, avg={n_trials_avg:.1f})")
-    print("-" * 80)
-    metric_names = {
-        "corr_to_average": "Correlation",
-        "mse_to_average": "MSE",
-        "feve": "FEVe",
-        "var_ratio": "FEV (expl. var ratio)",
-        "poisson_loss_to_average": "Poisson loss",
-    }
-    for k, display_name in metric_names.items():
-        if k in df_filtered.columns:
-            mean_val = np.nanmean(df_filtered[k])
-            print(f"  {display_name:30s}: {mean_val:.4f}")
-
-    # Comparison to individual traces
-    if filtering_applied and can_filter:
-        print("\nPer-trial metrics (computed on neurons above var_ratio threshold):")
-    else:
-        print("\nPer-trial metrics (computed on all neurons - var_ratio filtering not applied):")
-    print("-" * 80)
-    for k in ["corr", "mse"]:
-        avgs, i = [], 0
-        while (key_ := f"{k}_{i}") in df_filtered.columns:
-            avgs.append(np.nanmean(df_filtered[key_]))
-            i += 1
-        if avgs:
-            mean_val = np.nanmean(avgs)
-            std_val = np.nanstd(avgs)
-            display_name = "Correlation" if k == "corr" else "MSE"
-            print(f"  {display_name:30s}: {mean_val:.4f} (±{std_val:.4f})")
-
-    print("=" * 80)
-
+    # Save per-neuron results
     if cfg.evaluation.get("model_results_path") is not None:
         df.to_csv(cfg.evaluation.model_results_path)
+        log.info(f"Per-neuron results saved to {cfg.evaluation.model_results_path}")
+
+    # Save summary results
+    if cfg.evaluation.get("summary_results_path") is not None:
+        summary.save_json(cfg.evaluation.summary_results_path)
+        log.info(f"Summary results saved to {cfg.evaluation.summary_results_path}")
 
     # Return average correlation computed on filtered neurons
-    avg_correlation = float(np.nanmean(df_filtered["corr_to_average"]))
-    return avg_correlation
+    return summary.corr_to_avg_mean
 
 
 if __name__ == "__main__":
