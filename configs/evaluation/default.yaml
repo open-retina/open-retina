@@ -1,5 +1,7 @@
 model_path: ??? # Needs to be provided by cloning the config or through cli.
+model_tag: null # Optional tag for the model (used in summary). If null, defaults to model_path.
 data_split: test # Can be either "train", "validation", or "test", or, if you have multiple test stimuli, the name of the test stimulus (as it appears in the dataloaders)
 add_responses_to_model_results: false # Whether to add the model responses to the eval table results.
-model_results_path: null # Path to save the evaluation results to.
+model_results_path: null # Path to save the per-neuron evaluation results CSV.
+summary_results_path: null # Path to save the summary statistics JSON (for cross-model comparison).
 var_ratio_cutoff: 0.15 # Cutoff for explainable to total variance ratio to consider a neuron "bad" and exclude it from the evaluation.
