@@ -243,6 +243,7 @@ def compute_unique_frame_counts(
     movies_dict: dict[str, MoviesTrainTestSplit] | MoviesTrainTestSplit,
     clip_length: int | None = None,
     num_val_clips: int | None = None,
+    train_frac: float | None = None,
 ) -> DatasetStatistics:
     """
     Compute unique frame counts across sessions.
@@ -251,11 +252,16 @@ def compute_unique_frame_counts(
     If stim_id is not set, sessions are compared using a fingerprint computed from
     sampled frames (mean values of ~10 evenly spaced frames).
 
+    Supports two methods for computing train/val split:
+    1. Clip-based: Provide `clip_length` and `num_val_clips` (e.g., hoefling, karamanlis)
+    2. Fraction-based: Provide `train_frac` (e.g., sridhar with trial-wise splitting)
+
     Args:
         movies_dict: Dictionary mapping session names to MoviesTrainTestSplit, or a single
             MoviesTrainTestSplit (for datasets where all sessions share the same stimulus).
-        clip_length: Length of each clip in frames. Required to compute train/val split.
-        num_val_clips: Number of validation clips. Required to compute train/val split.
+        clip_length: Length of each clip in frames. Used with num_val_clips for clip-based split.
+        num_val_clips: Number of validation clips. Used with clip_length for clip-based split.
+        train_frac: Fraction of data used for training (e.g., 0.8). Used for trial-wise splitting.
 
     Returns:
         DatasetStatistics with unique frame counts.
@@ -293,8 +299,11 @@ def compute_unique_frame_counts(
                 unique_test_frames[test_name] = 0
             unique_test_frames[test_name] += test_movie.shape[1]
 
-    # Split train/val if parameters provided
+    # Split train/val using one of two methods:
+    # 1. Clip-based (clip_length + num_val_clips)
+    # 2. Fraction-based (train_frac)
     if clip_length is not None and num_val_clips is not None:
+        # Clip-based split (hoefling, karamanlis, maheswaranathan)
         unique_val_frames = 0
         unique_train_frames = 0
         for movies in stim_groups.values():
@@ -303,6 +312,11 @@ def compute_unique_frame_counts(
             train_frames = (num_clips - num_val_clips) * clip_length
             unique_val_frames += val_frames
             unique_train_frames += train_frames
+    elif train_frac is not None:
+        # Fraction-based split (sridhar with trial-wise splitting)
+        # This is an estimate based on the fraction; actual split depends on n_trials
+        unique_train_frames = int(unique_train_val_frames * train_frac)
+        unique_val_frames = unique_train_val_frames - unique_train_frames
     else:
         unique_train_frames = 0
         unique_val_frames = 0

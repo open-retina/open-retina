@@ -244,8 +244,15 @@ def evaluate_model(cfg: DictConfig) -> float:
 
     # Compute dataset statistics
     clip_length = cfg.dataloader.get("clip_length") if hasattr(cfg, "dataloader") else None
-    num_val_clips = cfg.dataloader.get("num_val_clips") if hasattr(cfg, "dataloader") else None
-    dataset_stats = compute_unique_frame_counts(movies_dict, clip_length, num_val_clips)
+    num_val_clips = (
+        cfg.dataloader.get("num_val_clips")
+        if hasattr(cfg, "dataloader") and hasattr(cfg.dataloader, "num_val_clips")
+        else len(cfg.dataloader.get("validation_clip_indices", []))
+        if hasattr(cfg, "dataloader") and hasattr(cfg.dataloader, "validation_clip_indices")
+        else None
+    )
+    train_frac = cfg.dataloader.get("train_frac") if hasattr(cfg, "dataloader") else None
+    dataset_stats = compute_unique_frame_counts(movies_dict, clip_length, num_val_clips, train_frac)
 
     # Extract metadata from config
     model_tag = cfg.evaluation.get("model_tag", cfg.evaluation.model_path)
