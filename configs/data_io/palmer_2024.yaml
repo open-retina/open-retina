@@ -1,0 +1,38 @@
+train_movies:
+  - "MultipleMoviesStim_1_tree.avi"
+  - "MultipleMoviesStim_2_water.avi"
+  - "MultipleMoviesStim_3_grasses.avi"
+  - "MultipleMoviesStim_5_opticflow.avi"
+test_movies:
+  - "MultipleMoviesStim_4_fish.avi"
+
+video_height: 86 # full size is 344, this sets the downsampled size
+video_width: 86 # full size is 344, this sets the downsampled size
+
+stimuli:
+  _target_: openretina.data_io.palmer_2024.stimuli.load_stimuli
+  _convert_: object
+  base_data_path: ${paths.data_dir}
+  train_movies: ${data_io.train_movies}
+  test_movies: ${data_io.test_movies}
+  normalize_stimuli: true
+  resize_hw:
+    - ${data_io.video_height}
+    - ${data_io.video_width}
+  session_id: "palmer_2024_salamander"
+
+responses:
+  _target_: openretina.data_io.palmer_2024.responses.load_responses
+  _convert_: object
+  base_data_path: ${paths.data_dir}
+  train_movies: ${data_io.train_movies}
+  test_movies: ${data_io.test_movies}
+  response_key: "firing_rate_60ms" # or "binned"
+  fr_normalization: 1.0
+  session_id: "palmer_2024_salamander"
+
+data_info:
+  response_rate_hz: 60
+  stimulus_rate_hz: 60
+  retina_pixel_size_um: 28 # Assuming the same as other Marre lab datasets, not reported in the paper
+  animal_species: "salamander"
