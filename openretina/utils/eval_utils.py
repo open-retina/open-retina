@@ -22,7 +22,7 @@ class EvaluationSummary:
     # Model identification
     model_path: str
     model_tag: str
-    dataset_name: str
+    exp_name: str
     species: str | None
     data_split: str
 
@@ -52,11 +52,11 @@ class EvaluationSummary:
     poisson_loss_mean: float
     jackknife_mean: float
 
-    # Dataset statistics
-    n_sessions: int
-    unique_train_frames: int
-    unique_val_frames: int
-    unique_train_val_frames: int
+    # Dataset statistics (all default to 0/empty when compute_dataset_statistics is disabled)
+    n_sessions: int = 0
+    unique_train_frames: int = 0
+    unique_val_frames: int = 0
+    unique_train_val_frames: int = 0
     unique_test_frames: dict[str, int] = field(default_factory=dict)
     unique_train_transitions: int = 0
     unique_val_transitions: int = 0
@@ -69,7 +69,7 @@ class EvaluationSummary:
         *,
         model_path: str,
         model_tag: str,
-        dataset_name: str,
+        exp_name: str,
         species: str | None,
         data_split: str,
         temporal_lag: int,
@@ -85,7 +85,7 @@ class EvaluationSummary:
             df_filtered: DataFrame containing per-neuron results (after var_ratio filtering).
             model_path: Path or identifier for the model.
             model_tag: Human-readable tag for the model.
-            dataset_name: Name of the dataset/experiment.
+            exp_name: Name of the dataset/experiment.
             species: Species name (e.g., "mouse", "marmoset") or None.
             data_split: Data split used for evaluation (e.g., "test").
             temporal_lag: Temporal lag between responses and model predictions.
@@ -110,7 +110,7 @@ class EvaluationSummary:
         return cls(
             model_path=model_path,
             model_tag=model_tag,
-            dataset_name=dataset_name,
+            exp_name=exp_name,
             species=species,
             data_split=data_split,
             temporal_lag=temporal_lag,
@@ -178,20 +178,22 @@ class EvaluationSummary:
         print(f"Data split: {self.data_split}")
         print(f"Temporal lag: {self.temporal_lag}")
 
-        # Dataset statistics
-        print("-" * 80)
-        print("Dataset Statistics (unique frames/frame transitions across sessions, from dataloaders):")
-        print(f"  Sessions: {self.n_sessions}")
-        if self.unique_train_frames > 0 and self.unique_val_frames > 0:
-            print(f"  Training frames: {self.unique_train_frames:,}")
-            print(f"  Training pairwise frame transitions: {self.unique_train_transitions:,}")
-            print(f"  Validation frames: {self.unique_val_frames:,}")
-            print(f"  Validation pairwise frame transitions: {self.unique_val_transitions:,}")
-        else:
-            print(f"  Training + validation frames: {self.unique_train_val_frames:,}")
-        for test_name, test_frames in sorted(self.unique_test_frames.items()):
-            test_trans = self.unique_test_transitions.get(test_name, 0)
-            print(f"  Test frames ({test_name}): {test_frames:,} ({test_trans:,} transitions)")
+        # Dataset statistics (only shown when compute_dataset_statistics was enabled)
+        has_dataset_stats = self.n_sessions > 0 or self.unique_train_val_frames > 0 or bool(self.unique_test_frames)
+        if has_dataset_stats:
+            print("-" * 80)
+            print("Dataset Statistics (unique frames/frame transitions across sessions, from dataloaders):")
+            print(f"  Sessions: {self.n_sessions}")
+            if self.unique_train_frames > 0 and self.unique_val_frames > 0:
+                print(f"  Training frames: {self.unique_train_frames:,}")
+                print(f"  Training pairwise frame transitions: {self.unique_train_transitions:,}")
+                print(f"  Validation frames: {self.unique_val_frames:,}")
+                print(f"  Validation pairwise frame transitions: {self.unique_val_transitions:,}")
+            else:
+                print(f"  Training + validation frames: {self.unique_train_val_frames:,}")
+            for test_name, test_frames in sorted(self.unique_test_frames.items()):
+                test_trans = self.unique_test_transitions.get(test_name, 0)
+                print(f"  Test frames ({test_name}): {test_frames:,} ({test_trans:,} transitions)")
 
         # Neuron counts
         print("-" * 80)

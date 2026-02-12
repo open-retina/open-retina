@@ -12,12 +12,13 @@ from einops import rearrange
 from omegaconf import DictConfig, OmegaConf
 from tqdm.auto import tqdm
 
-from openretina.data_io.base_dataloader import compute_dataloader_statistics
+from openretina.data_io.base import DatasetStatistics
 from openretina.eval.metrics import MSE_numpy, correlation_numpy, explainable_vs_total_var, feve
 from openretina.eval.oracles import oracle_corr_jackknife
 from openretina.models.core_readout import load_core_readout_model
 from openretina.modules.losses import PoissonLoss3d
 from openretina.utils.eval_utils import EvaluationSummary
+from openretina.utils.frame_fingerprints import compute_dataloader_statistics
 from openretina.utils.misc import reorder_like_a
 
 log = logging.getLogger(__name__)
@@ -242,12 +243,15 @@ def evaluate_model(cfg: DictConfig) -> float:
         df_filtered = df[df["var_ratio"].notna() & (df["var_ratio"] >= var_ratio_cutoff)].copy()
         filtering_applied = True
 
-    # Compute dataset statistics by iterating over the actual dataloaders
-    dataset_stats = compute_dataloader_statistics(dataloaders)
+    # Compute dataset statistics by iterating over the actual dataloaders (if enabled)
+    if cfg.evaluation.get("compute_dataset_statistics", True):
+        dataset_stats = compute_dataloader_statistics(dataloaders)
+    else:
+        dataset_stats = DatasetStatistics.empty()
 
     # Extract metadata from config
     model_tag = cfg.evaluation.get("model_tag", cfg.evaluation.model_path)
-    dataset_name = cfg.get("exp_name", "unknown")
+    exp_name = cfg.get("exp_name", "unknown")
     species = None
     if hasattr(cfg, "data_io") and hasattr(cfg.data_io, "responses"):
         species = cfg.data_io.responses.get("specie", None)
@@ -259,7 +263,7 @@ def evaluate_model(cfg: DictConfig) -> float:
         df_filtered,
         model_path=str(cfg.evaluation.model_path),
         model_tag=str(model_tag),
-        dataset_name=str(dataset_name),
+        exp_name=str(exp_name),
         species=str(species) if species else None,
         data_split=data_split,
         temporal_lag=lag,

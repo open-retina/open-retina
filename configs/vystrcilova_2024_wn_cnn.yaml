@@ -25,7 +25,7 @@ dataloader:
 model:
   in_shape:
     - ${data_io.input_channels}
-    - 132 # time bins
+    - ${data_io.time_bins}
     - ${data_io.stimulus_height}
     - ${data_io.stimulus_width}
 

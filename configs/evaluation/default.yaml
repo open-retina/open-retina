@@ -5,3 +5,4 @@ add_responses_to_model_results: false # Whether to add the model responses to th
 model_results_path: null # Path to save the per-neuron evaluation results CSV.
 summary_results_path: null # Path to save the summary statistics JSON (for cross-model comparison).
 var_ratio_cutoff: 0.15 # Cutoff for explainable to total variance ratio to consider a neuron "bad" and exclude it from the evaluation.
+compute_dataset_statistics: true # Whether to compute dataset statistics (unique frame/transition counts) during evaluation. Requires iterating over all dataloaders including training, which can be slow.

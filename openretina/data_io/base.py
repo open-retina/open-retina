@@ -215,6 +215,20 @@ class DatasetStatistics:
     unique_test_transitions: dict[str, int]
     n_sessions: int
 
+    @classmethod
+    def empty(cls) -> "DatasetStatistics":
+        """Create an empty DatasetStatistics instance (all counts zero)."""
+        return cls(
+            unique_train_frames=0,
+            unique_val_frames=0,
+            unique_train_val_frames=0,
+            unique_test_frames={},
+            unique_train_transitions=0,
+            unique_val_transitions=0,
+            unique_test_transitions={},
+            n_sessions=0,
+        )
+
 
 def normalize_train_test_movies(
     train: Float[np.ndarray, "channels train_time height width"],

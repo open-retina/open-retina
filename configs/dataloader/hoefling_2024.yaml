@@ -2,6 +2,6 @@ _target_: openretina.data_io.hoefling_2024.dataloaders.natmov_dataloaders_v2
 _convert_: object # Keep python objects their class and does not convert to DictConfig
 batch_size: 64
 train_chunk_size: 50
-clip_length: 150 # From hoefling_2024.constants.CLIP_LENGTH
+clip_length: 150
 allow_over_boundaries: true
 validation_clip_indices: [0, 4, 10, 11, 18, 30, 45, 62, 67, 77, 79, 80, 81, 83, 95]
