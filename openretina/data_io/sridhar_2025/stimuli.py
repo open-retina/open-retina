@@ -1,4 +1,5 @@
 import os
+import pickle
 
 import numpy as np
 from jaxtyping import Float
@@ -127,7 +128,6 @@ def build_movies_from_responses(
     Returns:
         Dictionary mapping session IDs to MoviesTrainTestSplit placeholders with accurate frame counts.
     """
-    import pickle
 
     base_path = get_local_file_path(str(base_path))
     movies = {}

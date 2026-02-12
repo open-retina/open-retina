@@ -1,7 +1,5 @@
 """Utilities for model evaluation and result aggregation."""
 
-from __future__ import annotations
-
 import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -29,7 +27,7 @@ class EvaluationSummary:
     data_split: str
 
     # Model characteristics
-    lag: int
+    temporal_lag: int
 
     # Trial/repeat information
     n_test_repeats_min: int
@@ -56,11 +54,13 @@ class EvaluationSummary:
 
     # Dataset statistics
     n_sessions: int
-    n_unique_stimuli: int
     unique_train_frames: int
     unique_val_frames: int
     unique_train_val_frames: int
     unique_test_frames: dict[str, int] = field(default_factory=dict)
+    unique_train_transitions: int = 0
+    unique_val_transitions: int = 0
+    unique_test_transitions: dict[str, int] = field(default_factory=dict)
 
     @classmethod
     def from_dataframe(
@@ -72,13 +72,13 @@ class EvaluationSummary:
         dataset_name: str,
         species: str | None,
         data_split: str,
-        lag: int,
+        temporal_lag: int,
         n_trials_per_session: list[int],
         n_neurons_total: int,
         var_ratio_cutoff: float,
         filtering_applied: bool,
         dataset_stats: DatasetStatistics,
-    ) -> EvaluationSummary:
+    ) -> "EvaluationSummary":
         """Build an EvaluationSummary from a filtered DataFrame and metadata.
 
         Args:
@@ -88,7 +88,7 @@ class EvaluationSummary:
             dataset_name: Name of the dataset/experiment.
             species: Species name (e.g., "mouse", "marmoset") or None.
             data_split: Data split used for evaluation (e.g., "test").
-            lag: Temporal lag between responses and model predictions.
+            temporal_lag: Temporal lag between responses and model predictions.
             n_trials_per_session: List of trial counts per session.
             n_neurons_total: Total number of neurons before filtering.
             var_ratio_cutoff: Variance ratio threshold used for filtering.
@@ -113,9 +113,9 @@ class EvaluationSummary:
             dataset_name=dataset_name,
             species=species,
             data_split=data_split,
-            lag=lag,
-            n_test_repeats_min=min(n_trials_per_session) if n_trials_per_session else 0,
-            n_test_repeats_max=max(n_trials_per_session) if n_trials_per_session else 0,
+            temporal_lag=temporal_lag,
+            n_test_repeats_min=min(n_trials_per_session, default=0),
+            n_test_repeats_max=max(n_trials_per_session, default=0),
             n_test_repeats_avg=float(np.mean(n_trials_per_session)) if n_trials_per_session else 0.0,
             n_neurons_total=n_neurons_total,
             n_neurons_filtered=len(df_filtered),
@@ -132,11 +132,13 @@ class EvaluationSummary:
             poisson_loss_mean=float(np.nanmean(df_filtered["poisson_loss_to_average"])),
             jackknife_mean=float(np.nanmean(df_filtered["jackknife"])),
             n_sessions=dataset_stats.n_sessions,
-            n_unique_stimuli=dataset_stats.n_unique_stimuli,
             unique_train_frames=dataset_stats.unique_train_frames,
             unique_val_frames=dataset_stats.unique_val_frames,
             unique_train_val_frames=dataset_stats.unique_train_val_frames,
             unique_test_frames=dataset_stats.unique_test_frames,
+            unique_train_transitions=dataset_stats.unique_train_transitions,
+            unique_val_transitions=dataset_stats.unique_val_transitions,
+            unique_test_transitions=dataset_stats.unique_test_transitions,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -144,12 +146,16 @@ class EvaluationSummary:
         return asdict(self)
 
     def to_flat_dict(self) -> dict[str, Any]:
-        """Convert to flat dictionary suitable for CSV row (flattens test_frames)."""
+        """Convert to flat dictionary suitable for CSV row (flattens nested dicts)."""
         d = asdict(self)
         # Flatten unique_test_frames dict
         test_frames = d.pop("unique_test_frames")
         for test_name, frames in test_frames.items():
             d[f"unique_test_frames_{test_name}"] = frames
+        # Flatten unique_test_transitions dict
+        test_transitions = d.pop("unique_test_transitions")
+        for test_name, transitions in test_transitions.items():
+            d[f"unique_test_transitions_{test_name}"] = transitions
         return d
 
     def save_json(self, path: str | Path) -> None:
@@ -170,22 +176,22 @@ class EvaluationSummary:
         print("=" * 80)
         print(f"Model path: {self.model_path}")
         print(f"Data split: {self.data_split}")
-        print(f"Lag: {self.lag}")
+        print(f"Temporal lag: {self.temporal_lag}")
 
         # Dataset statistics
         print("-" * 80)
-        print("Dataset Statistics (unique frames across sessions):")
-        if self.n_unique_stimuli < self.n_sessions:
-            print(f"  Sessions: {self.n_sessions} ({self.n_unique_stimuli} unique stimuli)")
-        else:
-            print(f"  Sessions: {self.n_sessions}")
+        print("Dataset Statistics (unique frames/frame transitions across sessions, from dataloaders):")
+        print(f"  Sessions: {self.n_sessions}")
         if self.unique_train_frames > 0 and self.unique_val_frames > 0:
             print(f"  Training frames: {self.unique_train_frames:,}")
+            print(f"  Training pairwise frame transitions: {self.unique_train_transitions:,}")
             print(f"  Validation frames: {self.unique_val_frames:,}")
+            print(f"  Validation pairwise frame transitions: {self.unique_val_transitions:,}")
         else:
             print(f"  Training + validation frames: {self.unique_train_val_frames:,}")
         for test_name, test_frames in sorted(self.unique_test_frames.items()):
-            print(f"  Test frames ({test_name}): {test_frames:,}")
+            test_trans = self.unique_test_transitions.get(test_name, 0)
+            print(f"  Test frames ({test_name}): {test_frames:,} ({test_trans:,} transitions)")
 
         # Neuron counts
         print("-" * 80)

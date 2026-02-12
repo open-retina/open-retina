@@ -12,7 +12,7 @@ from einops import rearrange
 from omegaconf import DictConfig, OmegaConf
 from tqdm.auto import tqdm
 
-from openretina.data_io.base import compute_unique_frame_counts
+from openretina.data_io.base_dataloader import compute_dataloader_statistics
 from openretina.eval.metrics import MSE_numpy, correlation_numpy, explainable_vs_total_var, feve
 from openretina.eval.oracles import oracle_corr_jackknife
 from openretina.models.core_readout import load_core_readout_model
@@ -242,17 +242,8 @@ def evaluate_model(cfg: DictConfig) -> float:
         df_filtered = df[df["var_ratio"].notna() & (df["var_ratio"] >= var_ratio_cutoff)].copy()
         filtering_applied = True
 
-    # Compute dataset statistics
-    clip_length = cfg.dataloader.get("clip_length") if hasattr(cfg, "dataloader") else None
-    num_val_clips = (
-        cfg.dataloader.get("num_val_clips")
-        if hasattr(cfg, "dataloader") and hasattr(cfg.dataloader, "num_val_clips")
-        else len(cfg.dataloader.get("validation_clip_indices", []))
-        if hasattr(cfg, "dataloader") and hasattr(cfg.dataloader, "validation_clip_indices")
-        else None
-    )
-    train_frac = cfg.dataloader.get("train_frac") if hasattr(cfg, "dataloader") else None
-    dataset_stats = compute_unique_frame_counts(movies_dict, clip_length, num_val_clips, train_frac)
+    # Compute dataset statistics by iterating over the actual dataloaders
+    dataset_stats = compute_dataloader_statistics(dataloaders)
 
     # Extract metadata from config
     model_tag = cfg.evaluation.get("model_tag", cfg.evaluation.model_path)
@@ -271,7 +262,7 @@ def evaluate_model(cfg: DictConfig) -> float:
         dataset_name=str(dataset_name),
         species=str(species) if species else None,
         data_split=data_split,
-        lag=lag,
+        temporal_lag=lag,
         n_trials_per_session=n_trials_per_session,
         n_neurons_total=n_neurons_total,
         var_ratio_cutoff=var_ratio_cutoff,
