@@ -61,8 +61,7 @@ def _extract_core_state_dict(
 
     example_keys = list(checkpoint_state_dict.keys())[:5]
     raise ValueError(
-        f"Could not extract core state dict using prefix '{core_checkpoint_prefix}'. "
-        f"Example keys: {example_keys}"
+        f"Could not extract core state dict using prefix '{core_checkpoint_prefix}'. Example keys: {example_keys}"
     )
 
 
