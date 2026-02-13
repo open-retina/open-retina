@@ -115,17 +115,22 @@ class UnifiedFuturePredictor(LightningModule):
             return stimulus
         return stimulus[:, :, self.prediction_horizon :, ...]
 
-    def encode(self, stimulus: torch.Tensor) -> torch.Tensor:
-        return self.core(stimulus)
-
     def forward(self, stimulus: torch.Tensor) -> torch.Tensor:
-        return self.decoder(self.encode(stimulus))
+        hidden = self.core(stimulus)
+        reconstructed = self.decoder(hidden)
+        return reconstructed
 
     def _shared_step(self, batch: tuple[str, DataPoint], stage: str) -> torch.Tensor:
         _, data_point = batch
         stimulus = self._prepare_stimulus(data_point.inputs)
-        target = self._future_target(stimulus)
         model_output = self.forward(stimulus)
+
+        t_delta = stimulus.size(2) - model_output.size(2)
+        target_start = t_delta + self.prediction_horizon
+        if target_start >= stimulus.size(2):
+            raise ValueError(f"{target_start=}, {stimulus.size(2)=}")
+        target = stimulus[:, :, target_start:]
+        model_output = model_output[:, :, : target.size()]
 
         prediction_loss = self.loss.forward(model_output, target)
         regularization_loss_core = self.core.regularizer()

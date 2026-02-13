@@ -26,7 +26,7 @@ dataloader:
 
 model:
   in_shape: [2, 50, 18, 16]
-  prediction_horizon: 1
+  prediction_horizon: 3
   reverse_video_direction: false
 
 data_io:
