@@ -28,17 +28,6 @@ def main(cfg: DictConfig) -> float | None:
     return score
 
 
-def _maybe_attach_n_neurons_dict(model_config: DictConfig, n_neurons_dict: dict[str, int]) -> None:
-    """
-    Inject ``n_neurons_dict`` into model config only for model schemas that declare it.
-
-    Core-readout models require this, while other model types (e.g. future prediction)
-    may not define it in their structured config.
-    """
-    if "n_neurons_dict" in model_config:
-        model_config.n_neurons_dict = n_neurons_dict
-
-
 def train_model(cfg: DictConfig) -> float | None:
     log.info("Logging full config:")
     log.info(OmegaConf.to_yaml(cfg))
@@ -108,7 +97,8 @@ def train_model(cfg: DictConfig) -> float | None:
             model.update_model_data_info(data_info)
     else:
         # Assign missing n_neurons_dict only for model configs that declare this field.
-        _maybe_attach_n_neurons_dict(cfg.model, data_info["n_neurons_dict"])
+        if "n_neurons_dict" in data_info:
+            cfg.model.n_neurons_dict = data_info["n_neurons_dict"]
         if hasattr(cfg.model, "_target_"):
             log.info(f"Instantiating model <{cfg.model._target_}>")
             model = hydra.utils.instantiate(cfg.model, data_info=data_info)
