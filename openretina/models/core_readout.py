@@ -39,6 +39,56 @@ _MODEL_NAME_TO_REMOTE_LOCATION = {
 }
 
 
+def _extract_core_state_dict(
+    checkpoint_state_dict: dict[str, torch.Tensor],
+    core_checkpoint_prefix: str,
+) -> dict[str, torch.Tensor]:
+    if core_checkpoint_prefix:
+        core_state_dict = {
+            key[len(core_checkpoint_prefix) :]: value
+            for key, value in checkpoint_state_dict.items()
+            if key.startswith(core_checkpoint_prefix)
+        }
+    else:
+        core_state_dict = checkpoint_state_dict
+
+    if len(core_state_dict) > 0:
+        return core_state_dict
+
+    only_core_like_keys = all(not key.startswith(("readout.", "decoder.")) for key in checkpoint_state_dict)
+    if only_core_like_keys:
+        return checkpoint_state_dict
+
+    example_keys = list(checkpoint_state_dict.keys())[:5]
+    raise ValueError(
+        f"Could not extract core state dict using prefix '{core_checkpoint_prefix}'. "
+        f"Example keys: {example_keys}"
+    )
+
+
+def _load_core_state_dict_from_checkpoint(
+    checkpoint_path: str,
+    core_checkpoint_prefix: str,
+) -> dict[str, torch.Tensor]:
+    resolved_path = get_local_file_path(checkpoint_path, get_cache_directory())
+    checkpoint = torch.load(resolved_path, map_location="cpu")
+
+    if not isinstance(checkpoint, dict):
+        raise ValueError(f"Unexpected checkpoint format in {resolved_path}: expected dict, got {type(checkpoint)}")
+
+    if "core_state_dict" in checkpoint:
+        checkpoint_state_dict = checkpoint["core_state_dict"]
+    else:
+        checkpoint_state_dict = checkpoint.get("state_dict", checkpoint)
+
+    if not isinstance(checkpoint_state_dict, dict):
+        raise ValueError(
+            f"Unexpected state dict format in {resolved_path}: expected dict, got {type(checkpoint_state_dict)}"
+        )
+
+    return _extract_core_state_dict(checkpoint_state_dict, core_checkpoint_prefix)
+
+
 class BaseCoreReadout(LightningModule):
     """
     Base module for models combining a shared core and a multi-session readout.
@@ -285,6 +335,9 @@ class UnifiedCoreReadout(BaseCoreReadout):
         core: DictConfig,
         readout: DictConfig,
         hidden_channels: tuple[int, ...] | Iterable[int] | None = None,
+        core_checkpoint_path: str | None = None,
+        core_checkpoint_prefix: str = "core.",
+        core_checkpoint_strict: bool = True,
         learning_rate: float = 0.001,
         loss: nn.Module | DictConfig | None = None,
         validation_loss: nn.Module | DictConfig | None = None,
@@ -331,6 +384,23 @@ class UnifiedCoreReadout(BaseCoreReadout):
             core,
             n_neurons_dict=n_neurons_dict,
         )
+        if core_checkpoint_path is not None:
+            core_state_dict = _load_core_state_dict_from_checkpoint(
+                checkpoint_path=core_checkpoint_path,
+                core_checkpoint_prefix=core_checkpoint_prefix,
+            )
+            incompatible_keys = core_module.load_state_dict(core_state_dict, strict=core_checkpoint_strict)
+            if not core_checkpoint_strict:
+                if len(incompatible_keys.missing_keys) > 0:
+                    LOGGER.warning(
+                        f"Missing core keys when loading '{core_checkpoint_path}': {incompatible_keys.missing_keys}"
+                    )
+                if len(incompatible_keys.unexpected_keys) > 0:
+                    LOGGER.warning(
+                        "Unexpected core keys when loading "
+                        f"'{core_checkpoint_path}': {incompatible_keys.unexpected_keys}"
+                    )
+            LOGGER.info(f"Loaded core weights from checkpoint: {core_checkpoint_path}")
 
         # determine input_shape of readout if it is not already present
         if "in_shape" not in readout:
