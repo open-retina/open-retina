@@ -130,7 +130,7 @@ class UnifiedFuturePredictor(LightningModule):
         if target_start >= stimulus.size(2):
             raise ValueError(f"{target_start=}, {stimulus.size(2)=}")
         target = stimulus[:, :, target_start:]
-        model_output = model_output[:, :, : target.size()]
+        model_output = model_output[:, :, : target.size(2)]
 
         prediction_loss = self.loss.forward(model_output, target)
         regularization_loss_core = self.core.regularizer()

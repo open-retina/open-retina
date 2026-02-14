@@ -31,7 +31,7 @@ class FutureFrameMSELoss(nn.Module):
             raise ValueError(f"Batch sizes differ: {output.size(0)} != {target.size(0)}")
         if output.size(1) != target.size(1):
             raise ValueError(f"Channel sizes differ: {output.size(1)} != {target.size(1)}")
-        if output.size(2) == target.size(2):
+        if output.size(2) != target.size(2):
             raise ValueError(f"Output and target frames do not match: {output.size(2)=}, {target.size(2)=}")
 
         common_height = min(output.size(3), target.size(3))
