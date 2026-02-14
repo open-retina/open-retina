@@ -1,5 +1,6 @@
 import bisect
 import collections
+import logging
 from collections import namedtuple
 from typing import Any, List, Literal, Optional, SupportsIndex, cast
 
@@ -10,6 +11,8 @@ from torch.utils.data import DataLoader, Dataset, Sampler
 from tqdm.auto import tqdm
 
 from openretina.data_io.base import MoviesTrainTestSplit, ResponsesTrainTestSplit
+
+log = logging.getLogger(__name__)
 
 DataPoint = namedtuple("DataPoint", ["inputs", "targets"])
 

@@ -3,6 +3,8 @@ defaults:
   - quality_checks: null
   - dataloader: sridhar_nm_2025
   - model: core_gaussian_readout
+  - optimizer: adamw
+  - lr_scheduler: reduce_lr_on_plateau
   - training_callbacks:
       - early_stopping
       - lr_monitor
@@ -23,9 +25,9 @@ dataloader:
 model:
   in_shape:
     - ${data_io.input_channels}
-    - ${data_io.placeholder_time_bins}
-    - ${data_io.placeholder_height}
-    - ${data_io.placeholder_width}
+    - ${data_io.time_bins}
+    - ${data_io.stimulus_height}
+    - ${data_io.stimulus_width}
 
 paths:
   load_model_path: null

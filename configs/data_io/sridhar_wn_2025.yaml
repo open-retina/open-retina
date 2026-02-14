@@ -1,8 +1,8 @@
 sessions: ["04"]
 input_channels: 1
-placeholder_time_bins: 130
-placeholder_height: 80
-placeholder_width: 90
+time_bins: 132
+stimulus_height: 80
+stimulus_width: 90
 stimulus_seed: 0
 
 response_files:
@@ -18,12 +18,13 @@ excluded_cells: ${dataloader.excluded_cells}
 #  "04": []
 
 stimuli:
-  _target_: openretina.data_io.sridhar_2025.stimuli.build_placeholder_movies
-  session_ids: ${data_io.sessions}
+  _target_: openretina.data_io.sridhar_2025.stimuli.build_movies_from_responses
+  base_path: ${paths.data_dir}
+  response_files: ${data_io.response_files}
   channels: ${data_io.input_channels}
-  height: ${data_io.placeholder_height}
-  width: ${data_io.placeholder_width}
-  time_bins: ${data_io.placeholder_time_bins}
+  height: ${data_io.stimulus_height}
+  width: ${data_io.stimulus_width}
+  stimulus_seed: ${data_io.stimulus_seed}
   stim_id_prefix: "sridhar_wn_2025"
 
 responses:

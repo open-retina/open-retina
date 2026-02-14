@@ -2,13 +2,15 @@ defaults:
   - data_io: ??? # For new data, create data_io config and put its name here
   - dataloader: ??? # For new data, create dataloader config and put its name here
   - model: base_core_readout
+  - optimizer: adamw
+  - lr_scheduler: reduce_lr_on_plateau
   - training_callbacks:
-    - early_stopping
-    - lr_monitor
-    - model_checkpoint
+      - early_stopping
+      - lr_monitor
+      - model_checkpoint
   - logger:
-    - tensorboard
-    - csv
+      - tensorboard
+      - csv
   - trainer: default_deterministic
   - hydra: default
   - _self_ # values in this config will overwrite the defaults

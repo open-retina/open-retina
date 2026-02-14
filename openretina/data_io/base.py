@@ -191,6 +191,45 @@ def get_n_neurons_per_session(responses_dict: dict[str, ResponsesTrainTestSplit]
     return {name: responses.n_neurons for name, responses in responses_dict.items()}
 
 
+@dataclass
+class DatasetStatistics:
+    """Statistics about unique frames and transitions across sessions, computed from dataloaders.
+
+    Attributes:
+        unique_train_frames: Number of unique training frames seen across all sessions.
+        unique_val_frames: Number of unique validation frames seen across all sessions.
+        unique_train_val_frames: Union of unique train and val frames (deduplicated).
+        unique_test_frames: Dict mapping test split name to unique frame count.
+        unique_train_transitions: Number of unique consecutive-frame transitions in training.
+        unique_val_transitions: Number of unique consecutive-frame transitions in validation.
+        unique_test_transitions: Dict mapping test split name to unique transition count.
+        n_sessions: Total number of sessions.
+    """
+
+    unique_train_frames: int
+    unique_val_frames: int
+    unique_train_val_frames: int
+    unique_test_frames: dict[str, int]
+    unique_train_transitions: int
+    unique_val_transitions: int
+    unique_test_transitions: dict[str, int]
+    n_sessions: int
+
+    @classmethod
+    def empty(cls) -> "DatasetStatistics":
+        """Create an empty DatasetStatistics instance (all counts zero)."""
+        return cls(
+            unique_train_frames=0,
+            unique_val_frames=0,
+            unique_train_val_frames=0,
+            unique_test_frames={},
+            unique_train_transitions=0,
+            unique_val_transitions=0,
+            unique_test_transitions={},
+            n_sessions=0,
+        )
+
+
 def normalize_train_test_movies(
     train: Float[np.ndarray, "channels train_time height width"],
     test: Float[np.ndarray, "channels test_time height width"],
