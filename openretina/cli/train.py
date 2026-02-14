@@ -97,7 +97,7 @@ def train_model(cfg: DictConfig) -> float | None:
             model.update_model_data_info(data_info)
     else:
         # Assign missing n_neurons_dict only for model configs that declare this field.
-        if "n_neurons_dict" in cfg.model and "n_neurons_dict" in data_info:
+        if "n_neurons_dict" in cfg.model.keys() and "n_neurons_dict" in data_info:
             cfg.model.n_neurons_dict = data_info["n_neurons_dict"]
         if hasattr(cfg.model, "_target_"):
             log.info(f"Instantiating model <{cfg.model._target_}>")
