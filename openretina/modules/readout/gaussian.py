@@ -65,7 +65,7 @@ class PointGaussianReadout(Readout):
                 The match_ids are used to match things that should be shared within or across scans.
                 If `shared_features` is None, this readout will create its own features. If it is set to
                 a feature Parameter of another readout, it will replace the features of this readout. It will be
-                access in increasing order of the sorted unique match_ids. For instance, if match_ids=[2,0,0,1],
+                accessed in increasing order of the sorted unique match_ids. For instance, if match_ids=[2,0,0,1],
                 there should be 3 features in order [0,1,2]. When this readout creates features, it will do so in
                 that order.
         shared_grid (dict): Like `shared_features`. Use dictionary like
