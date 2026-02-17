@@ -193,17 +193,14 @@ def extract_filters_from_sta(
     """
     Extract spatial and temporal filters from STA.
 
-    Processing steps:
-    1. Find peak temporal frame (max variance across spatial pixels)
-    2. Extract spatial pattern at peak frame
-    3. Fit 2D elliptical Gaussian to spatial pattern
-    4. If amplitude is negative, flip polarity of both filters
-    5. Zero out values outside sigma_contour (positive definite spatial filter)
-    6. Normalize spatial filter to unit L2 norm
-    7. Extract temporal filter at peak spatial location
-    8. Crop temporal filter if temporal_crop_frames is specified
-    9. Flip polarity if Gaussian amplitude was negative
-    10. Normalize temporal filter to unit L2 norm
+    The spatial filter is extracted from the peak temporal frame (max variance),
+    fitted with a 2D elliptical Gaussian, masked to sigma_contour standard deviations,
+    and normalized to unit L2 norm. For OFF cells (negative amplitude), the polarity
+    is flipped to ensure a positive-definite spatial filter.
+
+    The temporal filter is extracted at the fitted RF center location, cropped to the
+    last temporal_crop_frames if specified, reversed for correct convolution, and
+    normalized to unit L2 norm.
 
     Args:
         sta: Spike-triggered average array (num_frames, height, width)
@@ -219,23 +216,23 @@ def extract_filters_from_sta(
     """
     num_frames, height, width = sta.shape
 
-    # Step 1: Find peak temporal frame (max variance across spatial pixels)
+    # Find peak temporal frame (max variance across spatial pixels)
     temporal_variances = np.var(sta, axis=(1, 2))
     peak_temporal_idx = np.argmax(temporal_variances)
 
-    # Step 2: Extract spatial pattern at peak frame
+    # Extract spatial pattern at peak frame
     spatial_frame = sta[peak_temporal_idx].copy()
 
-    # Step 3: Fit 2D elliptical Gaussian
+    # Fit 2D elliptical Gaussian
     gaussian_params = fit_2d_gaussian(spatial_frame)
 
-    # Step 4: Handle polarity (flip if amplitude is negative for OFF cells)
+    # Handle polarity (flip if amplitude is negative for OFF cells)
     polarity_flip = gaussian_params["amplitude"] < 0
     if polarity_flip:
         spatial_frame = -spatial_frame
         gaussian_params["amplitude"] = -gaussian_params["amplitude"]
 
-    # Step 5: Create mask and zero out values outside sigma_contour
+    # Create mask and zero out values outside sigma_contour
     mask = create_gaussian_mask(
         shape=(height, width),
         center_x=gaussian_params["center_x"],
@@ -247,37 +244,22 @@ def extract_filters_from_sta(
     )
     spatial_filter = spatial_frame * mask
 
-    # Ensure positive definite (clip negative values after masking)
-    spatial_filter = np.maximum(spatial_filter, 0)
-
-    # Step 6: Normalize spatial filter to unit L2 norm
+    # Normalize spatial filter to unit L2 norm
     spatial_norm = np.linalg.norm(spatial_filter)
     if spatial_norm > 0:
         spatial_filter = spatial_filter / spatial_norm
 
-    # Step 7: Extract temporal filter at peak spatial location
-    # Use location from fitted Gaussian center
+    # Extract temporal filter at fitted Gaussian center
     center_y = int(np.clip(np.round(gaussian_params["center_y"]), 0, height - 1))
     center_x = int(np.clip(np.round(gaussian_params["center_x"]), 0, width - 1))
     temporal_filter = sta[:, center_y, center_x].copy()
 
-    # Step 8: Crop temporal filter if specified
+    # Crop and reverse temporal filter for correct convolution
     if temporal_crop_frames is not None and temporal_crop_frames < num_frames:
-        # Crop around the peak temporal frame
-        peak_idx = int(peak_temporal_idx)
-        half_crop = temporal_crop_frames // 2
-        start_idx = max(0, peak_idx - half_crop)
-        end_idx = min(num_frames, start_idx + temporal_crop_frames)
-        # Adjust start if we hit the end
-        if end_idx - start_idx < temporal_crop_frames:
-            start_idx = max(0, end_idx - temporal_crop_frames)
-        temporal_filter = temporal_filter[start_idx:end_idx]
+        temporal_filter = temporal_filter[-temporal_crop_frames:]
+        temporal_filter = temporal_filter[::-1]
 
-    # Step 9: Flip polarity if needed
-    if polarity_flip:
-        temporal_filter = -temporal_filter
-
-    # Step 10: Normalize temporal filter to unit L2 norm
+    # Normalize temporal filter to unit L2 norm
     temporal_norm = np.linalg.norm(temporal_filter)
     if temporal_norm > 0:
         temporal_filter = temporal_filter / temporal_norm
