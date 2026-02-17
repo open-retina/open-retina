@@ -1,0 +1,15 @@
+_target_: openretina.models.spatial_contrast.SingleCellSpatialContrast
+_convert_: all
+in_shape: ???
+sta_dir: ???  # Directory containing STA files
+sta_file_name: ???  # Set dynamically based on cell_index and retina_index
+flip_sta: false  # Set to true for natural movie dataset
+sta_crop: 0  # Pixels to crop from STA (int or tuple)
+temporal_crop_frames: 30  # Number of frames for temporal filter
+sigma_contour: 3.0  # Number of sigmas for spatial filter contour
+spat_crop_size: [15, 15]  # Spatial crop around RF center (null for full size)
+learning_rate: 0.01
+w_init: 0.0  # Initial spatial contrast weight
+a_init: 4.0  # Initial output scaling in softplus
+b_init: 1.0  # Initial input scaling in softplus
+c_init: -5.0  # Initial offset in softplus
