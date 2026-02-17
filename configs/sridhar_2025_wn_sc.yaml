@@ -1,7 +1,7 @@
 defaults:
-  - data_io: sridhar_nm_2025
+  - data_io: sridhar_wn_2025
   - quality_checks: null
-  - dataloader: sridhar_nm_2025_ln
+  - dataloader: sridhar_wn_2025_ln
   - model: single_cell_sc
   - training_callbacks:
       - early_stopping
@@ -14,18 +14,20 @@ defaults:
   - hydra: default
   - _self_  # values in this config will overwrite the defaults
 
-exp_name: vystrcilova_2024_nm_sc
+exp_name: sridhar_2025_wn_sc
 seed: 42
 check_stimuli_responses_match: true
 
 dataloader:
+  cell_index: 272
+  retina_index: "01"
   batch_size: 128
 
 model:
   in_shape: ???
   sta_dir: ???  # Set to ${paths.cache_dir}/stas or appropriate path
   sta_file_name: ???  # Set dynamically based on cell_index and retina_index
-  flip_sta: true  # Natural movie dataset requires flipped STAs
+  flip_sta: false
   temporal_crop_frames: 30
   sigma_contour: 3.0
   spat_crop_size: [15, 15]
@@ -34,8 +36,8 @@ model:
 paths:
   load_model_path: null
   cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY}  # Remote files are downloaded to this location
-  data_dir: "https://huggingface.co/datasets/open-retina/open-retina/tree/main/gollisch_lab/sridhar_2025/marmoset/natural_movie"
-  log_dir: "./logs/sc_nm"  # Used as parent for output_dir. Will store train logs.
+  data_dir: "https://huggingface.co/datasets/open-retina/open-retina/tree/main/gollisch_lab/sridhar_2025/marmoset/whitenoise"
+  log_dir: "./logs/sc_wn"  # Used as parent for output_dir. Will store train logs.
   output_dir: ${hydra:runtime.output_dir}  # Modify subpaths in the "hydra/default.yaml" config
 
 matmul_precision:
