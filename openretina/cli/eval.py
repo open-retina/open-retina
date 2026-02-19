@@ -87,15 +87,22 @@ def evaluate_model(cfg: DictConfig) -> float:
 
     for session, dl in tqdm(dataloader_dict.items(), desc="Evaluating sessions", unit="session"):
         dataset = dl.dataset
-        movies = dataset.movies.to(device).unsqueeze(0)
 
         with torch.no_grad():
-            model_responses_torch = model.forward(movies, data_key=session)
-            targets = dataset.responses.to(device).unsqueeze(0)
-            poisson_loss_session = poisson_loss(model_responses_torch, targets)
+            model_responses_torch_array = []
+            targets_array = []
+            for data_point in dl:
+                model_resp_batch = model.forward(data_point[0], data_key=session)
+                # flatten batch dim
+                model_resp = model_resp_batch.flatten(0, 1)
+                model_responses_torch_array.append(model_resp)
+                targets_array.append(data_point[1].flatten(0, 1))
+            model_responses_torch = torch.concat(model_responses_torch_array)
+            targets = torch.concat(targets_array)
+            poisson_loss_session = poisson_loss(model_responses_torch.unsqueeze(0), targets.unsqueeze(0))
 
         poisson_loss_values = poisson_loss_session.cpu().numpy()
-        model_responses = model_responses_torch.squeeze(0).cpu().numpy()
+        model_responses = model_responses_torch.cpu().numpy()
 
         avg_responses = dataset.responses.numpy()
         has_trial_data = True
