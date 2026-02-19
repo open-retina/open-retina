@@ -92,13 +92,13 @@ def evaluate_model(cfg: DictConfig) -> float:
             model_responses_torch_array = []
             targets_array = []
             for data_point in dl:
-                model_resp_batch = model.forward(data_point[0], data_key=session)
+                model_resp_batch = model.forward(data_point[0].to(device), data_key=session)
                 # flatten batch dim
                 model_resp = model_resp_batch.flatten(0, 1)
                 model_responses_torch_array.append(model_resp)
                 targets_array.append(data_point[1].flatten(0, 1))
             model_responses_torch = torch.concat(model_responses_torch_array)
-            targets = torch.concat(targets_array)
+            targets = torch.concat(targets_array).to(device)
             poisson_loss_session = poisson_loss(model_responses_torch.unsqueeze(0), targets.unsqueeze(0))
 
         poisson_loss_values = poisson_loss_session.cpu().numpy()
