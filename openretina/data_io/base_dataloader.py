@@ -598,11 +598,16 @@ def multiple_movies_dataloaders(
             )
         # test movies
         for name, movie in movie_test_dict.items():
+            if allow_over_boundaries:
+                chunk_size = movie.shape[1]
+            else:
+                chunk_size = clip_length
+
             dataloaders[name][session_key] = get_movie_dataloader(
                 movie=movie,
                 responses=neuron_data.response_dict_test[name],
                 split="test",
-                chunk_size=movie.shape[1],
+                chunk_size=chunk_size,
                 batch_size=batch_size,
                 scene_length=clip_length,
                 allow_over_boundaries=allow_over_boundaries,
