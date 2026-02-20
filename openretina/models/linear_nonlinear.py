@@ -103,12 +103,12 @@ class SingleCellSeparatedLNP(LightningModule):
         - regularization_loss_core
         - train_total_loss
         - train_loss
-        - train_correlation
+        - train_validation_loss
     Validation:
         - val_loss
         - val_regularization_loss
         - val_total_loss
-        - val_correlation
+        - val_validation_loss
     """
 
     def __init__(
@@ -206,12 +206,12 @@ class SingleCellSeparatedLNP(LightningModule):
         loss = self.loss.forward(model_output, data_point.targets)
         regularization = self.regularizer()
         total_loss = loss + regularization
-        correlation = -self.validation_loss.forward(model_output, data_point.targets)
+        validation_loss = -self.validation_loss.forward(model_output, data_point.targets)
 
         self.log("regularization_loss_core", regularization, on_step=False, on_epoch=True)
         self.log("train_total_loss", total_loss, on_step=False, on_epoch=True)
         self.log("train_loss", loss, on_step=False, on_epoch=True)
-        self.log("train_correlation", correlation, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("train_validation_loss", validation_loss, on_step=False, on_epoch=True, prog_bar=True)
 
         return total_loss
 
@@ -253,7 +253,7 @@ class SingleCellSeparatedLNP(LightningModule):
             "optimizer": optimizer,
             "lr_scheduler": {
                 "scheduler": scheduler,
-                "monitor": "val_correlation",
+                "monitor": "val_validation_loss",
                 "frequency": 1,
             },
         }
