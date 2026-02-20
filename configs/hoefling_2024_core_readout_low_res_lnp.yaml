@@ -2,9 +2,7 @@ defaults:
   - data_io: hoefling_2024
   - quality_checks: hoefling_2024
   - dataloader: hoefling_2024
-  - model: base_core_readout
-  - optimizer: adamw
-  - scheduler: one_cycle_lr
+  - model: linear_nonlinear_poisson # linear_nonlinear_poisson
   - training_callbacks:
       - early_stopping
       - lr_monitor
@@ -12,57 +10,25 @@ defaults:
   - logger:
       - tensorboard
       - csv
-      - mlflow
   - trainer: default_deterministic
   - hydra: default
-  - override hydra/sweeper: optuna # make sure to install `pip install -e ".[optuna]"
-  - override hydra/sweeper/sampler: tpe
   - _self_ # values in this config will overwrite the defaults
 
-exp_name: hoefling_2024_core_readout_low_res_filtered_hyperparams_search
+exp_name: hoefling_2024_core_readout_low_res_filtered_lnp
 seed: 42
 check_stimuli_responses_match: false
 
 dataloader:
-  batch_size: 64
+  batch_size: 128
+
+model:
+  in_shape: [2, 150, 18, 16]
 
 data_io:
   retina_pixel_size_um: 50 # 4x bigger than high res model
 
-objective_target: val_validation_loss
-
-hydra:
-  run:
-    dir: ${paths.log_dir}/openretina_assets/runs/${exp_name}/${now:%Y-%m-%d_%H-%M-%S}
-  sweep:
-    dir: ${paths.log_dir}/openretina_assets/runs/${exp_name}/${now:%Y-%m-%d_%H-%M-%S}
-  sweeper:
-    sampler:
-      seed: 42
-    direction: maximize
-    study_name: ${exp_name}
-    storage: null
-    n_trials: 20
-    n_jobs: 1
-    params:
-      model.hidden_channels: choice([8, 8, 8, 8], [16, 16, 16, 16], [32, 32, 32, 32])
-      model.core.gamma_input: interval(1e-5, 1e-2)
-
-model:
-  in_shape: [2, 150, 18, 16]
-  hidden_channels: [16, 16, 16, 16]
-  optimizer: ${optimizer}
-  lr_scheduler: ${scheduler}
-  core:
-    temporal_kernel_sizes: [15, 15, 7, 7]
-    spatial_kernel_sizes: [15, 15, 7, 7]
-    hidden_padding: true
-    input_padding: true
-    cut_first_n_frames: 30
-    maxpool_every_n_layers: 2
-    # downsample_input_kernel_size: [1, 4, 4]  # to reproduce 18x16px lowres input
-
 paths:
+  load_model_path: null # e.g. hoefling_2024_base_low_res or path to a .ckpt model
   cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Remote files are downloaded to this location
   data_dir: ${paths.cache_dir}/data/ # Folder where local files are read from.
   log_dir: "." # Used as parent for output_dir. Will store train logs.
@@ -78,3 +44,5 @@ trainer:
   max_epochs: 100
   accumulate_grad_batches: 1
   gradient_clip_val: 1
+
+only_train_readout: false # whether or not to freeze core parameters and only train readout (eg. when finetuning model to new data)
