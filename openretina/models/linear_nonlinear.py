@@ -225,12 +225,12 @@ class SingleCellSeparatedLNP(LightningModule):
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
         regularization = self.regularizer()
         total_loss = loss + regularization
-        correlation = -self.validation_loss.forward(model_output, data_point.targets)
+        validation_loss = -self.validation_loss.forward(model_output, data_point.targets)
 
         self.log("val_loss", loss, logger=True, prog_bar=True)
         self.log("val_regularization_loss", regularization, logger=True)
         self.log("val_total_loss", total_loss, logger=True)
-        self.log("val_correlation", correlation, logger=True, prog_bar=True)
+        self.log("val_validation_loss", validation_loss, logger=True, prog_bar=True)
 
         return loss
 

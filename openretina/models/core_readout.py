@@ -132,7 +132,7 @@ class BaseCoreReadout(LightningModule):
         self.log("val_regularization_loss_core", regularization_loss_core, logger=True)
         self.log("val_regularization_loss_readout", regularization_loss_readout, logger=True)
         self.log("val_total_loss", total_loss, logger=True)
-        self.log(f"val_{type(self.validation_loss).__name__[:5]}", validation_loss, logger=True, prog_bar=True)
+        self.log("val_validation_loss", validation_loss, logger=True, prog_bar=True)
 
         return loss
 
