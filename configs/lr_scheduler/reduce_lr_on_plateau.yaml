@@ -12,7 +12,7 @@ cooldown: 0
 eps: 1.0e-8
 
 # PyTorch Lightning specific parameters
-monitor: val_correlation # Metric to monitor
+monitor: val_validation_loss # Metric to monitor
 interval: epoch # Unit of the scheduler's step (epoch or step)
 frequency: 1 # How many epochs/steps between scheduler steps
 
