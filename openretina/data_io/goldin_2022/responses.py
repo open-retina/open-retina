@@ -59,7 +59,9 @@ def load_all_responses(
 
         test_by_trial = load_test_repeats_for_session(recording_file, fr_normalization)
         test = test_session_data / fr_normalization
-        assert np.allclose(test, test_by_trial.mean(axis=0))
+
+        if test_by_trial is not None:
+            assert np.allclose(test, test_by_trial.mean(axis=0))
 
         responses_all_sessions[str(session).removesuffix(".h5")] = ResponsesTrainTestSplit(
             train=train_session_data / fr_normalization,
