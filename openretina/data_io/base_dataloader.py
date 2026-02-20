@@ -513,7 +513,7 @@ def _compute_test_batch_size(train_batch_size: int, train_chunk_size: int, test_
     """
     if test_chunk_size <= train_chunk_size:
         return train_batch_size
-    test_batch_size = max(1, train_batch_size * train_chunk_size // test_chunk_size)
+    test_batch_size = max(1, (train_batch_size * train_chunk_size) // test_chunk_size)
     return test_batch_size
 
 
