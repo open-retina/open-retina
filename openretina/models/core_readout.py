@@ -163,8 +163,8 @@ class BaseCoreReadout(LightningModule):
 
         self.log_dict(
             {
-                "test_loss": loss,
-                "test_correlation": avg_validation_loss,
+                type(self.loss).__name__: loss,
+                type(self.validation_loss).__name__: avg_validation_loss,
             }
         )
 
