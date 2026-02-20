@@ -504,6 +504,19 @@ class NeuronDataSplit:
         return test_entries
 
 
+def _compute_test_batch_size(train_batch_size: int, train_chunk_size: int, test_chunk_size: int) -> int:
+    """Compute a test batch size that uses roughly the same memory as training.
+
+    During training each sample has `train_chunk_size` frames, while during
+    testing each sample may span the entire movie (`test_chunk_size` frames).
+    Scaling the batch size inversely keeps peak memory approximately constant.
+    """
+    if test_chunk_size <= train_chunk_size:
+        return train_batch_size
+    test_batch_size = max(1, (train_batch_size * train_chunk_size) // test_chunk_size)
+    return test_batch_size
+
+
 def multiple_movies_dataloaders(
     neuron_data_dictionary: dict[str, ResponsesTrainTestSplit],
     movies_dictionary: dict[str, MoviesTrainTestSplit],
@@ -598,12 +611,14 @@ def multiple_movies_dataloaders(
             )
         # test movies
         for name, movie in movie_test_dict.items():
+            test_chunk_size = movie.shape[1]
+            test_batch_size = _compute_test_batch_size(batch_size, train_chunk_size, test_chunk_size)
             dataloaders[name][session_key] = get_movie_dataloader(
                 movie=movie,
                 responses=neuron_data.response_dict_test[name],
                 split="test",
-                chunk_size=movie.shape[1],
-                batch_size=batch_size,
+                chunk_size=test_chunk_size,
+                batch_size=test_batch_size,
                 scene_length=clip_length,
                 allow_over_boundaries=allow_over_boundaries,
             )

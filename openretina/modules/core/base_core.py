@@ -213,7 +213,7 @@ class SimpleCoreWrapper(Core):
             val = feat.conv.weight_spatial.pow(2).sum([2, 3, 4]).sqrt().sum(1) / torch.sqrt(
                 1e-8 + feat.conv.weight_spatial.pow(2).sum([1, 2, 3, 4])
             )
-            sparsities.append(val)
+            sparsities.append(val.sum())
         return torch.sum(torch.stack(sparsities))
 
     def regularizer(self) -> torch.Tensor:
