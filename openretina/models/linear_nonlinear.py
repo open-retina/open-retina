@@ -134,7 +134,9 @@ class SingleCellSeparatedLNP(LightningModule):
         super().__init__()
         self.learning_rate = learning_rate
         self.loss = loss if loss is not None else PoissonLoss3d()
-        self.validation_loss = validation_loss if validation_loss is not None else CorrelationLoss3d(avg=True)
+        self.validation_loss = (
+            validation_loss if validation_loss is not None else (CorrelationLoss3d(avg=True, negate=False))
+        )
         self.smooth_weight_spat = smooth_weight_spat
         self.smooth_weight_temp = smooth_weight_temp
         self.sparse_weight = sparse_weight
@@ -206,12 +208,12 @@ class SingleCellSeparatedLNP(LightningModule):
         loss = self.loss.forward(model_output, data_point.targets)
         regularization = self.regularizer()
         total_loss = loss + regularization
-        validation_loss = -self.validation_loss.forward(model_output, data_point.targets)
+        validation_metric = -self.validation_loss.forward(model_output, data_point.targets)
 
         self.log("regularization_loss_core", regularization, on_step=False, on_epoch=True)
         self.log("train_total_loss", total_loss, on_step=False, on_epoch=True)
         self.log("train_loss", loss, on_step=False, on_epoch=True)
-        self.log("train_validation_loss", validation_loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("train_validation_metric", validation_metric, on_step=False, on_epoch=True, prog_bar=True)
 
         return total_loss
 
@@ -225,12 +227,12 @@ class SingleCellSeparatedLNP(LightningModule):
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
         regularization = self.regularizer()
         total_loss = loss + regularization
-        validation_loss = -self.validation_loss.forward(model_output, data_point.targets)
+        validation_metric = self.validation_loss.forward(model_output, data_point.targets)
 
         self.log("val_loss", loss, logger=True, prog_bar=True)
         self.log("val_regularization_loss", regularization, logger=True)
         self.log("val_total_loss", total_loss, logger=True)
-        self.log("val_validation_loss", validation_loss, logger=True, prog_bar=True)
+        self.log("val_validation_metric", validation_metric, logger=True, prog_bar=True)
 
         return loss
 
