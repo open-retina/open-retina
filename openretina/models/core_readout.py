@@ -134,7 +134,7 @@ class BaseCoreReadout(LightningModule):
         self.log("val_regularization_loss_core", regularization_loss_core, logger=True)
         self.log("val_regularization_loss_readout", regularization_loss_readout, logger=True)
         self.log("val_total_loss", total_loss, logger=True)
-        self.log("val_validation_loss", validation_metric, logger=True, prog_bar=True)
+        self.log("val_validation_metric", validation_metric, logger=True, prog_bar=True)
 
         return loss
 
@@ -142,7 +142,7 @@ class BaseCoreReadout(LightningModule):
         session_id, data_point = batch
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
-        validation_metric = -self.validation_metric.forward(model_output, data_point.targets)
+        validation_metric = self.validation_metric.forward(model_output, data_point.targets)
 
         # Add metric and performances to data_info for downstream tasks
         if "pretrained_performance_metric" not in self.data_info:
@@ -202,7 +202,7 @@ class BaseCoreReadout(LightningModule):
             "optimizer": optimizer,
             "lr_scheduler": {
                 "scheduler": scheduler,
-                "monitor": "val_validation_loss",
+                "monitor": "val_validation_metric",
                 "frequency": 1,
             },
         }

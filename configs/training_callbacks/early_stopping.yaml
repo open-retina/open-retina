@@ -1,6 +1,6 @@
 early_stopping:
   _target_: lightning.pytorch.callbacks.EarlyStopping
-  monitor: "val_validation_loss"
+  monitor: "val_validation_metric"
   min_delta: 0.001 
   patience: 10
   verbose: True 

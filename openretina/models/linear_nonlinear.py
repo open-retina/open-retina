@@ -108,7 +108,7 @@ class SingleCellSeparatedLNP(LightningModule):
         - val_loss
         - val_regularization_loss
         - val_total_loss
-        - val_validation_loss
+        - val_validation_metric
     """
 
     def __init__(
@@ -255,7 +255,7 @@ class SingleCellSeparatedLNP(LightningModule):
             "optimizer": optimizer,
             "lr_scheduler": {
                 "scheduler": scheduler,
-                "monitor": "val_validation_loss",
+                "monitor": "val_validation_metric",
                 "frequency": 1,
             },
         }
