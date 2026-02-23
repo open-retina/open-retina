@@ -251,7 +251,7 @@ def evaluate_model(cfg: DictConfig) -> float:
         filtering_applied = True
 
     # Compute dataset statistics by iterating over the actual dataloaders (if enabled)
-    if cfg.evaluation.get("compute_dataset_statistics", True):
+    if cfg.evaluation.get("compute_dataset_statistics", False):
         dataset_stats = compute_dataloader_statistics(dataloaders)
     else:
         dataset_stats = DatasetStatistics.empty()
