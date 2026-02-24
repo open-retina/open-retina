@@ -12,5 +12,7 @@ sparse_weight: 1.0
 smooth_regularizer_spat: "LaplaceL2norm"
 smooth_regularizer_temp: "Laplace1d"
 laplace_padding: null
-fit_gaussian: false
+fit_gaussian: true
 normalize_weights: false
+l11: 0.2
+l22: 0.2
