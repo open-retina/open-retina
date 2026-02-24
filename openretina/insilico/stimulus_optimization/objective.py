@@ -1,8 +1,11 @@
 import functools
+import logging
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 
 import torch
+
+log = logging.getLogger(__name__)
 
 
 class ResponseReducer(ABC):
@@ -24,12 +27,24 @@ class MeanReducer(ResponseReducer):
 
 class SliceMeanReducer(ResponseReducer):
     def __init__(self, axis: int, start: int, length: int):
+        """ """
         super().__init__(axis)
         self.start = start
         self.length = length
 
     def forward(self, responses: torch.Tensor) -> torch.Tensor:
-        narrowed_responses = torch.narrow(responses, self._axis, self.start, self.length)
+        response_length = responses.shape[self._axis]
+        length = min(response_length - self.start, self.length)
+
+        if length <= 0:
+            length = min(self.length, response_length)
+            log.warning(
+                f"Response length too small ({response_length=}) for given start index ({self.start=})."
+                f" Setting start=0 and {length=} in {self.__class__.__name__}."
+            )
+            narrowed_responses = torch.narrow(responses, self._axis, start=0, length=length)
+        else:
+            narrowed_responses = torch.narrow(responses, self._axis, self.start, length)
         return torch.mean(narrowed_responses, dim=self._axis)
 
     def __repr__(self) -> str:

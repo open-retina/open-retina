@@ -1,0 +1,7 @@
+# SGD (Stochastic Gradient Descent) optimizer configuration
+_target_: torch.optim.SGD
+lr: ${model.learning_rate}
+momentum: 0.9
+dampening: 0.0
+weight_decay: 0.0
+nesterov: false

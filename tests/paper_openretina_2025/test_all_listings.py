@@ -7,4 +7,3 @@ import pytest
 def test_listing_scripts(listing_path: pathlib.PosixPath):
     print(f"Running script: {listing_path.resolve()}")
     runpy.run_path(str(listing_path))
-

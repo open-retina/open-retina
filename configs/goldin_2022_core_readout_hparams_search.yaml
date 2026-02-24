@@ -2,18 +2,20 @@ defaults:
   - data_io: goldin_2022
   - dataloader: goldin_2022
   - model: core_klindt_readout
+  - optimizer: adamw
+  - lr_scheduler: reduce_lr_on_plateau
   - training_callbacks:
-    - early_stopping
-    - lr_monitor
-    - model_checkpoint
-    - weight_visualization
+      - early_stopping
+      - lr_monitor
+      - model_checkpoint
+      - weight_visualization
   - logger:
-    - tensorboard
-    - csv
-    - mlflow
+      - tensorboard
+      - csv
+      - mlflow
   - trainer: default_deterministic
   - hydra: default
-  - override hydra/sweeper: optuna  # make sure to `pip install -e ".[optuna]"`
+  - override hydra/sweeper: optuna # make sure to `pip install -e ".[optuna]"`
   - override hydra/sweeper/sampler: tpe
   - _self_ # values in this config will overwrite the defaults
 
@@ -24,15 +26,15 @@ check_stimuli_responses_match: false
 paths:
   cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Remote files are downloaded to this location
   # If data_dir is a local path, data will be read from there. If a remote link, the target will be downloaded to cache_dir.
-  data_dir: 'https://huggingface.co/datasets/open-retina/open-retina/tree/main/marre_lab/goldin_2022/'
+  data_dir: "https://huggingface.co/datasets/open-retina/open-retina/tree/main/marre_lab/goldin_2022/"
   log_dir: "." # Used as parent for output_dir. Will store train logs.
   output_dir: ${hydra:runtime.output_dir} # Modify in the "hydra/default.yaml" config
 
 data_io:
   stimuli:
-    specie: 'mouse'
+    specie: "mouse"
   responses:
-    specie: 'mouse'
+    specie: "mouse"
 
 objective_target: val_loss
 
@@ -54,7 +56,7 @@ hydra:
       model.core.gamma_input: interval(1e-3, 10)
       model.readout.weights_l1_reg: interval(1e-3, 10)
       model.readout.laplace_mask_reg: interval(1e-3, 10)
-      model.readout.mask_l1_reg : interval(1e-3, 10)
+      model.readout.mask_l1_reg: interval(1e-3, 10)
 
 # Overwrite model defaults
 model:
@@ -67,8 +69,8 @@ model:
     gamma_input: 0.4654576767872573
     convolution_type: "time_independent"
   readout:
-    mask_l1_reg : 5.924553274051563
-    weights_l1_reg : 6.075840974162483
+    mask_l1_reg: 5.924553274051563
+    weights_l1_reg: 6.075840974162483
     laplace_mask_reg: 1.706070712749228
 
 matmul_precision:

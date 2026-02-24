@@ -1,0 +1,11 @@
+# CosineAnnealingLR scheduler configuration
+# Set the learning rate using a cosine annealing schedule
+_target_: torch.optim.lr_scheduler.CosineAnnealingLR
+T_max: 100 # Maximum number of iterations (should match max_epochs)
+eta_min: 1.0e-6 # Minimum learning rate
+last_epoch: -1
+
+# PyTorch Lightning specific parameters
+monitor: null
+interval: epoch
+frequency: 1

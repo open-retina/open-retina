@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from neuralpredictors.layers.readouts import Gaussian3d, MultiReadoutBase
 
-from openretina.modules.readout.gaussian import FullGaussian2d
+from openretina.modules.readout.gaussian import PointGaussianReadout
 
 
 class Encoder(nn.Module):
@@ -51,7 +51,7 @@ class MultiGaussian2d(MultiReadoutBase):
         super().__init__(
             in_shape_dict,
             n_neurons_dict,
-            base_readout=FullGaussian2d,
+            base_readout=PointGaussianReadout,
             gauss_type="full",
             **kwargs,
         )

@@ -12,6 +12,19 @@ from jaxtyping import Float
 
 @dataclass(frozen=True)
 class MoviesTrainTestSplit:
+    """
+    Container for stimulus movies used during training and evaluation.
+
+    Attributes:
+        train: Continuous movie shown during training.
+        test_dict: Named dictionary of frozen test stimuli. For legacy single-test datasets
+            pass `test`; it will automatically be wrapped into `{"test": test}`.
+        test: Convenience field to pass a single frozen movie.
+        stim_id: Optional identifier (e.g. "natural") to keep responses/movies aligned.
+        random_sequences: Optional clip permutations (Höfling 2024 format).
+        norm_mean / norm_std: Normalization statistics applied to both train and test movies.
+    """
+
     train: Float[np.ndarray, "channels train_time height width"]
     # test_dict: dict[str, Float[np.ndarray, "channels train_time height width"]]
     # (dataclass complains about unsupported value type when using full annotation)
@@ -73,12 +86,21 @@ class MoviesTrainTestSplit:
 
 @dataclass
 class ResponsesTrainTestSplit:
+    """
+    Container for neural responses paired with `MoviesTrainTestSplit`.
+
+    Supports multiple test stimuli via `test_dict` and per-trial traces via
+    `test_by_trial_dict`. For single-test datasets you may provide `test` and
+    optionally `test_by_trial`; both will be lifted into the matching dictionaries.
+    """
+
     train: Float[np.ndarray, "neurons train_time"]
     # test_dict: dict[str, Float[np.ndarray, "neurons test_time"]]
-    # (dataclass complains about unsupported value type when using full annotation)
+    # (dataclass and Omegaconf complain about unsupported value type when using full annotation)
     test_dict: dict = field(default_factory=lambda: {})
     test: InitVar[Float[np.ndarray, "neurons test_time"] | None] = None
     test_by_trial: Float[np.ndarray, "trials neurons test_time"] | None = None
+    test_by_trial_dict: dict = field(default_factory=lambda: {})
     stim_id: str | None = None
     session_kwargs: dict[str, Any] = field(default_factory=lambda: {})
 
@@ -87,6 +109,21 @@ class ResponsesTrainTestSplit:
             raise ValueError(f"Exactly one of test_dict and test should be set, but {test=} {self.test_dict=}.")
         if len(self.test_dict) == 0:
             self.test_dict["test"] = test
+
+        # When only a single test stimulus exists we can lift the array into a dict automatically.
+        if self.test_by_trial is not None:
+            if len(self.test_dict) > 1:
+                raise ValueError(
+                    "Provide test_by_trial_dict when multiple test stimuli are present to keep keys disambiguated."
+                )
+            key = next(iter(self.test_dict.keys()))
+            self.test_by_trial_dict.setdefault(key, self.test_by_trial)
+
+        extra_trial_keys = set(self.test_by_trial_dict.keys()) - set(self.test_dict.keys())
+        if extra_trial_keys:
+            raise ValueError(
+                f"test_by_trial_dict contains keys without matching test stimuli: {sorted(extra_trial_keys)}"
+            )
 
         assert self.train.shape[0] == self.test_neurons, (
             "Train and test responses should have the same number of neurons."
@@ -135,9 +172,62 @@ class ResponsesTrainTestSplit:
             raise ValueError(f"Multiple test stimuli: {list(self.test_dict.keys())}")
         return self.test_dict[next(iter(self.test_dict.keys()))]
 
+    def get_test_by_trial(self, name: str = "test") -> Float[np.ndarray, "trials neurons test_time"] | None:
+        """
+        Return the per-trial responses for a specific stimulus.
+
+        Args:
+            name: Key inside `test_dict`. Default is "test", for the default single test stimulus case.
+
+        Returns:
+            Array of shape (trials, neurons, time) if available, otherwise `None`.
+        """
+        if not self.test_by_trial_dict:
+            return None
+        return self.test_by_trial_dict.get(name)
+
 
 def get_n_neurons_per_session(responses_dict: dict[str, ResponsesTrainTestSplit]) -> dict[str, int]:
     return {name: responses.n_neurons for name, responses in responses_dict.items()}
+
+
+@dataclass
+class DatasetStatistics:
+    """Statistics about unique frames and transitions across sessions, computed from dataloaders.
+
+    Attributes:
+        unique_train_frames: Number of unique training frames seen across all sessions.
+        unique_val_frames: Number of unique validation frames seen across all sessions.
+        unique_train_val_frames: Union of unique train and val frames (deduplicated).
+        unique_test_frames: Dict mapping test split name to unique frame count.
+        unique_train_transitions: Number of unique consecutive-frame transitions in training.
+        unique_val_transitions: Number of unique consecutive-frame transitions in validation.
+        unique_test_transitions: Dict mapping test split name to unique transition count.
+        n_sessions: Total number of sessions.
+    """
+
+    unique_train_frames: int
+    unique_val_frames: int
+    unique_train_val_frames: int
+    unique_test_frames: dict[str, int]
+    unique_train_transitions: int
+    unique_val_transitions: int
+    unique_test_transitions: dict[str, int]
+    n_sessions: int
+
+    @classmethod
+    def empty(cls) -> "DatasetStatistics":
+        """Create an empty DatasetStatistics instance (all counts zero)."""
+        return cls(
+            unique_train_frames=0,
+            unique_val_frames=0,
+            unique_train_val_frames=0,
+            unique_test_frames={},
+            unique_train_transitions=0,
+            unique_val_transitions=0,
+            unique_test_transitions={},
+            n_sessions=0,
+        )
 
 
 def normalize_train_test_movies(
@@ -196,6 +286,15 @@ def compute_data_info(
     including partial data information passed in the training config.
     """
     n_neurons_dict = get_n_neurons_per_session(neuron_data_dictionary)
+
+    # Compute mean activity for each session from training responses
+    mean_activity_dict = {}
+    for session_name, responses in neuron_data_dictionary.items():
+        # responses.train has shape (n_neurons, n_timepoints)
+        # Compute mean across time dimension
+        mean_activity = torch.tensor(responses.train.mean(axis=1), dtype=torch.float32)
+        mean_activity_dict[session_name] = mean_activity
+
     if isinstance(movies_dictionary, MoviesTrainTestSplit):
         stim_mean = movies_dictionary.norm_mean
         stim_std = movies_dictionary.norm_std
@@ -204,16 +303,23 @@ def compute_data_info(
             *movies_dictionary.train.shape[2:],
         )
     else:
-        norm_means = [movie.norm_mean for movie in movies_dictionary.values()]
-        norm_stds = [movie.norm_std for movie in movies_dictionary.values()]
+        norm_means = [movie.norm_mean for movie in movies_dictionary.values() if movie.norm_mean is not None]
+        norm_stds = [movie.norm_std for movie in movies_dictionary.values() if movie.norm_std is not None]
 
-        if any(mean != norm_means[0] for mean in norm_means):
-            raise ValueError(f"Normalization means are not consistent across stimuli: {norm_means}")
-        if any(std != norm_stds[0] for std in norm_stds):
-            raise ValueError(f"Normalization stds are not consistent across stimuli: {norm_stds}")
-
-        stim_mean = norm_means[0]
-        stim_std = norm_stds[0]
+        if len(norm_means) > 0:
+            if not np.allclose(norm_means, norm_means[0], atol=1, rtol=0):
+                raise ValueError(f"Normalization means are not consistent across stimuli: {norm_means}")
+            stim_mean = norm_means[0]
+        else:
+            stim_mean = 0.0
+            warnings.warn(f"No stimulus mean set, setting {stim_mean=}")
+        if len(norm_stds) > 0:
+            if not np.allclose(norm_stds, norm_stds[0], atol=1, rtol=0):
+                raise ValueError(f"Normalization stds are not consistent across stimuli: {norm_stds}")
+            stim_std = norm_stds[0]
+        else:
+            stim_std = 1.0
+            warnings.warn(f"No stimulus stds set, setting {stim_std=}")
 
         # Do the same for the input shape
         input_shapes = [(movie.train.shape[0], *movie.train.shape[2:]) for movie in movies_dictionary.values()]
@@ -228,6 +334,7 @@ def compute_data_info(
 
     return {
         "n_neurons_dict": n_neurons_dict,
+        "mean_activity_dict": mean_activity_dict,
         "input_shape": input_shape,
         "sessions_kwargs": sessions_kwargs,
         "stim_mean": stim_mean,

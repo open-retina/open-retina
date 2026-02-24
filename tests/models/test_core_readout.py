@@ -11,15 +11,14 @@ def test_load_core_readout_from_remote(model_name: str) -> None:
 
     model = load_core_readout_from_remote(model_name, "cpu")
     stimulus = torch.rand(model.stimulus_shape(time_steps=50, num_batches=num_batches))
-    responses = model.forward(stimulus)
+    sample_data_key = next(iter(model.readout.keys()))
+    responses = model.forward(stimulus, data_key=sample_data_key)
 
     assert responses.shape[0] == num_batches
 
 
-@pytest.mark.skip
 @pytest.mark.parametrize("model_name", sorted(_MODEL_NAME_TO_REMOTE_LOCATION.keys()))
 def test_that_models_is_causal(model_name: str) -> None:
-    # TODO; rereun tests once we retrained and uploaded causal only models
     model = load_core_readout_from_remote(model_name, "cpu")
     model_is_causal = is_model_causal(model)
 

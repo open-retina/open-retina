@@ -10,7 +10,7 @@ responses:
   _convert_: object
   base_data_path: ${paths.data_dir}
   stim_type: "naturalscene"
-  response_type: "firing_rate_20ms"
+  response_type: "firing_rate_10ms" # as used in the original paper analysis
   fr_normalization: 1.0
 
 data_info:

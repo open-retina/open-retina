@@ -11,10 +11,29 @@ from torch.nn.parameter import Parameter
 from openretina.modules.readout.base import Readout
 
 
-class FullGaussian2d(Readout):
+class PointGaussianReadout(Readout):
     """
-    A readout using a spatial transformer layer whose positions are sampled from one Gaussian per neuron. Mean
-    and covariance of that Gaussian are learned.
+    A readout module that samples the output for each neuron at a single spatial location from the core feature map,
+    where the location is drawn from a learned 2D Gaussian distribution for each neuron.
+
+    First introduced in Lurz et al., 2021:
+    https://openreview.net/forum?id=Tp7kI90Htd
+
+    Key notes:
+        - Unlike mask-based readouts (`GaussianMaskReadout`, `FactorisedReadout`), this readout
+        does NOT produce a spatial mask over the input. Instead, each neuron's response is
+        determined by interpolating the feature map at a point sampled from a Gaussian distribution
+        (parameterized by mean and covariance) for each neuron.
+
+        - This mechanism results in each neuron having a flexible receptive field
+        location within the Gaussian window during training (as the location is sampled from the Gaussian distribution),
+        and a fixed location during inference (as the location is then fixed to the mean of the Gaussian distribution).
+
+        - Instead of a spatial mask, the readout spatial location is a single "point" (x, y) in feature space
+        per neuron per sample: there is no spatial integration or summing across a spatial region as in
+        mask-based readouts.
+
+        - Feature weights are still learned and behave like in the classic FactorisedReadout and GaussianMaskReadout.
 
     Args:
         in_shape (list, tuple): shape of the input feature map [channels, width, height]
@@ -22,9 +41,9 @@ class FullGaussian2d(Readout):
         bias (bool): adds a bias term
         init_mu_range (float): initialises the mean with Uniform([-init_range, init_range])
                             [expected: positive value <=1]. Default: 0.1
-        init_sigma (float): The standard deviation of the Gaussian with `init_sigma` when `gauss_type` is
+        init_sigma_range (float): The standard deviation of the Gaussian with `init_sigma_range` when `gauss_type` is
             'isotropic' or 'uncorrelated'. When `gauss_type='full'` initialize the square root of the
-            covariance matrix with Uniform([-init_sigma, init_sigma]). Default: 1
+            covariance matrix with Uniform([-init_sigma_range, init_sigma_range]). Default: 1
         batch_sample (bool): if True, samples a position for each image in the batch separately
                             [default: True as it decreases convergence time and performs just as well]
         align_corners (bool): Keyword agrument to gridsample for bilinear interpolation.
@@ -72,7 +91,7 @@ class FullGaussian2d(Readout):
         outdims,
         bias,
         init_mu_range=0.1,
-        init_sigma=1,
+        init_sigma_range=0.15,
         batch_sample=True,
         align_corners=True,
         gauss_type="full",
@@ -91,7 +110,7 @@ class FullGaussian2d(Readout):
         # determines whether the Gaussian is isotropic or not
         self.gauss_type = gauss_type
 
-        if init_mu_range > 1.0 or init_mu_range <= 0.0 or init_sigma <= 0.0:
+        if init_mu_range > 1.0 or init_mu_range <= 0.0 or init_sigma_range <= 0.0:
             raise ValueError("either init_mu_range doesn't belong to [0.0, 1.0] or init_sigma_range is non-positive")
 
         # store statistics about the images and neurons
@@ -129,7 +148,7 @@ class FullGaussian2d(Readout):
         else:
             raise ValueError(f'gauss_type "{gauss_type}" not known')
 
-        self.init_sigma = init_sigma
+        self.init_sigma_range = init_sigma_range
         self.sigma = Parameter(torch.Tensor(*self.sigma_shape))  # standard deviation for gaussian for each neuron
 
         self.initialize_features(**(shared_features or {}))
@@ -270,9 +289,9 @@ class FullGaussian2d(Readout):
             self._mu.data.uniform_(-self.init_mu_range, self.init_mu_range)
 
         if self.gauss_type != "full":
-            self.sigma.data.fill_(self.init_sigma)
+            self.sigma.data.fill_(self.init_sigma_range)
         else:
-            self.sigma.data.uniform_(-self.init_sigma, self.init_sigma)
+            self.sigma.data.uniform_(-self.init_sigma_range, self.init_sigma_range)
         self._features.data.fill_(1 / self.in_shape[0])
         if self._shared_features:
             self.scales.data.fill_(1.0)
@@ -282,8 +301,9 @@ class FullGaussian2d(Readout):
     def initialize_features(self, match_ids=None, shared_features=None):
         """
         The internal attribute `_original_features` in this function denotes whether this instance of the FullGuassian2d
-        learns the original features (True) or if it uses a copy of the features from another instance of FullGaussian2d
-        via the `shared_features` (False). If it uses a copy, the feature_l1 regularizer for this copy will return 0
+        learns the original features (True) or if it uses a copy of the features from another instance of
+        PointGaussianReadout via the `shared_features` (False). If it uses a copy, the feature_l1 regularizer for
+        this copy will return 0.
         """
         c, _, w, h = self.in_shape
         self._original_features = True
@@ -407,3 +427,8 @@ class FullGaussian2d(Readout):
         for ch in self.children():
             r += "  -> " + ch.__repr__() + "\n"
         return r
+
+
+# Alias for backward compatibility
+class FullGaussian2d(PointGaussianReadout):
+    pass

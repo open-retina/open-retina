@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import torch
@@ -210,7 +210,7 @@ def natmov_dataloaders_v2(
 
 def get_chirp_dataloaders(
     neuron_data_dictionary,
-    train_chunk_size: Optional[int] = None,
+    train_chunk_size: int | None = None,
     batch_size: int = 32,
 ):
     assert isinstance(neuron_data_dictionary, dict), (
@@ -280,7 +280,7 @@ def get_chirp_dataloaders(
 
 def get_mb_dataloaders(
     neuron_data_dictionary,
-    train_chunk_size: Optional[int] = None,
+    train_chunk_size: int | None = None,
     batch_size: int = 32,
 ):
     assert isinstance(neuron_data_dictionary, dict), (

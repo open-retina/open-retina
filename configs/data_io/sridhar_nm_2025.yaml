@@ -1,0 +1,43 @@
+sessions: ["01", "02", "03", "04"]
+input_channels: 1
+time_bins: 132
+stimulus_height: 80
+stimulus_width: 90
+stimulus_seed: 0
+
+response_files:
+  "01": "responses/cell_responses_01_fixation_movie.pkl"
+  "02": "responses/cell_responses_02_fixation_movie.pkl"
+  "03": "responses/cell_responses_03_fixation_movie.pkl"
+  "04": "responses/cell_responses_04_fixation_movie.pkl"
+
+excluded_cells: ${dataloader.excluded_cells}
+#excluded_cells:
+#  "01": []
+#  "02": []
+#  "03": []
+#  "04": []
+
+
+stimuli:
+  _target_: openretina.data_io.sridhar_2025.stimuli.build_movies_from_responses
+  base_path: ${paths.data_dir}
+  response_files: ${data_io.response_files}
+  channels: ${data_io.input_channels}
+  height: ${data_io.stimulus_height}
+  width: ${data_io.stimulus_width}
+  stimulus_seed: ${data_io.stimulus_seed}
+  stim_id_prefix: "sridhar_nm_2025"
+
+responses:
+  _target_: openretina.data_io.sridhar_2025.responses.response_splits_from_pickles
+  base_path: ${paths.data_dir}
+  files: ${data_io.response_files}
+  excluded_cells: ${data_io.excluded_cells}
+  stimulus_seed: ${data_io.stimulus_seed}
+
+data_info:
+  response_rate_hz: 85Hz
+  stimulus_rate_hz: 85Hz
+  stimulus_class: "natural_movie"
+  retina_pixel_size_um: 7.5 for full resolution, 30 for default subsampled dataset
