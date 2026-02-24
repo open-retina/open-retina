@@ -29,6 +29,10 @@ def main(cfg: DictConfig) -> float | None:
 
 
 def train_model(cfg: DictConfig) -> float | None:
+    """Run the full training pipeline: load data, instantiate model, train, test, and optionally log to MLflow.
+
+    Returns the objective target score if configured, otherwise None.
+    """
     log.info("Logging full config:")
     log.info(OmegaConf.to_yaml(cfg))
 

@@ -2,6 +2,9 @@ import torch.nn
 
 
 class MSE3d(torch.nn.Module):
+    """Mean squared error loss for 3D (batch, time, neurons) predictions.
+    Handles temporal lag between target and output."""
+
     def __init__(self):
         super().__init__()
 

@@ -836,32 +836,33 @@ class NoiseDataset(Dataset):
                          |-- all_images.npy
          │   ├── responses [directory with as many files as retinas]
 
-        :param responses: dictionary containing train set responses under the key 'train_responses'
-                          and test responses under the key 'test_responses'
-                          :expected train set response shape: cells x num_of_images x num_of_trials
-                          expected test set response shape: cells x num_of_images (i.e. test trials averaged before)
-        :param dir: path to directory where images are stored.
-                    Expected format for image files is:
-                                f'{dir}/{trial_prefix}_{int representing trial number}.zfill(3)/all_images.npy'
-                    Expected shape of numpy array in all_images.npy is: height x width x num_of_images in trial
-        :param data_keys: list of keys to be used for the datapoints, expected ['inputs', 'targets']
-        :param indices: Indices of the trials selected for the given dataset
-        :param transforms: List of transformations that are supposed to be performed on images
-        :param use_cache: Whether to use caching when loading image data
-        :param trial_prefix: prefix of trial file, followed by '_{trial number}'
-        :param test: Whether the data we are loading is test data
-        :param cache_maxsize: Maximum number of trials that can be in the cache at a given point
-                              Cache is NOT implemented as LRU. The last cached item is always kicked out first.
-                              This is because the trials are always iterated through in the same order.
-        :param crop: How much to crop the images - top, bottom, left, right
-        :param subsample: Whether/how much images should be subsampled
-        :param num_of_frames: Indicates how many frames should be used to make one prediction
-        :param num_of_layers: Number of expected convolutional layers,
-                              used to calculate the shrink in dimensions or padding
-        :param device:
-        :param time_chunk_size: Indicates how many predictions should be made at once by the model.
-               The 'inputs' in datapoints are padded accordingly in the temporal dimension with respect to num_of_frames
-               and num_of_layers. Only valid if single_prediction is false.
+        Args:
+            responses: Dictionary containing train set responses under the key 'train_responses'
+                and test responses under the key 'test_responses'.
+                Expected train set response shape: cells x num_of_images x num_of_trials.
+                Expected test set response shape: cells x num_of_images (i.e. test trials averaged before).
+            dir: Path to directory where images are stored.
+                Expected format for image files is:
+                f'{dir}/{trial_prefix}_{int representing trial number}.zfill(3)/all_images.npy'.
+                Expected shape of numpy array in all_images.npy is: height x width x num_of_images in trial.
+            data_keys: List of keys to be used for the datapoints, expected ['inputs', 'targets'].
+            indices: Indices of the trials selected for the given dataset.
+            transforms: List of transformations that are supposed to be performed on images.
+            use_cache: Whether to use caching when loading image data.
+            trial_prefix: Prefix of trial file, followed by '_{trial number}'.
+            test: Whether the data we are loading is test data.
+            cache_maxsize: Maximum number of trials that can be in the cache at a given point.
+                Cache is NOT implemented as LRU. The last cached item is always kicked out first.
+                This is because the trials are always iterated through in the same order.
+            crop: How much to crop the images - top, bottom, left, right.
+            subsample: Whether/how much images should be subsampled.
+            num_of_frames: Indicates how many frames should be used to make one prediction.
+            num_of_layers: Number of expected convolutional layers,
+                used to calculate the shrink in dimensions or padding.
+            device: Device to use.
+            time_chunk_size: Indicates how many predictions should be made at once by the model.
+                The 'inputs' in datapoints are padded accordingly in the temporal dimension with respect
+                to num_of_frames and num_of_layers. Only valid if single_prediction is false.
         """
 
         self.use_cache = use_cache

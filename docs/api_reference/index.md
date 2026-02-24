@@ -1,57 +1,67 @@
-# API reference 
+# API Reference
 
-## What is this page?
-
-This is the API (Application Programming Interface) reference for OpenRetina. It provides comprehensive documentation of all public classes, functions, and modules available in the package.
+This is the API reference for OpenRetina. It documents all public classes, functions, and modules available in the package.
 
 **How to use this reference:**
 
 - **Browse by module**: Navigate through the sections below to find specific components
-- **Search for functionality**: Use the search function to find specific classes or functions
-- **Understand parameters**: Each entry includes detailed parameter descriptions, return types, and usage examples
-- **Link to source**: Most entries link to the source code for deeper understanding
+- **Search**: Use the search function to find specific classes or functions
+- **Link to source**: Most entries link directly to the source code
 
-If you're new to OpenRetina, start with the [Getting Started Guide](../getting_started.md) or [Tutorials](../tutorials/index.md) before diving into the API reference.
+If you're new to OpenRetina, start with the [Quick Start](../package_docs/quickstart.md) or [Tutorials](../package_docs/tutorials/pretrained_models.md) before diving into the API reference.
 
-## Core Components
+## Modules
 
-- [Models](./models.md): Pre-trained and customizable retina models
-- [Modules](./modules.md): Building blocks for constructing models
-- [Data I/O](./data_io.md): Data loading and processing utilities
-- [In-silico](./insilico.md): Tools for analyzing models with virtual experiments
-- [Utilities](./utils.md): Helper functions and visualization tools
+### [Models](./models.md)
 
-## API Documentation by Module
+Complete model architectures for retinal response prediction:
 
-The OpenRetina package is organized in a modular structure where each module serves a specific purpose in the retina modeling workflow.
+- [`BaseCoreReadout`](./models.md#basecorereadout) — Base class for all core-readout models
+- [`UnifiedCoreReadout`](./models.md#unifiedcorereadout) — Hydra-configurable model (recommended)
+- [`load_core_readout_from_remote`](./models.md#loading-pre-trained-models) — Load pre-trained models
+- [Linear-Nonlinear Models](./models/linear_nonlinear.md) — LNP cascade models
+- [Sparse Autoencoder](./models/sparse_autoencoder.md) — Sparse representation models
 
-### Models
+### [Modules](./modules.md)
 
-The `models` module provides complete model implementations:
+Building blocks for constructing models:
 
-- [`openretina.models.core_readout`](./models/core_readout.md): End-to-end convolutional models with spatial readouts
-- [`openretina.models.linear_nonlinear`](./models/linear_nonlinear.md): Classical linear-nonlinear cascade models
-- [`openretina.models.sparse_autoencoder`](./models/sparse_autoencoder.md): Models for learning sparse representations
+- [Core Modules](./modules/core.md) — Convolutional feature extractors (`SimpleCoreWrapper`, `ConvGRUCore`)
+- [Readout Modules](./modules/readout.md) — Spatial readouts (`PointGaussianReadout`, `GaussianMaskReadout`, multi-session wrappers)
+- [Layers](./modules/layers.md) — Convolutions, regularizers, scaling, GRU cells
+- [Loss Functions](./modules/losses.md) — Poisson, correlation, and MSE losses
 
-### Modules
+### [Data I/O](./data_io.md)
 
-The `modules` package contains building blocks for model construction. See the [modules overview](./modules.md) for complete documentation.
+Data loading and preprocessing:
 
-### Data I/O
+- [Base Data Classes](./data_io/base.md) — `MoviesTrainTestSplit`, `ResponsesTrainTestSplit`
+- [Base Dataloader](./data_io/base_dataloader.md) — `MovieDataSet`, `MovieSampler`, dataloader factories
+- Dataset implementations: [Hoefling 2024](./data_io/hoefling_2024.md), [Karamanlis 2024](./data_io/karamanlis_2024.md), [Goldin 2022](./data_io/goldin_2022.md), [Maheswaranathan 2023](./data_io/maheswaranathan_2023.md), [Sridhar 2025](./data_io/sridhar_2025.md)
+- [Artificial Stimuli](./data_io/artificial_stimuli.md), [Cyclers](./data_io/cyclers.md)
 
-The `data_io` package handles data loading and preprocessing:
+### [In-silico](./insilico.md)
 
-- [`openretina.data_io.base_dataloader`](./data_io/base_dataloader.md): Abstract interfaces for data handling
-- [`openretina.data_io.hoefling_2024`](./data_io/hoefling_2024.md): Dataloaders for Höfling et al. 2024 dataset
-- [`openretina.data_io.artificial_stimuli`](./data_io/artificial_stimuli.md): Utilities for generating artificial stimuli
-- [`openretina.data_io.cyclers`](./data_io/cyclers.md): Utilities for cycling through datasets
+Tools for computational experiments with trained models:
 
-See the [data I/O overview](./data_io.md) for complete documentation.
+- [Stimulus Optimization](./insilico/stimulus_optimization.md) — MEIs, discriminatory stimuli, regularizers
+- [Vector Field Analysis](./insilico/vector_field_analysis.md) — PCA-based response analysis
+- [Tuning Analyses](./insilico/tuning_analyses.md) — Gradient-based response characterization
 
-### In-silico
+### [Evaluation](./eval.md)
 
-The `insilico` package provides tools for analyzing models:
+Metrics and oracle computations for model evaluation:
 
-- [`openretina.insilico.stimulus_optimization`](./insilico/stimulus_optimization.md): Tools for finding optimal stimuli
+- Correlation, Poisson loss, MSE, FEVe, variance analysis
+- Oracle correlations (jackknife, global mean)
 
-See the [in-silico overview](./insilico.md) for complete documentation. 
+### [CLI](./cli.md)
+
+Command-line entry points:
+
+- `train_model` — Full training pipeline
+- `evaluate_model` — Full evaluation pipeline
+
+### [Utilities](./utils.md)
+
+Helper functions for file handling, visualization, model management, and data processing.

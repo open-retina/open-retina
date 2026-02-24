@@ -38,10 +38,32 @@ theme:
     - navigation.footer
 
 plugins:
-  - mkdocstrings
   - search
   - social
   - glightbox
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          options:
+            # Signatures
+            show_signature_annotations: true
+            separate_signature: true
+            signature_crossrefs: true
+            unwrap_annotated: true
+            # Docstrings
+            docstring_style: google
+            docstring_section_style: spacy
+            # Members
+            members_order: source
+            merge_init_into_class: true
+            show_if_no_docstring: false
+            # Headings
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            show_root_full_path: false
+            # Source
+            show_source: true
   - mkdocs-jupyter:
       execute: false
       include_source: true
@@ -111,14 +133,38 @@ nav:
       - Contributing:
           - Contributing Guide: package_docs/contributing.md
           - Development Setup: package_docs/development.md
-          - Code Style: package_docs/code_style.m
+          - Code Style: package_docs/code_style.md
   - API Reference:
-      - index: api_reference/index.md
-      - Overview: api_reference/index.md
-      - Models: api_reference/models.md
-      - Data I/O: api_reference/data_io.md
-      - In-silico: api_reference/insilico.md
-      - Modules: api_reference/modules.md
+      - api_reference/index.md
+      - Models:
+          - Overview: api_reference/models.md
+          - Core-Readout: api_reference/models/core_readout.md
+          - Linear-Nonlinear: api_reference/models/linear_nonlinear.md
+          - Sparse Autoencoder: api_reference/models/sparse_autoencoder.md
+      - Modules:
+          - Overview: api_reference/modules.md
+          - Core: api_reference/modules/core.md
+          - Readout: api_reference/modules/readout.md
+          - Layers: api_reference/modules/layers.md
+          - Loss Functions: api_reference/modules/losses.md
+      - Data I/O:
+          - Overview: api_reference/data_io.md
+          - Base Classes: api_reference/data_io/base.md
+          - Base Dataloader: api_reference/data_io/base_dataloader.md
+          - Hoefling 2024: api_reference/data_io/hoefling_2024.md
+          - Karamanlis 2024: api_reference/data_io/karamanlis_2024.md
+          - Goldin 2022: api_reference/data_io/goldin_2022.md
+          - Maheswaranathan 2023: api_reference/data_io/maheswaranathan_2023.md
+          - Sridhar 2025: api_reference/data_io/sridhar_2025.md
+          - Artificial Stimuli: api_reference/data_io/artificial_stimuli.md
+          - Cyclers: api_reference/data_io/cyclers.md
+      - In-silico:
+          - Overview: api_reference/insilico.md
+          - Stimulus Optimization: api_reference/insilico/stimulus_optimization.md
+          - Vector Field Analysis: api_reference/insilico/vector_field_analysis.md
+          - Tuning Analyses: api_reference/insilico/tuning_analyses.md
+      - Evaluation: api_reference/eval.md
+      - CLI: api_reference/cli.md
       - Utils: api_reference/utils.md
   - FAQs: faq.md
   - How to cite: references.md

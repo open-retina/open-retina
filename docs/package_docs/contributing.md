@@ -185,25 +185,25 @@ When writing or updating documentation:
 
 ### Docstring Standards
 
-Use Google-style docstrings for all public functions and classes:
+Use **Google-style docstrings** for all public functions and classes. Do not use Sphinx-style (`:param`, `:returns:`) or NumPy-style formats. See the [code style guide](./code_style.md#docstrings) for full details.
 
 ```python
 def example_function(param1: int, param2: str = "default") -> bool:
     """Brief description of what the function does.
-    
+
     Longer description if needed. Explain the purpose, behavior,
     and any important details.
-    
+
     Args:
         param1: Description of the first parameter.
         param2: Description of the second parameter with default value.
-        
+
     Returns:
         Description of what the function returns.
-        
+
     Raises:
         ValueError: When and why this exception is raised.
-        
+
     Example:
         >>> result = example_function(42, "test")
         >>> print(result)

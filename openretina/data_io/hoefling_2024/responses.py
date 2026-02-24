@@ -154,16 +154,14 @@ class NeuronDataSplitHoefling:
         x_offset=2.75,
         y_offset=2.75,
     ):
-        """
-        Maps a roi mask of a single roi from recording coordinates to model
-        readout coordinates
-        :param single_roi_mask: 2d array with nonzero values indicating the pixels
-                of the current roi
-        :param roi_mask_pixelsize: size of a pixel in the roi mask in um
-        :param readout_mask_pixelsize: size of a pixel in the readout mask in um
-        :param x_offset: x offset indicating the start of the recording field in readout mask
-        :param y_offset: y offset indicating the start of the recording field in readout mask
-        :return:
+        """Maps a roi mask of a single roi from recording coordinates to model readout coordinates.
+
+        Args:
+            single_roi_mask: 2d array with nonzero values indicating the pixels of the current roi.
+            roi_mask_pixelsize: Size of a pixel in the roi mask in um.
+            readout_mask_pixelsize: Size of a pixel in the readout mask in um.
+            x_offset: X offset indicating the start of the recording field in readout mask.
+            y_offset: Y offset indicating the start of the recording field in readout mask.
         """
         pixel_factor = readout_mask_pixelsize / roi_mask_pixelsize
         y, x = np.nonzero(single_roi_mask)

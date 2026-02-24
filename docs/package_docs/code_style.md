@@ -137,7 +137,7 @@ def load_dataset(path):
 
 ### Docstrings
 
-Use **Google-style docstrings** for all public functions, classes, and methods:
+Use **Google-style docstrings** for all public functions, classes, and methods. This is the only accepted docstring format — do not use Sphinx-style (`:param`, `:returns:`) or NumPy-style (`Parameters`, `Returns` with dashed underlines).
 
 ```python
 def train_model(
@@ -147,25 +147,25 @@ def train_model(
     learning_rate: float = 1e-3
 ) -> Dict[str, float]:
     """Train a neural network model.
-    
+
     This function trains the provided model using the given dataloader
     for the specified number of epochs.
-    
+
     Args:
         model: The neural network model to train.
         dataloader: DataLoader providing training data.
         num_epochs: Number of training epochs.
         learning_rate: Learning rate for the optimizer. Defaults to 1e-3.
-        
+
     Returns:
         A dictionary containing training metrics:
         - 'loss': Final training loss
         - 'accuracy': Final training accuracy
-        
+
     Raises:
         ValueError: If num_epochs is not positive.
         RuntimeError: If training fails due to GPU/memory issues.
-        
+
     Example:
         >>> model = create_model()
         >>> loader = DataLoader(dataset, batch_size=32)

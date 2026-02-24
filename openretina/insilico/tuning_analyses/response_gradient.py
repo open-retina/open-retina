@@ -105,12 +105,14 @@ def get_gradient_grid(
 
 
 def equalize_channels(stim: torch.Tensor, flip_green: bool = False) -> torch.Tensor:
-    """
-    Scales the (green and UV) channels of an stim such that they have equal norm,
-    and the scaled stim has the same norm as the original stim. Optionally flips sign of green channel
-    :param stim: torch.Tensor, shape (1, 2, 50, 18, 16)
-    :param flip_green: bool
-    :return: equalized_stim: torch.Tensor, shape (1, 2, 50, 18, 16)
+    """Scale the channels of a stimulus to have equal norm, preserving total norm. Optionally flips green channel.
+
+    Args:
+        stim: Stimulus tensor of shape (1, 2, 50, 18, 16).
+        flip_green: Whether to flip the sign of the green channel.
+
+    Returns:
+        Equalized stimulus tensor of the same shape.
     """
     green_chan = stim[0, 0]
     uv_chan = stim[0, 1]
