@@ -504,8 +504,6 @@ class ExampleCoreReadout(BaseCoreReadout):
         if len(readout_bias_keys) > 0:
             LOGGER.warning(f"Renamed the following readout bias keys: {readout_bias_keys}")
 
-        breakpoint()
-
 
 def load_core_readout_from_remote(
     model_name: str,
