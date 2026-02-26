@@ -67,5 +67,5 @@ training_callbacks:
     mode: "min"
     min_delta: 0.0001
   model_checkpoint:
-    monitor: "val_validation_loss"
+    monitor: "val_evaluation_loss"
     mode: "min"

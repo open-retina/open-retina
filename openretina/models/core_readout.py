@@ -55,7 +55,7 @@ class BaseCoreReadout(LightningModule):
         readout: MultiReadoutBase,
         learning_rate: float,
         loss: nn.Module | None = None,
-        validation_metric: nn.Module | None = None,
+        evaluation_loss: nn.Module | None = None,
         data_info: dict[str, Any] | None = None,
     ):
         """
@@ -67,7 +67,7 @@ class BaseCoreReadout(LightningModule):
                 per session.
             learning_rate (float): Learning rate for network training.
             loss (nn.Module, optional): Loss function for training. Defaults to PoissonLoss3d if None.
-            validation_metric (nn.Module, optional): Metric used to compute evaluate the model.
+            evaluation_loss (nn.Module, optional): Metric used to compute evaluate the model.
                 Defaults to CorrelationLoss3d (avg=True) if None.
             data_info (dict[str, Any], optional): Dictionary containing data-specific metadata, such as input_shape,
                 session neuron counts, etc. If None, defaults to empty dict.
@@ -78,8 +78,8 @@ class BaseCoreReadout(LightningModule):
         self.readout = readout
         self.learning_rate = learning_rate
         self.loss = loss if loss is not None else PoissonLoss3d()
-        self.validation_metric = (
-            validation_metric if validation_metric is not None else (CorrelationLoss3d(avg=True, negate=False))
+        self.evaluation_loss = (
+            evaluation_loss if evaluation_loss is not None else (CorrelationLoss3d(avg=True, negate=False))
         )
         if data_info is None:
             data_info = {}
@@ -111,13 +111,13 @@ class BaseCoreReadout(LightningModule):
         regularization_loss_core = self.core.regularizer()
         regularization_loss_readout = self.readout.regularizer(session_id)  # type: ignore
         total_loss = loss + regularization_loss_core + regularization_loss_readout
-        validation_loss = -self.validation_metric.forward(model_output, data_point.targets)
+        evaluation_loss = -self.evaluation_loss.forward(model_output, data_point.targets)
 
         self.log("regularization_loss_core", regularization_loss_core, on_step=False, on_epoch=True)
         self.log("regularization_loss_readout", regularization_loss_readout, on_step=False, on_epoch=True)
         self.log("train_total_loss", total_loss, on_step=False, on_epoch=True)
         self.log("train_loss", loss, on_step=False, on_epoch=True)
-        self.log("train_validation_loss", validation_loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("train_evaluation_loss", evaluation_loss, on_step=False, on_epoch=True, prog_bar=True)
 
         return total_loss
 
@@ -128,13 +128,13 @@ class BaseCoreReadout(LightningModule):
         regularization_loss_core = self.core.regularizer()
         regularization_loss_readout = self.readout.regularizer(session_id)  # type: ignore
         total_loss = loss + regularization_loss_core + regularization_loss_readout
-        validation_metric = self.validation_metric.forward(model_output, data_point.targets)
+        evaluation_loss = self.evaluation_loss.forward(model_output, data_point.targets)
 
         self.log("val_loss", loss, logger=True, prog_bar=True)
         self.log("val_regularization_loss_core", regularization_loss_core, logger=True)
         self.log("val_regularization_loss_readout", regularization_loss_readout, logger=True)
         self.log("val_total_loss", total_loss, logger=True)
-        self.log("val_validation_metric", validation_metric, logger=True, prog_bar=True)
+        self.log("val_evaluation_loss", evaluation_loss, logger=True, prog_bar=True)
 
         return loss
 
@@ -142,19 +142,19 @@ class BaseCoreReadout(LightningModule):
         session_id, data_point = batch
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
-        validation_metric = self.validation_metric.forward(model_output, data_point.targets)
+        evaluation_loss = self.evaluation_loss.forward(model_output, data_point.targets)
 
         # Add metric and performances to data_info for downstream tasks
         if "pretrained_performance_metric" not in self.data_info:
-            self.data_info["pretrained_performance_metric"] = "test " + type(self.validation_metric).__name__
+            self.data_info["pretrained_performance_metric"] = "test " + type(self.evaluation_loss).__name__
 
         if "pretrained_performance" not in self.data_info:
             self.data_info["pretrained_performance"] = {}
-        if getattr(self.validation_metric, "_per_neuron_correlations", None) is not None:
-            per_neuron_correlation = self.validation_metric._per_neuron_correlations
+        if getattr(self.evaluation_loss, "_per_neuron_correlations", None) is not None:
+            per_neuron_correlation = self.evaluation_loss._per_neuron_correlations
             self.data_info["pretrained_performance"][session_id] = per_neuron_correlation
         else:
-            self.data_info["pretrained_performance"][session_id] = validation_metric.detach().cpu()
+            self.data_info["pretrained_performance"][session_id] = evaluation_loss.detach().cpu()
 
         # Also add cut frames if not present
         model_cut_frames = data_point.targets.size(1) - model_output.size(1)
@@ -166,7 +166,7 @@ class BaseCoreReadout(LightningModule):
         self.log_dict(
             {
                 type(self.loss).__name__: loss,
-                type(self.validation_metric).__name__: validation_metric,
+                type(self.evaluation_loss).__name__: evaluation_loss,
             }
         )
 
@@ -294,7 +294,7 @@ class UnifiedCoreReadout(BaseCoreReadout):
         hidden_channels: tuple[int, ...] | Iterable[int] | None = None,
         learning_rate: float = 0.001,
         loss: nn.Module | DictConfig | None = None,
-        validation_metric: nn.Module | DictConfig | None = None,
+        evaluation_loss: nn.Module | DictConfig | None = None,
         data_info: dict[str, Any] | None = None,
         optimizer: DictConfig | None = None,
         lr_scheduler: DictConfig | None = None,
@@ -317,7 +317,7 @@ class UnifiedCoreReadout(BaseCoreReadout):
                 Learning rate for model training. Defaults to 0.001.
             loss (nn.Module, optional):
                 Loss function for training. Defaults to PoissonLoss3d if None.
-            validation_metric (nn.Module, optional):
+            evaluation_loss (nn.Module, optional):
                 Metric used to evaluate the model. Defaults to CorrelationLoss3d(avg=True) if None.
             data_info (dict[str, Any], optional):
                 Additional metadata dictionary, e.g., with input shape and neuron mapping.
@@ -358,10 +358,10 @@ class UnifiedCoreReadout(BaseCoreReadout):
         else:
             loss_module = loss
 
-        if validation_metric is not None and isinstance(validation_metric, DictConfig):
-            validation_metric_module = hydra.utils.instantiate(validation_metric)
+        if evaluation_loss is not None and isinstance(evaluation_loss, DictConfig):
+            validation_metric_module = hydra.utils.instantiate(evaluation_loss)
         else:
-            validation_metric_module = validation_metric
+            validation_metric_module = evaluation_loss
 
         # Store optimizer and scheduler configs for use in configure_optimizers
         self.optimizer_config = optimizer
@@ -372,7 +372,7 @@ class UnifiedCoreReadout(BaseCoreReadout):
             readout=readout_module,
             learning_rate=learning_rate,
             loss=loss_module,
-            validation_metric=validation_metric_module,
+            evaluation_loss=validation_metric_module,
             data_info=data_info,
         )
 

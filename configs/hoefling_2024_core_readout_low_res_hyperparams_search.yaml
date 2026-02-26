@@ -29,7 +29,7 @@ dataloader:
 data_io:
   retina_pixel_size_um: 50 # 4x bigger than high res model
 
-objective_target: val_validation_loss
+objective_target: val_evaluation_loss
 
 hydra:
   run:
