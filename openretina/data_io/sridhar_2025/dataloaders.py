@@ -470,7 +470,7 @@ def frame_movie_loader(
     crop: int | tuple[int, int, int, int] = 0,
     num_of_trials_to_use: int | None = None,
     start_using_trial: int = 0,
-    num_of_frames: int = 30,
+    num_of_frames: int | list[int] = 30,
     temporal_dilation: int | tuple[int, ...] = 1,
     hidden_temporal_dilation: int | tuple[int, ...] = 1,
     cell_index=None,
@@ -543,11 +543,9 @@ def frame_movie_loader(
         validation) for the selected retina.
     start_using_trial : int, default 0
         Offset (0-based) for selecting a contiguous block of trials to use.
-    num_of_frames : int, optional
+    num_of_frames : int | list[int]
         Number of **visible** frames per sample (passed to the underlying
-        dataset). If ``None``, the dataset default is used.
-    num_of_hidden_frames : int or tuple[int], optional
-        Hidden-layer look-back window(s); broadcast/forwarded to the dataset.
+        dataset).
     temporal_dilation : int, default 1
         First layer temporal dilation; forwarded to the dataset.
     hidden_temporal_dilation : int or tuple[int], default 1
@@ -686,9 +684,10 @@ def frame_movie_loader(
                 cells = [cell_index]
             else:
                 excluded = excluded_cells if excluded_cells is not None else {}
-                cells = [x for x in range(train_responses.shape[0] + len(excluded))
+                cells = [
+                    x for x in range(train_responses.shape[0] + len(excluded))
                     if x not in excluded
-                ],
+                ]
 
             locations = get_locations_from_stas(
                 sta_dir=os.path.join(basepath, sta_dir),
