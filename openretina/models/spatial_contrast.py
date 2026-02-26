@@ -251,9 +251,10 @@ class SingleCellSpatialContrast(LightningModule):
         # Reshape for conv1d: (batch * h * w, channels, time)
         x_reshaped = rearrange(x, "b c t h w -> (b h w) c t")
 
-        # Prepare kernel: flip for proper convolution, shape (out_channels=1, in_channels=1, kernel_size)
-        # Note: we assume single channel input (channels=1)
-        kernel = self.temporal_filter.flip(0).view(1, 1, -1)
+        # Prepare kernel shape (out_channels=1, in_channels=1, kernel_size)
+        # Note: conv1d performs cross-correlation, which naturally matches STA temporal order
+        # (index 0 = furthest past, index -1 = closest to spike)
+        kernel = self.temporal_filter.view(1, 1, -1)
 
         # Apply conv1d (valid mode, no padding)
         filtered = F.conv1d(x_reshaped, kernel, padding=0)
@@ -367,12 +368,8 @@ class SingleCellSpatialContrast(LightningModule):
             Training loss value
         """
         session_id, data_point = batch
-        if self.do_crop:
-            images = self.crop_input(data_point.inputs)
-        else:
-            images = data_point.inputs
 
-        model_output = self.forward(images, session_id)
+        model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets)
         correlation = -self.validation_loss.forward(model_output, data_point.targets)
 
@@ -393,12 +390,8 @@ class SingleCellSpatialContrast(LightningModule):
             Validation loss value
         """
         session_id, data_point = batch
-        if self.do_crop:
-            images = self.crop_input(data_point.inputs)
-        else:
-            images = data_point.inputs
 
-        model_output = self.forward(images, session_id)
+        model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
         correlation = -self.validation_loss.forward(model_output, data_point.targets)
 
