@@ -149,12 +149,12 @@ class SingleCellSeparatedLNP(LightningModule):
         self.location = rf_location
 
         regularizer_config_spat = (
-            dict(padding=laplace_padding, kernel=self.spat_kernel_size)
+            dict(padding=laplace_padding, kernel=spat_kernel_size)
             if smooth_regularizer_spat == "GaussianLaplaceL2"
             else dict(padding=laplace_padding)
         )
         regularizer_config_temp = (
-            dict(padding=laplace_padding, kernel=self.temp_kernel_size)
+            dict(padding=laplace_padding, kernel=in_shape[1])
             if smooth_regularizer_temp == "GaussianLaplaceL2"
             else dict(padding=laplace_padding)
         )
