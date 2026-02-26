@@ -103,12 +103,12 @@ class SingleCellSeparatedLNP(LightningModule):
         - regularization_loss_core
         - train_total_loss
         - train_loss
-        - train_validation_loss
+        - train_evaluation_loss
     Validation:
         - val_loss
         - val_regularization_loss
         - val_total_loss
-        - evaluation_loss
+        - val_evaluation_loss
     """
 
     def __init__(
@@ -208,12 +208,12 @@ class SingleCellSeparatedLNP(LightningModule):
         loss = self.loss.forward(model_output, data_point.targets)
         regularization = self.regularizer()
         total_loss = loss + regularization
-        validation_metric = -self.evaluation_loss.forward(model_output, data_point.targets)
+        evaluation_loss = self.evaluation_loss.forward(model_output, data_point.targets)
 
         self.log("regularization_loss_core", regularization, on_step=False, on_epoch=True)
         self.log("train_total_loss", total_loss, on_step=False, on_epoch=True)
         self.log("train_loss", loss, on_step=False, on_epoch=True)
-        self.log("train_validation_metric", validation_metric, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("train_evaluation_loss", evaluation_loss, on_step=False, on_epoch=True, prog_bar=True)
 
         return total_loss
 
@@ -227,12 +227,12 @@ class SingleCellSeparatedLNP(LightningModule):
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
         regularization = self.regularizer()
         total_loss = loss + regularization
-        validation_metric = self.evaluation_loss.forward(model_output, data_point.targets)
+        evaluation_loss = self.evaluation_loss.forward(model_output, data_point.targets)
 
         self.log("val_loss", loss, logger=True, prog_bar=True)
         self.log("val_regularization_loss", regularization, logger=True)
         self.log("val_total_loss", total_loss, logger=True)
-        self.log("evaluation_loss", validation_metric, logger=True, prog_bar=True)
+        self.log("val_evaluation_loss", evaluation_loss, logger=True, prog_bar=True)
 
         return loss
 
@@ -255,7 +255,7 @@ class SingleCellSeparatedLNP(LightningModule):
             "optimizer": optimizer,
             "lr_scheduler": {
                 "scheduler": scheduler,
-                "monitor": "evaluation_loss",
+                "monitor": "val_evaluation_loss",
                 "frequency": 1,
             },
         }

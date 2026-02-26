@@ -45,7 +45,7 @@ model:
     mask_l1_reg: 0.0  # 5.924553274051563
     feature_weights_l1_reg: 0.0  # 6.075840974162483
     positive: false
-  validation_loss:
+  evaluation_loss:
     _target_: openretina.modules.losses.poisson.PoissonLoss3d
     avg: True
 
