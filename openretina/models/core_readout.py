@@ -359,9 +359,9 @@ class UnifiedCoreReadout(BaseCoreReadout):
             loss_module = loss
 
         if evaluation_loss is not None and isinstance(evaluation_loss, DictConfig):
-            validation_metric_module = hydra.utils.instantiate(evaluation_loss)
+            evaluation_loss_module = hydra.utils.instantiate(evaluation_loss)
         else:
-            validation_metric_module = evaluation_loss
+            evaluation_loss_module = evaluation_loss
 
         # Store optimizer and scheduler configs for use in configure_optimizers
         self.optimizer_config = optimizer
@@ -372,7 +372,7 @@ class UnifiedCoreReadout(BaseCoreReadout):
             readout=readout_module,
             learning_rate=learning_rate,
             loss=loss_module,
-            evaluation_loss=validation_metric_module,
+            evaluation_loss=evaluation_loss_module,
             data_info=data_info,
         )
 
