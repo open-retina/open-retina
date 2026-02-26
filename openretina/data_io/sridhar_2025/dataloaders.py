@@ -684,10 +684,7 @@ def frame_movie_loader(
                 cells = [cell_index]
             else:
                 excluded = excluded_cells if excluded_cells is not None else {}
-                cells = [
-                    x for x in range(train_responses.shape[0] + len(excluded))
-                    if x not in excluded
-                ]
+                cells = [x for x in range(train_responses.shape[0] + len(excluded)) if x not in excluded]
 
             locations = get_locations_from_stas(
                 sta_dir=os.path.join(basepath, sta_dir),
