@@ -229,10 +229,23 @@ def extract_filters_from_sta(
     # Handle polarity (flip if amplitude is negative for OFF cells)
     polarity_flip = gaussian_params["amplitude"] < 0
     if polarity_flip:
-        spatial_frame = -spatial_frame
         gaussian_params["amplitude"] = -gaussian_params["amplitude"]
 
-    # Create mask and zero out values outside sigma_contour
+    # Use the fitted 2D Gaussian as the spatial filter
+    x_coords = np.arange(width)
+    y_coords = np.arange(height)
+    x_grid, y_grid = np.meshgrid(x_coords, y_coords)
+    gaussian_values = gaussian_2d(
+        (x_grid, y_grid),
+        center_x=gaussian_params["center_x"],
+        center_y=gaussian_params["center_y"],
+        sigma_x=gaussian_params["sigma_x"],
+        sigma_y=gaussian_params["sigma_y"],
+        theta=gaussian_params["theta"],
+        amplitude=gaussian_params["amplitude"],
+    ).reshape(height, width)
+
+    # Create a mask of sigma_contour sigmas around the gaussian center
     mask = create_gaussian_mask(
         shape=(height, width),
         center_x=gaussian_params["center_x"],
@@ -242,7 +255,9 @@ def extract_filters_from_sta(
         theta=gaussian_params["theta"],
         n_sigma=sigma_contour,
     )
-    spatial_filter = spatial_frame * mask
+
+    # Set spatial filter as the masked 2d-gaussian fit
+    spatial_filter = gaussian_values * mask
 
     # Normalize spatial filter to unit L2 norm
     spatial_norm = np.linalg.norm(spatial_filter)
