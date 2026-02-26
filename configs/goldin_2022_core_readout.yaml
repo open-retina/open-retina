@@ -2,6 +2,8 @@ defaults:
   - data_io: goldin_2022
   - dataloader: goldin_2022
   - model: base_core_readout
+  - optimizer: adamw
+  - lr_scheduler: reduce_lr_on_plateau
   - training_callbacks:
       - early_stopping
       - lr_monitor
@@ -40,8 +42,12 @@ model:
     gamma_input: 0.4654576767872573
     convolution_type: "time_independent"
   readout:
-    mask_l1_reg: 5.924553274051563
-    feature_weights_l1_reg: 6.075840974162483
+    mask_l1_reg: 0.0  # 5.924553274051563
+    feature_weights_l1_reg: 0.0  # 6.075840974162483
+    positive: false
+  evaluation_loss:
+    _target_: openretina.modules.losses.poisson.PoissonLoss3d
+    avg: True
 
 matmul_precision:
   _target_: torch.set_float32_matmul_precision
@@ -61,6 +67,5 @@ training_callbacks:
     mode: "min"
     min_delta: 0.0001
   model_checkpoint:
-    monitor: "val_loss"
+    monitor: "val_evaluation_loss"
     mode: "min"
-    min_delta: 0.0001

@@ -1,6 +1,6 @@
 early_stopping:
   _target_: lightning.pytorch.callbacks.EarlyStopping
-  monitor: "val_correlation"
+  monitor: "val_evaluation_loss"
   min_delta: 0.001 
   patience: 10
   verbose: True 
