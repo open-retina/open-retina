@@ -75,7 +75,7 @@ class SingleCellSeparatedLNP(LightningModule):
         forward pass (in-place, under no_grad).
     loss:
         Training loss. Defaults to `PoissonLoss3d()` if None.
-    validation_loss:
+    evaluation_loss:
         Validation metric/loss. Defaults to `CorrelationLoss3d(avg=True)` if None.
         During training/validation, correlation is logged as the negative of this loss.
 
@@ -108,7 +108,7 @@ class SingleCellSeparatedLNP(LightningModule):
         - val_loss
         - val_regularization_loss
         - val_total_loss
-        - val_validation_metric
+        - evaluation_loss
     """
 
     def __init__(
@@ -128,14 +128,14 @@ class SingleCellSeparatedLNP(LightningModule):
         nonlinearity: str = "exp",
         normalize_weights: bool = True,
         loss=None,
-        validation_loss=None,
+        evaluation_loss=None,
         **kwargs,
     ):
         super().__init__()
         self.learning_rate = learning_rate
         self.loss = loss if loss is not None else PoissonLoss3d()
-        self.validation_loss = (
-            validation_loss if validation_loss is not None else (CorrelationLoss3d(avg=True, negate=False))
+        self.evaluation_loss = (
+            evaluation_loss if evaluation_loss is not None else (CorrelationLoss3d(avg=True, negate=False))
         )
         self.smooth_weight_spat = smooth_weight_spat
         self.smooth_weight_temp = smooth_weight_temp
@@ -208,7 +208,7 @@ class SingleCellSeparatedLNP(LightningModule):
         loss = self.loss.forward(model_output, data_point.targets)
         regularization = self.regularizer()
         total_loss = loss + regularization
-        validation_metric = -self.validation_loss.forward(model_output, data_point.targets)
+        validation_metric = -self.evaluation_loss.forward(model_output, data_point.targets)
 
         self.log("regularization_loss_core", regularization, on_step=False, on_epoch=True)
         self.log("train_total_loss", total_loss, on_step=False, on_epoch=True)
@@ -227,12 +227,12 @@ class SingleCellSeparatedLNP(LightningModule):
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
         regularization = self.regularizer()
         total_loss = loss + regularization
-        validation_metric = self.validation_loss.forward(model_output, data_point.targets)
+        validation_metric = self.evaluation_loss.forward(model_output, data_point.targets)
 
         self.log("val_loss", loss, logger=True, prog_bar=True)
         self.log("val_regularization_loss", regularization, logger=True)
         self.log("val_total_loss", total_loss, logger=True)
-        self.log("val_validation_metric", validation_metric, logger=True, prog_bar=True)
+        self.log("evaluation_loss", validation_metric, logger=True, prog_bar=True)
 
         return loss
 
@@ -255,7 +255,7 @@ class SingleCellSeparatedLNP(LightningModule):
             "optimizer": optimizer,
             "lr_scheduler": {
                 "scheduler": scheduler,
-                "monitor": "val_validation_metric",
+                "monitor": "evaluation_loss",
                 "frequency": 1,
             },
         }

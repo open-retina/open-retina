@@ -202,7 +202,7 @@ class BaseCoreReadout(LightningModule):
             "optimizer": optimizer,
             "lr_scheduler": {
                 "scheduler": scheduler,
-                "monitor": "val_validation_metric",
+                "monitor": "val_evaluation_loss",
                 "frequency": 1,
             },
         }
