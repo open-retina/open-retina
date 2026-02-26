@@ -254,10 +254,9 @@ def extract_filters_from_sta(
     center_x = int(np.clip(np.round(gaussian_params["center_x"]), 0, width - 1))
     temporal_filter = sta[:, center_y, center_x].copy()
 
-    # Crop and reverse temporal filter for correct convolution
+    # Crop temporal filter to keep the most recent frames
     if temporal_crop_frames is not None and temporal_crop_frames < num_frames:
         temporal_filter = temporal_filter[-temporal_crop_frames:]
-        temporal_filter = temporal_filter[::-1]
 
     # Normalize temporal filter to unit L2 norm
     temporal_norm = np.linalg.norm(temporal_filter)
