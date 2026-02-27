@@ -2,7 +2,7 @@ defaults:
   - data_io: hoefling_2024
   - quality_checks: hoefling_2024
   - dataloader: hoefling_2024
-  - model: base_core_readout
+  - model: core_gaussian_readout
   - optimizer: adamw
   - lr_scheduler: reduce_lr_on_plateau
   - training_callbacks:
@@ -25,6 +25,20 @@ dataloader:
 
 model:
   in_shape: [2, 150, 18, 16]
+  hidden_channels: [16, 16]
+  core:
+    temporal_kernel_sizes: [21, 11]
+    spatial_kernel_sizes: [11, 5]
+    gamma_input: 0.27005210910659583
+    gamma_hidden: 0.16816683753152195
+    gamma_in_sparse: 0.12558480025726293
+    gamma_temporal: 58.96550123779443
+    dropout_rate: 0.2823909255666977
+  readout:
+    gamma: 0.9669708919852349
+    init_mu_range: 0.1833372385339916
+    init_sigma_range: 0.24157982307086956
+  learning_rate: 0.03
 
 data_io:
   retina_pixel_size_um: 50 # 4x bigger than high res model
