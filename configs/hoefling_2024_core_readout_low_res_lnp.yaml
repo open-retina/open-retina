@@ -3,6 +3,8 @@ defaults:
   - quality_checks: hoefling_2024
   - dataloader: hoefling_2024
   - model: linear_nonlinear_poisson # linear_nonlinear_poisson
+  - optimizer: adamw
+  - lr_scheduler: reduce_lr_on_plateau
   - training_callbacks:
       - early_stopping
       - lr_monitor
@@ -23,6 +25,10 @@ dataloader:
 
 model:
   in_shape: [2, 150, 18, 16]
+  readout:
+    smooth_weight: 0.11759875147030407
+    sparse_weight: 2.5486385639965636
+  learning_rate: 0.005
 
 data_io:
   retina_pixel_size_um: 50 # 4x bigger than high res model
