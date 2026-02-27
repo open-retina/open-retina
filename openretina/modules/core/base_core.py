@@ -208,6 +208,9 @@ class SimpleCoreWrapper(Core):
         return torch.sum(torch.stack(result_array))
 
     def group_sparsity(self) -> torch.Tensor:
+        if len(self.features) <= 1:
+            return torch.tensor(0.0)
+
         sparsities: list[torch.Tensor] = []
         for feat in self.features[1:]:  # type: ignore
             val = feat.conv.weight_spatial.pow(2).sum([2, 3, 4]).sqrt().sum(1) / torch.sqrt(

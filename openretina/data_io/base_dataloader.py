@@ -309,8 +309,10 @@ def get_movie_dataloader(
         ValueError:
             If `allow_over_boundaries` is False and `chunk_size` exceeds `scene_length` during training.
     """
-    if isinstance(responses, torch.Tensor) and bool(torch.isnan(responses).any()):
-        print("Nans in responses, skipping this dataloader")
+    if (isinstance(responses, torch.Tensor) and bool(torch.isnan(responses).any())) or (
+        isinstance(responses, np.ndarray) and bool(np.isnan(responses).any())
+    ):
+        log.warning("Nans in responses, skipping this dataloader")
         return  # type: ignore
 
     if not allow_over_boundaries and split == "train" and chunk_size > scene_length:

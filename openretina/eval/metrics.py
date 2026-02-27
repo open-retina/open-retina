@@ -159,7 +159,7 @@ def MSE_stop3d(model: torch.nn.Module, loader, avg: bool = True, device: str = "
 
         ret = (output - target) ** 2
         if np.any(np.isnan(ret)):
-            warnings.warn(f"{np.isnan(ret).mean:.1%} NaNs")
+            warnings.warn(f"{np.isnan(ret).mean():.1%} NaNs")
 
         mse_losses = np.append(mse_losses, np.nansum(ret, axis=(0, 1)))  # sum over batches (0) and time (1)
         n_neurons += output.shape[-1]

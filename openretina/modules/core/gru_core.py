@@ -41,7 +41,7 @@ class ConvGRUCore(Core3d, nn.Module):
         batch_adaptation: bool = False,
         use_avg_reg: bool = False,
         nonlinearity: str = "ELU",
-        conv_type: str = "custom_separable",
+        convolution_type: str = "custom_separable",
         use_gru: bool = False,
         use_projections: bool = False,
         gru_kwargs: dict[str, int | float] | None = None,
@@ -53,7 +53,7 @@ class ConvGRUCore(Core3d, nn.Module):
         self._input_weights_regularizer_temporal = TimeLaplaceL23dnorm(padding=laplace_padding)
 
         # Get convolution class
-        self.conv_class = get_conv_class(conv_type)
+        self.conv_class = get_conv_class(convolution_type)
 
         if n_neurons_dict is None:
             n_neurons_dict = {}
@@ -237,7 +237,7 @@ class ConvGRUCore(Core3d, nn.Module):
         for layer in self.features:
             if hasattr(layer, "conv"):
                 spatial_weight_layer = layer.conv.weight_spatial
-                norm = spatial_weight_layer.pow(2).sum([2, 3, 4]).sqrt().sum(1)
+                norm = spatial_weight_layer.pow(2).sum([1, 2, 3, 4]).sqrt()
                 sparsity_loss_layer = (spatial_weight_layer.pow(2).sum([2, 3, 4]).sqrt().sum(1) / norm).sum()
                 sparsity_loss += sparsity_loss_layer
             else:

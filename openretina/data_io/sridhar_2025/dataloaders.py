@@ -1,7 +1,7 @@
 import os
 from collections import namedtuple
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import torch
@@ -131,7 +131,7 @@ class MarmosetMovieDataset(Dataset):
         num_of_hidden_frames: int | tuple = 15,
         num_of_layers: int = 1,
         device: str = "cpu",
-        time_chunk_size: Optional[int] = None,
+        time_chunk_size: int | None = None,
         full_img_w: int = 1000,
         full_img_h: int = 800,
         img_w: int = 800,
@@ -470,7 +470,7 @@ def frame_movie_loader(
     crop: int | tuple[int, int, int, int] = 0,
     num_of_trials_to_use: int | None = None,
     start_using_trial: int = 0,
-    num_of_frames=None,
+    num_of_frames: int | list[int] = 30,
     temporal_dilation: int | tuple[int, ...] = 1,
     hidden_temporal_dilation: int | tuple[int, ...] = 1,
     cell_index=None,
@@ -478,7 +478,7 @@ def frame_movie_loader(
     device: str = "cpu",
     time_chunk_size=None,
     num_of_layers=None,
-    excluded_cells=None,
+    excluded_cells: dict[Any, list[int]] | None = None,
     frame_file="_img_",
     img_dir_name="stimuli",
     full_img_w: int = 1400,
@@ -543,11 +543,9 @@ def frame_movie_loader(
         validation) for the selected retina.
     start_using_trial : int, default 0
         Offset (0-based) for selecting a contiguous block of trials to use.
-    num_of_frames : int, optional
+    num_of_frames : int | list[int]
         Number of **visible** frames per sample (passed to the underlying
-        dataset). If ``None``, the dataset default is used.
-    num_of_hidden_frames : int or tuple[int], optional
-        Hidden-layer look-back window(s); broadcast/forwarded to the dataset.
+        dataset).
     temporal_dilation : int, default 1
         First layer temporal dilation; forwarded to the dataset.
     hidden_temporal_dilation : int or tuple[int], default 1
@@ -682,16 +680,16 @@ def frame_movie_loader(
         locations = None
         if get_locations:
             assert sta_dir is not None
+            if cell_index is not None:
+                cells = [cell_index]
+            else:
+                excluded = excluded_cells[retina_index] if excluded_cells is not None else {}
+                cells = [x for x in range(train_responses.shape[0] + len(excluded)) if x not in excluded]
+
             locations = get_locations_from_stas(
                 sta_dir=os.path.join(basepath, sta_dir),
                 retina_index=retina_index,
-                cells=[cell_index]
-                if cell_index is not None
-                else [
-                    x
-                    for x in range(0, train_responses.shape[0] + len(excluded_cells[retina_index]))
-                    if x not in excluded_cells[retina_index]
-                ],
+                cells=cells,
                 crop=crop,
                 flip_sta=True,
             )
@@ -813,13 +811,13 @@ class NoiseDataset(Dataset):
         num_of_frames: int = 15,
         num_of_layers: int = 1,
         device: str = "cpu",
-        time_chunk_size: Optional[int] = None,
+        time_chunk_size: int = 1,
         temporal_dilation: int = 1,
         hidden_temporal_dilation: int | str | tuple = 1,
         num_of_hidden_frames: int | tuple | None = 15,
         extra_frame: int = 0,
-        locations: Optional[list] = None,
-        excluded_cells: Optional[list] = None,
+        locations: list | None = None,
+        excluded_cells: list | None = None,
     ):
         """
         Dataset for the following (example) file structure:
@@ -896,8 +894,7 @@ class NoiseDataset(Dataset):
 
         self.frame_overhead = (self.num_of_frames - 1) * self.temporal_dilation + hidden_reach
 
-        if time_chunk_size is not None:
-            self.time_chunk_size = time_chunk_size + self.frame_overhead
+        self.time_chunk_size = time_chunk_size + self.frame_overhead
         self.subsample = subsample
         self.device = device
         self.trial_prefix = trial_prefix
