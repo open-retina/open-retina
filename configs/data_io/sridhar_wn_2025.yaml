@@ -4,6 +4,7 @@ time_bins: 132
 stimulus_height: 80
 stimulus_width: 90
 stimulus_seed: 0
+flip_sta: false
 
 response_files:
   "01": "responses/cell_responses_01_wn.pkl"
@@ -11,11 +12,6 @@ response_files:
   "04": "responses/cell_responses_04_wn.pkl"
 
 excluded_cells: ${dataloader.excluded_cells}
-
-#excluded_cells:
-#  "01": []
-#  "02": []
-#  "04": []
 
 stimuli:
   _target_: openretina.data_io.sridhar_2025.stimuli.build_movies_from_responses

@@ -43,14 +43,14 @@ start_using_trial: 0
 num_of_frames: ${model.core.temporal_kernel_sizes}
 temporal_dilation: 1
 hidden_temporal_dilation: 1
-cell_index: 2
+cell_index: 272
 device: "cuda"
 time_chunk_size: 100
 num_of_layers: ${len:${model.core.temporal_kernel_sizes}}
 retina_specific_crops: True
 extra_frame: 0
 hard_coded: null
-retina_index: "04"
+retina_index: "01"
 chunked_sampling: True
 
 
