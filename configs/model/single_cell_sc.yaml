@@ -1,15 +1,30 @@
+# Single-cell Spatial Contrast model (Sridhar et al., 2025).
+#
+# Predicts firing rate as: y = a * log(1 + exp(b * (imean + w * lsc) + c))
+# where imean is the spatially-weighted temporal filter output and lsc is the
+# local spatial contrast. Only 4 parameters are learned (w, a, b, c);
+# spatial and temporal filters are frozen from the STA.
+
 _target_: openretina.models.spatial_contrast.SingleCellSpatialContrast
 _convert_: all
-in_shape: ???
-sta_dir: ???  # Directory containing STA files
-sta_file_name: ???  # Set dynamically based on cell_index and retina_index
-flip_sta: false  # Set to true for natural movie dataset
-sta_crop: 0  # Pixels to crop from STA (int or tuple)
-temporal_crop_frames: 30  # Number of frames for temporal filter
-sigma_contour: 3.0  # Number of sigmas for spatial filter contour
-spat_crop_size: [15, 15]  # Spatial crop around RF center (null for full size)
+
+# --- Required: set in the outer config via Hydra interpolation ---
+in_shape: ???        # (channels, time, height, width) of the stimulus
+sta_dir: ???         # Directory containing STA .npy files
+sta_file_name: ???   # STA filename, e.g. cell_data_04_WN_stas_cell_2.npy
+flip_sta: ???        # Whether the STA needs horizontal flipping (dataset-dependent)
+
+# --- Spatial filter settings ---
+sigma_contour: 3.0          # Gaussian RF is masked to this many standard deviations
+spat_crop_size: [15, 15]    # Stimulus patch [h, w] cropped around the RF center (null = full stimulus)
+
+# --- Temporal filter settings ---
+temporal_crop_frames: 30    # Keep this many of the most recent STA frames
+
+# --- Learnable parameter initial values ---
+# The model has only 4 learnable parameters: w, a, b, c
 learning_rate: 0.01
-w_init: 0.0  # Initial spatial contrast weight
-a_init: 4.0  # Initial output scaling in softplus
-b_init: 1.0  # Initial input scaling in softplus
-c_init: -5.0  # Initial offset in softplus
+w_init: 0.0     # Spatial contrast weight (0 = start as a pure LN model)
+a_init: 4.0     # Output scaling
+b_init: 1.0     # Input gain
+c_init: -5.0    # Offset (negative = low baseline firing rate)
