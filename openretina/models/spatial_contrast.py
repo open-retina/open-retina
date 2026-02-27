@@ -5,7 +5,9 @@ Extends the Linear-Nonlinear (LN) model by adding a local spatial contrast term.
 The spatial and temporal filters are frozen from pre-computed STAs; only 4 parameters
 are learned: the contrast weight (w) and three nonlinearity parameters (a, b, c).
 
-Reference: Sridhar et al., 2025.
+Reference: Sridhar S, Vystrčilová M, Khani MH, Karamanlis D, Schreyer HM, Ramakrishna V,
+Krüppel S, Zapp SJ, Mietsch M, Ecker AS, Gollisch T (2025): Modeling spatial contrast
+sensitivity in responses of primate retinal ganglion cells to natural movies.
 """
 
 import torch
