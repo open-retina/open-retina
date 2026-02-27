@@ -237,7 +237,7 @@ class ConvGRUCore(Core3d, nn.Module):
         for layer in self.features:
             if hasattr(layer, "conv"):
                 spatial_weight_layer = layer.conv.weight_spatial
-                norm = spatial_weight_layer.pow(2).sum([1, 2, 3, 4]).sqrt().sum(1)
+                norm = spatial_weight_layer.pow(2).sum([1, 2, 3, 4]).sqrt()
                 sparsity_loss_layer = (spatial_weight_layer.pow(2).sum([2, 3, 4]).sqrt().sum(1) / norm).sum()
                 sparsity_loss += sparsity_loss_layer
             else:

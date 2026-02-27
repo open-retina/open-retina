@@ -105,7 +105,7 @@ def gen_start_indices(
     :param val_clip_idx:     list of integers indicating the clips to be used
                              for validation
     :param clip_length:      clip length in  (5s*30frames/s = 150 frames)
-    :param chunk_size:       temporal chunk sframesize per sample in frames (50)
+    :param chunk_size:       temporal chunk size per sample in frames (50)
     :param num_clips:        total number of training clips (108)
     :return: dict; with keys train, validation, and test, and index list as
              values
