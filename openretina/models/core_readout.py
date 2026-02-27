@@ -248,6 +248,24 @@ class BaseCoreReadout(LightningModule):
 
         return core_test_output.shape[1:]  # type: ignore
 
+    def get_group_assignments(self, data_key: str | None = None) -> list[int]:
+        """Returns a list with the group id of each neuron
+        in the model (if data_key is None) or in the session.
+        Raises KeyError of the group assignments are not stored in the models data info property.
+        """
+        kwargs = self.data_info["sessions_kwargs"]
+        if data_key is None:
+            sessions = sorted(kwargs.keys())
+        else:
+            sessions = [data_key]
+
+        group_assignments = []
+        for s in sessions:
+            kwargs_sessions = kwargs[s]
+            group_assignments_session = kwargs_sessions["group_assignment"]
+            group_assignments.extend(group_assignments_session.tolist())
+        return group_assignments
+
     def stimulus_shape(self, time_steps: int, num_batches: int = 1) -> tuple[int, int, int, int, int]:
         channels, width, height = self.data_info["input_shape"]  # type: ignore
         return num_batches, channels, time_steps, width, height

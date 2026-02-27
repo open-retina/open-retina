@@ -7,7 +7,7 @@ from pathlib import Path
 import hydra
 from omegaconf import DictConfig
 
-from openretina.cli import create_data, visualize_model_neurons
+from openretina.cli import create_data, create_group_meis, visualize_model_neurons
 from openretina.utils.file_utils import get_cache_directory
 
 log = logging.getLogger(__name__)
@@ -103,6 +103,10 @@ def main() -> None:
     visualize_parser = subparsers.add_parser("visualize", help="Visualize a model")
     visualize_model_neurons.add_parser_arguments(visualize_parser)
 
+    # Group mei
+    group_mei_parser = subparsers.add_parser("group-mei", help="Generate group MEIs")
+    create_group_meis.add_parser_arguments(group_mei_parser)
+
     # Create data command
     create_data_parser = subparsers.add_parser("create-data", help="Create artificial data")
     create_data.add_parser_arguments(create_data_parser)
@@ -118,6 +122,8 @@ def main() -> None:
         if len(unknown_args) > 0:
             print(f"Warn: found the following unknown args: {unknown_args}")
         visualize_model_neurons.visualize_model_neurons(**vars(args))
+    elif command == "group-mei":
+        create_group_meis.visualize_group_meis(**vars(args))
     elif command == "create-data":
         create_data.write_data_to_directory(**vars(args))
     elif command is None:

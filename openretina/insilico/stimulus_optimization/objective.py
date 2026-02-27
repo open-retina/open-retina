@@ -52,15 +52,19 @@ class SliceMeanReducer(ResponseReducer):
 
 
 class AbstractObjective(ABC):
-    def __init__(self, model, data_key: str | None):
+    def __init__(self, model, data_key: str | None, invert: bool = False):
         self._model = model
         self._data_key = data_key
+        self._invert = invert
 
     def model_forward(self, stimulus: torch.Tensor) -> torch.Tensor:
         if self._data_key is not None:
             responses = self._model(stimulus, data_key=self._data_key)
         else:
             responses = self._model(stimulus)
+
+        if self._invert:
+            responses = -responses
         # squeeze batch dimension
         return responses.squeeze(0)
 
@@ -70,8 +74,15 @@ class AbstractObjective(ABC):
 
 
 class IncreaseObjective(AbstractObjective):
-    def __init__(self, model, neuron_indices: list[int] | int, data_key: str | None, response_reducer: ResponseReducer):
-        super().__init__(model, data_key)
+    def __init__(
+        self,
+        model,
+        neuron_indices: list[int] | int,
+        data_key: str | None,
+        response_reducer: ResponseReducer,
+        invert: bool = False,
+    ):
+        super().__init__(model, data_key, invert=invert)
         self._neuron_indices = [neuron_indices] if isinstance(neuron_indices, int) else neuron_indices
         self._response_reducer = response_reducer
 
