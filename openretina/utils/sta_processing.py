@@ -1,22 +1,22 @@
 """
 STA (Spike-Triggered Average) processing utilities for the Spatial Contrast model.
 
-This module provides functions for:
-- Fitting 2D elliptical Gaussians to spatial patterns
-- Extracting spatial and temporal filters from STAs
-- Creating Gaussian contour masks
+Provides functions for fitting 2D elliptical Gaussians to spatial STA patterns,
+extracting spatial and temporal filters, and creating Gaussian contour masks.
 """
 
+import logging
 import os
-from typing import Tuple
 
 import numpy as np
 from jaxtyping import Float
 from scipy.optimize import curve_fit
 
+LOGGER = logging.getLogger(__name__)
+
 
 def gaussian_2d(
-    coords: Tuple[np.ndarray, np.ndarray],
+    coords: tuple[np.ndarray, np.ndarray],
     center_x: float,
     center_y: float,
     sigma_x: float,
@@ -26,9 +26,6 @@ def gaussian_2d(
 ) -> np.ndarray:
     """
     2D elliptical Gaussian function for curve fitting.
-
-    The Gaussian is parameterized by its center, principal axis standard deviations,
-    rotation angle, and amplitude.
 
     Args:
         coords: Tuple of (x_grid, y_grid) meshgrid arrays
@@ -56,10 +53,10 @@ def gaussian_2d(
 
 def fit_2d_gaussian(
     spatial_frame: Float[np.ndarray, "height width"],
-    initial_center: Tuple[int, int] | None = None,
+    initial_center: tuple[int, int] | None = None,
 ) -> dict:
     """
-    Fit a 2D elliptical Gaussian to a spatial frame from STA.
+    Fit a 2D elliptical Gaussian to a spatial frame from an STA.
 
     Args:
         spatial_frame: 2D array representing spatial pattern at peak temporal frame
@@ -67,36 +64,26 @@ def fit_2d_gaussian(
             location of maximum absolute value.
 
     Returns:
-        Dictionary with keys:
-            - 'center_x', 'center_y': Fitted center coordinates
-            - 'sigma_x', 'sigma_y': Fitted standard deviations along principal axes
-            - 'theta': Fitted rotation angle in radians
-            - 'amplitude': Fitted peak amplitude
-            - 'success': Boolean indicating if fitting succeeded
-            - 'covariance': Covariance matrix of fitted parameters (None if failed)
+        Dictionary with fitted parameters: center_x, center_y, sigma_x, sigma_y,
+        theta, amplitude, success, covariance (None if failed).
     """
     height, width = spatial_frame.shape
 
-    # Create coordinate grids
     x = np.arange(width)
     y = np.arange(height)
     x_grid, y_grid = np.meshgrid(x, y)
 
-    # Initial guesses
     if initial_center is None:
-        # Use location of maximum absolute value
         max_idx = np.unravel_index(np.argmax(np.abs(spatial_frame)), spatial_frame.shape)
         init_center_y, init_center_x = int(max_idx[0]), int(max_idx[1])
     else:
         init_center_y, init_center_x = int(initial_center[0]), int(initial_center[1])
 
     init_amplitude = spatial_frame[int(init_center_y), int(init_center_x)]
-    init_sigma = min(height, width) / 6.0  # Reasonable initial sigma
+    init_sigma = min(height, width) / 6.0
 
-    # Initial parameter guess: (center_x, center_y, sigma_x, sigma_y, theta, amplitude)
     p0 = [init_center_x, init_center_y, init_sigma, init_sigma, 0.0, init_amplitude]
 
-    # Parameter bounds
     bounds_lower = [0, 0, 0.5, 0.5, -np.pi, -np.inf]
     bounds_upper = [width - 1, height - 1, width, height, np.pi, np.inf]
 
@@ -120,7 +107,6 @@ def fit_2d_gaussian(
             "covariance": pcov,
         }
     except (RuntimeError, ValueError) as e:
-        # Fitting failed - return initial guess with success=False
         return {
             "center_x": float(init_center_x),
             "center_y": float(init_center_y),
@@ -135,7 +121,7 @@ def fit_2d_gaussian(
 
 
 def create_gaussian_mask(
-    shape: Tuple[int, int],
+    shape: tuple[int, int],
     center_x: float,
     center_y: float,
     sigma_x: float,
@@ -144,42 +130,34 @@ def create_gaussian_mask(
     n_sigma: float = 3.0,
 ) -> Float[np.ndarray, "height width"]:
     """
-    Create a binary mask for pixels within n_sigma of the Gaussian center.
-
-    The mask is 1 inside the n-sigma elliptical contour and 0 outside.
+    Create a binary elliptical mask at n_sigma standard deviations from the center.
 
     Args:
         shape: (height, width) of the output mask
-        center_x: X-coordinate of the Gaussian center
-        center_y: Y-coordinate of the Gaussian center
-        sigma_x: Standard deviation along the first principal axis
-        sigma_y: Standard deviation along the second principal axis
+        center_x, center_y: Gaussian center coordinates
+        sigma_x, sigma_y: Standard deviations along principal axes
         theta: Rotation angle in radians
         n_sigma: Number of standard deviations for the contour (default 3.0)
 
     Returns:
-        Binary mask array of shape (height, width)
+        Binary mask array of shape (height, width), 1 inside the contour, 0 outside
     """
     height, width = shape
     x = np.arange(width)
     y = np.arange(height)
     x_grid, y_grid = np.meshgrid(x, y)
 
-    # Rotate coordinates to align with principal axes
     cos_theta = np.cos(theta)
     sin_theta = np.sin(theta)
 
     x_diff = x_grid - center_x
     y_diff = y_grid - center_y
 
-    # Rotated coordinates
     x_rot = cos_theta * x_diff + sin_theta * y_diff
     y_rot = -sin_theta * x_diff + cos_theta * y_diff
 
-    # Compute normalized distance from center (in units of sigma)
     normalized_distance = np.sqrt((x_rot / sigma_x) ** 2 + (y_rot / sigma_y) ** 2)
 
-    # Create mask
     mask = (normalized_distance <= n_sigma).astype(np.float32)
 
     return mask
@@ -189,30 +167,26 @@ def extract_filters_from_sta(
     sta: Float[np.ndarray, "num_frames height width"],
     temporal_crop_frames: int | None = None,
     sigma_contour: float = 3.0,
-) -> Tuple[Float[np.ndarray, "height width"], Float[np.ndarray, " temporal_frames"], dict]:
+) -> tuple[Float[np.ndarray, "height width"], Float[np.ndarray, " temporal_frames"], dict]:
     """
-    Extract spatial and temporal filters from STA.
+    Extract spatial and temporal filters from an STA.
 
-    The spatial filter is extracted from the peak temporal frame (max variance),
-    fitted with a 2D elliptical Gaussian, masked to sigma_contour standard deviations,
-    and normalized to unit L2 norm. For OFF cells (negative amplitude), the polarity
-    is flipped to ensure a positive-definite spatial filter.
+    The spatial filter is a 2D Gaussian fit to the peak temporal frame of the STA,
+    masked to sigma_contour standard deviations and normalized to unit L2 norm.
+    For OFF cells (negative amplitude), the polarity is flipped so the spatial
+    filter is always positive.
 
-    The temporal filter is extracted at the fitted RF center location, cropped to the
-    last temporal_crop_frames if specified, reversed for correct convolution, and
-    normalized to unit L2 norm.
+    The temporal filter is the STA time course at the RF center, optionally cropped
+    to the last temporal_crop_frames, and normalized to unit L2 norm.
 
     Args:
         sta: Spike-triggered average array (num_frames, height, width)
-        temporal_crop_frames: Optional number of frames to keep in temporal filter.
-            If None, uses all frames.
+        temporal_crop_frames: Number of most-recent frames to keep. None = all frames.
         sigma_contour: Number of sigmas for the spatial filter contour (default 3.0)
 
     Returns:
-        Tuple of (spatial_filter, temporal_filter, gaussian_params)
-        - spatial_filter: 2D array (height, width), positive definite, unit L2 norm
-        - temporal_filter: 1D array (temporal_frames,), unit L2 norm
-        - gaussian_params: Dictionary with fitted Gaussian parameters
+        (spatial_filter, temporal_filter, gaussian_params) where gaussian_params is
+        the dictionary returned by fit_2d_gaussian.
     """
     num_frames, height, width = sta.shape
 
@@ -220,18 +194,15 @@ def extract_filters_from_sta(
     temporal_variances = np.var(sta, axis=(1, 2))
     peak_temporal_idx = np.argmax(temporal_variances)
 
-    # Extract spatial pattern at peak frame
     spatial_frame = sta[peak_temporal_idx].copy()
 
-    # Fit 2D elliptical Gaussian
     gaussian_params = fit_2d_gaussian(spatial_frame)
 
-    # Handle polarity (flip if amplitude is negative for OFF cells)
-    polarity_flip = gaussian_params["amplitude"] < 0
-    if polarity_flip:
+    # Flip polarity for OFF cells so spatial filter is always positive
+    if gaussian_params["amplitude"] < 0:
         gaussian_params["amplitude"] = -gaussian_params["amplitude"]
 
-    # Use the fitted 2D Gaussian as the spatial filter
+    # Build the spatial filter as a masked 2D Gaussian
     x_coords = np.arange(width)
     y_coords = np.arange(height)
     x_grid, y_grid = np.meshgrid(x_coords, y_coords)
@@ -245,7 +216,6 @@ def extract_filters_from_sta(
         amplitude=gaussian_params["amplitude"],
     ).reshape(height, width)
 
-    # Create a mask of sigma_contour sigmas around the gaussian center
     mask = create_gaussian_mask(
         shape=(height, width),
         center_x=gaussian_params["center_x"],
@@ -256,24 +226,20 @@ def extract_filters_from_sta(
         n_sigma=sigma_contour,
     )
 
-    # Set spatial filter as the masked 2d-gaussian fit
     spatial_filter = gaussian_values * mask
 
-    # Normalize spatial filter to unit L2 norm
     spatial_norm = np.linalg.norm(spatial_filter)
     if spatial_norm > 0:
         spatial_filter = spatial_filter / spatial_norm
 
-    # Extract temporal filter at fitted Gaussian center
+    # Extract temporal filter at the RF center
     center_y = int(np.clip(np.round(gaussian_params["center_y"]), 0, height - 1))
     center_x = int(np.clip(np.round(gaussian_params["center_x"]), 0, width - 1))
     temporal_filter = sta[:, center_y, center_x].copy()
 
-    # Crop temporal filter to keep the most recent frames
     if temporal_crop_frames is not None and temporal_crop_frames < num_frames:
         temporal_filter = temporal_filter[-temporal_crop_frames:]
 
-    # Normalize temporal filter to unit L2 norm
     temporal_norm = np.linalg.norm(temporal_filter)
     if temporal_norm > 0:
         temporal_filter = temporal_filter / temporal_norm
@@ -285,44 +251,57 @@ def load_sta_and_extract_filters(
     sta_dir: str,
     file_name: str,
     flip_sta: bool = False,
-    crop: int | Tuple[int, int, int, int] = 0,
+    target_spatial_shape: tuple[int, int] | None = None,
     temporal_crop_frames: int | None = None,
     sigma_contour: float = 3.0,
-) -> Tuple[Float[np.ndarray, "height width"], Float[np.ndarray, " temporal_frames"], dict]:
+) -> tuple[Float[np.ndarray, "height width"], Float[np.ndarray, " temporal_frames"], dict]:
     """
-    Load STA from file and extract filters.
+    Load an STA from file and extract spatial/temporal filters.
 
-    Combines loading logic with the filter extraction pipeline.
+    If target_spatial_shape is provided, the STA is symmetrically cropped to match
+    the stimulus dimensions used by the dataloader. This ensures that the STA and
+    stimulus share the same coordinate system.
 
     Args:
-        sta_dir: Directory containing STA files
-        file_name: Name of the STA file (e.g., 'cell_data_01_WN_stas_cell_8.npy')
-        flip_sta: Whether to flip the STA horizontally (for NM dataset compatibility)
-        crop: Pixels to crop from (top, bottom, left, right). If int, crops same from all sides.
-        temporal_crop_frames: Number of frames to keep in temporal filter
+        sta_dir: Directory containing STA .npy files
+        file_name: STA filename (e.g., 'cell_data_01_WN_stas_cell_8.npy')
+        flip_sta: Whether to flip the STA horizontally (needed when the stimulus
+            and STA coordinate systems are mirrored, as in the NM dataset)
+        target_spatial_shape: (height, width) that the stimulus is cropped to.
+            The STA will be symmetrically cropped to match. None = no cropping.
+        temporal_crop_frames: Number of most-recent frames to keep in temporal filter
         sigma_contour: Number of sigmas for spatial filter contour (default 3.0)
 
     Returns:
-        Tuple of (spatial_filter, temporal_filter, gaussian_params)
+        (spatial_filter, temporal_filter, gaussian_params)
     """
-    # Load STA
     sta_path = os.path.join(sta_dir, file_name)
     sta = np.load(sta_path)
 
-    # Handle crop parameter
-    if isinstance(crop, int):
-        crop = (crop, crop, crop, crop)
-
-    # Flip STA horizontally if needed (for NM dataset)
     if flip_sta:
         sta = np.flip(sta, axis=2).copy()  # Flip along width axis
 
-    # Apply spatial cropping
-    if sum(crop) > 0:
-        num_frames, h, w = sta.shape
-        sta = sta[:, crop[0] : h - crop[1], crop[2] : w - crop[3]]
+    # Crop STA to match the stimulus spatial dimensions
+    if target_spatial_shape is not None:
+        _, sta_h, sta_w = sta.shape
+        target_h, target_w = target_spatial_shape
 
-    # Extract filters
+        if sta_h != target_h or sta_w != target_w:
+            crop_top = (sta_h - target_h) // 2
+            crop_left = (sta_w - target_w) // 2
+
+            if crop_top < 0 or crop_left < 0:
+                raise ValueError(
+                    f"STA spatial dimensions ({sta_h}, {sta_w}) are smaller than "
+                    f"target shape ({target_h}, {target_w}). Cannot crop."
+                )
+
+            LOGGER.info(
+                f"Cropping STA from ({sta_h}, {sta_w}) to ({target_h}, {target_w}): "
+                f"crop_top={crop_top}, crop_left={crop_left}"
+            )
+            sta = sta[:, crop_top : crop_top + target_h, crop_left : crop_left + target_w]
+
     return extract_filters_from_sta(
         sta=sta,
         temporal_crop_frames=temporal_crop_frames,
