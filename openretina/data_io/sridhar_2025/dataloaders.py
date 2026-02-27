@@ -1,7 +1,7 @@
 import os
 from collections import namedtuple
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import torch
@@ -131,7 +131,7 @@ class MarmosetMovieDataset(Dataset):
         num_of_hidden_frames: int | tuple = 15,
         num_of_layers: int = 1,
         device: str = "cpu",
-        time_chunk_size: Optional[int] = None,
+        time_chunk_size: int | None = None,
         full_img_w: int = 1000,
         full_img_h: int = 800,
         img_w: int = 800,
@@ -478,7 +478,7 @@ def frame_movie_loader(
     device: str = "cpu",
     time_chunk_size=None,
     num_of_layers=None,
-    excluded_cells=None,
+    excluded_cells: dict[Any, list[int]] | None = None,
     frame_file="_img_",
     img_dir_name="stimuli",
     full_img_w: int = 1400,
@@ -683,7 +683,7 @@ def frame_movie_loader(
             if cell_index is not None:
                 cells = [cell_index]
             else:
-                excluded = excluded_cells if excluded_cells is not None else {}
+                excluded = excluded_cells[retina_index] if excluded_cells is not None else {}
                 cells = [x for x in range(train_responses.shape[0] + len(excluded)) if x not in excluded]
 
             locations = get_locations_from_stas(
@@ -816,8 +816,8 @@ class NoiseDataset(Dataset):
         hidden_temporal_dilation: int | str | tuple = 1,
         num_of_hidden_frames: int | tuple | None = 15,
         extra_frame: int = 0,
-        locations: Optional[list] = None,
-        excluded_cells: Optional[list] = None,
+        locations: list | None = None,
+        excluded_cells: list | None = None,
     ):
         """
         Dataset for the following (example) file structure:
