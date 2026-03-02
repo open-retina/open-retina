@@ -2,49 +2,61 @@ defaults:
   - data_io: hoefling_2024
   - quality_checks: hoefling_2024
   - dataloader: hoefling_2024
-  - model: core_gaussian_readout
-  - optimizer: adamw
-  - lr_scheduler: reduce_lr_on_plateau
+  - model: base_core_readout
   - training_callbacks:
-      - early_stopping
-      - lr_monitor
-      - model_checkpoint
+    - early_stopping
+    - lr_monitor
+    - model_checkpoint
   - logger:
-      - tensorboard
-      - csv
+    - tensorboard
+    - csv
+    - mlflow
   - trainer: default_deterministic
   - hydra: default
+  - override hydra/sweeper: optuna  # make sure to install `pip install -e ".[optuna]"
+  - override hydra/sweeper/sampler: tpe
   - _self_ # values in this config will overwrite the defaults
 
-exp_name: hoefling_2024_core_readout_low_res_filtered
+exp_name: hoefling_2024_core_readout_low_res_filtered_hyperparams_search
 seed: 42
 check_stimuli_responses_match: false
 
 dataloader:
-  batch_size: 128
+  batch_size: 64
+
+objective_target: val_correlation
+
+hydra:
+  run:
+    dir: ${paths.log_dir}/openretina_assets/runs/${exp_name}/${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: ${paths.log_dir}/openretina_assets/runs/${exp_name}/${now:%Y-%m-%d_%H-%M-%S}
+  sweeper:
+    sampler:
+      seed: 42
+    direction: maximize
+    study_name: ${exp_name}
+    storage: null
+    n_trials: 20
+    n_jobs: 1
+    params:
+      model.hidden_channels: choice([8, 8, 8, 8], [16, 16, 16, 16], [32, 32, 32, 32])
+      model.core.gamma_input: interval(1e-5, 1e-2)
+      
 
 model:
   in_shape: [2, 150, 18, 16]
-  hidden_channels: [16, 16]
+  hidden_channels: [16, 16, 16, 16]
   core:
-    temporal_kernel_sizes: [21, 11]
-    spatial_kernel_sizes: [11, 5]
-    gamma_input: 0.27005210910659583
-    gamma_hidden: 0.16816683753152195
-    gamma_in_sparse: 0.12558480025726293
-    gamma_temporal: 58.96550123779443
-    dropout_rate: 0.2823909255666977
-  readout:
-    gamma: 0.9669708919852349
-    init_mu_range: 0.1833372385339916
-    init_sigma_range: 0.24157982307086956
-  learning_rate: 0.03
-
-data_io:
-  retina_pixel_size_um: 50 # 4x bigger than high res model
+    temporal_kernel_sizes: [15, 15, 7, 7]
+    spatial_kernel_sizes: [15, 15, 7, 7]
+    hidden_padding: true
+    input_padding: true
+    cut_first_n_frames: 30
+    maxpool_every_n_layers: 2
+    # downsample_input_kernel_size: [1, 4, 4]  # to reproduce 18x16px lowres input
 
 paths:
-  load_model_path: null # e.g. hoefling_2024_base_low_res or path to a .ckpt model
   cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Remote files are downloaded to this location
   data_dir: ${paths.cache_dir}/data/ # Folder where local files are read from.
   log_dir: "." # Used as parent for output_dir. Will store train logs.
@@ -60,5 +72,3 @@ trainer:
   max_epochs: 100
   accumulate_grad_batches: 1
   gradient_clip_val: 1
-
-only_train_readout: false # whether or not to freeze core parameters and only train readout (eg. when finetuning model to new data)

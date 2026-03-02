@@ -2,7 +2,7 @@ defaults:
   - data_io: hoefling_2024
   - quality_checks: hoefling_2024
   - dataloader: hoefling_2024
-  - model: base_core_readout
+  - model: core_gaussian_readout
   - optimizer: adamw
   - lr_scheduler: reduce_lr_on_plateau
   - training_callbacks:
@@ -25,15 +25,25 @@ dataloader:
 
 model:
   in_shape: [2, 150, 72, 64]
-  hidden_channels: [16, 16, 16, 16]
+  hidden_channels: [32, 32, 32, 32]
   core:
     temporal_kernel_sizes: [13, 11, 5, 5]
     spatial_kernel_sizes: [15, 15, 7, 7]
+    gamma_input: 0.48578382029652795
+    gamma_hidden: 0.01680260660838681
+    gamma_in_sparse: 0.4977796359224759
+    gamma_temporal: 1.0929722096241536
+    dropout_rate: 0.1708612708416597
     input_padding: 0
     hidden_padding: [0, 5, 5]
     cut_first_n_frames: 0
     maxpool_every_n_layers: 2
     # downsample_input_kernel_size: [1, 4, 4]  # to reproduce 18x16px low-res input
+  readout:
+    gamma: 0.9956204628013132
+    init_mu_range: 0.23353647437972946
+    init_sigma_range: 0.2898984573453307
+  learning_rate: 0.03
 
 paths:
   load_model_path: null # e.g. hoefling_2024_base_high_res or path to a .ckpt model
@@ -50,8 +60,8 @@ matmul_precision:
 
 trainer:
   max_epochs: 100
-  accumulate_grad_batches: 10
+  accumulate_grad_batches: 1
   gradient_clip_val: 1
-  precision: 16-mixed
+#  precision: 16-mixed
 
 only_train_readout: false # whether or not to freeze core parameters and only train readout (eg. when finetuning model to new data)
