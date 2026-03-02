@@ -1,0 +1,65 @@
+defaults:
+  - data_io: karamanlis_2024
+  - dataloader: karamanlis_2024
+  - model: core_gaussian_readout 
+  - optimizer: adamw
+  - lr_scheduler: reduce_lr_on_plateau
+  - training_callbacks:
+    - early_stopping
+    - lr_monitor
+    - model_checkpoint
+  - logger:
+    - tensorboard
+    - csv
+  - trainer: default_deterministic
+  - hydra: default
+  - _self_ # values in this config will overwrite the defaults
+
+exp_name: core_readout_karamanlis_2024_marmoset
+seed: 42
+check_stimuli_responses_match: true
+
+data_io:
+  stimuli:
+    specie: "marmoset"
+  responses:
+    specie: "marmoset"
+
+paths:
+  cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Remote files are downloaded to this location
+  # If data_dir is a local path, data will be read from there. If a remote link, the target will be downloaded to cache_dir.
+  data_dir: https://huggingface.co/datasets/open-retina/open-retina/tree/main/gollisch_lab/karamanlis_2024/sessions
+  log_dir: "." # Used as parent for output_dir. Will store train logs.
+  output_dir: ${hydra:runtime.output_dir} # Modify in the "hydra/default.yaml" config
+
+# Overwrite model defaults with specifics for Karamanlis 2024 data format
+model:
+  in_shape: 
+    - 1
+    - 100
+    - ${data_io.video_height} 
+    - ${data_io.video_width}
+  hidden_channels: [32, 32, 32]
+  core:
+    spatial_kernel_sizes: [11, 11, 11]
+    temporal_kernel_sizes: [11, 11, 11]
+    hidden_padding: [0, 5, 5]
+    gamma_input: 0.010302041302958264
+    gamma_hidden: 0.48495522698247556
+    gamma_in_sparse: 0.41622299597380286
+    gamma_temporal: 21.31267715675979
+    dropout_rate: 0.06363873852248521
+  readout:
+    gamma: 0.22423428436076215
+    init_mu_range: 0.186909009331792
+    init_sigma_range: 0.28614039423450705
+  learning_rate: 0.005
+
+trainer:
+  max_epochs: 50
+  accumulate_grad_batches: 1
+  gradient_clip_val: 1
+  precision: 16-mixed
+
+evaluation:
+  foo: bar

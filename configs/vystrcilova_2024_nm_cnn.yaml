@@ -28,6 +28,20 @@ model:
     - ${data_io.time_bins}
     - ${data_io.stimulus_height}
     - ${data_io.stimulus_width}
+  hidden_channels: [32, 32]
+  core:
+    temporal_kernel_sizes: [21, 11]
+    spatial_kernel_sizes: [9, 5]
+    gamma_input: 0.25409062061971455
+    gamma_hidden: 0.16123311807953677
+    gamma_in_sparse: 0.286848996858121
+    gamma_temporal: 47.40596174947757
+    dropout_rate: 0.0035921979115527344
+  readout:
+    gamma: 0.34612715080451567
+    init_mu_range: 0.20693058561911037
+    init_sigma_range: 0.2447355250312211
+  learning_rate: 0.03
 
 paths:
   load_model_path: null
