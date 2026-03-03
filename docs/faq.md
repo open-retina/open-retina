@@ -25,7 +25,7 @@ title: FAQs
 ### What are the system requirements?
 
 `openretina` requires:
-- Python 3.8 or higher
+- Python 3.10 or higher
 - PyTorch 2.0 or higher
 - CUDA-compatible GPU (recommended for training, but not required for inference)
 
@@ -35,10 +35,10 @@ title: FAQs
 # Simple installation
 pip install openretina
 
-# For development
+# For development (uv recommended)
 git clone git@github.com:open-retina/open-retina.git
 cd open-retina
-pip install -e .
+uv sync --extra dev
 ```
 
 See the [Installation Guide](package_docs/installation.md) for more details.

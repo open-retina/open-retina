@@ -58,7 +58,7 @@ dev = [
     "types-requests",
     "nbmake",
     "jupyterlab",
-    "mkdocs",
+    "mkdocs<2.0",
     "mkdocs-material[imaging]",
     "mkdocstrings[python]",
     "mkdocs-glightbox",

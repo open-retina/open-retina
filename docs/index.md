@@ -11,6 +11,12 @@ hide:
 
 `openretina` is an open-source neural network toolkit for modeling retinal responses to visual stimuli. It provides pre-trained models for inference and interpretability, as well as components for training new retina models with your own data.
 
+<div style="text-align: center; margin: 0.8rem 0 0.3rem 0;" markdown>
+
+[:material-book-open: Read the documentation](package_docs/index.md){ .md-button .landing-docs-btn }
+
+</div>
+
 ---
 
 <div class="grid cards" markdown>
@@ -48,11 +54,11 @@ hide:
         ```
 
 
--   [:material-book-open:{ .lg .middle } __Read the documentation__](package_docs/index.md)
+-   [:simple-huggingface:{ .lg .middle } __Datasets on HuggingFace__](https://huggingface.co/datasets/open-retina/open-retina){:target="_blank"}
 
     ---
 
-    Browse detailed documentation on models, data loading, and in-silico experiments
+    Browse and download retinal datasets from our HuggingFace repository.
 
 </div>
 
@@ -70,3 +76,66 @@ model = load_core_readout_from_remote("hoefling_2024_base_low_res", "cpu")
 responses = model.forward(torch.rand(model.stimulus_shape(time_steps=50)))
 print(f"Model predicted responses shape: {responses.shape}")
 ```
+
+---
+## Participating Labs
+
+<div class="grid cards" markdown>
+
+-   :material-flask:{ .lg .middle } __Euler Lab__
+
+    ---
+
+    University of Tübingen, Center for Integrative Neuroscience
+
+    [:octicons-link-external-16: Lab website](https://eulerlab.de/){ target="_blank" }
+
+-   :material-flask:{ .lg .middle } __Bethge Lab__
+
+    ---
+
+    University of Tübingen, AI Center
+
+    [:octicons-link-external-16: Lab website](https://bethgelab.org/){ target="_blank" }
+
+-   :material-flask:{ .lg .middle } __Marre Lab__
+
+    ---
+
+    Institut de la Vision, Paris
+
+    [:octicons-link-external-16: Lab website](https://www.institut-vision.org/en/researchers/olivier-marre){ target="_blank" }
+
+-   :material-flask:{ .lg .middle } __Ecker Lab__
+
+    ---
+
+    University of Göttingen
+
+    [:octicons-link-external-16: Lab website](https://eckerlab.org/){ target="_blank" }
+
+-   :material-flask:{ .lg .middle } __Gollisch Lab__
+
+    ---
+
+    University Medical Center Göttingen, Department of Ophthalmology
+
+    [:octicons-link-external-16: Lab website](https://www.retina.uni-goettingen.de/){ target="_blank" }
+
+
+</div>
+
+---
+
+__Lead maintainers__
+:   Federico D'Agostino — University of Tübingen, AI Center  
+    Thomas Zenkel — University of Tübingen, Center for Integrative Neuroscience  
+    Larissa Höfling — University of Tübingen, AI Center
+
+__Contributors__
+:   Baptiste Lorenzi — Institut de la Vision, Paris  
+    Michaela Vystrčilová — University of Göttingen  
+    Dominic Gonschorek — University of Tübingen, Center for Integrative Neuroscience  
+    Samuel Suhai — University of Tübingen, Center for Integrative Neuroscience  
+    Shashwat Sridhar — University Medical Center Göttingen  
+    Samuele Virgili — Institut de la Vision, Paris

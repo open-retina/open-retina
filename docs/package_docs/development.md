@@ -42,7 +42,13 @@ conda activate openretina-dev
 
 ### 3. Install Development Dependencies
 
-Install the package in editable mode with all development dependencies:
+Preferred (`uv`):
+
+```bash
+uv sync --extra dev
+```
+
+Alternative (`pip` editable install):
 
 ```bash
 pip install -e ".[dev]"
@@ -60,6 +66,8 @@ This installs:
 If you plan to develop new models or work extensively with existing ones:
 
 ```bash
+uv sync --extra devmodels
+# or:
 pip install -e ".[devmodels]"
 ```
 
@@ -72,15 +80,15 @@ Test that everything is working:
 
 ```bash
 # Test basic functionality
-python -c "import openretina; print('OpenRetina imported successfully')"
+uv run python -c "import openretina; print('OpenRetina imported successfully')"
 
 # Test development tools
-ruff --version
-mypy --version
-pytest --version
+uv run ruff --version
+uv run mypy --version
+uv run pytest --version
 
 # Test GPU availability (optional)
-python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
+uv run python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
 ```
 
 ## Development Tools and Workflow
@@ -261,14 +269,14 @@ make test-h5train
 
 For GPU-intensive development:
 
-1. **Use CUDA-compatible PyTorch**:
-   ```bash
-   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
-   ```
+1. **Install the PyTorch build matching your backend**:
+   - Use the guide provided by uv: <https://docs.astral.sh/uv/guides/integration/pytorch/>
+   - Use the official selector: <https://pytorch.org/get-started/locally/>
+   - For Apple Silicon, see: <https://pytorch.org/docs/stable/notes/mps.html>
 
 2. **Test GPU availability**:
    ```bash
-   python -c "import torch; print(torch.cuda.is_available())"
+   uv run python -c "import torch; print(torch.cuda.is_available())"
    ```
 
 3. **Monitor GPU usage** during development:
@@ -282,13 +290,13 @@ For GPU-intensive development:
 
 ```bash
 # Install documentation dependencies
-pip install mkdocs mkdocs-material mkdocstrings
+uv sync --extra dev
 
 # Serve documentation locally
-mkdocs serve
+uv run mkdocs serve
 
 # Build documentation
-mkdocs build
+uv run mkdocs build
 ```
 
 ### Documentation Development
@@ -334,9 +342,8 @@ python -m memory_profiler script.py
 nvidia-smi
 nvcc --version
 
-# Reinstall PyTorch with correct CUDA version
-pip uninstall torch torchvision
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+# Reinstall PyTorch with correct backend for your platform
+# (generate the command with https://pytorch.org/get-started/locally/)
 ```
 
 #### Import Errors

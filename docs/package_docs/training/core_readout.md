@@ -35,7 +35,7 @@ Key arguments:
 
 * `in_shape`: Expected stimulus shape `(channels, time, height, width)`. Note that the time dimension can be any positive integer for models that can process variable-length clips.
 * `hidden_channels`, `temporal_kernel_sizes`, `spatial_kernel_sizes`: Tuples describing the convolutional stack. All tuples must share the same length; the length determines how many layers the core contains.
-* `n_neurons_dict`: Dictionary mapping session IDs to neuron counts, used to size each session-specific readout head. `compute_data_info` returns it automatically from the data dictionaries described in the [Data I/O guide](../data_io/index.md).
+* `n_neurons_dict`: Dictionary mapping session IDs to neuron counts, used to size each session-specific readout head. `compute_data_info` returns it automatically from the data dictionaries described in the [Data I/O guide](../data_io.md).
 * `data_info`: Optional metadata bundle saved onto the Lightning module for later inspection or checkpoint reloads.
 
 Beyond these required parameters you can tune regularisation weights and other hyperparameters directly on the constructor. Defaults provide a reasonable starting point, but expect to revisit them for new datasets.

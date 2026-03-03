@@ -4,7 +4,7 @@
 
 Throughout the documentation we use *session* or *experimental session* to describe a single recording of retinal tissue under controlled conditions. Each session includes both the stimulus presentation and the corresponding neural responses, ensuring a shared temporal reference for inputs and outputs. Unless stated otherwise, we describe the general case of datasets that contain multiple sessions.
 
-If you are still surveying which datasets are already available, take a look at the [dataset reference](../datasets.md). For an end-to-end overview of how data flows into the training pipeline, see the [training guide](../training/index.md).
+If you are still surveying which datasets are already available, take a look at the [dataset reference](./datasets.md). For an end-to-end overview of how data flows into the training pipeline, see the [training guide](./training/index.md). For the exact container/dataloader/CLI data contract (including supporting multiple test dataloaders), see [Data IO flow and multi-test support](./data_io_flow.md).
 
 ## Integrating a New Dataset
 
@@ -155,7 +155,7 @@ single_dataloader = get_movie_dataloader(
 )
 ```
 
-For guidance on how these dataloaders plug into the training loop, refer back to the [training overview](../training/index.md).
+For guidance on how these dataloaders plug into the training loop, refer back to the [training overview](./training/index.md).
 
 ## HDF5-based Data Structure
 
@@ -163,7 +163,7 @@ If your lab's export format is still evolving, it can be simpler to adapt the pr
 
 Each session lives in its own `.hdf5` file, while the corresponding stimuli are stored as NumPy arrays under a `stimuli/` subdirectory.
 
-You can generate synthetic data that matches the expected layout via the command-line interface (see the [CLI reference](../command_line.md)):
+You can generate synthetic data that matches the expected layout via the command-line interface (see the [CLI reference](./command_line.md)):
 
 ```bash
 # Print help
@@ -175,6 +175,6 @@ openretina create-data ./test_data --num-colors 3 --num-stimuli 4 --num-sessions
 
 Running this command produces two `.hdf5` files—one per session—in `test_data/`, plus stimulus files under `test_data/stimuli/`. Each HDF5 file contains a `session_info` attribute where you can store metadata such as cell types.
 
-To keep stimuli and responses aligned, ensure they share the same sampling frequency and number of temporal bins. All stimuli should also have identical channel counts and spatial dimensions. Once exported, the data can be loaded with the helpers in `openretina.data_io.h5_dataset_reader` and used directly in existing configuration files (for example the `hoefling_2024` setup described in [data\_io/hoefling\_2024.md](./hoefling_2024.md)).
+To keep stimuli and responses aligned, ensure they share the same sampling frequency and number of temporal bins. All stimuli should also have identical channel counts and spatial dimensions. Once exported, the data can be loaded with the helpers in `openretina.data_io.h5_dataset_reader` and used directly in existing configuration files (for example the `hoefling_2024` setup described in [Hoefling et al., 2024](./datasets/hoefling_2024.md)).
 
 With these options, you should be ready to import new retinal datasets into `openretina` and move on to model training.

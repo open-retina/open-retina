@@ -1,6 +1,6 @@
 # Training and Evaluation
 
-Here we show how to launch a training loop manually, and how to evaluate a trained model. The examples assume you already prepared matching dataloaders as described in the [Data I/O guide](../data_io/index.md) and instantiated a model such as `ExampleCoreReadout` from the [model overview](./core_readout.md).
+Here we show how to launch a training loop manually, and how to evaluate a trained model. The examples assume you already prepared matching dataloaders as described in the [Data I/O guide](../data_io.md) and instantiated a model such as `ExampleCoreReadout` from the [model overview](./core_readout.md).
 
 ## Training Loop
 

@@ -36,6 +36,11 @@ We appreciate the following types of contributions:
 ### Development Environment Setup
 
 1. **Install the package in development mode**:
+   Preferred (`uv`, matches project Makefile):
+   ```bash
+   uv sync --extra dev
+   ```
+   Alternative (`pip`):
    ```bash
    pip install -e ".[dev]"
    ```
@@ -47,6 +52,8 @@ We appreciate the following types of contributions:
 
 2. **For model development**, also install:
    ```bash
+   uv sync --extra devmodels
+   # or:
    pip install -e ".[devmodels]"
    ```
 

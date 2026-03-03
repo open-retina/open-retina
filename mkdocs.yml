@@ -36,6 +36,9 @@ theme:
     - navigation.top
     - navigation.indexes
     - navigation.footer
+    - navigation.sections
+    - navigation.tracking
+    - content.code.copy
 
 plugins:
   - search
@@ -77,6 +80,7 @@ site_description: "OpenRetina: An open-source toolkit for modeling retinal respo
 
 markdown_extensions:
   - admonition
+  - def_list
   - pymdownx.details
   - pymdownx.superfences
   - attr_list
@@ -97,12 +101,17 @@ nav:
       - Getting Started:
           - Installation: package_docs/installation.md
           - Quick Start: package_docs/quickstart.md
+          - How to...:
+              - package_docs/how_to/index.md
+              - Which config should I copy?: package_docs/how_to/config_templates.md
+              - Mix and match models and datasets: package_docs/how_to/mix_and_match_models_and_datasets.md
           - Command Line Interface: package_docs/command_line.md
           - Architecture: package_docs/architecture.md
       - Core Functionality:
-          - Overview: package_docs/core_functionality_overview.md
+          - package_docs/core_functionality/index.md
           - Data Input/Output:
               - package_docs/data_io.md
+              - Data flow and multi-test support: package_docs/data_io_flow.md
           - Training:
               - package_docs/training/index.md
               - Core-Readout Models: package_docs/training/core_readout.md
@@ -122,14 +131,12 @@ nav:
           - Goldin et al., 2022: package_docs/datasets/goldin_2022.md
 
       - Tutorials:
-          - Gradient Analysis Example: notebooks/hoefling_gradient_analysis.ipynb
+          - OpenRetina Demo: notebooks/openretina_demo.ipynb
+          - New Datasets Guide: notebooks/new_datasets_guide.ipynb
           - Hyperparameter Tuning: notebooks/hyperparameter_search_hoefling_2024.ipynb
-          - Loading Pre-trained Models: package_docs/tutorials/pretrained_models.md
-          - Training Custom Models: package_docs/tutorials/training.md
-          - Stimulus Optimization: package_docs/tutorials/stimulus_optimization.md
-      - Reference:
-          - Model Zoo: package_docs/model_zoo.md
-          - Datasets: package_docs/datasets.md
+          - Gradient Analysis Example: notebooks/hoefling_gradient_analysis.ipynb
+
+      - Model Zoo: package_docs/model_zoo.md
       - Contributing:
           - Contributing Guide: package_docs/contributing.md
           - Development Setup: package_docs/development.md
@@ -166,6 +173,7 @@ nav:
       - Evaluation: api_reference/eval.md
       - CLI: api_reference/cli.md
       - Utils: api_reference/utils.md
+  - Community: community.md
   - FAQs: faq.md
   - How to cite: references.md
 
