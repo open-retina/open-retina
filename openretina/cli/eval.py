@@ -17,7 +17,7 @@ from openretina.eval.metrics import MSE_numpy, correlation_numpy, explainable_vs
 from openretina.eval.oracles import oracle_corr_jackknife
 from openretina.models.core_readout import load_core_readout_model
 from openretina.modules.losses import PoissonLoss3d
-from openretina.utils.eval_utils import EvaluationSummary
+from openretina.utils.eval_utils import EvaluationSummary, align_responses_to_model_output
 from openretina.utils.frame_fingerprints import compute_dataloader_statistics
 from openretina.utils.misc import reorder_like_a
 
@@ -127,20 +127,16 @@ def evaluate_model(cfg: DictConfig) -> float:
             responses_by_trial = avg_responses[:, np.newaxis, :]
             has_trial_data = False
 
-        # adjust responses to lag
-        new_lag = avg_responses.shape[0] - model_responses.shape[0]
-        if lag < 0:
-            lag = new_lag
-        elif new_lag != lag:
-            log.error(
-                f"Inconsistent lag between sessions: {new_lag=} {lag=}"
-                "\nThis might indicate a problem with the model or the data."
-            )
-            lag = new_lag
+        avg_responses, responses_by_trial, lag = align_responses_to_model_output(
+            targets=targets,
+            model_responses=model_responses,
+            avg_responses=avg_responses,
+            responses_by_trial=responses_by_trial,
+            dataset=dataset,
+            lag=lag,
+        )
 
-        avg_responses = avg_responses[lag:]
         n_neurons_session = avg_responses.shape[1]
-        responses_by_trial = responses_by_trial[lag:]
 
         if model_responses.shape != avg_responses.shape:
             raise ValueError(f"Inconsistent Shapes: {model_responses.shape=}, {avg_responses.shape}, {lag=}")
