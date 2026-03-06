@@ -263,8 +263,8 @@ class EvaluationSummary:
 def align_responses_to_model_output(
     targets: torch.Tensor | np.ndarray,
     model_responses: torch.Tensor | np.ndarray,
-    avg_responses: torch.Tensor | np.ndarray,
-    responses_by_trial: torch.Tensor | np.ndarray,
+    avg_responses: np.ndarray,
+    responses_by_trial: np.ndarray,
     dataset: torch.utils.data.Dataset,
     lag: int = -1,
 ) -> tuple[np.ndarray, np.ndarray, int]:
