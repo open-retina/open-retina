@@ -157,7 +157,6 @@ def evaluate_model(cfg: DictConfig) -> float:
             # Cannot compute var_ratio without multiple trials
             var_ratio = np.full(n_neurons_session, np.nan)
 
-
         # Compute per-trial metrics
         n_trials_per_session.append(n_trials)
         corr_by_trial = {}
