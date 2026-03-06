@@ -103,7 +103,6 @@ def evaluate_model(cfg: DictConfig) -> float:
         model_responses = model_responses_torch.cpu().numpy()
 
         avg_responses = dataset.responses.numpy()
-        has_trial_data = True
         try:
             responses_by_trial = dataset.test_responses_by_trial.cpu().numpy()
             responses_by_trial = reorder_like_a(a=avg_responses, b=responses_by_trial)
@@ -123,7 +122,6 @@ def evaluate_model(cfg: DictConfig) -> float:
                 exc_info=True,
             )
             responses_by_trial = avg_responses[:, np.newaxis, :]
-            has_trial_data = False
 
         avg_responses, responses_by_trial, lag = align_responses_to_model_output(
             targets=targets,
@@ -146,20 +144,21 @@ def evaluate_model(cfg: DictConfig) -> float:
         # Compute evaluation metrics (all are arrays of length n_neurons_session)
         corr_to_average = correlation_numpy(avg_responses, model_responses, axis=0)
         mse_to_average = MSE_numpy(avg_responses, model_responses, axis=0)
-        feve_values = feve(responses_by_trial, model_responses)
-        # we already cut the frames from responses_by_trial
-        jackknife, _ = oracle_corr_jackknife(responses_by_trial, cut_first_n_frames=None)
 
-        # Compute variance ratio (explainable to total variance ratio)
-        n_trials_for_var = responses_by_trial.shape[1]
-        if has_trial_data and n_trials_for_var > 1:
+        n_trials = responses_by_trial.shape[1]
+        if n_trials > 1:
+            feve_values = feve(responses_by_trial, model_responses)
+            # we already cut the frames from responses_by_trial
+            jackknife, _ = oracle_corr_jackknife(responses_by_trial, cut_first_n_frames=None)
             var_ratio, explainable_var = explainable_vs_total_var(responses_by_trial)
         else:
+            feve_values = np.full(n_neurons_session, np.nan)
+            jackknife = np.full(n_neurons_session, np.nan)
             # Cannot compute var_ratio without multiple trials
             var_ratio = np.full(n_neurons_session, np.nan)
 
+
         # Compute per-trial metrics
-        n_trials = responses_by_trial.shape[1]
         n_trials_per_session.append(n_trials)
         corr_by_trial = {}
         mse_by_trial = {}
