@@ -261,10 +261,10 @@ class EvaluationSummary:
 
 
 def align_responses_to_model_output(
-    targets: torch.Tensor,
-    model_responses: np.ndarray,
-    avg_responses: np.ndarray,
-    responses_by_trial: np.ndarray,
+    targets: torch.Tensor | np.ndarray,
+    model_responses: torch.Tensor | np.ndarray,
+    avg_responses: torch.Tensor | np.ndarray,
+    responses_by_trial: torch.Tensor | np.ndarray,
     dataset: torch.utils.data.Dataset,
     lag: int = -1,
 ) -> tuple[np.ndarray, np.ndarray, int]:
@@ -293,7 +293,7 @@ def align_responses_to_model_output(
     model_len = model_responses.shape[0]
     full_len = avg_responses.shape[0]
 
-    if dataloader_target_len == model_len and full_len >= model_len:
+    if dataloader_target_len == model_len and full_len > model_len:
         # Dataloader pre-trims frame_overhead per chunk; use it for correct alignment
         if not hasattr(dataset, "frame_overhead") and not hasattr(dataset, "lag"):
             raise ValueError(
@@ -308,16 +308,17 @@ def align_responses_to_model_output(
     else:
         # Standard case: model output is shorter than full responses by lag in dataloader targets
         new_lag = dataloader_target_len - model_len
+        if new_lag < 0:
+            raise ValueError(f"Negative lag: {new_lag=} ({dataloader_target_len=} {model_len=}")
         avg_responses = avg_responses[new_lag : new_lag + model_len]
         responses_by_trial = responses_by_trial[new_lag : new_lag + model_len]
 
     if lag < 0:
         lag = new_lag
     elif new_lag != lag:
-        log.error(
+        raise ValueError(
             f"Inconsistent lag between sessions: {new_lag=} {lag=}"
             "\nThis might indicate a problem with the model or the data."
         )
-        lag = new_lag
 
     return avg_responses, responses_by_trial, lag

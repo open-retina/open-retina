@@ -89,7 +89,7 @@ def evaluate_model(cfg: DictConfig) -> float:
         dataset = dl.dataset
 
         with torch.no_grad():
-            model_responses_torch_array = []
+            model_responses_torch_array: list[torch.Tensor] = []
             targets_array = []
             for data_point in dl:
                 model_resp_batch = model.forward(data_point[0].to(device), data_key=session)
@@ -147,7 +147,8 @@ def evaluate_model(cfg: DictConfig) -> float:
         corr_to_average = correlation_numpy(avg_responses, model_responses, axis=0)
         mse_to_average = MSE_numpy(avg_responses, model_responses, axis=0)
         feve_values = feve(responses_by_trial, model_responses)
-        jackknife, _ = oracle_corr_jackknife(responses_by_trial, cut_first_n_frames=lag)
+        # we already cut the frames from responses_by_trial
+        jackknife, _ = oracle_corr_jackknife(responses_by_trial, cut_first_n_frames=None)
 
         # Compute variance ratio (explainable to total variance ratio)
         n_trials_for_var = responses_by_trial.shape[1]
