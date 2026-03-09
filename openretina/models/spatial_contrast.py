@@ -1,15 +1,20 @@
 """
-Spatial Contrast (SC) model for single-cell neural response prediction.
+Spatial Contrast (SC) models for neural response prediction.
 
 Extends the Linear-Nonlinear (LN) model by adding a local spatial contrast term.
 The spatial and temporal filters are frozen from pre-computed STAs; only 4 parameters
-are learned: the contrast weight (w) and three nonlinearity parameters (a, b, c).
+per neuron are learned: the contrast weight (w) and three nonlinearity parameters (a, b, c).
+
+Provides two variants:
+- SingleCellSpatialContrast: standalone LightningModule for one neuron at a time
+- SpatialContrastCoreReadout: multi-cell core-readout model using DummyCore + MultiSpatialContrastReadout
 
 Reference: Sridhar S, Vystrčilová M, Khani MH, Karamanlis D, Schreyer HM, Ramakrishna V,
 Krüppel S, Zapp SJ, Mietsch M, Ecker AS, Gollisch T (2025): Modeling spatial contrast
 sensitivity in responses of primate retinal ganglion cells to natural movies.
 """
 
+import logging
 from pathlib import Path
 from typing import Any, Callable, Optional, Union
 
@@ -23,10 +28,18 @@ from lightning.pytorch.core.optimizer import LightningOptimizer
 from torch.optim import Optimizer
 
 from openretina.data_io.base_dataloader import DataPoint
+from openretina.models.core_readout import BaseCoreReadout
+from openretina.modules.core.base_core import DummyCore
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
 from openretina.modules.nonlinearities import ParametrizedSoftplus
+from openretina.modules.readout.spatial_contrast_model_readout import (
+    MultiSpatialContrastReadout,
+    SpatialContrastReadout,
+)
 from openretina.utils.file_utils import get_local_file_path
 from openretina.utils.sta_processing import load_sta_and_extract_filters
+
+LOGGER = logging.getLogger(__name__)
 
 
 class SingleCellSpatialContrast(LightningModule):
@@ -309,3 +322,148 @@ class SingleCellSpatialContrast(LightningModule):
                 "frequency": 1,
             },
         }
+
+
+class SpatialContrastCoreReadout(BaseCoreReadout):
+    """Multi-cell Spatial Contrast model following the core-readout pattern.
+
+    Uses a DummyCore (pass-through) paired with a MultiSpatialContrastReadout
+    that handles N neurons per session. Frozen STA-derived spatial and temporal
+    filters are loaded at construction time; only 4 parameters per neuron
+    (w, a, b, c) are learned.
+
+    Designed for Hydra config instantiation. The STA file pattern uses
+    ``{retina_index}`` and ``{cell_index}`` placeholders that are filled
+    from ``data_info["sessions_kwargs"]``.
+
+    Args:
+        in_shape: (channels, time, height, width) of input stimulus.
+        n_neurons_dict: Session key -> number of neurons.
+        sta_dir: Directory containing STA .npy files.
+        sta_file_pattern: Filename pattern with {retina_index} and {cell_index}
+            placeholders, e.g. "cell_data_{retina_index}_WN_stas_cell_{cell_index}.npy".
+        flip_sta: Whether to flip STAs horizontally.
+        temporal_crop_frames: Number of most-recent STA frames to keep.
+        sigma_contour: Spatial filter mask contour in sigmas.
+        cut_first_n_frames: Frames cut by DummyCore (temporal alignment).
+        w_init, a_init, b_init, c_init: Initial per-neuron parameter values.
+        learning_rate: Learning rate for AdamW.
+        neuron_chunk_size: Max neurons processed at once in the readout forward
+            pass. Controls the GPU memory/speed trade-off. Default 32 works
+            on 8 GB GPUs.
+        loss: Training loss module.
+        evaluation_loss: Evaluation metric module.
+        data_info: Data metadata dict (must contain sessions_kwargs with cell_indices).
+    """
+
+    def __init__(
+        self,
+        in_shape: Int[tuple, "channels time height width"],
+        n_neurons_dict: dict[str, int],
+        sta_dir: Union[Path, str],
+        sta_file_pattern: str = "cell_data_{retina_index}_WN_stas_cell_{cell_index}.npy",
+        flip_sta: bool = False,
+        temporal_crop_frames: int | None = 30,
+        sigma_contour: float = 3.0,
+        cut_first_n_frames: int = 0,
+        w_init: float = 0.0,
+        a_init: float = 4.0,
+        b_init: float = 1.0,
+        c_init: float = -5.0,
+        learning_rate: float = 0.01,
+        neuron_chunk_size: int = 32,
+        loss: nn.Module | None = None,
+        evaluation_loss: nn.Module | None = None,
+        data_info: dict[str, Any] | None = None,
+    ):
+        in_shape = tuple(in_shape)
+        target_spatial_shape = (in_shape[-2], in_shape[-1])
+
+        local_sta_dir = get_local_file_path(Path(sta_dir).as_posix())
+
+        # Extract cell indices from data_info
+        if data_info is None:
+            raise ValueError("data_info is required for SpatialContrastCoreReadout")
+        sessions_kwargs = data_info.get("sessions_kwargs", {})
+
+        spatial_filters_dict: dict[str, torch.Tensor] = {}
+        temporal_filters_dict: dict[str, torch.Tensor] = {}
+
+        for session_key, n_neurons in n_neurons_dict.items():
+            session_kw = sessions_kwargs.get(session_key, {})
+            cell_indices = session_kw.get("cell_indices")
+            if cell_indices is None:
+                raise ValueError(
+                    f"cell_indices not found in data_info['sessions_kwargs']['{session_key}']. "
+                    "Ensure the dataloader provides cell_indices in session_kwargs."
+                )
+
+            spatial_list = []
+            temporal_list = []
+            for cell_idx in cell_indices:
+                file_name = sta_file_pattern.format(retina_index=session_key, cell_index=cell_idx)
+                spatial_filter, temporal_filter, _ = load_sta_and_extract_filters(
+                    sta_dir=local_sta_dir,
+                    file_name=file_name,
+                    flip_sta=flip_sta,
+                    target_spatial_shape=target_spatial_shape,
+                    temporal_crop_frames=temporal_crop_frames,
+                    sigma_contour=sigma_contour,
+                )
+                spatial_list.append(torch.from_numpy(spatial_filter))
+                temporal_list.append(torch.from_numpy(temporal_filter))
+
+            spatial_filters_dict[session_key] = torch.stack(spatial_list)
+            temporal_filters_dict[session_key] = torch.stack(temporal_list)
+
+            LOGGER.info(
+                f"Session {session_key}: loaded {len(cell_indices)} STA filters "
+                f"(spatial: {spatial_filters_dict[session_key].shape}, "
+                f"temporal: {temporal_filters_dict[session_key].shape})"
+            )
+
+        core = DummyCore(cut_first_n_frames=cut_first_n_frames)
+
+        mean_activity_dict = data_info.get("mean_activity_dict")
+
+        readout = MultiSpatialContrastReadout(
+            in_shape=in_shape,
+            n_neurons_dict=n_neurons_dict,
+            spatial_filters_dict=spatial_filters_dict,
+            temporal_filters_dict=temporal_filters_dict,
+            w_init=w_init,
+            a_init=a_init,
+            b_init=b_init,
+            c_init=c_init,
+            mean_activity_dict=mean_activity_dict,
+            neuron_chunk_size=neuron_chunk_size,
+        )
+
+        # Default to avg=True Poisson loss to match the single-cell SC model.
+        # The BaseCoreReadout default (avg=False → loss.sum()) produces gradient
+        # magnitudes that scale with neuron count, causing NaN for large sessions.
+        if loss is None:
+            loss = PoissonLoss3d(avg=True)
+
+        super().__init__(
+            core=core,
+            readout=readout,
+            learning_rate=learning_rate,
+            loss=loss,
+            evaluation_loss=evaluation_loss,
+            data_info=data_info,
+        )
+
+    def optimizer_step(
+        self,
+        epoch: int,
+        batch_idx: int,
+        optimizer: Union[Optimizer, LightningOptimizer],
+        optimizer_closure: Optional[Callable[[], Any]] = None,
+    ) -> None:
+        """Clamp nl_a >= 0 after each step to avoid negative predictions."""
+        optimizer.step(closure=optimizer_closure)
+
+        for readout in self.readout.values():
+            assert isinstance(readout, SpatialContrastReadout)
+            readout.nl_a.data.clamp_(min=0.0)
