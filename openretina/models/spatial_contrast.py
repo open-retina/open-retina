@@ -10,12 +10,16 @@ Krüppel S, Zapp SJ, Mietsch M, Ecker AS, Gollisch T (2025): Modeling spatial co
 sensitivity in responses of primate retinal ganglion cells to natural movies.
 """
 
+from typing import Any, Callable, Optional, Union
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 from jaxtyping import Float, Int
 from lightning import LightningModule
+from lightning.pytorch.core.optimizer import LightningOptimizer
+from torch.optim import Optimizer
 
 from openretina.data_io.base_dataloader import DataPoint
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
@@ -255,6 +259,19 @@ class SingleCellSpatialContrast(LightningModule):
         self.log("val_correlation", correlation, logger=True, prog_bar=True)
 
         return loss
+
+    def optimizer_step(
+        self,
+        epoch: int,
+        batch_idx: int,
+        optimizer: Union[Optimizer, LightningOptimizer],
+        optimizer_closure: Optional[Callable[[], Any]] = None,
+    ) -> None:
+        """Override implementation to allow parameter clamping at each training step"""
+        optimizer.step(closure=optimizer_closure)
+
+        # To avoid negative model predictions, clamp the gain parameter in the nonlinearity
+        self.nonlinearity.w.clamp(min=0.0)
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
