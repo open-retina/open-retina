@@ -193,9 +193,9 @@ class SingleCellSpatialContrast(LightningModule):
     def compute_imean(
         self, temp_filtered: Float[torch.Tensor, "batch time height width"]
     ) -> Float[torch.Tensor, "batch time"]:
-        """Spatially-weighted mean: sum(spatial_filter * stimulus) over space."""
+        """Spatially-weighted mean: sum(spatial_filter * stimulus) / spatial_filter_sum over space."""
         weighted = self.spatial_filter * temp_filtered
-        return weighted.sum(dim=(-2, -1))
+        return weighted.sum(dim=(-2, -1)) / (self.spatial_filter_sum + 1e-8)
 
     def compute_lsc(
         self,
