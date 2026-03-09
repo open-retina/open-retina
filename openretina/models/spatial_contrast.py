@@ -44,6 +44,9 @@ class SingleCellSpatialContrast(LightningModule):
     time course at the RF center) are frozen. Only 4 scalar parameters are learned:
     w (contrast weight) and a, b, c (nonlinearity shape).
 
+    The model works with a single channel in the input; multiple channels will raise
+    an error.
+
     Args:
         in_shape: (channels, time, height, width) of the input stimulus (no batch dim).
         sta_dir: Directory containing STA .npy files.
@@ -113,7 +116,14 @@ class SingleCellSpatialContrast(LightningModule):
         full_rf_location = (int(gaussian_params["center_y"]), int(gaussian_params["center_x"]))
 
         self.in_shape = in_shape
+
         self.in_channels = in_shape[0]
+        if self.in_channels > 1:
+            raise ValueError(
+                "The spatial contrast model only supports a single channel as input. "
+                "If the data has multiple channels, consider providing an average across channels "
+                "as input."
+            )
 
         # Optionally crop a small patch around the RF to speed up computation
         self.spat_crop_size = spat_crop_size
