@@ -7,6 +7,8 @@ extracting spatial and temporal filters, and creating Gaussian contour masks.
 
 import logging
 import os
+from pathlib import Path
+from typing import Union
 
 import numpy as np
 from jaxtyping import Float
@@ -190,6 +192,24 @@ def extract_filters_from_sta(
     """
     num_frames, height, width = sta.shape
 
+    # Guard against NaN/Inf in the STA data — return zero filters so the neuron
+    # contributes a constant baseline output without corrupting other neurons.
+    if not np.all(np.isfinite(sta)):
+        LOGGER.warning("STA contains NaN or Inf values — returning zero filters for this neuron.")
+        n_temporal = temporal_crop_frames if temporal_crop_frames is not None else num_frames
+        spatial_filter = np.zeros((height, width), dtype=np.float32)
+        temporal_filter = np.zeros(n_temporal, dtype=np.float32)
+        gaussian_params = {
+            "center_x": width / 2.0,
+            "center_y": height / 2.0,
+            "sigma_x": 1.0,
+            "sigma_y": 1.0,
+            "theta": 0.0,
+            "amplitude": 0.0,
+            "success": False,
+        }
+        return spatial_filter, temporal_filter, gaussian_params
+
     # Find peak temporal frame (max variance across spatial pixels)
     temporal_variances = np.var(sta, axis=(1, 2))
     peak_temporal_idx = np.argmax(temporal_variances)
@@ -248,7 +268,7 @@ def extract_filters_from_sta(
 
 
 def load_sta_and_extract_filters(
-    sta_dir: str,
+    sta_dir: Union[Path, str],
     file_name: str,
     flip_sta: bool = False,
     target_spatial_shape: tuple[int, int] | None = None,
