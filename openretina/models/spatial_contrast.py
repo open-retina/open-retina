@@ -10,6 +10,7 @@ Krüppel S, Zapp SJ, Mietsch M, Ecker AS, Gollisch T (2025): Modeling spatial co
 sensitivity in responses of primate retinal ganglion cells to natural movies.
 """
 
+from pathlib import Path
 from typing import Any, Callable, Optional, Union
 
 import torch
@@ -24,6 +25,7 @@ from torch.optim import Optimizer
 from openretina.data_io.base_dataloader import DataPoint
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
 from openretina.modules.nonlinearities import ParametrizedSoftplus
+from openretina.utils.file_utils import get_local_file_path
 from openretina.utils.sta_processing import load_sta_and_extract_filters
 
 
@@ -71,7 +73,7 @@ class SingleCellSpatialContrast(LightningModule):
     def __init__(
         self,
         in_shape: Int[tuple, "channel time height width"],
-        sta_dir: str,
+        sta_dir: Union[Path, str],
         sta_file_name: str,
         flip_sta: bool = False,
         temporal_crop_frames: int | None = None,
@@ -95,8 +97,9 @@ class SingleCellSpatialContrast(LightningModule):
         # Extract frozen filters from STA
         # target_spatial_shape ensures the STA is cropped to match the stimulus dimensions
         target_spatial_shape = (in_shape[-2], in_shape[-1])
+        local_sta_dir = get_local_file_path(Path(sta_dir).as_posix())
         spatial_filter, temporal_filter, gaussian_params = load_sta_and_extract_filters(
-            sta_dir=sta_dir,
+            sta_dir=local_sta_dir,
             file_name=sta_file_name,
             flip_sta=flip_sta,
             target_spatial_shape=target_spatial_shape,
