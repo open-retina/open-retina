@@ -19,20 +19,8 @@ from lightning import LightningModule
 
 from openretina.data_io.base_dataloader import DataPoint
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
+from openretina.modules.nonlinearities import ParametrizedSoftplus
 from openretina.utils.sta_processing import load_sta_and_extract_filters
-
-
-class SpatialContrastNonlinearity(nn.Module):
-    """Parametrized softplus: a * log(1 + exp(b*x + c)), with learnable a, b, c."""
-
-    def __init__(self, a: float = 1.0, b: float = 1.0, c: float = 0.0):
-        super().__init__()
-        self.a = nn.Parameter(torch.tensor(a, dtype=torch.float32), requires_grad=True)
-        self.b = nn.Parameter(torch.tensor(b, dtype=torch.float32), requires_grad=True)
-        self.c = nn.Parameter(torch.tensor(c, dtype=torch.float32), requires_grad=True)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.a * torch.log(1 + torch.exp(self.b * x + self.c))
 
 
 class SingleCellSpatialContrast(LightningModule):
@@ -154,8 +142,9 @@ class SingleCellSpatialContrast(LightningModule):
         self.register_buffer("spatial_filter_sum", torch.tensor(spatial_filter.sum()))
 
         # The 4 learnable parameters
+        self.nonlinearity = ParametrizedSoftplus(w=a_init, a=b_init, b=c_init, learn_a=True)
+        # The `w` here is different from the `w` used in ParametrizedSoftplus
         self.w = nn.Parameter(torch.tensor(w_init, dtype=torch.float32), requires_grad=True)
-        self.nonlinearity = SpatialContrastNonlinearity(a=a_init, b=b_init, c=c_init)
 
     def crop_input(self, x: Float[torch.Tensor, "batch channels time height width"]) -> torch.Tensor:
         """Crop input stimulus to a patch around the RF center."""
