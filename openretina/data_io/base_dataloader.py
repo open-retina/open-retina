@@ -7,11 +7,57 @@ import numpy as np
 import torch
 from jaxtyping import Float
 from torch.utils.data import DataLoader, Dataset, Sampler
+from torch.utils.data._utils.collate import default_collate
 from tqdm.auto import tqdm
 
 from openretina.data_io.base import MoviesTrainTestSplit, ResponsesTrainTestSplit
 
 DataPoint = namedtuple("DataPoint", ["inputs", "targets"])
+
+ArrayBackend = Literal["torch", "jax"]
+
+
+def _to_numpy(value: Any) -> Any:
+    if isinstance(value, torch.Tensor):
+        return value.detach().cpu().numpy()
+    return value
+
+
+def _jax_import():
+    try:
+        import jax.numpy as jnp
+    except Exception as exc:  # pragma: no cover - error path depends on env
+        raise ImportError(
+            "JAX is required for array_backend='jax'. Install with `pip install jax jaxlib`."
+        ) from exc
+    return jnp
+
+
+def _to_jax(value: Any) -> Any:
+    jnp = _jax_import()
+    if isinstance(value, torch.Tensor):
+        value = _to_numpy(value)
+    return jnp.asarray(value)
+
+
+def _assert_jax_dataloader_kwargs(kwargs: dict[str, Any]) -> None:
+    num_workers = kwargs.get("num_workers", 0)
+    if num_workers not in (0, None):
+        raise ValueError("array_backend='jax' requires num_workers=0 (no multiprocessing).")
+    if kwargs.get("persistent_workers"):
+        raise ValueError("array_backend='jax' cannot be used with persistent_workers.")
+
+
+def _tree_map(fn, value):
+    if isinstance(value, dict):
+        return {k: _tree_map(fn, v) for k, v in value.items()}
+    if isinstance(value, tuple) and hasattr(value, "_fields"):
+        return type(value)(*[_tree_map(fn, v) for v in value])
+    if isinstance(value, tuple):
+        return tuple(_tree_map(fn, v) for v in value)
+    if isinstance(value, list):
+        return [_tree_map(fn, v) for v in value]
+    return fn(value)
 
 
 class MovieDataSet(Dataset):
@@ -57,7 +103,9 @@ class MovieDataSet(Dataset):
         group_assignment: Float[np.ndarray, " n_neurons"] | None,
         split: str | Literal["train", "validation", "val", "test"],
         chunk_size: int,
+        array_backend: ArrayBackend = "torch",
     ):
+        self.array_backend = array_backend
         self.roi_ids = roi_ids
         self.test_responses_by_trial: torch.Tensor | None = None
 
@@ -70,9 +118,18 @@ class MovieDataSet(Dataset):
         else:
             self.samples = movies, responses
 
+        if self.array_backend == "jax":
+            self.samples = (_to_numpy(self.samples[0]), _to_numpy(self.samples[1]))
+            if self.test_responses_by_trial is not None:
+                self.test_responses_by_trial = _to_numpy(self.test_responses_by_trial)
+
         self.chunk_size = chunk_size
         # Calculate the mean response per neuron (used for bias init in the model)
-        self.mean_response = torch.mean(torch.Tensor(self.samples[1]), dim=0)
+        if self.array_backend == "torch":
+            self.mean_response = torch.mean(torch.Tensor(self.samples[1]), dim=0)
+        else:
+            mean_response = np.mean(self.samples[1], axis=0)
+            self.mean_response = _to_jax(mean_response)
         self.group_assignment = group_assignment
         self.roi_coords = roi_coords
 
@@ -299,6 +356,7 @@ def get_movie_dataloader(
     group_assignment: Float[np.ndarray, " n_neurons"] | None = None,
     drop_last: bool = True,
     allow_over_boundaries: bool = True,
+    array_backend: ArrayBackend = "torch",
     **kwargs,
 ) -> DataLoader:
     """
@@ -330,6 +388,8 @@ def get_movie_dataloader(
             Whether to drop the last incomplete batch. Defaults to True.
         allow_over_boundaries (bool, optional):
             Whether to allow chunks that exceed the scene boundaries. Defaults to True.
+        array_backend (Literal["torch", "jax"], optional):
+            Array type returned by the dataloader. JAX requires num_workers=0. Defaults to "torch".
         **kwargs:
             Additional keyword arguments for the DataLoader.
 
@@ -350,7 +410,9 @@ def get_movie_dataloader(
 
     if start_indices is None:
         start_indices = handle_missing_start_indices(movie.shape[1], chunk_size, scene_length, split)
-    dataset = MovieDataSet(movie, responses, roi_ids, roi_coords, group_assignment, split, chunk_size)
+    dataset = MovieDataSet(
+        movie, responses, roi_ids, roi_coords, group_assignment, split, chunk_size, array_backend=array_backend
+    )
     sampler = MovieSampler(
         start_indices,
         split,
@@ -359,6 +421,15 @@ def get_movie_dataloader(
         scene_length=scene_length,
         allow_over_boundaries=allow_over_boundaries,
     )
+
+    if array_backend == "jax":
+        _assert_jax_dataloader_kwargs(kwargs)
+        base_collate = kwargs.pop("collate_fn", default_collate)
+
+        def collate_fn(batch):
+            return _tree_map(_to_jax, base_collate(batch))
+
+        kwargs["collate_fn"] = collate_fn
 
     return DataLoader(
         dataset, sampler=sampler, batch_size=batch_size, drop_last=split == "train" and drop_last, **kwargs

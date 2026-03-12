@@ -15,7 +15,9 @@ requires-python = ">=3.10"
 readme = "README.md"
 dependencies = [
     "IPython",
+    "flax",
     "jaxtyping",
+    "jax",
     "matplotlib",
     "numpy",
     "pandas",

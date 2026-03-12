@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -137,6 +137,7 @@ def natmov_dataloaders_v2(
     num_clips: int = NUM_CLIPS,
     clip_length: int = CLIP_LENGTH,
     allow_over_boundaries: bool = True,
+    array_backend: Literal["torch", "jax"] = "torch",
 ):
     stim_ids = {x.stim_id for x in neuron_data_dictionary.values()}
     assert stim_ids == {"natural"}, (
@@ -203,6 +204,7 @@ def natmov_dataloaders_v2(
                 batch_size=batch_size,
                 scene_length=clip_length,
                 allow_over_boundaries=allow_over_boundaries,
+                array_backend=array_backend,
             )
 
     return dataloaders
@@ -212,6 +214,7 @@ def get_chirp_dataloaders(
     neuron_data_dictionary,
     train_chunk_size: int | None = None,
     batch_size: int = 32,
+    array_backend: Literal["torch", "jax"] = "torch",
 ):
     assert isinstance(neuron_data_dictionary, dict), (
         "neuron_data_dictionary should be a dictionary of sessions and their corresponding neuron data."
@@ -269,6 +272,7 @@ def get_chirp_dataloaders(
             batch_size=batch_size,
             scene_length=chirp_stimulus.shape[1] // num_chirps,
             drop_last=False,
+            array_backend=array_backend,
         )
         if dataloader is not None:
             dataloaders["train"][session_key] = dataloader
@@ -282,6 +286,7 @@ def get_mb_dataloaders(
     neuron_data_dictionary,
     train_chunk_size: int | None = None,
     batch_size: int = 32,
+    array_backend: Literal["torch", "jax"] = "torch",
 ):
     assert isinstance(neuron_data_dictionary, dict), (
         "neuron_data_dictionary should be a dictionary of sessions and their corresponding neuron data."
@@ -342,6 +347,7 @@ def get_mb_dataloaders(
             batch_size=batch_size,
             scene_length=mb_stimulus.shape[1] // total_num_mbs,
             drop_last=False,
+            array_backend=array_backend,
         )
 
     return dataloaders
