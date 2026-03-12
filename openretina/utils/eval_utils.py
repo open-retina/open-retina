@@ -14,6 +14,107 @@ from openretina.data_io.base import DatasetStatistics
 
 log = logging.getLogger(__name__)
 
+_GROUP_BREAKDOWN_METRIC_COLUMNS = {
+    "corr_to_average": "corr_to_average_mean",
+    "mse_to_average": "mse_to_average_mean",
+    "feve": "feve_mean",
+    "var_ratio": "fev_mean",
+    "poisson_loss_to_average": "poisson_loss_mean",
+    "jackknife": "jackknife_mean",
+}
+
+
+def _metric_trial_columns(df: pd.DataFrame, prefix: str) -> list[str]:
+    return sorted(
+        [col for col in df.columns if col.startswith(f"{prefix}_") and col[len(prefix) + 1 :].isdigit()],
+        key=lambda col: int(col.split("_", maxsplit=1)[1]),
+    )
+
+
+def _group_sort_key(value: Any) -> tuple[int, float | str]:
+    if isinstance(value, (int, float, np.integer, np.floating)):
+        return (0, float(value))
+    return (1, str(value))
+
+
+def _normalize_group_value(value: Any) -> Any:
+    if hasattr(value, "item"):
+        return value.item()
+    return value
+
+
+def compute_group_metric_breakdown(
+    df_all: pd.DataFrame,
+    df_filtered: pd.DataFrame,
+    *,
+    group_column: str = "group_assignment",
+) -> list[dict[str, Any]]:
+    """Aggregate all evaluation metrics by neuron group.
+
+    The metric values are computed on `df_filtered`, while the total group counts are
+    tracked from `df_all` so groups that were completely removed by filtering remain visible.
+    """
+    if group_column not in df_all.columns:
+        return []
+
+    all_groups_series = df_all[group_column].dropna()
+    if all_groups_series.empty:
+        return []
+
+    groups = sorted(all_groups_series.unique().tolist(), key=_group_sort_key)
+
+    metric_columns = [col for col in _GROUP_BREAKDOWN_METRIC_COLUMNS if col in df_filtered.columns]
+    corr_trial_columns = _metric_trial_columns(df_filtered, "corr")
+    mse_trial_columns = _metric_trial_columns(df_filtered, "mse")
+
+    df_all_grouped = df_all[df_all[group_column].notna()].groupby(group_column)
+    df_filtered_non_null = df_filtered[df_filtered[group_column].notna()]
+    df_filtered_grouped = df_filtered_non_null.groupby(group_column)
+
+    total_counts = df_all_grouped.size()
+    filtered_counts = df_filtered_grouped.size()
+
+    group_metric_breakdown = []
+    for group in groups:
+        n_neurons_total = int(total_counts.get(group, 0))
+        n_neurons_filtered = int(filtered_counts.get(group, 0))
+        row: dict[str, Any] = {
+            group_column: _normalize_group_value(group),
+            "n_neurons_total": n_neurons_total,
+            "n_neurons_filtered": n_neurons_filtered,
+        }
+
+        if n_neurons_filtered == 0:
+            for metric_column in metric_columns:
+                row[_GROUP_BREAKDOWN_METRIC_COLUMNS[metric_column]] = float("nan")
+            row["corr_by_trial_mean"] = float("nan")
+            row["corr_by_trial_std"] = float("nan")
+            row["mse_by_trial_mean"] = float("nan")
+            row["mse_by_trial_std"] = float("nan")
+            for col in corr_trial_columns + mse_trial_columns:
+                row[f"{col}_mean"] = float("nan")
+            group_metric_breakdown.append(row)
+            continue
+
+        group_df = df_filtered_grouped.get_group(group)
+
+        for metric_column in metric_columns:
+            row[_GROUP_BREAKDOWN_METRIC_COLUMNS[metric_column]] = float(np.nanmean(group_df[metric_column]))
+
+        corr_by_trial_avgs = [float(np.nanmean(group_df[col])) for col in corr_trial_columns]
+        mse_by_trial_avgs = [float(np.nanmean(group_df[col])) for col in mse_trial_columns]
+        row["corr_by_trial_mean"] = float(np.nanmean(corr_by_trial_avgs)) if corr_by_trial_avgs else float("nan")
+        row["corr_by_trial_std"] = float(np.nanstd(corr_by_trial_avgs)) if corr_by_trial_avgs else float("nan")
+        row["mse_by_trial_mean"] = float(np.nanmean(mse_by_trial_avgs)) if mse_by_trial_avgs else float("nan")
+        row["mse_by_trial_std"] = float(np.nanstd(mse_by_trial_avgs)) if mse_by_trial_avgs else float("nan")
+
+        for col in corr_trial_columns + mse_trial_columns:
+            row[f"{col}_mean"] = float(np.nanmean(group_df[col]))
+
+        group_metric_breakdown.append(row)
+
+    return group_metric_breakdown
+
 
 @dataclass
 class EvaluationSummary:
@@ -65,12 +166,14 @@ class EvaluationSummary:
     unique_train_transitions: int = 0
     unique_val_transitions: int = 0
     unique_test_transitions: dict[str, int] = field(default_factory=dict)
+    group_metric_breakdown: list[dict[str, Any]] = field(default_factory=list)
 
     @classmethod
     def from_dataframe(
         cls,
         df_filtered: pd.DataFrame,
         *,
+        df_all: pd.DataFrame | None = None,
         model_path: str,
         model_tag: str,
         exp_name: str,
@@ -87,6 +190,7 @@ class EvaluationSummary:
 
         Args:
             df_filtered: DataFrame containing per-neuron results (after var_ratio filtering).
+            df_all: Unfiltered per-neuron results. Used to preserve total counts per group.
             model_path: Path or identifier for the model.
             model_tag: Human-readable tag for the model.
             exp_name: Name of the dataset/experiment.
@@ -102,6 +206,9 @@ class EvaluationSummary:
         Returns:
             EvaluationSummary instance with all computed metrics.
         """
+        if df_all is None:
+            df_all = df_filtered
+
         # Compute per-trial aggregate metrics
         corr_by_trial_avgs: list[float] = []
         mse_by_trial_avgs: list[float] = []
@@ -143,6 +250,7 @@ class EvaluationSummary:
             unique_train_transitions=dataset_stats.unique_train_transitions,
             unique_val_transitions=dataset_stats.unique_val_transitions,
             unique_test_transitions=dataset_stats.unique_test_transitions,
+            group_metric_breakdown=compute_group_metric_breakdown(df_all, df_filtered),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -160,6 +268,7 @@ class EvaluationSummary:
         test_transitions = d.pop("unique_test_transitions")
         for test_name, transitions in test_transitions.items():
             d[f"unique_test_transitions_{test_name}"] = transitions
+        d["group_metric_breakdown_json"] = json.dumps(d.pop("group_metric_breakdown"))
         return d
 
     def save_json(self, path: str | Path) -> None:
@@ -256,6 +365,44 @@ class EvaluationSummary:
             print(f"  {'Correlation':30s}: {self.corr_by_trial_mean:.3f} (+/-{self.corr_by_trial_std:.3f})")
         if not np.isnan(self.mse_by_trial_mean):
             print(f"  {'MSE':30s}: {self.mse_by_trial_mean:.3f} (+/-{self.mse_by_trial_std:.3f})")
+
+        if self.group_metric_breakdown:
+            if self.filtering_applied and can_filter:
+                print("\nMetric breakdown by neuron group (computed on neurons above var_ratio threshold):")
+            else:
+                print("\nMetric breakdown by neuron group (computed on all neurons - var_ratio filtering not applied):")
+            print("-" * 80)
+            group_metric_df = pd.DataFrame(self.group_metric_breakdown)
+            display_columns = [
+                "group_assignment",
+                "n_neurons_filtered",
+                "n_neurons_total",
+                "corr_to_average_mean",
+                "mse_to_average_mean",
+                "feve_mean",
+                "fev_mean",
+                "poisson_loss_mean",
+                "jackknife_mean",
+                "corr_by_trial_mean",
+                "mse_by_trial_mean",
+            ]
+            display_columns = [col for col in display_columns if col in group_metric_df.columns]
+            display_df = group_metric_df[display_columns].rename(
+                columns={
+                    "group_assignment": "Group",
+                    "n_neurons_filtered": "Neurons used",
+                    "n_neurons_total": "Neurons total",
+                    "corr_to_average_mean": "Correlation",
+                    "mse_to_average_mean": "MSE",
+                    "feve_mean": "FEVe",
+                    "fev_mean": "FEV",
+                    "poisson_loss_mean": "Poisson loss",
+                    "jackknife_mean": "Jackknife",
+                    "corr_by_trial_mean": "Corr by trial",
+                    "mse_by_trial_mean": "MSE by trial",
+                }
+            )
+            print(display_df.to_string(index=False, float_format=lambda value: f"{value:.3f}"))
 
         print("=" * 80)
 

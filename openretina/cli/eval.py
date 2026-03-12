@@ -25,6 +25,27 @@ log = logging.getLogger(__name__)
 logging.captureWarnings(True)
 
 
+def _get_session_metadata(
+    session: str,
+    neuron_data_dict: dict[str, object],
+    model_data_info: dict[str, object],
+) -> dict[str, object]:
+    """Merge session metadata from the checkpoint and the loaded responses."""
+    model_sessions_kwargs = model_data_info.get("sessions_kwargs", {})
+    model_session_kwargs = {}
+    if isinstance(model_sessions_kwargs, dict):
+        model_session_kwargs = model_sessions_kwargs.get(session, {})
+
+    response_session_kwargs = getattr(neuron_data_dict[session], "session_kwargs", {})
+
+    merged_session_kwargs = {}
+    if isinstance(model_session_kwargs, dict):
+        merged_session_kwargs.update(model_session_kwargs)
+    if isinstance(response_session_kwargs, dict):
+        merged_session_kwargs.update(response_session_kwargs)
+    return merged_session_kwargs
+
+
 @hydra.main(
     version_base="1.3",
     config_path="../../configs",
@@ -167,18 +188,24 @@ def evaluate_model(cfg: DictConfig) -> float:
             corr_by_trial[i] = correlation_numpy(resp, model_responses, axis=0)
             mse_by_trial[i] = MSE_numpy(resp, model_responses, axis=0)
 
-        # Get neuron specific information from session_kwargs
-        neuron_data_info = neuron_data_dict[session].session_kwargs
+        # Get neuron specific information from the response objects and, if needed, the checkpoint data_info.
+        neuron_data_info = _get_session_metadata(session, neuron_data_dict, model.data_info)
 
         # Preprocess session_kwargs to identify which fields are per-neuron arrays
         # vs scalar values that should be repeated for all neurons
         per_neuron_fields = {}
         scalar_fields = {}
         for key, value in neuron_data_info.items():
-            if isinstance(value, (np.ndarray, list, tuple)):
+            if isinstance(value, torch.Tensor):
+                arr = value.detach().cpu().numpy()
+                if arr.ndim > 0 and len(arr) == n_neurons_session:
+                    per_neuron_fields[key] = arr
+                else:
+                    scalar_fields[key] = value
+            elif isinstance(value, (np.ndarray, list, tuple)):
                 # Check if it's a per-neuron array (length matches n_neurons_session)
                 arr = np.asarray(value)
-                if len(arr) == n_neurons_session:
+                if arr.ndim > 0 and len(arr) == n_neurons_session:
                     per_neuron_fields[key] = arr
                 else:
                     # Scalar or different length - treat as scalar for this session
@@ -262,6 +289,7 @@ def evaluate_model(cfg: DictConfig) -> float:
     # Build evaluation summary from DataFrame
     summary = EvaluationSummary.from_dataframe(
         df_filtered,
+        df_all=df,
         model_path=str(cfg.evaluation.model_path),
         model_tag=str(model_tag),
         exp_name=str(exp_name),
