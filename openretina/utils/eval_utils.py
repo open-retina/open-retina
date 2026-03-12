@@ -243,7 +243,7 @@ class EvaluationSummary:
             ("Poisson loss", self.poisson_loss_mean),
         ]
         for name, value in metric_values:
-            print(f"  {name:30s}: {value:.4f}")
+            print(f"  {name:30s}: {value:.3f}")
 
         # Per-trial metrics
         if self.filtering_applied and can_filter:
@@ -253,9 +253,9 @@ class EvaluationSummary:
         print("-" * 80)
 
         if not np.isnan(self.corr_by_trial_mean):
-            print(f"  {'Correlation':30s}: {self.corr_by_trial_mean:.4f} (+/-{self.corr_by_trial_std:.4f})")
+            print(f"  {'Correlation':30s}: {self.corr_by_trial_mean:.3f} (+/-{self.corr_by_trial_std:.3f})")
         if not np.isnan(self.mse_by_trial_mean):
-            print(f"  {'MSE':30s}: {self.mse_by_trial_mean:.4f} (+/-{self.mse_by_trial_std:.4f})")
+            print(f"  {'MSE':30s}: {self.mse_by_trial_mean:.3f} (+/-{self.mse_by_trial_std:.3f})")
 
         print("=" * 80)
 
