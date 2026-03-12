@@ -11,8 +11,10 @@ import pandas as pd
 import torch
 
 from openretina.data_io.base import DatasetStatistics
+from openretina.data_io.hoefling_2024.constants import RGC_GROUP_NAMES_DICT
 
 log = logging.getLogger(__name__)
+_MIN_USED_NEURONS_PER_GROUP = 30
 
 _GROUP_BREAKDOWN_METRIC_COLUMNS = {
     "corr_to_average": "corr_to_average_mean",
@@ -43,16 +45,27 @@ def _normalize_group_value(value: Any) -> Any:
     return value
 
 
+def _group_name(value: Any) -> str:
+    normalized_value = _normalize_group_value(value)
+    if isinstance(normalized_value, np.floating) and normalized_value.is_integer():
+        normalized_value = int(normalized_value)
+    if isinstance(normalized_value, float) and normalized_value.is_integer():
+        normalized_value = int(normalized_value)
+
+    return RGC_GROUP_NAMES_DICT.get(normalized_value, str(normalized_value))
+
+
 def compute_group_metric_breakdown(
     df_all: pd.DataFrame,
     df_filtered: pd.DataFrame,
     *,
     group_column: str = "group_assignment",
+    min_used_neurons: int = _MIN_USED_NEURONS_PER_GROUP,
 ) -> list[dict[str, Any]]:
     """Aggregate all evaluation metrics by neuron group.
 
     The metric values are computed on `df_filtered`, while the total group counts are
-    tracked from `df_all` so groups that were completely removed by filtering remain visible.
+    tracked from `df_all`. Groups with fewer than `min_used_neurons` filtered neurons are excluded.
     """
     if group_column not in df_all.columns:
         return []
@@ -78,23 +91,15 @@ def compute_group_metric_breakdown(
     for group in groups:
         n_neurons_total = int(total_counts.get(group, 0))
         n_neurons_filtered = int(filtered_counts.get(group, 0))
+        if n_neurons_filtered < min_used_neurons:
+            continue
+
         row: dict[str, Any] = {
             group_column: _normalize_group_value(group),
+            "group_name": _group_name(group),
             "n_neurons_total": n_neurons_total,
             "n_neurons_filtered": n_neurons_filtered,
         }
-
-        if n_neurons_filtered == 0:
-            for metric_column in metric_columns:
-                row[_GROUP_BREAKDOWN_METRIC_COLUMNS[metric_column]] = float("nan")
-            row["corr_by_trial_mean"] = float("nan")
-            row["corr_by_trial_std"] = float("nan")
-            row["mse_by_trial_mean"] = float("nan")
-            row["mse_by_trial_std"] = float("nan")
-            for col in corr_trial_columns + mse_trial_columns:
-                row[f"{col}_mean"] = float("nan")
-            group_metric_breakdown.append(row)
-            continue
 
         group_df = df_filtered_grouped.get_group(group)
 
@@ -166,6 +171,7 @@ class EvaluationSummary:
     unique_train_transitions: int = 0
     unique_val_transitions: int = 0
     unique_test_transitions: dict[str, int] = field(default_factory=dict)
+    min_used_neurons_per_group: int = _MIN_USED_NEURONS_PER_GROUP
     group_metric_breakdown: list[dict[str, Any]] = field(default_factory=list)
 
     @classmethod
@@ -185,6 +191,7 @@ class EvaluationSummary:
         var_ratio_cutoff: float,
         filtering_applied: bool,
         dataset_stats: DatasetStatistics,
+        min_used_neurons_per_group: int = _MIN_USED_NEURONS_PER_GROUP,
     ) -> "EvaluationSummary":
         """Build an EvaluationSummary from a filtered DataFrame and metadata.
 
@@ -202,6 +209,7 @@ class EvaluationSummary:
             var_ratio_cutoff: Variance ratio threshold used for filtering.
             filtering_applied: Whether var_ratio filtering was actually applied.
             dataset_stats: DatasetStatistics with frame counts.
+            min_used_neurons_per_group: Minimum number of used neurons required to include a group breakdown row.
 
         Returns:
             EvaluationSummary instance with all computed metrics.
@@ -250,7 +258,12 @@ class EvaluationSummary:
             unique_train_transitions=dataset_stats.unique_train_transitions,
             unique_val_transitions=dataset_stats.unique_val_transitions,
             unique_test_transitions=dataset_stats.unique_test_transitions,
-            group_metric_breakdown=compute_group_metric_breakdown(df_all, df_filtered),
+            min_used_neurons_per_group=min_used_neurons_per_group,
+            group_metric_breakdown=compute_group_metric_breakdown(
+                df_all,
+                df_filtered,
+                min_used_neurons=min_used_neurons_per_group,
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -349,7 +362,6 @@ class EvaluationSummary:
             ("MSE", self.mse_to_avg_mean),
             ("FEVe", self.feve_mean),
             ("FEV (expl. var ratio)", self.fev_mean),
-            ("Poisson loss", self.poisson_loss_mean),
         ]
         for name, value in metric_values:
             print(f"  {name:30s}: {value:.3f}")
@@ -368,12 +380,21 @@ class EvaluationSummary:
 
         if self.group_metric_breakdown:
             if self.filtering_applied and can_filter:
-                print("\nMetric breakdown by neuron group (computed on neurons above var_ratio threshold):")
+                print(
+                    "\nMetric breakdown by neuron group "
+                    f"(computed on neurons above var_ratio threshold; groups with >= {self.min_used_neurons_per_group} "
+                    "used neurons):"
+                )
             else:
-                print("\nMetric breakdown by neuron group (computed on all neurons - var_ratio filtering not applied):")
+                print(
+                    "\nMetric breakdown by neuron group "
+                    "(computed on all neurons - var_ratio filtering not applied; "
+                    f"groups with >= {self.min_used_neurons_per_group} used neurons):"
+                )
             print("-" * 80)
             group_metric_df = pd.DataFrame(self.group_metric_breakdown)
             display_columns = [
+                "group_name",
                 "group_assignment",
                 "n_neurons_filtered",
                 "n_neurons_total",
@@ -381,14 +402,13 @@ class EvaluationSummary:
                 "mse_to_average_mean",
                 "feve_mean",
                 "fev_mean",
-                "poisson_loss_mean",
-                "jackknife_mean",
                 "corr_by_trial_mean",
                 "mse_by_trial_mean",
             ]
             display_columns = [col for col in display_columns if col in group_metric_df.columns]
             display_df = group_metric_df[display_columns].rename(
                 columns={
+                    "group_name": "Group name",
                     "group_assignment": "Group",
                     "n_neurons_filtered": "Neurons used",
                     "n_neurons_total": "Neurons total",
@@ -396,8 +416,6 @@ class EvaluationSummary:
                     "mse_to_average_mean": "MSE",
                     "feve_mean": "FEVe",
                     "fev_mean": "FEV",
-                    "poisson_loss_mean": "Poisson loss",
-                    "jackknife_mean": "Jackknife",
                     "corr_by_trial_mean": "Corr by trial",
                     "mse_by_trial_mean": "MSE by trial",
                 }

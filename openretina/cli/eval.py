@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 
 import logging
+import math
 import os
+from pathlib import Path
 
 import hydra
 import lightning.pytorch
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas
 import torch
@@ -44,6 +47,124 @@ def _get_session_metadata(
     if isinstance(response_session_kwargs, dict):
         merged_session_kwargs.update(response_session_kwargs)
     return merged_session_kwargs
+
+
+def _plot_group_response_traces(
+    df_filtered: pandas.DataFrame,
+    session_plot_data: dict[str, dict[str, np.ndarray]],
+    group_metric_breakdown: list[dict[str, object]],
+    output_path: str | os.PathLike[str],
+) -> None:
+    """Plot average group responses across all used neurons for each eligible cell group."""
+    if not group_metric_breakdown:
+        log.warning("No cell groups passed the minimum used-neuron threshold. Skipping group response plot.")
+        return
+
+    n_groups = len(group_metric_breakdown)
+    n_cols = 2 if n_groups > 1 else 1
+    n_rows = math.ceil(n_groups / n_cols)
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(8 * n_cols, 3.5 * n_rows), squeeze=False)
+    axes_flat = axes.flatten()
+
+    for ax, group_summary in zip(axes_flat, group_metric_breakdown, strict=False):
+        group_id = group_summary["group_assignment"]
+        group_name = str(group_summary.get("group_name", group_id))
+        group_neuron_count = int(group_summary["n_neurons_filtered"])
+
+        trial_sums: np.ndarray | None = None
+        trial_cell_counts: np.ndarray | None = None
+        avg_response_sum: np.ndarray | None = None
+        predicted_response_sum: np.ndarray | None = None
+        total_group_neurons = 0
+        time_len: int | None = None
+
+        for session, session_df in df_filtered[df_filtered["group_assignment"] == group_id].groupby("session"):
+            session_data = session_plot_data.get(session)
+            if session_data is None:
+                continue
+
+            neuron_indices = session_df["neuron_relative_idx"].astype(int).to_numpy()
+            if neuron_indices.size == 0:
+                continue
+
+            session_avg_responses = session_data["avg_responses"][:, neuron_indices]
+            session_predicted_responses = session_data["model_responses"][:, neuron_indices]
+            session_responses_by_trial = session_data["responses_by_trial"][:, :, neuron_indices]
+
+            if time_len is None:
+                time_len = session_avg_responses.shape[0]
+                avg_response_sum = np.zeros(time_len, dtype=np.float64)
+                predicted_response_sum = np.zeros(time_len, dtype=np.float64)
+                trial_sums = np.zeros((time_len, session_responses_by_trial.shape[1]), dtype=np.float64)
+                trial_cell_counts = np.zeros(session_responses_by_trial.shape[1], dtype=np.float64)
+            elif session_avg_responses.shape[0] != time_len:
+                log.warning(
+                    "Skipping session %s for group %s because the aligned response length does not match (%s != %s).",
+                    session,
+                    group_id,
+                    session_avg_responses.shape[0],
+                    time_len,
+                )
+                continue
+
+            assert avg_response_sum is not None
+            assert predicted_response_sum is not None
+            assert trial_sums is not None
+            assert trial_cell_counts is not None
+
+            n_trials_session = session_responses_by_trial.shape[1]
+            if n_trials_session > trial_sums.shape[1]:
+                expanded_trial_sums = np.zeros((time_len, n_trials_session), dtype=np.float64)
+                expanded_trial_sums[:, : trial_sums.shape[1]] = trial_sums
+                trial_sums = expanded_trial_sums
+
+                expanded_trial_counts = np.zeros(n_trials_session, dtype=np.float64)
+                expanded_trial_counts[: trial_cell_counts.shape[0]] = trial_cell_counts
+                trial_cell_counts = expanded_trial_counts
+
+            avg_response_sum += session_avg_responses.sum(axis=1)
+            predicted_response_sum += session_predicted_responses.sum(axis=1)
+            trial_sums[:, :n_trials_session] += session_responses_by_trial.sum(axis=2)
+            trial_cell_counts[:n_trials_session] += neuron_indices.size
+            total_group_neurons += neuron_indices.size
+
+        if total_group_neurons == 0:
+            ax.set_visible(False)
+            continue
+
+        assert avg_response_sum is not None
+        assert predicted_response_sum is not None
+        assert trial_sums is not None
+        assert trial_cell_counts is not None
+
+        avg_response = avg_response_sum / total_group_neurons
+        predicted_response = predicted_response_sum / total_group_neurons
+        valid_trial_mask = trial_cell_counts > 0
+        trial_responses = trial_sums[:, valid_trial_mask] / trial_cell_counts[valid_trial_mask]
+
+        for trial_idx in range(trial_responses.shape[1]):
+            label = "Individual trials" if trial_idx == 0 else None
+            ax.plot(trial_responses[:, trial_idx], color="0.75", linewidth=1.0, alpha=0.9, label=label)
+        ax.plot(avg_response, color="black", linewidth=2.0, label="Average over trials")
+        ax.plot(predicted_response, color="tab:red", linewidth=2.0, label="Predicted response")
+        ax.set_title(f"{group_name} (group {group_id}, n={group_neuron_count})")
+        ax.set_xlabel("Time")
+        ax.set_ylabel("Response")
+        ax.grid(alpha=0.2, linewidth=0.5)
+
+    for ax in axes_flat[n_groups:]:
+        ax.set_visible(False)
+
+    handles, labels = axes_flat[0].get_legend_handles_labels()
+    if handles:
+        fig.legend(handles, labels, loc="upper center", ncol=3, frameon=False)
+    fig.tight_layout(rect=(0, 0, 1, 0.97))
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=200, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    log.info("Group response plot saved to %s", output_path)
 
 
 @hydra.main(
@@ -105,6 +226,7 @@ def evaluate_model(cfg: DictConfig) -> float:
     poisson_loss = PoissonLoss3d(per_neuron=True)
     lag = -1
     n_trials_per_session = []  # Track number of trials/repeats per session
+    session_plot_data: dict[str, dict[str, np.ndarray]] = {}
 
     for session, dl in tqdm(dataloader_dict.items(), desc="Evaluating sessions", unit="session"):
         dataset = dl.dataset
@@ -153,6 +275,12 @@ def evaluate_model(cfg: DictConfig) -> float:
             dataset=dataset,
             lag=lag,
         )
+
+        session_plot_data[session] = {
+            "avg_responses": avg_responses,
+            "responses_by_trial": responses_by_trial,
+            "model_responses": model_responses,
+        }
 
         n_neurons_session = avg_responses.shape[1]
 
@@ -305,6 +433,18 @@ def evaluate_model(cfg: DictConfig) -> float:
 
     # Print formatted report
     summary.print_report()
+
+    group_response_plot_path = cfg.evaluation.get(
+        "group_response_plot_path",
+        os.path.join(cfg.paths.output_dir, "group_response_traces.png"),
+    )
+    if group_response_plot_path is not None:
+        _plot_group_response_traces(
+            df_filtered=df_filtered,
+            session_plot_data=session_plot_data,
+            group_metric_breakdown=summary.group_metric_breakdown,
+            output_path=str(group_response_plot_path),
+        )
 
     # Save per-neuron results
     if cfg.evaluation.get("model_results_path") is not None:
