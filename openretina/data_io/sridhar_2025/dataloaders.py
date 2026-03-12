@@ -131,7 +131,7 @@ class MarmosetMovieDataset(Dataset):
         num_of_hidden_frames: int | tuple = 15,
         num_of_layers: int = 1,
         device: str = "cpu",
-        time_chunk_size: int | None = None,
+        time_chunk_size: int = 1,
         full_img_w: int = 1000,
         full_img_h: int = 800,
         img_w: int = 800,
@@ -210,12 +210,7 @@ class MarmosetMovieDataset(Dataset):
             self.num_of_imgs = self.test_responses.shape[1]
         else:
             self.num_of_imgs = self.train_responses.shape[1]
-
-        if time_chunk_size is None:
-            self.time_chunk_size = self.num_of_imgs
-        else:
-            self.time_chunk_size = time_chunk_size
-        self.time_chunk_size += self.frame_overhead
+        self.time_chunk_size = time_chunk_size + self.frame_overhead
 
         self.cache: list[Any] = []
         self.last_start_index = -1
@@ -480,7 +475,7 @@ def frame_movie_loader(
     cell_index=None,
     retina_index=None,
     device: str = "cpu",
-    time_chunk_size=None,
+    time_chunk_size: int = 1,
     num_of_layers=None,
     excluded_cells: dict[Any, list[int]] | None = None,
     frame_file="_img_",
@@ -706,10 +701,10 @@ def frame_movie_loader(
             "test_responses_by_trial": responses[retina_index].get("test_responses_by_trial"),
         }
 
-        for split, indices, is_test, time_chunk_size_value, shuffle in [
-            ("train", train_ids, False, time_chunk_size, True if shuffle is None else shuffle),
-            ("validation", valid_ids, False, time_chunk_size, False if shuffle is None else shuffle),
-            ("test", train_ids, True, None, False),
+        for split, indices, is_test, shuffle in [
+            ("train", train_ids, False, True if shuffle is None else shuffle),
+            ("validation", valid_ids, False, False if shuffle is None else shuffle),
+            ("test", train_ids, True, False),
         ]:
             loader = get_dataloader(
                 responses_dict,
@@ -723,7 +718,7 @@ def frame_movie_loader(
                 crop=crop,
                 shuffle=shuffle,
                 subsample=subsample,
-                time_chunk_size=time_chunk_size_value,
+                time_chunk_size=time_chunk_size,
                 num_of_layers=num_of_layers,
                 frames=frames,
                 num_of_hidden_frames=num_of_frames[1:] if len(num_of_frames) > 1 else None,
@@ -758,7 +753,7 @@ class NoiseDataset(Dataset):
         num_of_frames: int = 15,
         num_of_layers: int = 1,
         device: str = "cpu",
-        time_chunk_size: int | None = 1,
+        time_chunk_size: int = 1,
         temporal_dilation: int = 1,
         hidden_temporal_dilation: int | str | tuple = 1,
         num_of_hidden_frames: int | tuple | None = 15,
@@ -868,11 +863,7 @@ class NoiseDataset(Dataset):
             self.num_of_imgs = self.test_responses.shape[1]
         else:
             self.num_of_imgs = self.train_responses.shape[1]
-        if time_chunk_size is None:
-            self.time_chunk_size = self.num_of_imgs
-        else:
-            self.time_chunk_size = time_chunk_size
-        self.time_chunk_size += self.frame_overhead
+        self.time_chunk_size = time_chunk_size + self.frame_overhead
 
         self._test = test
         if self._test:
@@ -1180,18 +1171,17 @@ def white_noise_loader(
             "test_responses": test_responses,
             "test_responses_by_trial": responses[retina_index].get("test_responses_by_trial"),
         }
-        for split, indices, is_test, cache_size, chunked_sampling_value, time_chunk_size_value, image_path in [
-            ("train", train_ids, False, cache_maxsize, chunked_sampling, time_chunk_size, dataset_train_image_path),
+        for split, indices, is_test, cache_size, chunked_sampling_value, image_path in [
+            ("train", train_ids, False, cache_maxsize, chunked_sampling, dataset_train_image_path),
             (
                 "validation",
                 valid_ids,
                 False,
                 cache_maxsize,
                 chunked_sampling,
-                time_chunk_size,
                 dataset_train_image_path,
             ),
-            ("test", train_ids, True, 20, False, time_chunk_size, dataset_test_image_path),
+            ("test", train_ids, True, 20, False, dataset_test_image_path),
         ]:
             loader = get_noise_dataloader(
                 responses_dict,
@@ -1207,7 +1197,7 @@ def white_noise_loader(
                 device=device,
                 crop=crop,
                 subsample=subsample,
-                time_chunk_size=time_chunk_size_value,
+                time_chunk_size=time_chunk_size,
                 num_of_layers=num_of_layers,
                 temporal_dilation=temporal_dilation,
                 hidden_temporal_dilation=hidden_temporal_dilation,
