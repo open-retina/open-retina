@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from flax import nnx
 
-from openretina.modules.layers.jax_convolutions import STSeparableBatchConv3d, temporal_smoothing
+from openretina.modules_jax.layers.convolutions import STSeparableBatchConv3d, temporal_smoothing
 
 EPS = 1e-6
 

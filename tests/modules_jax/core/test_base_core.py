@@ -16,7 +16,7 @@ from openretina.data_io.hoefling_2024.responses import filter_responses, make_fi
 from openretina.data_io.hoefling_2024.stimuli import movies_from_pickle
 from openretina.models.core_readout import load_core_readout_from_remote
 from openretina.modules.core.base_core import SimpleCoreWrapper as TorchSimpleCoreWrapper
-from openretina.modules.core.jax_base_core import SimpleCoreWrapper
+from openretina.modules_jax.core.base_core import SimpleCoreWrapper
 from openretina.utils.file_utils import get_local_file_path
 from openretina.utils.h5_handling import load_h5_into_dict
 from openretina.utils.misc import check_server_responding

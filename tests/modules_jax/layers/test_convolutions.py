@@ -11,11 +11,11 @@ from openretina.modules.layers.convolutions import (
     STSeparableBatchConv3d as TorchSTSeparableBatchConv3d,
 )
 from openretina.modules.layers.convolutions import compute_temporal_kernel as torch_compute_temporal_kernel
-from openretina.modules.layers.jax_convolutions import (
+from openretina.modules_jax.layers.convolutions import (
     STSeparableBatchConv3d,
 )
-from openretina.modules.layers.jax_convolutions import compute_temporal_kernel as jax_compute_temporal_kernel
-from openretina.modules.layers.jax_convolutions import temporal_smoothing as jax_temporal_smoothing
+from openretina.modules_jax.layers.convolutions import compute_temporal_kernel as jax_compute_temporal_kernel
+from openretina.modules_jax.layers.convolutions import temporal_smoothing as jax_temporal_smoothing
 
 
 @pytest.mark.parametrize("temporal_kernel_size,spatial_kernel_size", [(1, 1), (1, 3), (5, 3)])
