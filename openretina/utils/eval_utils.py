@@ -271,7 +271,8 @@ def align_responses_to_model_output(
     """Align responses to model output.
 
     When the dataloader pre-trims responses (e.g. Sridhar chunked dataset), targets in batches already
-    match model output length. In that case, use `frame_overhead` or `lag` Dataset attributes to trim.
+    match model output length. In that case, use `frame_overhead`, `lag`, and any dataset-specific
+    response offset such as `extra_frame` to trim.
     In that case, we also trim the end of the responses to match the model output length, which can occur as a result
     of dataloaders chunking behaviour and potential dropping of last incomplete chunks.
 
@@ -294,16 +295,25 @@ def align_responses_to_model_output(
     full_len = avg_responses.shape[0]
 
     if dataloader_target_len == model_len and full_len > model_len:
-        # Dataloader pre-trims frame_overhead per chunk; use it for correct alignment
+        # Dataloader pre-trims responses per chunk; include any dataset-specific offset.
         if not hasattr(dataset, "frame_overhead") and not hasattr(dataset, "lag"):
             raise ValueError(
                 "Dataset does not have `frame_overhead` or `lag`, which is required for correct alignment when the "
                 "dataloader pre-trims responses."
             )
-        start_trim = getattr(dataset, "frame_overhead", 0) + getattr(dataset, "lag", 0)
+        start_trim = (
+            getattr(dataset, "frame_overhead", 0)
+            + getattr(dataset, "lag", 0)
+            + getattr(dataset, "extra_frame", 0)
+        )
         new_lag = start_trim
-        avg_responses = avg_responses[start_trim : start_trim + model_len]
-        responses_by_trial = responses_by_trial[start_trim : start_trim + model_len]
+        end_trim = start_trim + model_len
+        if end_trim > full_len:
+            raise ValueError(
+                f"Aligned response window exceeds available responses: {start_trim=} {end_trim=} {full_len=}"
+            )
+        avg_responses = avg_responses[start_trim:end_trim]
+        responses_by_trial = responses_by_trial[start_trim:end_trim]
 
     else:
         # Standard case: model output is shorter than full responses by lag in dataloader targets
