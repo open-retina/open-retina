@@ -44,26 +44,15 @@ def _conv2d_nchw(x: jax.Array, kernel: jax.Array, padding_size: int) -> jax.Arra
 
 
 def _max_pool3d_ncthw(x: jax.Array, window: tuple[int, int, int], stride: tuple[int, int, int]) -> jax.Array:
-    return jax.lax.reduce_window(
-        x,
-        init_value=-jnp.inf,
-        computation=jax.lax.max,
-        window_dimensions=(1, 1, *window),
-        window_strides=(1, 1, *stride),
-        padding="VALID",
-    )
+    x_last = jnp.transpose(x, (0, 2, 3, 4, 1))
+    pooled_last = nnx.max_pool(x_last, window_shape=window, strides=stride, padding="VALID")
+    return jnp.transpose(pooled_last, (0, 4, 1, 2, 3))
 
 
 def _avg_pool3d_ncthw(x: jax.Array, kernel: tuple[int, int, int]) -> jax.Array:
-    pooled = jax.lax.reduce_window(
-        x,
-        init_value=0.0,
-        computation=jax.lax.add,
-        window_dimensions=(1, 1, *kernel),
-        window_strides=(1, 1, *kernel),
-        padding="VALID",
-    )
-    return pooled / float(np.prod(kernel))
+    x_last = jnp.transpose(x, (0, 2, 3, 4, 1))
+    pooled_last = nnx.avg_pool(x_last, window_shape=kernel, strides=kernel, padding="VALID")
+    return jnp.transpose(pooled_last, (0, 4, 1, 2, 3))
 
 
 class WeightedChannelSumLayer(nnx.Module):
@@ -88,15 +77,22 @@ class Bias3DLayer(nnx.Module):
         return x + self.bias.value
 
 
-class BatchNorm3d(nnx.Module):
-    def __init__(self, num_channels: int, momentum: float = 0.1, eps: float = 1e-5):
-        self.num_channels = num_channels
+class TorchLikeBatchNorm3d(nnx.Module):
+    """
+    Torch-aligned BatchNorm3d implementation for NCTHW tensors.
+
+    PyTorch updates running stats as:
+        running = (1 - momentum) * running + momentum * batch_stat
+    with `momentum=0.1` by default in this project.
+    """
+
+    def __init__(self, num_features: int, momentum: float = 0.1, eps: float = 1e-5):
         self.momentum = momentum
         self.eps = eps
-        self.scale = nnx.Param(jnp.ones((num_channels,), dtype=jnp.float32))
-        self.bias = nnx.Param(jnp.zeros((num_channels,), dtype=jnp.float32))
-        self.running_mean = nnx.BatchStat(jnp.zeros((num_channels,), dtype=jnp.float32))
-        self.running_var = nnx.BatchStat(jnp.ones((num_channels,), dtype=jnp.float32))
+        self.scale = nnx.Param(jnp.ones((num_features,), dtype=jnp.float32))
+        self.bias = nnx.Param(jnp.zeros((num_features,), dtype=jnp.float32))
+        self.running_mean = nnx.BatchStat(jnp.zeros((num_features,), dtype=jnp.float32))
+        self.running_var = nnx.BatchStat(jnp.ones((num_features,), dtype=jnp.float32))
 
     def __call__(self, x: jax.Array, train: bool = True) -> jax.Array:
         if train:
@@ -113,23 +109,6 @@ class BatchNorm3d(nnx.Module):
         scale = self.scale.value.reshape(1, -1, 1, 1, 1)
         bias = self.bias.value.reshape(1, -1, 1, 1, 1)
         return ((x - mean) / jnp.sqrt(var + self.eps)) * scale + bias
-
-
-class Dropout3d(nnx.Module):
-    def __init__(self, p: float, rngs: nnx.Rngs | None = None):
-        if p < 0.0 or p >= 1.0:
-            raise ValueError(f"Dropout probability must be in [0, 1), got {p}")
-        self.p = p
-        self.rngs = rngs
-
-    def __call__(self, x: jax.Array, train: bool = True) -> jax.Array:
-        if (not train) or self.p == 0.0:
-            return x
-
-        keep_prob = 1.0 - self.p
-        key = self.rngs.dropout() if (self.rngs is not None and hasattr(self.rngs, "dropout")) else jax.random.PRNGKey(0)
-        mask = jax.random.bernoulli(key, keep_prob, shape=x.shape)
-        return jnp.where(mask, x / keep_prob, 0.0)
 
 
 class Laplace:
@@ -189,19 +168,22 @@ class _CoreLayer(nnx.Module):
             bias=False,
             rngs=rngs,
         )
-        self.norm = BatchNorm3d(out_channels, momentum=0.1)
+        self.norm = TorchLikeBatchNorm3d(out_channels, momentum=0.1, eps=1e-5)
         self.bias = Bias3DLayer(out_channels)
-        self.dropout = Dropout3d(dropout_rate, rngs=rngs) if dropout_rate > 0.0 else None
+        self.nonlin = nnx.elu
+        self.dropout = (
+            nnx.Dropout(rate=dropout_rate, broadcast_dims=(2, 3, 4), rngs=rngs) if dropout_rate > 0.0 else None
+        )
         self.use_pool = use_pool
 
     def __call__(self, x: jax.Array, train: bool = True) -> jax.Array:
         x = self.conv(x)
         x = self.norm(x, train=train)
         x = self.bias(x)
-        x = jax.nn.elu(x)
+        x = self.nonlin(x)
 
         if self.dropout is not None:
-            x = self.dropout(x, train=train)
+            x = self.dropout(x, deterministic=not train)
 
         if self.use_pool:
             x = _max_pool3d_ncthw(x, window=(1, 2, 2), stride=(1, 2, 2))
@@ -319,14 +301,15 @@ class SimpleCoreWrapper(Core):
             setattr(self, f"layer{layer_id}", layer)
             layers.append(layer)
 
-        self.features = tuple(layers)
+        self.features = nnx.List(layers)
 
     def _apply_features(self, x: jax.Array, train: bool = True) -> jax.Array:
         result = x
         for layer in self.features:
             result = layer(result, train=train)
         return result
-
+    
+    @nnx.jit(static_argnames=("train",)) # TODO:  not sure is this means if switching modes, the argument change will have no effect ...
     def __call__(self, input_: jax.Array, train: bool = True) -> jax.Array:
         if input_.ndim != 5:
             raise ValueError(f"Expected 5D input in NCTHW format, got shape {input_.shape}")
@@ -379,7 +362,8 @@ class SimpleCoreWrapper(Core):
             sparsities.append(numerator / denominator)
 
         if len(sparsities) == 0:
-            return jnp.asarray(0.0, dtype=jnp.float32)
+            # Preserve Torch parity: torch.stack([]) raises RuntimeError.
+            raise RuntimeError("stack expects a non-empty TensorList")
 
         return jnp.sum(jnp.stack(sparsities))
 

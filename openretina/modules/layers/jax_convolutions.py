@@ -13,15 +13,11 @@ from matplotlib.colors import Normalize
 def _next_rng(rngs: nnx.Rngs | None, stream: str, fallback_seed: int) -> jax.Array:
     if rngs is None:
         return jax.random.PRNGKey(fallback_seed)
-
-    stream_fn = getattr(rngs, stream, None)
-    if callable(stream_fn):
+    elif isinstance(rngs, nnx.Rngs):
+        stream_fn = getattr(rngs, stream)
         return stream_fn()
-
-    if callable(rngs):
-        return rngs()
-
-    raise ValueError(f"Could not retrieve rng stream '{stream}' from {type(rngs)}")
+    else:
+        raise ValueError(f"Could not retrieve rng stream '{stream}' from {type(rngs)}")
 
 
 def _conv3d_ncthw(
@@ -156,7 +152,11 @@ class STSeparableBatchConv3d(nnx.Module):
         )
 
 
-        weight = jnp.einsum("oitxx,oixhw->oithw", weight_temporal, self.weight_spatial.value)
+        weight = jnp.einsum(
+            "oitxx,oixhw->oithw",
+            weight_temporal,
+            self.weight_spatial.value,
+        )
         bias_value = self.bias.value * self._bias_scale
         return _conv3d_ncthw(x, weight, bias_value, self.stride, self.padding)
 

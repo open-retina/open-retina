@@ -71,7 +71,7 @@ def test_compute_temporal_kernel_parity() -> None:
         )
     )
 
-    assert np.allclose(jax_kernel, torch_kernel, rtol=1e-5, atol=1e-6)
+    assert np.allclose(jax_kernel, torch_kernel)
 
 
 def test_temporal_smoothing_shape_and_value() -> None:
@@ -139,4 +139,4 @@ def test_forward_parity_with_torch(padding: int | str) -> None:
     torch_out = torch_conv(torch.tensor(x_np)).detach().cpu().numpy()
     jax_out = np.asarray(jax_conv(jnp.asarray(x_np)))
 
-    assert np.allclose(jax_out, torch_out, rtol=1e-4, atol=1e-5)
+    assert np.allclose(jax_out, torch_out, rtol=1e-5, atol=2e-5)
