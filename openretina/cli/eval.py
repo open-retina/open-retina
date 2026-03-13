@@ -39,9 +39,9 @@ def evaluate_model(cfg: DictConfig) -> float:
     log.info("Logging full config:")
     log.info(OmegaConf.to_yaml(cfg))
 
-    if cfg.paths.cache_dir is None:
-        raise ValueError("Please provide a cache_dir for the data in the config file or as a command line argument.")
-    if cfg.evaluation.model_path is None:
+    if cfg.get("paths").get("cache_dir") is None:
+        raise ValueError("Please provide paths.cache_dir for the data in the config file or via the command line.")
+    if cfg.get("evaluation", {}).get("model_path") is None:
         raise ValueError("Please provide evaluation.model_path to define which model to test.")
 
     # Set cache folder

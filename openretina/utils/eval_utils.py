@@ -301,11 +301,8 @@ def align_responses_to_model_output(
                 "Dataset does not have `frame_overhead` or `lag`, which is required for correct alignment when the "
                 "dataloader pre-trims responses."
             )
-        start_trim = (
-            getattr(dataset, "frame_overhead", 0)
-            + getattr(dataset, "lag", 0)
-            + getattr(dataset, "extra_frame", 0)
-        )
+        start_trim = getattr(dataset, "frame_overhead", 0) + getattr(dataset, "lag", 0)
+        start_trim += getattr(dataset, "extra_frame", 0)
         new_lag = start_trim
         end_trim = start_trim + model_len
         if end_trim > full_len:
