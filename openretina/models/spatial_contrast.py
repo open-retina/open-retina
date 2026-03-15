@@ -458,8 +458,8 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
         self,
         epoch: int,
         batch_idx: int,
-        optimizer: Union[Optimizer, LightningOptimizer],
-        optimizer_closure: Optional[Callable[[], Any]] = None,
+        optimizer: Optimizer | LightningOptimizer,
+        optimizer_closure: Callable[[], Any] | None = None,
     ) -> None:
         """Clamp nl_a >= 0 after each step to avoid negative predictions."""
         optimizer.step(closure=optimizer_closure)
