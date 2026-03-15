@@ -219,8 +219,7 @@ def extract_filters_from_sta(
     gaussian_params = fit_2d_gaussian(spatial_frame)
 
     # Flip polarity for OFF cells so spatial filter is always positive
-    if gaussian_params["amplitude"] < 0:
-        gaussian_params["amplitude"] = -gaussian_params["amplitude"]
+    gaussian_params["amplitude"] = np.abs(gaussian_params["amplitude"])
 
     # Build the spatial filter as a masked 2D Gaussian
     x_coords = np.arange(width)
