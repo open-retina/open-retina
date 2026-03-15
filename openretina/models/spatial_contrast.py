@@ -297,7 +297,7 @@ class SingleCellSpatialContrast(LightningModule):
         optimizer.step(closure=optimizer_closure)
 
         # To avoid negative model predictions, clamp the gain parameter in the nonlinearity
-        self.nonlinearity.w.clamp(min=0.0)
+        self.nonlinearity.w.clamp_(min=0.0)
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
