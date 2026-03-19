@@ -8,7 +8,7 @@ extracting spatial and temporal filters, and creating Gaussian contour masks.
 import logging
 import os
 from pathlib import Path
-from typing import Union
+from typing import Any, Union
 
 import numpy as np
 from jaxtyping import Float
@@ -18,7 +18,8 @@ LOGGER = logging.getLogger(__name__)
 
 
 def gaussian_2d(
-    coords: tuple[np.ndarray, np.ndarray],
+    coords: Any,
+    /,
     center_x: float,
     center_y: float,
     sigma_x: float,
