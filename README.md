@@ -44,7 +44,7 @@ Test openretina by downloading a model and running a forward pass:
 import torch
 from openretina.models import *
 
-model = load_core_readout_from_remote("hoefling_2024_base_low_res", "cpu")
+model = load_core_readout_from_remote("hoefling_2024_low_res", "cpu")
 responses = model.forward(torch.rand(model.stimulus_shape(time_steps=50)))
 ```
 
