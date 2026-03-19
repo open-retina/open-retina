@@ -28,16 +28,13 @@ dataloader:
   num_of_frames: 30
   num_of_layers: 1
   cell_index: null
-  retina_index: null
+  retina_index: "04"
 
 # Keep data_io.sessions in sync with dataloader.retina_index so that only
-# the selected session's responses are loaded. If you want to train all
-# sessions, set dataloader.retina_index to null and comment out the following lines.
-# To train on a single session, set dataloader.retina_index to the session index (1, 2, 4)
-# and uncomment the following lines.
-#data_io:
-#  sessions:
-#    - ${dataloader.retina_index}
+# the selected session's responses are loaded.
+data_io:
+  sessions:
+    - ${dataloader.retina_index}
 
 model:
   in_shape:
