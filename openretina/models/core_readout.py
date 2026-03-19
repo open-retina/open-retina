@@ -34,6 +34,8 @@ _MODEL_NAME_TO_REMOTE_LOCATION = {
     "sridhar_2025": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/sridhar_2025.ckpt",
     "goldin_2022_axolotl": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/goldin_2022_axolotl.ckpt",
     "goldin_2022_mouse": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/goldin_2022_mouse.ckpt",
+    # legacy model used in the first bioarxiv version of the paper
+    "hoefling_2024_base_low_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/hoefling_2024_base_low_res.ckpt",
 }
 
 
