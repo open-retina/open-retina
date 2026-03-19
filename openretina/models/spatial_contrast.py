@@ -31,7 +31,6 @@ from openretina.data_io.base_dataloader import DataPoint
 from openretina.models.core_readout import BaseCoreReadout
 from openretina.modules.core.base_core import DummyCore
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
-from openretina.modules.nonlinearities import ParametrizedSoftplus
 from openretina.modules.readout.spatial_contrast_model_readout import (
     MultiSpatialContrastReadout,
     SpatialContrastReadout,
@@ -172,7 +171,10 @@ class SingleCellSpatialContrast(LightningModule):
         self.register_buffer("spatial_filter_sum", torch.tensor(spatial_filter.sum()))
 
         # The 4 learnable parameters
-        self.nonlinearity = ParametrizedSoftplus(w=a_init, a=b_init, b=c_init, learn_a=True)
+        self.nl_a = nn.Parameter(torch.tensor(a_init))
+        self.nl_b = nn.Parameter(torch.tensor(b_init))
+        self.nl_c = nn.Parameter(torch.tensor(a_init))
+        self.w = nn.Parameter(torch.tensor(w_init))
         # The `w` here is different from the `w` used in ParametrizedSoftplus
         self.w = nn.Parameter(torch.tensor(w_init, dtype=torch.float32), requires_grad=True)
 
@@ -258,7 +260,7 @@ class SingleCellSpatialContrast(LightningModule):
         lsc = self.compute_lsc(temp_filtered, imean)
 
         combined = imean + self.w * lsc
-        output = self.nonlinearity(combined)
+        output = self.nl_a * nn.functional.softplus(self.nl_b * combined + self.nl_c)
 
         return rearrange(output, "batch time -> batch time 1")
 
