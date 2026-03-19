@@ -268,7 +268,7 @@ class SingleCellSpatialContrast(LightningModule):
         session_id, data_point = batch
 
         model_output = self.forward(data_point.inputs, session_id)
-        loss = self.loss.forward(model_output, data_point.targets)
+        loss = self.loss.forward(model_output, data_point.targets) / model_output.numel()
         correlation = -self.validation_loss.forward(model_output, data_point.targets)
 
         self.log("train_loss", loss, on_step=False, on_epoch=True)
@@ -280,7 +280,7 @@ class SingleCellSpatialContrast(LightningModule):
         session_id, data_point = batch
 
         model_output = self.forward(data_point.inputs, session_id)
-        loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
+        loss = self.loss.forward(model_output, data_point.targets) / model_output.numel()
         correlation = -self.validation_loss.forward(model_output, data_point.targets)
 
         self.log("val_loss", loss, logger=True, prog_bar=True)
