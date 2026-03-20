@@ -411,8 +411,6 @@ class PointGaussianReadout(Readout):
             y = y + bias
         return y
 
-
-
     def _neuron_covariance(self, neuron_id: int) -> torch.Tensor:
         sigma = self.sigma.detach().cpu()[0, neuron_id]
         if self.gauss_type == "full":
@@ -441,20 +439,13 @@ class PointGaussianReadout(Readout):
         density = density / density.sum().clamp_min(1e-8)
         return density.numpy()
 
-    def plot_weight_for_neuron(
+    def _plot_weight_for_neuron(
         self,
         neuron_id: int,
-        axes: tuple[plt.Axes, plt.Axes] | None = None,
+        axes: tuple[plt.Axes, plt.Axes],
         add_titles: bool = True,
-        remove_readout_ticks: bool = False,
-    ) -> plt.Figure:
-        if neuron_id < 0 or neuron_id >= self.outdims:
-            raise IndexError(f"neuron_id={neuron_id} is out of bounds for {self.outdims} neurons")
-
-        if axes is None:
-            _, (ax_readout, ax_features) = plt.subplots(ncols=2, figsize=(12, 6))
-        else:
-            ax_readout, ax_features = axes
+    ) -> None:
+        ax_readout, ax_features = axes
 
         density = self._neuron_sampling_map(neuron_id)
         mu = self.mu.detach().cpu().numpy()[0, neuron_id, 0]
@@ -465,21 +456,14 @@ class PointGaussianReadout(Readout):
         x_pixel = (mu[0] + 1.0) * (density.shape[1] - 1) / 2.0
         y_pixel = (mu[1] + 1.0) * (density.shape[0] - 1) / 2.0
         ax_readout.scatter(x_pixel, y_pixel, c="white", edgecolors="black", s=40)
-        ax_readout.axes.get_xaxis().set_ticks([])
-        ax_readout.axes.get_yaxis().set_ticks([])
 
         features_neuron = features[:, neuron_id]
         ax_features.bar(range(features_neuron.shape[0]), features_neuron)
         ax_features.set_ylim((-feature_abs_max, feature_abs_max))
-        if remove_readout_ticks:
-            ax_features.axes.get_xaxis().set_ticks([])
-            ax_features.axes.get_yaxis().set_ticks([])
 
         if add_titles:
             ax_readout.set_title("Sampling Density")
             ax_features.set_title("Readout Feature Weights")
-
-        return ax_readout.figure
 
     def number_of_neurons(self) -> int:
         return self.outdims
@@ -501,6 +485,7 @@ class PointGaussianReadout(Readout):
         for ch in self.children():
             r += "  -> " + ch.__repr__() + "\n"
         return r
+
 
 # Alias for backward compatibility
 class FullGaussian2d(PointGaussianReadout):

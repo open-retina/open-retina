@@ -171,20 +171,13 @@ class FactorizedReadout(Readout):
         h, w = self.mask_size
         return self.mask_weights.T.view(-1, h, w)
 
-    def plot_weight_for_neuron(
+    def _plot_weight_for_neuron(
         self,
         neuron_id: int,
-        axes: tuple[plt.Axes, plt.Axes] | None = None,
+        axes: tuple[plt.Axes, plt.Axes],
         add_titles: bool = True,
-        remove_readout_ticks: bool = False,
-    ) -> plt.Figure:
-        if neuron_id < 0 or neuron_id >= self.outdims:
-            raise IndexError(f"neuron_id={neuron_id} is out of bounds for {self.outdims} neurons")
-
-        if axes is None:
-            fig, (ax_readout, ax_features) = plt.subplots(ncols=2, figsize=(12, 6))
-        else:
-            ax_readout, ax_features = axes
+    ) -> None:
+        ax_readout, ax_features = axes
 
         masks = self._spatial_masks().detach().cpu().numpy()
         features = self.feature_weights.detach().cpu().numpy()
@@ -197,21 +190,14 @@ class FactorizedReadout(Readout):
             cmap="RdBu_r",
             norm=Normalize(-mask_abs_max, mask_abs_max),
         )
-        ax_readout.axes.get_xaxis().set_ticks([])
-        ax_readout.axes.get_yaxis().set_ticks([])
 
         features_neuron = features[:, neuron_id]
         ax_features.bar(range(features_neuron.shape[0]), features_neuron)
         ax_features.set_ylim((-feature_abs_max, feature_abs_max))
-        if remove_readout_ticks:
-            ax_features.axes.get_xaxis().set_ticks([])
-            ax_features.axes.get_yaxis().set_ticks([])
 
         if add_titles:
             ax_readout.set_title("Readout Mask")
             ax_features.set_title("Readout Feature Weights")
-
-        return ax_readout.figure
 
     def number_of_neurons(self) -> int:
         return self.outdims

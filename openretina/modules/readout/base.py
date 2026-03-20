@@ -71,8 +71,28 @@ class Readout(nn.Module, ABC):
     def __repr__(self) -> str:
         return super().__repr__() + " [{}]\n".format(self.__class__.__name__)
 
+    def plot_weight_for_neuron(
+        self,
+        neuron_id: int,
+        axes: tuple[plt.Axes, plt.Axes] | None = None,
+        remove_readout_ticks: bool = False,
+        add_titles: bool = True,
+    ) -> plt.Figure:
+        """Visualize the weights contributing to a single neuron."""
+        if neuron_id < 0 or neuron_id >= self.number_of_neurons():
+            raise IndexError(f"neuron_id={neuron_id} is out of bounds for {self.number_of_neurons()} neurons")
+        if axes is None:
+            fig, (ax_readout, ax_features) = plt.subplots(ncols=2, figsize=(12, 6))
+        else:
+            ax_readout, ax_features = axes
+        self._plot_weight_for_neuron(neuron_id, axes=(ax_readout, ax_features), add_titles=add_titles)
+        if remove_readout_ticks:
+            ax_features.axes.get_xaxis().set_ticks([])
+            ax_features.axes.get_yaxis().set_ticks([])
+        return ax_readout.figure
+
     @abstractmethod
-    def plot_weight_for_neuron(self, neuron_id: int, *args: Any, **kwargs: Any) -> plt.Figure:
+    def _plot_weight_for_neuron(self, neuron_id: int, axes: tuple[plt.Axes, plt.Axes], add_titles: bool) -> None:
         """Visualize the weights contributing to a single neuron."""
 
     @abstractmethod
@@ -82,9 +102,6 @@ class Readout(nn.Module, ABC):
     def save_weight_visualizations(
         self, folder_path: str, file_format: str = "jpg", state_suffix: str = "", *args: Any, **kwargs: Any
     ) -> None:
-        if not hasattr(self, "outdims"):
-            raise AttributeError(f"{self.__class__.__name__} does not define 'outdims' for saving visualizations.")
-
         os.makedirs(folder_path, exist_ok=True)
         suffix = f"_{state_suffix}" if state_suffix else ""
 
@@ -126,27 +143,21 @@ class ClonedReadout(Readout):
         self.alpha.data.fill_(1.0)
         self.beta.data.fill_(0.0)
 
-    def plot_weight_for_neuron(
+    def _plot_weight_for_neuron(
         self,
         neuron_id: int,
-        axes: tuple[plt.Axes, plt.Axes] | None = None,
+        axes: tuple[plt.Axes, plt.Axes],
         add_titles: bool = True,
-        remove_readout_ticks: bool = False,
-    ) -> plt.Figure:
-        if neuron_id < 0 or neuron_id >= self.outdims:
-            raise IndexError(f"neuron_id={neuron_id} is out of bounds for {self.outdims} neurons")
-
+    ) -> None:
         fig = self._source.plot_weight_for_neuron(
             neuron_id,
             axes=axes,
             add_titles=add_titles,
-            remove_readout_ticks=remove_readout_ticks,
         )
         fig.suptitle(
             f"Cloned readout: alpha={self.alpha[neuron_id].item():.3g}, beta={self.beta[neuron_id].item():.3g}",
             fontsize=10,
         )
-        return fig
 
     def number_of_neurons(self) -> int:
         return self.outdims

@@ -100,20 +100,13 @@ class LNPReadout(Readout):
 
         return montage
 
-    def plot_weight_for_neuron(
+    def _plot_weight_for_neuron(
         self,
         neuron_id: int,
-        axes: tuple[plt.Axes, plt.Axes] | None = None,
+        axes: tuple[plt.Axes, plt.Axes],
         add_titles: bool = True,
-        remove_readout_ticks: bool = False,
-    ) -> plt.Figure:
-        if neuron_id < 0 or neuron_id >= self.outdims:
-            raise IndexError(f"neuron_id={neuron_id} is out of bounds for {self.outdims} neurons")
-
-        if axes is None:
-            fig, (ax_readout, ax_features) = plt.subplots(ncols=2, figsize=(12, 6))
-        else:
-            ax_readout, ax_features = axes
+    ) -> None:
+        ax_readout, ax_features = axes
 
         weights = self.inner_product_kernel.weight.detach().cpu().numpy()[neuron_id, :, 0, :, :]
         weight_abs_max = float(np.abs(weights).max()) or 1.0
@@ -126,19 +119,11 @@ class LNPReadout(Readout):
             cmap="RdBu_r",
             norm=Normalize(-weight_abs_max, weight_abs_max),
         )
-        ax_readout.axes.get_xaxis().set_ticks([])
-        ax_readout.axes.get_yaxis().set_ticks([])
-
         ax_features.bar(range(channel_norms.shape[0]), channel_norms)
-        if remove_readout_ticks:
-            ax_features.axes.get_xaxis().set_ticks([])
-            ax_features.axes.get_yaxis().set_ticks([])
 
         if add_titles:
             ax_readout.set_title("Per-Channel Spatial Kernels")
             ax_features.set_title("Kernel Norm per Channel")
-
-        return ax_readout.figure
 
     def number_of_neurons(self) -> int:
         return self.n_neurons
