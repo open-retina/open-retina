@@ -100,12 +100,22 @@ class Readout(nn.Module, ABC):
         """Return the number of neurons represented by this readout."""
 
     def save_weight_visualizations(
-        self, folder_path: str, file_format: str = "jpg", state_suffix: str = "", *args: Any, **kwargs: Any
+        self,
+        folder_path: str,
+        file_format: str = "jpg",
+        state_suffix: str = "",
+        cell_indices: list[int] | None = None,
+        *args: Any,
+        **kwargs: Any
     ) -> None:
         os.makedirs(folder_path, exist_ok=True)
         suffix = f"_{state_suffix}" if state_suffix else ""
 
-        for neuron_id in range(self.number_of_neurons()):
+        if cell_indices is None:
+            indices_to_plot = list(range(self.number_of_neurons()))
+        else:
+            indices_to_plot = cell_indices
+        for neuron_id in indices_to_plot:
             fig = self.plot_weight_for_neuron(neuron_id, *args, **kwargs)
             fig.tight_layout()
             plot_path = os.path.join(folder_path, f"neuron_{neuron_id}{suffix}.{file_format}")
@@ -160,4 +170,4 @@ class ClonedReadout(Readout):
         )
 
     def number_of_neurons(self) -> int:
-        return self.outdims
+        return self._source.number_of_neurons()

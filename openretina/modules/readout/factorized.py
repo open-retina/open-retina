@@ -202,28 +202,6 @@ class FactorizedReadout(Readout):
     def number_of_neurons(self) -> int:
         return self.outdims
 
-    def save_weight_visualizations(
-        self, folder_path: str, file_format: str = "jpg", state_suffix: str = "", cell_indices: list[int] | None = None
-    ) -> None:
-        if cell_indices is None:
-            super().save_weight_visualizations(folder_path, file_format, state_suffix)
-            return
-
-        os.makedirs(folder_path, exist_ok=True)
-        suffix = f"_{state_suffix}" if state_suffix else ""
-        selected_indices = [i for i in cell_indices if 0 <= i < self.outdims]
-        for neuron_id in selected_indices:
-            fig = self.plot_weight_for_neuron(neuron_id)
-            fig.tight_layout()
-            fig.savefig(
-                os.path.join(folder_path, f"neuron_{neuron_id}{suffix}.{file_format}"),
-                bbox_inches="tight",
-                facecolor="w",
-                dpi=300,
-            )
-            fig.clf()
-            plt.close(fig)
-
     def initialize(self, mean_activity: Float[torch.Tensor, " outdims"] | None = None) -> None:
         if mean_activity is not None:
             self.initialize_bias(mean_activity)
