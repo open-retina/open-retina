@@ -106,7 +106,7 @@ class Readout(nn.Module, ABC):
         state_suffix: str = "",
         cell_indices: list[int] | None = None,
         *args: Any,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         os.makedirs(folder_path, exist_ok=True)
         suffix = f"_{state_suffix}" if state_suffix else ""

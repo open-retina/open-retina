@@ -1,4 +1,3 @@
-import os
 from typing import Any, Literal, Optional, Sequence
 
 import matplotlib.pyplot as plt
@@ -207,5 +206,6 @@ class FactorizedReadout(Readout):
             self.initialize_bias(mean_activity)
 
 
+# Alias for backward compatibility
 class KlindtReadoutWrapper3D(FactorizedReadout):
     pass
