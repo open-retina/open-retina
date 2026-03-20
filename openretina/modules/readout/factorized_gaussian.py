@@ -204,15 +204,10 @@ class GaussianMaskReadout(Readout):
             ax_readout.set_title("Readout Mask")
             ax_features.set_title("Readout Feature Weights")
 
-        return plt.gcf()
+        return ax_readout.figure
+
+    def number_of_neurons(self) -> int:
+        return self.outdims
 
     def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg", state_suffix: str = "") -> None:
-        for neuron_id in range(self.outdims):
-            fig_axes_tuple = plt.subplots(ncols=2, figsize=(2 * 6, 6))
-            axes: tuple[plt.Axes, plt.Axes] = fig_axes_tuple[1]  # type: ignore
-            self.plot_weight_for_neuron(neuron_id, axes)
-
-            plot_path = f"{folder_path}/neuron_{neuron_id}_{state_suffix}.{file_format}"
-            fig_axes_tuple[0].savefig(plot_path, bbox_inches="tight", facecolor="w", dpi=300)
-            fig_axes_tuple[0].clf()
-            plt.close()
+        super().save_weight_visualizations(folder_path, file_format, state_suffix)

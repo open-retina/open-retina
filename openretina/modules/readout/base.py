@@ -3,15 +3,18 @@ Adapted from neuralpredictors:
 https://github.com/sinzlab/neuralpredictors/blob/v0.3.0.pre/neuralpredictors/layers/readouts/base.py
 """
 
+import os
 import warnings
+from abc import ABC, abstractmethod
 from typing import Any, Literal, Optional
 
+import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 from jaxtyping import Float
 
 
-class Readout(nn.Module):
+class Readout(nn.Module, ABC):
     """
     Base readout class for all individual readouts.
     The MultiReadout will expect its readouts to inherit from this base class.
@@ -68,10 +71,30 @@ class Readout(nn.Module):
     def __repr__(self) -> str:
         return super().__repr__() + " [{}]\n".format(self.__class__.__name__)
 
+    @abstractmethod
+    def plot_weight_for_neuron(self, neuron_id: int, *args: Any, **kwargs: Any) -> plt.Figure:
+        """Visualize the weights contributing to a single neuron."""
+
+    @abstractmethod
+    def number_of_neurons(self) -> int:
+        """Return the number of neurons represented by this readout."""
+
     def save_weight_visualizations(
         self, folder_path: str, file_format: str = "jpg", state_suffix: str = "", *args: Any, **kwargs: Any
     ) -> None:
-        raise NotImplementedError("save_weight_visualizations is not implemented for ", self.__class__.__name__)
+        if not hasattr(self, "outdims"):
+            raise AttributeError(f"{self.__class__.__name__} does not define 'outdims' for saving visualizations.")
+
+        os.makedirs(folder_path, exist_ok=True)
+        suffix = f"_{state_suffix}" if state_suffix else ""
+
+        for neuron_id in range(self.number_of_neurons()):
+            fig = self.plot_weight_for_neuron(neuron_id, *args, **kwargs)
+            fig.tight_layout()
+            plot_path = os.path.join(folder_path, f"neuron_{neuron_id}{suffix}.{file_format}")
+            fig.savefig(plot_path, bbox_inches="tight", facecolor="w", dpi=300)
+            fig.clf()
+            plt.close(fig)
 
 
 class ClonedReadout(Readout):
@@ -102,3 +125,28 @@ class ClonedReadout(Readout):
     def initialize(self, **kwargs: Any) -> None:
         self.alpha.data.fill_(1.0)
         self.beta.data.fill_(0.0)
+
+    def plot_weight_for_neuron(
+        self,
+        neuron_id: int,
+        axes: tuple[plt.Axes, plt.Axes] | None = None,
+        add_titles: bool = True,
+        remove_readout_ticks: bool = False,
+    ) -> plt.Figure:
+        if neuron_id < 0 or neuron_id >= self.outdims:
+            raise IndexError(f"neuron_id={neuron_id} is out of bounds for {self.outdims} neurons")
+
+        fig = self._source.plot_weight_for_neuron(
+            neuron_id,
+            axes=axes,
+            add_titles=add_titles,
+            remove_readout_ticks=remove_readout_ticks,
+        )
+        fig.suptitle(
+            f"Cloned readout: alpha={self.alpha[neuron_id].item():.3g}, beta={self.beta[neuron_id].item():.3g}",
+            fontsize=10,
+        )
+        return fig
+
+    def number_of_neurons(self) -> int:
+        return self.outdims
