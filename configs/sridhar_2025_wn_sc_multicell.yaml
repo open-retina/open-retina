@@ -1,0 +1,62 @@
+# Multi-cell Spatial Contrast (SC) model on the Sridhar et al. 2025 white noise dataset.
+# Trains all neurons simultaneously using the core-readout pattern.
+
+defaults:
+  - data_io: sridhar_wn_2025
+  - quality_checks: null
+  - dataloader: sridhar_wn_2025
+  - model: spatial_contrast_core_readout
+  - optimizer: adamw
+  - lr_scheduler: reduce_lr_on_plateau
+  - training_callbacks:
+      - early_stopping
+      - lr_monitor
+      - model_checkpoint
+  - logger:
+      - wandb
+      - csv
+  - trainer: default_deterministic
+  - hydra: default
+  - _self_
+
+exp_name: sridhar_2025_wn_sc_multicell
+seed: 42
+check_stimuli_responses_match: true
+
+dataloader:
+  # Override fields that reference model.core (SC model uses DummyCore, not a conv core)
+  num_of_frames: 30
+  num_of_layers: 1
+  cell_index: null
+  retina_index: "04"
+
+# Keep data_io.sessions in sync with dataloader.retina_index so that only
+# the selected session's responses are loaded.
+data_io:
+  sessions:
+    - ${dataloader.retina_index}
+
+model:
+  in_shape:
+    - ${data_io.input_channels}
+    - ${dataloader.num_of_frames}
+    - ${data_io.stimulus_height}
+    - ${data_io.stimulus_width}
+  sta_dir: "${paths.data_dir}/stas"
+  flip_sta: ${data_io.flip_sta}
+
+paths:
+  load_model_path: null
+  cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY}
+  data_dir: "https://huggingface.co/datasets/open-retina/open-retina/tree/main/gollisch_lab/sridhar_2025/marmoset/whitenoise"
+  log_dir: "./logs/sc_wn_multicell"
+  output_dir: ${hydra:runtime.output_dir}
+
+matmul_precision:
+  _target_: torch.set_float32_matmul_precision
+  precision: highest
+
+trainer:
+  max_epochs: 100
+  accumulate_grad_batches: 1
+  gradient_clip_val: 1

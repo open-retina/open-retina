@@ -1,0 +1,34 @@
+# Multi-cell Spatial Contrast core-readout model (Sridhar et al., 2025).
+#
+# Uses a DummyCore (pass-through) with a MultiSpatialContrastReadout.
+# Each neuron has frozen STA-derived spatial and temporal filters and
+# 4 learnable parameters: w (contrast weight) and a, b, c (nonlinearity).
+
+_target_: openretina.models.spatial_contrast.SpatialContrastCoreReadout
+_convert_: all
+
+# --- Required: set in the outer config ---
+in_shape: ???          # (channels, time, height, width) of the stimulus
+n_neurons_dict: ???    # Set dynamically at runtime via data_info
+sta_dir: ???           # Directory containing STA .npy files
+flip_sta: ???          # Whether the STA needs horizontal flipping (dataset-dependent)
+
+# --- STA file naming pattern ---
+sta_file_pattern: "cell_data_{retina_index}_WN_stas_cell_{cell_index}.npy"
+
+# --- Spatial/temporal filter settings ---
+temporal_crop_frames: 30    # Keep this many of the most recent STA frames
+sigma_contour: 3.0          # Gaussian RF is masked to this many standard deviations
+cut_first_n_frames: 0       # Frames cut by DummyCore (0 = no cutting)
+
+# --- Learnable parameter initial values ---
+w_init: 0.0     # Spatial contrast weight (0 = start as a pure LN model)
+a_init: 4.0     # Output scaling
+b_init: 1.0     # Input gain
+c_init: -5.0    # Offset (negative = low baseline firing rate)
+
+# --- Memory / performance ---
+neuron_chunk_size: 32   # Max neurons per forward-pass chunk (increase on larger GPUs)
+
+# --- Training ---
+learning_rate: 0.01
