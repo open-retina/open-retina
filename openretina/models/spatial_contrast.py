@@ -173,7 +173,7 @@ class SingleCellSpatialContrast(LightningModule):
         # The 4 learnable parameters
         self.nl_a = nn.Parameter(torch.tensor(a_init, dtype=torch.float32), requires_grad=True)
         self.nl_b = nn.Parameter(torch.tensor(b_init, dtype=torch.float32), requires_grad=True)
-        self.nl_c = nn.Parameter(torch.tensor(a_init, dtype=torch.float32), requires_grad=True)
+        self.nl_c = nn.Parameter(torch.tensor(c_init, dtype=torch.float32), requires_grad=True)
         self.w = nn.Parameter(torch.tensor(w_init, dtype=torch.float32), requires_grad=True)
 
     def crop_input(self, x: Float[torch.Tensor, "batch channels time height width"]) -> torch.Tensor:
