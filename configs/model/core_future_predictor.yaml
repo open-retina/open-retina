@@ -1,0 +1,48 @@
+_target_: openretina.models.future_predictor.UnifiedFuturePredictor
+_convert_: object
+_recursive_: false
+
+# Core and data
+hidden_channels: [16, 16]
+in_shape: ??? # Required at top-level config
+
+prediction_horizon: 1 # Predict frame i + n from history up to frame i
+reverse_video_direction: false # If true, reverse video frames in time during pretraining
+
+core:
+  _target_: openretina.modules.core.base_core.SimpleCoreWrapper
+  _convert_: object
+  gamma_input: 0.0
+  gamma_hidden: 0.0
+  gamma_in_sparse: 0.0
+  gamma_temporal: 40.0
+  input_padding: [0, 5, 5]
+  hidden_padding: [0, 2, 2]
+  convolution_type: custom_separable
+  temporal_kernel_sizes: [21, 11]
+  spatial_kernel_sizes: [11, 5]
+  cut_first_n_frames: 0
+  dropout_rate: 0.0
+  maxpool_every_n_layers: null
+  downsample_input_kernel_size: null
+  color_squashing_weights: null
+  channels: ??? # set dynamically based on input channels
+
+decoder:
+  _target_: openretina.modules.decoder.future_decoder.LightweightVideoDecoder
+  _convert_: object
+  in_channels: ??? # set dynamically based on core output channels
+  out_channels: ??? # set dynamically based on input channels
+  hidden_channels: 16
+  num_layers: 1
+  kernel_size: 1
+  dropout_rate: 0.0
+
+loss:
+  _target_: openretina.modules.losses.future_prediction.FutureFrameMSELoss
+  avg: true
+
+# training
+learning_rate: 0.001
+optimizer: ${optimizer}
+lr_scheduler: ${lr_scheduler}
