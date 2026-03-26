@@ -11,6 +11,7 @@ title: FAQs
 ### Who should use `openretina`?
 
 `openretina` is designed for:
+
 - Computational neuroscientists studying retinal function
 - Vision researchers interested in modeling neural responses
 - Machine learning researchers working on biologically-inspired vision models
@@ -25,6 +26,7 @@ title: FAQs
 ### What are the system requirements?
 
 `openretina` requires:
+
 - Python 3.10 or higher
 - PyTorch 2.0 or higher
 - CUDA-compatible GPU (recommended for training, but not required for inference)
@@ -56,6 +58,7 @@ Yes, but training will be significantly slower. For small models or simple exper
 ### What types of retina models does `openretina` support?
 
 `openretina` supports:
+
 - Core-readout architectures (CNN-based)
 - Linear-nonlinear cascade models
 - Sparse autoencoder models
@@ -63,9 +66,12 @@ Yes, but training will be significantly slower. For small models or simple exper
 ### What datasets are included?
 
 `openretina` provides loaders for several published datasets:
+
 - Höfling et al., 2024 (mouse retina calcium imaging)
 - Karamanlis et al., 2024
 - Maheswaranathan et al., 2023
+- Sridhar et al, 2024
+- Goldin et al, 2022
 
 ### Can I use my own data with `openretina`?
 
@@ -80,6 +86,7 @@ You can create custom models by combining different core and readout modules, or
 ### Why is my model training slow?
 
 Model training speed depends on several factors:
+
 - GPU availability and speed
 - Model complexity
 - Dataset size
@@ -94,6 +101,7 @@ Try reducing model complexity, using a smaller batch size, or ensuring you're us
 ### I'm getting an "out of memory" error. What should I do?
 
 Try:
+
 1. Reducing batch size
 2. Reducing model complexity
 3. Downsampling your input data
