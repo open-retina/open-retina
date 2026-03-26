@@ -21,7 +21,7 @@ logging.captureWarnings(True)
 @hydra.main(
     version_base="1.3",
     config_path="../../configs",
-    config_name="vystrcilova_2024_nm_cnn",
+    config_name="hoefling_2024_core_readout_low_res",
 )
 def main(cfg: DictConfig) -> float | None:
     score = train_model(cfg)
@@ -97,7 +97,7 @@ def train_model(cfg: DictConfig) -> float | None:
                     data_info[k] = model.data_info[k] | data_info[k]
                 else:
                     log.warning(f"data_info key {k} when loading model: {model.data_info.keys()=}")
-            data_info["n_neurons_dict"] = model.data_info
+            data_info["n_neurons_dict"] = model.data_info["n_neurons_dict"]
             model.update_model_data_info(data_info)
     else:
         # Assign missing n_neurons_dict to model

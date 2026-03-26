@@ -254,41 +254,6 @@ def gen_shifts_with_boundaries(
     return shifted_indices
 
 
-def handle_missing_start_indices(
-    movie_length: int, chunk_size: int | None, scene_length: int | None, split: str
-) -> list[int]:
-    """
-    Handle missing start indices for different splits of the dataset.
-
-    Parameters:
-    movies (np.ndarray or torch.Tensor): The movies data, as an array.
-    chunk_size (int or None): The size of each chunk for training split. Required if split is "train".
-    scene_length (int or None): The length of each scene. Required if split is "validation" or "val".
-    split (str): The type of split, one of "train", "validation", "val", or "test".
-
-    Returns:
-    dict or list: The generated or provided start indices for each movie.
-
-    Raises:
-    AssertionError: If chunk_size is not provided for training split when start_indices is None.
-    AssertionError: If scene_length is not provided for validation split when start_indices is None.
-    NotImplementedError: If start_indices is None and split is not one of "train", "validation", "val", or "test".
-    """
-
-    if split == "train":
-        assert chunk_size is not None, "Chunk size or start indices must be provided for training."
-        interval = chunk_size
-    elif split in {"validation", "val"}:
-        assert scene_length is not None, "Scene length or start indices must be provided for validation."
-        interval = scene_length
-    elif split == "test":
-        interval = movie_length
-    else:
-        raise NotImplementedError("Start indices could not be recovered.")
-
-    return np.arange(0, movie_length, interval).tolist()  # type: ignore
-
-
 def get_movie_dataloader(
     movie: Float[np.ndarray | torch.Tensor, "n_channels n_frames h w"],
     responses: Float[np.ndarray | torch.Tensor, "n_frames n_neurons"] | dict[str, Any],
@@ -345,15 +310,26 @@ def get_movie_dataloader(
         ValueError:
             If `allow_over_boundaries` is False and `chunk_size` exceeds `scene_length` during training.
     """
-    if isinstance(responses, torch.Tensor) and bool(torch.isnan(responses).any()):
-        print("Nans in responses, skipping this dataloader")
+    if (isinstance(responses, torch.Tensor) and bool(torch.isnan(responses).any())) or (
+        isinstance(responses, np.ndarray) and bool(np.isnan(responses).any())
+    ):
+        log.warning("Nans in responses, skipping this dataloader")
         return  # type: ignore
 
     if not allow_over_boundaries and split == "train" and chunk_size > scene_length:
         raise ValueError("Clip chunk size must be smaller than scene length to not exceed clip bounds during training.")
 
     if start_indices is None:
-        start_indices = handle_missing_start_indices(movie.shape[1], chunk_size, scene_length, split)
+        if split == "train":
+            interval = chunk_size
+        elif split in {"validation", "val"}:
+            interval = scene_length
+        elif split == "test":
+            interval = movie.shape[1] if allow_over_boundaries else scene_length
+        else:
+            raise NotImplementedError("Start indices could not be recovered.")
+        start_indices = np.arange(0, movie.shape[1], interval).tolist()  # type: ignore
+
     dataset = MovieDataSet(movie, responses, roi_ids, roi_coords, group_assignment, split, chunk_size)
     sampler = MovieSampler(
         start_indices,
@@ -505,6 +481,19 @@ class NeuronDataSplit:
         return test_entries
 
 
+def _compute_test_batch_size(train_batch_size: int, train_chunk_size: int, test_chunk_size: int) -> int:
+    """Compute a test batch size that uses roughly the same memory as training.
+
+    During training each sample has `train_chunk_size` frames, while during
+    testing each sample may span the entire movie (`test_chunk_size` frames).
+    Scaling the batch size inversely keeps peak memory approximately constant.
+    """
+    if test_chunk_size <= train_chunk_size:
+        return train_batch_size
+    test_batch_size = max(1, (train_batch_size * train_chunk_size) // test_chunk_size)
+    return test_batch_size
+
+
 def multiple_movies_dataloaders(
     neuron_data_dictionary: dict[str, ResponsesTrainTestSplit],
     movies_dictionary: dict[str, MoviesTrainTestSplit],
@@ -599,12 +588,18 @@ def multiple_movies_dataloaders(
             )
         # test movies
         for name, movie in movie_test_dict.items():
+            if allow_over_boundaries:
+                test_chunk_size = movie.shape[1]
+            else:
+                test_chunk_size = clip_length
+
+            test_batch_size = _compute_test_batch_size(batch_size, train_chunk_size, test_chunk_size)
             dataloaders[name][session_key] = get_movie_dataloader(
                 movie=movie,
                 responses=neuron_data.response_dict_test[name],
                 split="test",
-                chunk_size=movie.shape[1],
-                batch_size=batch_size,
+                chunk_size=test_chunk_size,
+                batch_size=test_batch_size,
                 scene_length=clip_length,
                 allow_over_boundaries=allow_over_boundaries,
             )

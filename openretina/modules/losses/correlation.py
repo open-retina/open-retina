@@ -7,12 +7,12 @@ class CorrelationLoss3d(nn.Module):
 
     Returns negated correlation so minimizing the loss maximizes correlation.
     """
-
-    def __init__(self, bias: float = 1e-16, per_neuron: bool = False, avg: bool = False):
+    def __init__(self, bias: float = 1e-16, per_neuron: bool = False, avg: bool = False, negate: bool = True):
         super().__init__()
         self.eps = bias
         self.per_neuron = per_neuron
         self.avg = avg
+        self.negate = negate
 
         # Placeholder to store last-computed per-neuron correlations
         self.register_buffer("_per_neuron_correlations", torch.tensor([]), persistent=False)
@@ -30,21 +30,24 @@ class CorrelationLoss3d(nn.Module):
         per_neuron_correlations = corrs.view(-1, corrs.shape[-1]).mean(dim=0)
         self._per_neuron_correlations = per_neuron_correlations.detach()  # Not a loss, so no need to negate
 
+        if self.negate:
+            corrs = -corrs
+
         # Return scalar for possible backprop
         if not self.per_neuron:
-            return -corrs.mean() if self.avg else -corrs.sum()
+            return corrs.mean() if self.avg else corrs.sum()
         else:
-            return -corrs.view(-1, corrs.shape[-1]).mean(dim=0)
+            return corrs.view(-1, corrs.shape[-1]).mean(dim=0)
 
 
 class CelltypeCorrelationLoss3d(nn.Module):
     """Correlation loss with inverse-frequency weighting by cell type."""
-
-    def __init__(self, bias: float = 1e-16, per_neuron: bool = False, avg: bool = False):
+    def __init__(self, bias: float = 1e-16, per_neuron: bool = False, avg: bool = False, negate: bool = True):
         super().__init__()
         self.eps = bias
         self.per_neuron = per_neuron
         self.avg = avg
+        self.negate = negate
         # Placeholder to store last-computed per-neuron correlations
         self.register_buffer("_per_neuron_correlations", torch.tensor([]), persistent=False)
 
@@ -61,23 +64,25 @@ class CelltypeCorrelationLoss3d(nn.Module):
 
         per_neuron_correlations = -corrs.view(-1, corrs.shape[-1]).mean(dim=0)
         self._per_neuron_correlations = per_neuron_correlations.detach()
+        if self.negate:
+            corrs = -corrs
 
         # Return scalar for backprop
         if not self.per_neuron:
-            return -corrs.mean() if self.avg else -corrs.sum()
+            return corrs.mean() if self.avg else corrs.sum()
         else:
-            return -corrs.view(-1, corrs.shape[-1]).mean(dim=0)
+            return corrs.view(-1, corrs.shape[-1]).mean(dim=0)
 
 
 class L1CorrelationLoss3d(nn.Module):
     """Correlation loss combined with L1 sparsity penalty on pre-activation outputs."""
-
-    def __init__(self, bias: float = 1e-16, per_neuron: bool = False, avg: bool = False):
+    def __init__(self, bias: float = 1e-16, per_neuron: bool = False, avg: bool = False, negate: bool = True):
         super().__init__()
         self.eps = bias
         self.per_neuron = per_neuron
         self.avg = avg
         self.gamma_L1 = 0.0002
+        self.negate = negate
         # Placeholder to store last-computed per-neuron correlations
         self.register_buffer("_per_neuron_correlations", torch.tensor([]), persistent=False)
 
@@ -95,16 +100,16 @@ class L1CorrelationLoss3d(nn.Module):
 
         per_neuron_correlations = -corrs.view(-1, corrs.shape[-1]).mean(dim=0)
         self._per_neuron_correlations = per_neuron_correlations.detach()
+        if self.negate:
+            corrs = -corrs
 
         if not self.per_neuron:
-            ret1 = -corrs.mean() if self.avg else -corrs.sum()
+            ret1 = corrs.mean() if self.avg else corrs.sum()
             ret2 = self.gamma_L1 * (pre_ca.abs().mean() if self.avg else pre_ca.abs().sum())
         else:
-            ret1 = -corrs.view(-1, corrs.shape[-1]).mean(dim=0)
+            ret1 = corrs.view(-1, corrs.shape[-1]).mean(dim=0)
             pre_ca = pre_ca.transpose(1, 2)
             ret2 = self.gamma_L1 * (pre_ca.view(-1, pre_ca.shape[-1]).abs().mean(dim=0))
-        print("corr loss", ret1)
-        print("L1 loss", ret2)
         return ret1 + ret2
 
 
@@ -113,13 +118,15 @@ class ScaledCorrelationLoss3d(nn.Module):
 
     The `scale` parameter sets the window size in frames.
     """
-
-    def __init__(self, bias=1e-16, scale=30, per_neuron=False, avg=False):
+    def __init__(
+        self, bias: float = 1e-16, scale: float = 30.0, per_neuron: bool = False, avg: bool = False, negate: bool = True
+    ):
         super().__init__()
         self.eps = bias
         self.scale = scale
         self.per_neuron = per_neuron
         self.avg = avg
+        self.negate = negate
         # Placeholder to store last-computed per-neuron correlations
         self.register_buffer("_per_neuron_correlations", torch.tensor([]), persistent=False)
 
@@ -144,8 +151,10 @@ class ScaledCorrelationLoss3d(nn.Module):
 
         per_neuron_correlations = -corrs.view(-1, corrs.shape[-1]).mean(dim=0)
         self._per_neuron_correlations = per_neuron_correlations.detach()
+        if self.negate:
+            corrs = -corrs
 
         if not self.per_neuron:
-            return -corrs.mean() if self.avg else -corrs.sum()
+            return corrs.mean() if self.avg else corrs.sum()
         else:
-            return -corrs.view(-1, corrs.shape[-1]).mean(dim=0)
+            return corrs.view(-1, corrs.shape[-1]).mean(dim=0)

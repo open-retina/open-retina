@@ -1,7 +1,7 @@
 defaults:
   - data_io: sridhar_nm_2025
   - quality_checks: null
-  - dataloader: sridhar_nm_2025_ln
+  - dataloader: sridhar_2025_nm_single_cell
   - model: single_cell_lnp
   - training_callbacks:
       - early_stopping
@@ -19,6 +19,8 @@ seed: 42
 check_stimuli_responses_match: false
 
 dataloader:
+  cell_index: 272
+  retina_index: "01"
   batch_size: 16
 
 model:

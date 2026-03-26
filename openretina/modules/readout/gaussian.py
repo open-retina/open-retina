@@ -2,6 +2,7 @@
 # Original code: https://github.com/sinzlab/neuralpredictors/blob/main/neuralpredictors/layers/readouts/gaussian.py
 import warnings
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from torch import nn
@@ -409,6 +410,63 @@ class PointGaussianReadout(Readout):
         if self.bias is not None:
             y = y + bias
         return y
+
+    def _neuron_covariance(self, neuron_id: int) -> torch.Tensor:
+        sigma = self.sigma.detach().cpu()[0, neuron_id]
+        if self.gauss_type == "full":
+            covariance = sigma @ sigma.T
+        elif self.gauss_type == "uncorrelated":
+            std = sigma.view(-1)
+            covariance = torch.diag(std.square())
+        else:
+            std = sigma.view(-1)[0]
+            covariance = torch.eye(2) * std.square()
+        return covariance + 1e-6 * torch.eye(2)
+
+    def _neuron_sampling_map(self, neuron_id: int) -> np.ndarray:
+        _, _, height, width = self.in_shape
+        x_coords = torch.linspace(-1.0, 1.0, width)
+        y_coords = torch.linspace(-1.0, 1.0, height)
+        yy, xx = torch.meshgrid(y_coords, x_coords, indexing="ij")
+        positions = torch.stack([xx, yy], dim=-1)
+
+        mu = self.mu.detach().cpu()[0, neuron_id, 0]
+        covariance = self._neuron_covariance(neuron_id)
+        covariance_inv = torch.linalg.pinv(covariance)
+        centered = positions - mu
+        mahalanobis = torch.einsum("...i,ij,...j->...", centered, covariance_inv, centered)
+        density = torch.exp(-0.5 * mahalanobis)
+        density = density / density.sum().clamp_min(1e-8)
+        return density.numpy()
+
+    def _plot_weight_for_neuron(
+        self,
+        neuron_id: int,
+        axes: tuple[plt.Axes, plt.Axes],
+        add_titles: bool = True,
+    ) -> None:
+        ax_readout, ax_features = axes
+
+        density = self._neuron_sampling_map(neuron_id)
+        mu = self.mu.detach().cpu().numpy()[0, neuron_id, 0]
+        features = self.features.detach().cpu().numpy()[0, :, 0, :]
+        feature_abs_max = float(np.abs(features).max()) or 1.0
+
+        ax_readout.imshow(density, interpolation="nearest", cmap="viridis")
+        x_pixel = (mu[0] + 1.0) * (density.shape[1] - 1) / 2.0
+        y_pixel = (mu[1] + 1.0) * (density.shape[0] - 1) / 2.0
+        ax_readout.scatter(x_pixel, y_pixel, c="white", edgecolors="black", s=40)
+
+        features_neuron = features[:, neuron_id]
+        ax_features.bar(range(features_neuron.shape[0]), features_neuron)
+        ax_features.set_ylim((-feature_abs_max, feature_abs_max))
+
+        if add_titles:
+            ax_readout.set_title("Sampling Density")
+            ax_features.set_title("Readout Feature Weights")
+
+    def number_of_neurons(self) -> int:
+        return self.outdims
 
     def __repr__(self):
         c, _, w, h = self.in_shape

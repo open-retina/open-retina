@@ -1,7 +1,7 @@
 import os
 from collections import namedtuple
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import torch
@@ -131,7 +131,7 @@ class MarmosetMovieDataset(Dataset):
         num_of_hidden_frames: int | tuple = 15,
         num_of_layers: int = 1,
         device: str = "cpu",
-        time_chunk_size: Optional[int] = None,
+        time_chunk_size: int = 1,
         full_img_w: int = 1000,
         full_img_h: int = 800,
         img_w: int = 800,
@@ -182,9 +182,6 @@ class MarmosetMovieDataset(Dataset):
 
         self.frame_overhead = (num_of_frames - 1) * self.temporal_dilation + hidden_reach
 
-        if time_chunk_size is not None:
-            self.time_chunk_size = time_chunk_size + self.frame_overhead
-
         self.subsample = subsample
         self.device = device
         self.basepath = Path(dir).absolute()
@@ -208,10 +205,12 @@ class MarmosetMovieDataset(Dataset):
         self.random_indices = np.random.permutation(indices)
         self.n_neurons = self.train_responses.shape[0]
         self.num_of_trials = self.train_responses.shape[2]
-        self.num_of_imgs = int(self.train_responses.shape[1])
 
         if test:
             self.num_of_imgs = self.test_responses.shape[1]
+        else:
+            self.num_of_imgs = self.train_responses.shape[1]
+        self.time_chunk_size = time_chunk_size + self.frame_overhead
 
         self.cache: list[Any] = []
         self.last_start_index = -1
@@ -470,15 +469,15 @@ def frame_movie_loader(
     crop: int | tuple[int, int, int, int] = 0,
     num_of_trials_to_use: int | None = None,
     start_using_trial: int = 0,
-    num_of_frames=None,
+    num_of_frames: int | list[int] = 30,
     temporal_dilation: int | tuple[int, ...] = 1,
     hidden_temporal_dilation: int | tuple[int, ...] = 1,
     cell_index=None,
     retina_index=None,
     device: str = "cpu",
-    time_chunk_size=None,
+    time_chunk_size: int = 1,
     num_of_layers=None,
-    excluded_cells=None,
+    excluded_cells: dict[Any, list[int]] | None = None,
     frame_file="_img_",
     img_dir_name="stimuli",
     full_img_w: int = 1400,
@@ -543,11 +542,9 @@ def frame_movie_loader(
         validation) for the selected retina.
     start_using_trial : int, default 0
         Offset (0-based) for selecting a contiguous block of trials to use.
-    num_of_frames : int, optional
+    num_of_frames : int | list[int]
         Number of **visible** frames per sample (passed to the underlying
-        dataset). If ``None``, the dataset default is used.
-    num_of_hidden_frames : int or tuple[int], optional
-        Hidden-layer look-back window(s); broadcast/forwarded to the dataset.
+        dataset).
     temporal_dilation : int, default 1
         First layer temporal dilation; forwarded to the dataset.
     hidden_temporal_dilation : int or tuple[int], default 1
@@ -682,117 +679,60 @@ def frame_movie_loader(
         locations = None
         if get_locations:
             assert sta_dir is not None
+            if cell_index is not None:
+                cells = [cell_index]
+            else:
+                excluded = excluded_cells[retina_index] if excluded_cells is not None else {}
+                cells = [x for x in range(train_responses.shape[0] + len(excluded)) if x not in excluded]
+
             locations = get_locations_from_stas(
                 sta_dir=os.path.join(basepath, sta_dir),
                 retina_index=retina_index,
-                cells=[cell_index]
-                if cell_index is not None
-                else [
-                    x
-                    for x in range(0, train_responses.shape[0] + len(excluded_cells[retina_index]))
-                    if x not in excluded_cells[retina_index]
-                ],
+                cells=cells,
                 crop=crop,
                 flip_sta=True,
             )
         if isinstance(num_of_frames, int):
             num_of_frames = [num_of_frames]
-        train_loader = get_dataloader(
-            {
-                "train_responses": train_responses,
-                "test_responses": test_responses,
-                "test_responses_by_trial": responses[retina_index].get("test_responses_by_trial"),
-            },
-            fixations=fixations,
-            path=basepath,
-            indices=train_ids,
-            test=False,
-            batch_size=batch_size,
-            num_of_frames=num_of_frames[0],
-            device=device,
-            crop=crop,
-            shuffle=True if shuffle is None else shuffle,
-            subsample=subsample,
-            time_chunk_size=time_chunk_size,
-            num_of_layers=num_of_layers,
-            frames=frames,
-            num_of_hidden_frames=num_of_frames[1:] if len(num_of_frames) > 1 else None,
-            padding=padding,
-            full_img_h=full_img_h,
-            full_img_w=full_img_w,
-            img_h=img_h,
-            img_w=img_w,
-            temporal_dilation=temporal_dilation,
-            hidden_temporal_dilation=hidden_temporal_dilation,
-            excluded_cells=excluded_cells,
-            locations=locations,
-        )
 
-        valid_loader = get_dataloader(
-            {
-                "train_responses": train_responses,
-                "test_responses": test_responses,
-                "test_responses_by_trial": responses[retina_index].get("test_responses_by_trial"),
-            },
-            path=basepath,
-            indices=valid_ids,
-            test=False,
-            batch_size=batch_size,
-            fixations=fixations,
-            num_of_frames=num_of_frames[0],
-            device=device,
-            crop=crop,
-            shuffle=False if shuffle is None else shuffle,
-            subsample=subsample,
-            time_chunk_size=time_chunk_size,
-            num_of_layers=num_of_layers,
-            frames=frames,
-            num_of_hidden_frames=num_of_frames[1:] if len(num_of_frames) > 1 else None,
-            padding=padding,
-            full_img_h=full_img_h,
-            full_img_w=full_img_w,
-            img_h=img_h,
-            img_w=img_w,
-            temporal_dilation=temporal_dilation,
-            hidden_temporal_dilation=hidden_temporal_dilation,
-            excluded_cells=excluded_cells,
-            locations=locations,
-        )
+        responses_dict = {
+            "train_responses": train_responses,
+            "test_responses": test_responses,
+            "test_responses_by_trial": responses[retina_index].get("test_responses_by_trial"),
+        }
 
-        test_loader = get_dataloader(
-            {
-                "train_responses": train_responses,
-                "test_responses": test_responses,
-                "test_responses_by_trial": responses[retina_index].get("test_responses_by_trial"),
-            },
-            fixations=fixations,
-            path=basepath,
-            indices=train_ids,
-            test=True,
-            batch_size=batch_size,
-            num_of_frames=num_of_frames[0],
-            device=device,
-            crop=crop,
-            shuffle=False,
-            subsample=subsample,
-            time_chunk_size=time_chunk_size,
-            num_of_layers=num_of_layers,
-            frames=frames,
-            num_of_hidden_frames=num_of_frames[1:] if len(num_of_frames) > 1 else None,
-            padding=padding,
-            full_img_h=full_img_h,
-            full_img_w=full_img_w,
-            img_h=img_h,
-            img_w=img_w,
-            temporal_dilation=temporal_dilation,
-            hidden_temporal_dilation=hidden_temporal_dilation,
-            excluded_cells=excluded_cells,
-            locations=locations,
-        )
-
-        dataloaders["train"][retina_index] = train_loader
-        dataloaders["validation"][retina_index] = valid_loader
-        dataloaders["test"][retina_index] = test_loader
+        for split, indices, is_test, shuffle in [
+            ("train", train_ids, False, True if shuffle is None else shuffle),
+            ("validation", valid_ids, False, False if shuffle is None else shuffle),
+            ("test", train_ids, True, False),
+        ]:
+            loader = get_dataloader(
+                responses_dict,
+                fixations=fixations,
+                path=basepath,
+                indices=indices,
+                test=is_test,
+                batch_size=batch_size,
+                num_of_frames=num_of_frames[0],
+                device=device,
+                crop=crop,
+                shuffle=shuffle,
+                subsample=subsample,
+                time_chunk_size=time_chunk_size,
+                num_of_layers=num_of_layers,
+                frames=frames,
+                num_of_hidden_frames=num_of_frames[1:] if len(num_of_frames) > 1 else None,
+                padding=padding,
+                full_img_h=full_img_h,
+                full_img_w=full_img_w,
+                img_h=img_h,
+                img_w=img_w,
+                temporal_dilation=temporal_dilation,
+                hidden_temporal_dilation=hidden_temporal_dilation,
+                excluded_cells=excluded_cells,
+                locations=locations,
+            )
+            dataloaders[split][retina_index] = loader
 
     return dataloaders
 
@@ -813,13 +753,13 @@ class NoiseDataset(Dataset):
         num_of_frames: int = 15,
         num_of_layers: int = 1,
         device: str = "cpu",
-        time_chunk_size: Optional[int] = None,
+        time_chunk_size: int = 1,
         temporal_dilation: int = 1,
         hidden_temporal_dilation: int | str | tuple = 1,
         num_of_hidden_frames: int | tuple | None = 15,
         extra_frame: int = 0,
-        locations: Optional[list] = None,
-        excluded_cells: Optional[list] = None,
+        locations: list | None = None,
+        excluded_cells: list | None = None,
     ):
         """
         Dataset for the following (example) file structure:
@@ -897,8 +837,6 @@ class NoiseDataset(Dataset):
 
         self.frame_overhead = (self.num_of_frames - 1) * self.temporal_dilation + hidden_reach
 
-        if time_chunk_size is not None:
-            self.time_chunk_size = time_chunk_size + self.frame_overhead
         self.subsample = subsample
         self.device = device
         self.trial_prefix = trial_prefix
@@ -918,13 +856,16 @@ class NoiseDataset(Dataset):
         self.random_indices = np.random.permutation(indices)
         self.n_neurons = self.train_responses.shape[0]
         self.num_of_trials = self.train_responses.shape[2]
-        self.num_of_imgs = int(self.train_responses.shape[1])
         self.locations = locations
         self.excluded_cells = excluded_cells
 
         # Checks if trials are saved in evenly sized files
         if test:
             self.num_of_imgs = self.test_responses.shape[1]
+        else:
+            self.num_of_imgs = self.train_responses.shape[1]
+        self.time_chunk_size = time_chunk_size + self.frame_overhead
+
         self._test = test
         if self._test:
             self._len = (
@@ -1226,92 +1167,46 @@ def white_noise_loader(
             )
         if isinstance(num_of_frames, int):
             num_of_frames = [num_of_frames]
-        train_loader = get_noise_dataloader(
-            {
-                "train_responses": train_responses,
-                "test_responses": test_responses,
-                "test_responses_by_trial": responses[retina_index].get("test_responses_by_trial"),
-            },
-            path=dataset_train_image_path,
-            indices=train_ids,
-            test=False,
-            shuffle=False,
-            batch_size=batch_size,
-            use_cache=use_cache,
-            cache_maxsize=cache_maxsize,
-            num_of_frames=num_of_frames[0],
-            num_of_hidden_frames=num_of_frames[1:] if len(num_of_frames) > 1 else None,
-            device=device,
-            crop=crop,
-            subsample=subsample,
-            time_chunk_size=time_chunk_size,
-            num_of_layers=num_of_layers,
-            temporal_dilation=temporal_dilation,
-            hidden_temporal_dilation=hidden_temporal_dilation,
-            extra_frame=extra_frame,
-            chunked_sampling=chunked_sampling,
-            locations=locations,
-            excluded_cells=excluded_cells,
-        )
-
-        valid_loader = get_noise_dataloader(
-            {
-                "train_responses": train_responses,
-                "test_responses": test_responses,
-                "test_responses_by_trial": responses[retina_index].get("test_responses_by_trial"),
-            },
-            path=dataset_train_image_path,
-            indices=valid_ids,
-            test=False,
-            batch_size=batch_size,
-            use_cache=use_cache,
-            cache_maxsize=cache_maxsize,
-            shuffle=False,
-            num_of_frames=num_of_frames[0],
-            num_of_hidden_frames=num_of_frames[1:] if len(num_of_frames) > 1 else None,
-            device=device,
-            crop=crop,
-            subsample=subsample,
-            time_chunk_size=time_chunk_size,
-            num_of_layers=num_of_layers,
-            temporal_dilation=temporal_dilation,
-            hidden_temporal_dilation=hidden_temporal_dilation,
-            extra_frame=extra_frame,
-            chunked_sampling=chunked_sampling,
-            locations=locations,
-            excluded_cells=excluded_cells,
-        )
-
-        test_loader = get_noise_dataloader(
-            {
-                "train_responses": train_responses,
-                "test_responses": test_responses,
-                "test_responses_by_trial": responses[retina_index].get("test_responses_by_trial"),
-            },
-            path=dataset_test_image_path,
-            indices=train_ids,
-            test=True,
-            batch_size=batch_size,
-            use_cache=use_cache,
-            shuffle=False,
-            cache_maxsize=20,
-            num_of_frames=num_of_frames[0],
-            num_of_hidden_frames=num_of_frames[1:] if len(num_of_frames) > 1 else None,
-            device=device,
-            crop=crop,
-            subsample=subsample,
-            time_chunk_size=time_chunk_size,
-            num_of_layers=num_of_layers,
-            temporal_dilation=temporal_dilation,
-            hidden_temporal_dilation=hidden_temporal_dilation,
-            extra_frame=extra_frame,
-            chunked_sampling=False,
-            locations=locations,
-            excluded_cells=excluded_cells,
-        )
-
-        dataloaders["train"][retina_index] = train_loader
-        dataloaders["validation"][retina_index] = valid_loader
-        dataloaders["test"][retina_index] = test_loader
+        responses_dict = {
+            "train_responses": train_responses,
+            "test_responses": test_responses,
+            "test_responses_by_trial": responses[retina_index].get("test_responses_by_trial"),
+        }
+        for split, indices, is_test, cache_size, chunked_sampling_value, image_path in [
+            ("train", train_ids, False, cache_maxsize, chunked_sampling, dataset_train_image_path),
+            (
+                "validation",
+                valid_ids,
+                False,
+                cache_maxsize,
+                chunked_sampling,
+                dataset_train_image_path,
+            ),
+            ("test", train_ids, True, 20, False, dataset_test_image_path),
+        ]:
+            loader = get_noise_dataloader(
+                responses_dict,
+                path=image_path,
+                indices=indices,
+                test=is_test,
+                shuffle=False,
+                batch_size=batch_size,
+                use_cache=use_cache,
+                cache_maxsize=cache_size,
+                num_of_frames=num_of_frames[0],
+                num_of_hidden_frames=num_of_frames[1:] if len(num_of_frames) > 1 else None,
+                device=device,
+                crop=crop,
+                subsample=subsample,
+                time_chunk_size=time_chunk_size,
+                num_of_layers=num_of_layers,
+                temporal_dilation=temporal_dilation,
+                hidden_temporal_dilation=hidden_temporal_dilation,
+                extra_frame=extra_frame,
+                chunked_sampling=chunked_sampling_value,
+                locations=locations,
+                excluded_cells=excluded_cells,
+            )
+            dataloaders[split][retina_index] = loader
 
     return dataloaders

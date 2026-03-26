@@ -2,9 +2,7 @@ defaults:
   - data_io: hoefling_2024
   - quality_checks: hoefling_2024
   - dataloader: hoefling_2024
-  - model: base_core_readout
-  - optimizer: adamw
-  - lr_scheduler: reduce_lr_on_plateau
+  - model: linear_nonlinear_poisson # linear_nonlinear_poisson
   - training_callbacks:
       - early_stopping
       - lr_monitor
@@ -16,7 +14,7 @@ defaults:
   - hydra: default
   - _self_ # values in this config will overwrite the defaults
 
-exp_name: hoefling_2024_core_readout_low_res_filtered
+exp_name: hoefling_2024_core_readout_low_res_filtered_lnp
 seed: 42
 check_stimuli_responses_match: false
 

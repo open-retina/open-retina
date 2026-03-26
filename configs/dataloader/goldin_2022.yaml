@@ -4,4 +4,4 @@ batch_size: 16
 train_chunk_size: 1
 clip_length: 1
 num_val_clips: 640
-allow_over_boundaries: true
+allow_over_boundaries: false

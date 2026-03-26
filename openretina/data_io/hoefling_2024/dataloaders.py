@@ -7,7 +7,7 @@ from tqdm.auto import tqdm
 
 from openretina.data_io.artificial_stimuli import load_chirp, load_moving_bar
 from openretina.data_io.base import MoviesTrainTestSplit, ResponsesTrainTestSplit
-from openretina.data_io.base_dataloader import get_movie_dataloader
+from openretina.data_io.base_dataloader import _compute_test_batch_size, get_movie_dataloader
 from openretina.data_io.hoefling_2024.constants import CLIP_LENGTH, NUM_CLIPS
 from openretina.data_io.hoefling_2024.responses import NeuronDataSplitHoefling
 from openretina.data_io.hoefling_2024.stimuli import gen_start_indices, get_all_movie_combinations
@@ -144,10 +144,17 @@ def natmov_dataloaders_v2(
         f" in neural responses: {stim_ids}",
     )
 
+    test_chunk_size = movies_dictionary.test_movie.shape[1]
     clip_chunk_sizes = {
         "train": train_chunk_size,
         "validation": clip_length,
-        "test": movies_dictionary.test_movie.shape[1],
+        "test": test_chunk_size,
+    }
+    test_batch_size = _compute_test_batch_size(batch_size, train_chunk_size, test_chunk_size)
+    fold_batch_sizes = {
+        "train": batch_size,
+        "validation": batch_size,
+        "test": test_batch_size,
     }
     dataloaders: dict[str, dict[str, DataLoader]] = {"train": {}, "validation": {}, "test": {}}
 
@@ -200,7 +207,7 @@ def natmov_dataloaders_v2(
                 split=fold,
                 chunk_size=clip_chunk_sizes[fold],
                 start_indices=fold_start_indices,
-                batch_size=batch_size,
+                batch_size=fold_batch_sizes[fold],
                 scene_length=clip_length,
                 allow_over_boundaries=allow_over_boundaries,
             )

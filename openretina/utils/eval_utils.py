@@ -1,14 +1,18 @@
 """Utilities for model evaluation and result aggregation."""
 
 import json
+import logging
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
+import torch
 
 from openretina.data_io.base import DatasetStatistics
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -239,7 +243,7 @@ class EvaluationSummary:
             ("Poisson loss", self.poisson_loss_mean),
         ]
         for name, value in metric_values:
-            print(f"  {name:30s}: {value:.4f}")
+            print(f"  {name:30s}: {value:.3f}")
 
         # Per-trial metrics
         if self.filtering_applied and can_filter:
@@ -249,8 +253,79 @@ class EvaluationSummary:
         print("-" * 80)
 
         if not np.isnan(self.corr_by_trial_mean):
-            print(f"  {'Correlation':30s}: {self.corr_by_trial_mean:.4f} (+/-{self.corr_by_trial_std:.4f})")
+            print(f"  {'Correlation':30s}: {self.corr_by_trial_mean:.3f} (+/-{self.corr_by_trial_std:.3f})")
         if not np.isnan(self.mse_by_trial_mean):
-            print(f"  {'MSE':30s}: {self.mse_by_trial_mean:.4f} (+/-{self.mse_by_trial_std:.4f})")
+            print(f"  {'MSE':30s}: {self.mse_by_trial_mean:.3f} (+/-{self.mse_by_trial_std:.3f})")
 
         print("=" * 80)
+
+
+def align_responses_to_model_output(
+    targets: torch.Tensor | np.ndarray,
+    model_responses: torch.Tensor | np.ndarray,
+    avg_responses: np.ndarray,
+    responses_by_trial: np.ndarray,
+    dataset: torch.utils.data.Dataset,
+    lag: int = -1,
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """Align responses to model output.
+
+    When the dataloader pre-trims responses (e.g. Sridhar chunked dataset), targets in batches already
+    match model output length. In that case, use `frame_overhead`, `lag`, and any dataset-specific
+    response offset such as `extra_frame` to trim.
+    In that case, we also trim the end of the responses to match the model output length, which can occur as a result
+    of dataloaders chunking behaviour and potential dropping of last incomplete chunks.
+
+    Args:
+        targets: Target responses collated from the dataloader.
+        model_responses: Model responses to the targets collated from the dataloader.
+        avg_responses: Average responses, from the underlying dataset.
+        responses_by_trial: Responses by trial, from the underlying dataset.
+        dataset: Dataset object.
+        lag: Temporal lag of the model output with respect to the targets from known parameters or a previous session.
+            Leave to -1 if unknown or computing this on the first session (or a single session evaluation).
+
+    Returns:
+        avg_responses: Aligned average responses.
+        responses_by_trial: Aligned responses by trial.
+        lag: Re-computed temporal lag of the model output with respect to the targets for this session's responses.
+    """
+    dataloader_target_len = targets.shape[0]
+    model_len = model_responses.shape[0]
+    full_len = avg_responses.shape[0]
+
+    if dataloader_target_len == model_len and full_len > model_len:
+        # Dataloader pre-trims responses per chunk; include any dataset-specific offset.
+        if not hasattr(dataset, "frame_overhead") and not hasattr(dataset, "lag"):
+            raise ValueError(
+                "Dataset does not have `frame_overhead` or `lag`, which is required for correct alignment when the "
+                "dataloader pre-trims responses."
+            )
+        start_trim = getattr(dataset, "frame_overhead", 0) + getattr(dataset, "lag", 0)
+        start_trim += getattr(dataset, "extra_frame", 0)
+        new_lag = start_trim
+        end_trim = start_trim + model_len
+        if end_trim > full_len:
+            raise ValueError(
+                f"Aligned response window exceeds available responses: {start_trim=} {end_trim=} {full_len=}"
+            )
+        avg_responses = avg_responses[start_trim:end_trim]
+        responses_by_trial = responses_by_trial[start_trim:end_trim]
+
+    else:
+        # Standard case: model output is shorter than full responses by lag in dataloader targets
+        new_lag = dataloader_target_len - model_len
+        if new_lag < 0:
+            raise ValueError(f"Negative lag: {new_lag=} ({dataloader_target_len=} {model_len=}")
+        avg_responses = avg_responses[new_lag : new_lag + model_len]
+        responses_by_trial = responses_by_trial[new_lag : new_lag + model_len]
+
+    if lag < 0:
+        lag = new_lag
+    elif new_lag != lag:
+        raise ValueError(
+            f"Inconsistent lag between sessions: {new_lag=} {lag=}"
+            "\nThis might indicate a problem with the model or the data."
+        )
+
+    return avg_responses, responses_by_trial, lag

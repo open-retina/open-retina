@@ -4,6 +4,8 @@ time_bins: 132
 stimulus_height: 80
 stimulus_width: 90
 stimulus_seed: 0
+# The NM stimulus images are horizontally mirrored relative to the STA coordinate system
+flip_sta: true
 
 response_files:
   "01": "responses/cell_responses_01_fixation_movie.pkl"
@@ -12,12 +14,6 @@ response_files:
   "04": "responses/cell_responses_04_fixation_movie.pkl"
 
 excluded_cells: ${dataloader.excluded_cells}
-#excluded_cells:
-#  "01": []
-#  "02": []
-#  "03": []
-#  "04": []
-
 
 stimuli:
   _target_: openretina.data_io.sridhar_2025.stimuli.build_movies_from_responses

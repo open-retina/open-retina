@@ -1,12 +1,12 @@
-import os
-from math import ceil, sqrt
 from typing import Any, Literal, Optional, Sequence
 
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from jaxtyping import Float
+from matplotlib.colors import Normalize
 
 from openretina.modules.layers import FlatLaplaceL23dnorm
 from openretina.modules.readout.base import Readout
@@ -166,85 +166,40 @@ class FactorizedReadout(Readout):
         else:
             return mask_r + wt_r + laplace_mask_r
 
-    def save_weight_visualizations(
-        self, folder_path: str, file_format: str = "jpg", state_suffix: str = "", cell_indices: list[int] | None = None
+    def _spatial_masks(self) -> torch.Tensor:
+        h, w = self.mask_size
+        return self.mask_weights.T.view(-1, h, w)
+
+    def _plot_weight_for_neuron(
+        self,
+        neuron_id: int,
+        axes: tuple[plt.Axes, plt.Axes],
+        add_titles: bool = True,
     ) -> None:
-        if hasattr(self, "mask_size"):
-            H, W = self.mask_size
-        else:
-            raise AttributeError("Model does not have attribute 'mask_size'.")
+        ax_readout, ax_features = axes
 
-        readout = self
-        if hasattr(readout, "mask_weights"):  # nn.Parameter & matmul
-            weights = dict(readout.named_parameters())["mask_weights"].detach().cpu()
-            weights = weights.T.view(-1, H, W)  # [num_neurons, H, W]
-        elif hasattr(readout, "mask"):  # nn.Linear
-            weights = dict(readout.named_parameters())["mask.weight"].detach().cpu()
-            weights = weights.view(-1, H, W)
-        else:
-            raise AttributeError("Model does not have 'mask_weights' or 'feature_weights'.")
+        masks = self._spatial_masks().detach().cpu().numpy()
+        features = self.feature_weights.detach().cpu().numpy()
+        mask_abs_max = float(np.abs(masks).max()) or 1.0
+        feature_abs_max = float(np.abs(features).max()) or 1.0
 
-        total_neurons = weights.shape[0]
-        if not cell_indices:
-            cell_indices = list(range(total_neurons))
-        else:
-            cell_indices = [i for i in cell_indices if 0 <= i < total_neurons]
-
-        selected_weights = weights[cell_indices]
-        n_cells = selected_weights.shape[0]
-
-        grid_cols = min(8, ceil(sqrt(n_cells)))
-        grid_rows = ceil(n_cells / grid_cols)
-
-        fig, axes = plt.subplots(grid_rows, grid_cols, figsize=(1.5 * grid_cols, 1.5 * grid_rows))
-
-        if n_cells == 1:
-            axes = [axes]
-        else:
-            axes = axes.flatten()
-
-        vmin = torch.min(selected_weights).item()
-        vmax = torch.max(selected_weights).item()
-
-        for i, ax in enumerate(axes):
-            if i < n_cells:
-                ax.imshow(selected_weights[i], interpolation="bicubic", cmap="gray", vmin=vmin, vmax=vmax)
-                ax.set_xticks([])
-                ax.set_yticks([])
-            else:
-                ax.axis("off")
-
-        fig.suptitle("Spatial Masks", fontsize=14)
-        fig.tight_layout()
-        fig.savefig(
-            os.path.join(folder_path, "readout_masks_" + state_suffix + f".{file_format}"),
-            bbox_inches="tight",
-            facecolor="w",
-            dpi=300,
+        ax_readout.imshow(
+            masks[neuron_id],
+            interpolation="none",
+            cmap="RdBu_r",
+            norm=Normalize(-mask_abs_max, mask_abs_max),
         )
-        fig.clf()
-        plt.close()
 
-        # Feature weights
-        feature_weights = readout.feature_weights.detach().cpu()
-        feature_weights_np = feature_weights.numpy()
+        features_neuron = features[:, neuron_id]
+        ax_features.bar(range(features_neuron.shape[0]), features_neuron)
+        ax_features.set_ylim((-feature_abs_max, feature_abs_max))
 
-        fig, ax = plt.subplots(figsize=(8, 6))
-        im = ax.imshow(feature_weights_np, aspect="auto", cmap="gray")
-        ax.set_title("Feature Weights (channels × neurons)")
-        ax.set_xlabel("Neuron")
-        ax.set_ylabel("Feature Channel")
-        fig.colorbar(im, ax=ax)
-        fig.tight_layout()
+        if add_titles:
+            ax_readout.set_title("Readout Mask")
+            ax_features.set_title("Readout Feature Weights")
 
-        fig.savefig(
-            os.path.join(folder_path, "feature_weights_" + state_suffix + f".{file_format}"),
-            bbox_inches="tight",
-            facecolor="w",
-            dpi=300,
-        )
-        fig.clf()
-        plt.close()
+    def number_of_neurons(self) -> int:
+        return self.outdims
 
     def initialize(self, mean_activity: Float[torch.Tensor, " outdims"] | None = None) -> None:
         if mean_activity is not None:
