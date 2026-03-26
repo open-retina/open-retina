@@ -116,7 +116,8 @@ class _ModuleHook:
 
 
 class InnerNeuronVisualizationObjective(AbstractObjective):
-    """Objective for visualizing feature preferences of individual channels in intermediate model layers via forward hooks."""
+    """Objective for visualizing feature preferences of individual channels in intermediate
+    model layers via forward hooks."""
 
     def __init__(self, model, data_key: str | None, response_reducer: ResponseReducer):
         super().__init__(model, data_key)
