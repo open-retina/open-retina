@@ -3,6 +3,11 @@ from torch import nn
 
 
 class CorrelationLoss3d(nn.Module):
+    """Negative Pearson correlation loss for 3D (batch, time, neurons) data.
+
+    Returns negated correlation so minimizing the loss maximizes correlation.
+    """
+
     def __init__(self, bias: float = 1e-16, per_neuron: bool = False, avg: bool = False, negate: bool = True):
         super().__init__()
         self.eps = bias
@@ -37,6 +42,8 @@ class CorrelationLoss3d(nn.Module):
 
 
 class CelltypeCorrelationLoss3d(nn.Module):
+    """Correlation loss with inverse-frequency weighting by cell type."""
+
     def __init__(self, bias: float = 1e-16, per_neuron: bool = False, avg: bool = False, negate: bool = True):
         super().__init__()
         self.eps = bias
@@ -70,6 +77,8 @@ class CelltypeCorrelationLoss3d(nn.Module):
 
 
 class L1CorrelationLoss3d(nn.Module):
+    """Correlation loss combined with L1 sparsity penalty on pre-activation outputs."""
+
     def __init__(self, bias: float = 1e-16, per_neuron: bool = False, avg: bool = False, negate: bool = True):
         super().__init__()
         self.eps = bias
@@ -108,6 +117,11 @@ class L1CorrelationLoss3d(nn.Module):
 
 
 class ScaledCorrelationLoss3d(nn.Module):
+    """Correlation loss computed over non-overlapping temporal windows, then averaged.
+
+    The `scale` parameter sets the window size in frames.
+    """
+
     def __init__(
         self, bias: float = 1e-16, scale: float = 30.0, per_neuron: bool = False, avg: bool = False, negate: bool = True
     ):
