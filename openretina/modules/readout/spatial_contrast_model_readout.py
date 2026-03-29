@@ -10,6 +10,8 @@ SpatialContrastReadout, following the MultiReadoutBase interface.
 
 from typing import Literal
 
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -99,6 +101,45 @@ class SpatialContrastReadout(Readout):
     def regularizer(self, reduction: Literal["sum", "mean", None] = "sum") -> torch.Tensor:
         """No regularization needed for 4 params per neuron."""
         return torch.tensor(0.0, device=self.w.device)
+
+    def _plot_weight_for_neuron(
+        self,
+        neuron_id: int,
+        axes: tuple[plt.Axes, plt.Axes],
+        add_titles: bool = True,
+    ) -> None:
+        ax_readout, ax_features = axes
+
+        spatial_filter = self.spatial_filters[neuron_id].detach().cpu().numpy()
+        spatial_abs_max = np.abs(spatial_filter).max()
+        if spatial_abs_max == 0:
+            spatial_abs_max = 1.0
+
+        ax_readout.imshow(
+            spatial_filter,
+            interpolation="none",
+            cmap="RdBu_r",
+            vmin=-spatial_abs_max,
+            vmax=spatial_abs_max,
+        )
+
+        parameters = torch.stack((self.w[neuron_id], self.nl_a[neuron_id], self.nl_b[neuron_id], self.nl_c[neuron_id]))
+        parameter_values = parameters.detach().cpu().numpy()
+        parameter_names = ["w", "a", "b", "c"]
+
+        ax_features.bar(parameter_names, parameter_values)
+        parameter_abs_max = np.abs(parameter_values).max()
+        if parameter_abs_max == 0:
+            parameter_abs_max = 1.0
+        ax_features.set_ylim(-parameter_abs_max * 1.1, parameter_abs_max * 1.1)
+        ax_features.axhline(0.0, color="black", linewidth=0.8)
+
+        if add_titles:
+            ax_readout.set_title("Spatial Filter")
+            ax_features.set_title("Neuron Parameters")
+
+    def number_of_neurons(self) -> int:
+        return self.outdims
 
     def _forward_chunk(
         self,
