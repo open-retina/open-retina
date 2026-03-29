@@ -38,6 +38,9 @@ uv sync --extra dev
 pip install -e .[dev]
 ```
 
+For GPU/backend-specific setup (CUDA, CPU-only, MPS), troubleshooting and verification steps, see the full docs:
+[Installation guide](https://open-retina.org/package_docs/installation/).
+
 Test openretina by downloading a model and running a forward pass:
 
 ```python
@@ -47,6 +50,15 @@ from openretina.models import *
 model = load_core_readout_from_remote("hoefling_2024_low_res", "cpu")
 responses = model.forward(torch.rand(model.stimulus_shape(time_steps=50)))
 ```
+
+## Where should I start?
+
+- **I want to install and run a pre-trained model**: start with the [Quick Start docs](https://open-retina.org/package_docs/quickstart/).
+- **I want to train in a notebook**: start from [`notebooks/openretina_demo.ipynb`](https://github.com/open-retina/open-retina/blob/main/notebooks/openretina_demo.ipynb).
+- **I want to train from CLI configs**: see [Unified Training Script](https://open-retina.org/package_docs/training/unified_training/).
+- **I want to add a new dataset**: start from [`notebooks/new_datasets_guide.ipynb`](https://github.com/open-retina/open-retina/blob/main/notebooks/new_datasets_guide.ipynb) and [Data I/O docs](https://open-retina.org/package_docs/data_io/).
+- **I want to contribute a model or code**: see [Contributing](https://open-retina.org/package_docs/contributing/) and [Development setup](https://open-retina.org/package_docs/development/).
+- **I want to...**: Ceck out the docs [How to... hub](https://open-retina.org/package_docs/how_to/).
 
 ## Contributing
 

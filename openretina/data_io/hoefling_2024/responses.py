@@ -34,19 +34,18 @@ class NeuronDataSplitHoefling:
         Customized for compatibility with the data format in Hoefling et al., 2024.
 
         Args:
+            neural_responses (ResponsesTrainTestSplit): The responses of neurons.
+            val_clip_idx (List[int]): The indices of validation clips.
+            num_clips (int): The number of clips.
+            clip_length (int): The length of each clip.
+            roi_mask: region of interest mask of the neurons
+            roi_ids (Float[np.ndarray, "n_neurons"]): The IDs of regions of interest (ROIs).
+            scan_sequence_idx (int): The index of the scan sequence.
+            random_sequences (Float[np.ndarray, "n_clips n_sequences"]): The random sequences of clips.
             eye (str): The eye from which the neuron data is recorded.
             group_assignment (Float[np.ndarray, "n_neurons"]): The group assignment of neurons.
             key (dict): The key information for the neuron data,
                         includes date, exp_num, experimenter, field_id, stim_id.
-            responses_final (Float[np.ndarray, "n_neurons n_timepoints"]): The responses of neurons.
-            roi_coords (Float[np.ndarray, "n_neurons 2"]): The coordinates of regions of interest (ROIs).
-            roi_ids (Float[np.ndarray, "n_neurons"]): The IDs of regions of interest (ROIs).
-            scan_sequence_idx (int): The index of the scan sequence.
-            stim_id (int): The ID of the stimulus. 5 is mouse natural scenes.
-            random_sequences (Float[np.ndarray, "n_clips n_sequences"]): The random sequences of clips.
-            val_clip_idx (List[int]): The indices of validation clips.
-            num_clips (int): The number of clips.
-            clip_length (int): The length of each clip.
             use_base_sequence (bool): Whether to re-order all training responses to use the same "base" sequence.
         """
         self.neural_responses = neural_responses
@@ -155,16 +154,14 @@ class NeuronDataSplitHoefling:
         x_offset=2.75,
         y_offset=2.75,
     ):
-        """
-        Maps a roi mask of a single roi from recording coordinates to model
-        readout coordinates
-        :param single_roi_mask: 2d array with nonzero values indicating the pixels
-                of the current roi
-        :param roi_mask_pixelsize: size of a pixel in the roi mask in um
-        :param readout_mask_pixelsize: size of a pixel in the readout mask in um
-        :param x_offset: x offset indicating the start of the recording field in readout mask
-        :param y_offset: y offset indicating the start of the recording field in readout mask
-        :return:
+        """Maps a roi mask of a single roi from recording coordinates to model readout coordinates.
+
+        Args:
+            single_roi_mask: 2d array with nonzero values indicating the pixels of the current roi.
+            roi_mask_pixelsize: Size of a pixel in the roi mask in um.
+            readout_mask_pixelsize: Size of a pixel in the readout mask in um.
+            x_offset: X offset indicating the start of the recording field in readout mask.
+            y_offset: Y offset indicating the start of the recording field in readout mask.
         """
         pixel_factor = readout_mask_pixelsize / roi_mask_pixelsize
         y, x = np.nonzero(single_roi_mask)
@@ -449,7 +446,7 @@ def upsample_all_responses(
     qi_logic: Literal["and", "or"] = "or",
     scale_traces: float = 1.0,
     norm_by_std: bool = True,
-):
+) -> dict:
     """
     Converts inferred spikes into final responses by upsampling the traces of all sessions of a given response_type.
     This is to match the framerate used in the stimulus presentation.

@@ -120,15 +120,15 @@ def load_state_dict(
     ignore_dim_mismatch: bool = False,
     prefix_agreement: float = 0.98,
 ):
-    """
-    Loads given state_dict into model, but allows for some more flexible loading.
+    """Load state_dict into model with flexible key matching and error handling.
 
-    :param model: nn.Module object
-    :param state_dict: dictionary containing a whole state of the module (result of `some_model.state_dict()`)
-    :param ignore_missing: if True ignores entries present in model but not in `state_dict`
-    :param match_names: if True tries to match names in `state_dict` and `model.state_dict()`
-                        by finding and removing a common prefix from the keys in each dict
-    :param ignore_dim_mismatch: if True ignores parameters in `state_dict` that don't fit the shape in `model`
+    Args:
+        model: nn.Module object.
+        state_dict: Dictionary containing a whole state of the module (result of `some_model.state_dict()`).
+        ignore_missing: If True, ignores entries present in model but not in `state_dict`.
+        match_names: If True, tries to match names in `state_dict` and `model.state_dict()`
+            by finding and removing a common prefix from the keys in each dict.
+        ignore_dim_mismatch: If True, ignores parameters in `state_dict` that don't fit the shape in `model`.
     """
     model_dict = model.state_dict()
     # 0. Try to match names by adding or removing prefix:
@@ -176,12 +176,15 @@ def load_state_dict(
 
 
 def find_prefix(keys: list, p_agree: float = 0.66, separator: str = ".") -> tuple[str, int]:
-    """
-    Finds common prefix among state_dict keys
-    :param keys: list of strings to find a common prefix
-    :param p_agree: percentage of keys that should agree for a valid prefix
-    :param separator: string that separates keys into substrings, e.g. "model.conv1.bias"
-    :return: (prefix, end index of prefix)
+    """Find common prefix among state_dict keys.
+
+    Args:
+        keys: List of strings to find a common prefix.
+        p_agree: Percentage of keys that should agree for a valid prefix.
+        separator: String that separates keys into substrings, e.g. "model.conv1.bias".
+
+    Returns:
+        Tuple of (prefix, end index of prefix).
     """
     keys = [k.split(separator) for k in keys]
     p_len = 0
