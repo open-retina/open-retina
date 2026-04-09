@@ -10,10 +10,9 @@ stimuli:
   specie: "mouse"
   normalize_stimuli: true
   # Set desidered downsampling size above
-  downsampled_size: 
+  downsampled_size:
     - ${data_io.video_height}
     - ${data_io.video_width}
-
 
 responses:
   _target_: openretina.data_io.karamanlis_2024.responses.load_all_responses
@@ -22,3 +21,10 @@ responses:
   stim_type: "fixationmovie"
   specie: "mouse"
   fr_normalization: 1.0
+
+data_info:
+  response_rate_hz: 75 # NB: for marmoset it will be 85
+  stimulus_rate_hz: 75
+  stimulus_class: ${data_io.responses.stim_type}
+  retina_pixel_size_um: 7.5 # NB: for only a few marmoset recordings, it could be 2.5 . See paper
+  animal_species: ${data_io.responses.specie}

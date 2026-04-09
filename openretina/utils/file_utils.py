@@ -30,6 +30,7 @@ def unzip_and_cleanup(zip_path: Path) -> Path:
     """
     extract_to = zip_path.with_suffix("")
     target_path = extract_to
+
     with zipfile.ZipFile(zip_path, "r") as zf:
         LOGGER.info(f"Extracting {zip_path}...")
         zip_contents = zf.namelist()
@@ -39,20 +40,20 @@ def unzip_and_cleanup(zip_path: Path) -> Path:
             extracted_file = zip_path.parent / zip_contents[0]
             zf.extract(zip_contents[0], zip_path.parent)
             LOGGER.info(f"Extracted single file to {extracted_file.resolve()}.")
+            # the target_path we return is the path of the extracted file
+            target_path = extracted_file
+        else:
+            # Check if zip contains a single folder with the same name as the zip
+            top_level_items = {Path(item).parts[0] for item in zip_contents}  # Get unique top-level names
+            if len(top_level_items) == 1 and next(iter(top_level_items)) == extract_to.name:
+                # Extract directly to parent folder. Target path to return will stay the same.
+                extract_to = zip_path.parent
 
-            zip_path.unlink()
-            return extracted_file  # Return extracted file path
-
-        # Check if zip contains a single folder with the same name as the zip
-        top_level_items = {Path(item).parts[0] for item in zip_contents}  # Get unique top-level names
-        if len(top_level_items) == 1 and next(iter(top_level_items)) == extract_to.name:
-            extract_to = zip_path.parent  # Extract directly to parent folder. Target path to return will stay the same.
-
-        shutil.unpack_archive(zip_path, extract_to)
-        LOGGER.info(f"Extracted files to {target_path.resolve()}.")
+            shutil.unpack_archive(zip_path, extract_to)
+            LOGGER.info(f"Extracted files to {target_path.resolve()}.")
 
     zip_path.unlink()
-    return target_path  # Return extracted files path
+    return target_path
 
 
 def get_file_size(url: str, response: requests.Response | None = None) -> int:
@@ -122,23 +123,27 @@ def download_file(url: str, target_path: Path):
         raise
 
 
-def is_target_present(cache_folder: Path, file_name: Path) -> Path | None:
+def is_target_present(cache_folder: Path, file_path: Path) -> Path | None:
     """Checks if the requested file, an extracted folder, or a single extracted file exists."""
-    existing_matches = list(cache_folder.rglob(file_name.stem + "*"))
-    if len(existing_matches) > 0:
-        # Prioritize an exact file match
-        for match in existing_matches:
-            if match.name == file_name.name:
-                LOGGER.info(f"Found target file at {match.resolve()}")
-                return match
+    if file_path.is_relative_to(cache_folder):
+        file_path = file_path.relative_to(cache_folder)
+    if file_path.is_absolute():
+        raise ValueError(f"Expected relative path, but got: {file_path=}")
 
-        # Otherwise, look for valid folders, zip files or target files
+    # the file path exists as is
+    expected_file_path = cache_folder / file_path
+    if expected_file_path.exists():
+        LOGGER.info(f"Found target file at {expected_file_path.resolve()}")
+        return expected_file_path
+
+    # Otherwise, look for indirect matches, like zip files or valid folders
+    parent_with_stem = file_path.parent / file_path.stem
+    existing_matches = [x for x in cache_folder.rglob(str(parent_with_stem) + "*") if x.stem == file_path.stem]
+
+    if len(existing_matches) > 0:
         for match in existing_matches:
             if match.is_dir():
                 LOGGER.info(f"Found extracted folder at {match.resolve()}")
-                return match
-            if match.suffix == ".zip":
-                LOGGER.info(f"Found zip archive at {match.resolve()}")
                 return match
             if match.is_file() and match.suffix not in [".metadata", ".lock"]:
                 LOGGER.info(f"Found target file at {match.resolve()}")

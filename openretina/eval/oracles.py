@@ -7,6 +7,7 @@ from openretina.eval.metrics import correlation_numpy
 
 def oracle_corr_jackknife(
     repeated_responses: Float[np.ndarray, "frames repeats neurons"],
+    cut_first_n_frames: int | None = None,
 ) -> tuple[Float[np.ndarray, " neurons"], Float[np.ndarray, " frames repeats neurons"]]:
     """
     Adapted from neuralpredictors.
@@ -15,13 +16,17 @@ def oracle_corr_jackknife(
 
     Args:
         repeated_responses (array-like): numpy array with shape (images/time, repeats, neuron responses).
+        cut_first_n_frames (int): if provided, indicated how many frames to cut from the repeated responses.
 
     Returns:
         tuple: A tuple containing:
             - oracle_score (array): Oracle correlation for each neuron
             - oracle (array): Oracle responses for each neuron
     """
+    if len(repeated_responses.shape) != 3:
+        raise ValueError(f"Expected repeated responses to be 3d, but {repeated_responses.shape=}")
 
+    repeated_responses = repeated_responses[cut_first_n_frames:, :, :]
     loo_oracles = []
     for response_t in repeated_responses:
         num_repeats = response_t.shape[0]
@@ -43,6 +48,7 @@ def oracle_corr_jackknife(
 
 def global_mean_oracle(
     responses: Float[np.ndarray, "frames repeats neurons"] | Float[np.ndarray, "frames neurons"],
+    cut_first_n_frames: int | None = None,
 ) -> Float[np.ndarray, " neurons"]:
     """
     Compute the oracle correlation between each neuron's response and the global mean response.
@@ -65,6 +71,7 @@ def global_mean_oracle(
     """
     if responses.ndim == 2:
         responses = responses[:, None, :]
+    responses = responses[cut_first_n_frames:, :, :]
 
     global_mean_response = repeat(responses.mean(axis=2, keepdims=True), "t r _ -> t r n", n=responses.shape[2])
 

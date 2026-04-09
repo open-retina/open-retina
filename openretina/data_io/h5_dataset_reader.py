@@ -57,7 +57,13 @@ class TrainTestStimuliProcessor:
         # concatenate stimuli over time dimension
         train_stimuli = np.concatenate(train_stimulus_array, axis=1)
 
-        return MoviesTrainTestSplit(train_stimuli, test_stimulus_dict)
+        split = MoviesTrainTestSplit(
+            train_stimuli,
+            test_stimulus_dict,
+            norm_mean=self._norm_mean,
+            norm_std=self._norm_std,
+        )
+        return split
 
 
 def _check_stimulus_size(

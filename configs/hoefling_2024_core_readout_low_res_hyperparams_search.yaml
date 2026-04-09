@@ -3,17 +3,19 @@ defaults:
   - quality_checks: hoefling_2024
   - dataloader: hoefling_2024
   - model: base_core_readout
+  - optimizer: adamw
+  - scheduler: one_cycle_lr
   - training_callbacks:
-    - early_stopping
-    - lr_monitor
-    - model_checkpoint
+      - early_stopping
+      - lr_monitor
+      - model_checkpoint
   - logger:
-    - tensorboard
-    - csv
-    - mlflow
+      - tensorboard
+      - csv
+      - mlflow
   - trainer: default_deterministic
   - hydra: default
-  - override hydra/sweeper: optuna  # make sure to install `pip install -e ".[optuna]"
+  - override hydra/sweeper: optuna # make sure to install `pip install -e ".[optuna]"
   - override hydra/sweeper/sampler: tpe
   - _self_ # values in this config will overwrite the defaults
 
@@ -24,7 +26,10 @@ check_stimuli_responses_match: false
 dataloader:
   batch_size: 64
 
-objective_target: val_correlation
+data_io:
+  retina_pixel_size_um: 50 # 4x bigger than high res model
+
+objective_target: val_evaluation_loss
 
 hydra:
   run:
@@ -42,11 +47,12 @@ hydra:
     params:
       model.hidden_channels: choice([8, 8, 8, 8], [16, 16, 16, 16], [32, 32, 32, 32])
       model.core.gamma_input: interval(1e-5, 1e-2)
-      
 
 model:
   in_shape: [2, 150, 18, 16]
   hidden_channels: [16, 16, 16, 16]
+  optimizer: ${optimizer}
+  lr_scheduler: ${scheduler}
   core:
     temporal_kernel_sizes: [15, 15, 7, 7]
     spatial_kernel_sizes: [15, 15, 7, 7]

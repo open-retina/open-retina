@@ -10,8 +10,10 @@ def is_model_causal(model, length_stimulus_same: int = 40, length_stimulus_diffe
 
     total_time = length_stimulus_same + length_stimulus_different
     fixed = torch.ones(model.stimulus_shape(total_time), device=model.device)
+    sample_data_key = next(iter(model.readout.keys()))
+
     with torch.no_grad():
-        response = model.forward(fixed)[0].detach().cpu().numpy()
+        response = model.forward(fixed, data_key=sample_data_key)[0].detach().cpu().numpy()
 
     time_delay = total_time - response.shape[0]
 
@@ -20,7 +22,7 @@ def is_model_causal(model, length_stimulus_same: int = 40, length_stimulus_diffe
     concat_stimulus = torch.cat([stimulus_same, stimulus_different], dim=2)
 
     with torch.no_grad():
-        response_concat = model.forward(concat_stimulus)[0].detach().cpu().numpy()
+        response_concat = model.forward(concat_stimulus, data_key=sample_data_key)[0].detach().cpu().numpy()
 
     time_point_when_response_should_differ = length_stimulus_same - time_delay
     first_time_point_different_response = int(np.argmax(response_concat[:, 0] != response[:, 0]))

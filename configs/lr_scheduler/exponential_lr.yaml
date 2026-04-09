@@ -1,0 +1,10 @@
+# ExponentialLR scheduler configuration
+# Decays the learning rate by gamma every epoch
+_target_: torch.optim.lr_scheduler.ExponentialLR
+gamma: 0.95 # Multiplicative factor of learning rate decay
+last_epoch: -1
+
+# PyTorch Lightning specific parameters
+monitor: null
+interval: epoch
+frequency: 1

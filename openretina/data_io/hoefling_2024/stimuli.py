@@ -119,11 +119,11 @@ def gen_start_indices(
     num_train_clips = num_clips - len(val_clip_idx)
 
     if random_sequences.shape[1] == 1:
-        start_idx_dict["train"] = list(np.arange(0, clip_length * (num_train_clips - 1), chunk_size, dtype=int))
+        start_idx_dict["train"] = list(np.arange(0, clip_length * num_train_clips, chunk_size, dtype=int))
     else:
         for sequence_index in range(random_sequences.shape[1]):
             start_idx_dict["train"][sequence_index] = list(  # type: ignore
-                np.arange(0, clip_length * (num_train_clips - 1), chunk_size, dtype=int)
+                np.arange(0, clip_length * num_train_clips, chunk_size, dtype=int)
             )
 
     return start_idx_dict

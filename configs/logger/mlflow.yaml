@@ -1,8 +1,10 @@
 # MLflow logger configuration
 mlflow:
   _target_: lightning.pytorch.loggers.MLFlowLogger
-  experiment_name: ${exp_name}
-  tracking_uri: "${paths.log_dir}/openretina_assets/mlflow"
+  # OmegaConf (oc.env) checks for environment variables and falls back to defaults if not set
+  # MLFLOW_EXPERIMENT_NAME defaults to ${exp_name}, MLFLOW_TRACKING_URI defaults to local file path
+  experiment_name: ${oc.env:MLFLOW_EXPERIMENT_NAME,${exp_name}}
+  tracking_uri: "${oc.env:MLFLOW_TRACKING_URI,${paths.log_dir}/openretina_assets/mlflow}"
   log_model: false # Handled manually in the training script
   run_name: ${exp_name}_run_${now:%Y%m%d_%H%M%S}
   tags:

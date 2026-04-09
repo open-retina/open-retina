@@ -1,0 +1,26 @@
+# OneCycleLR scheduler configuration
+# Sets the learning rate according to the 1cycle learning rate policy
+_target_: torch.optim.lr_scheduler.OneCycleLR
+max_lr: ${model.learning_rate} # Upper learning rate boundaries in the cycle
+pct_start: 0.3 # Percentage of the cycle spent increasing the learning rate
+anneal_strategy: cos # Specifies the annealing strategy: "cos" or "linear"
+cycle_momentum: true # If True, momentum is cycled inversely
+base_momentum: 0.85 # Lower momentum boundaries in the cycle
+max_momentum: 0.95 # Upper momentum boundaries in the cycle
+div_factor: 25.0 # Initial_lr = max_lr/div_factor
+final_div_factor: 10000.0 # min_lr = initial_lr/final_div_factor
+three_phase: false # If True, use a third phase of the schedule
+last_epoch: -1
+
+# IMPORTANT: You can specify either total_steps OR steps_per_epoch + epochs
+# If none is specified, we try to get it from the trainer.estimated_stepping_batches
+# This will work by using trainer.max_epochs as the number of epochs the cycle will run for.
+
+# total_steps: ???  # Total number of steps in the cycle
+# steps_per_epoch: ???  # Number of steps per epoch (if using epochs instead of total_steps)
+# epochs: ???  # Number of epochs to train (if using steps_per_epoch)
+
+# PyTorch Lightning specific parameters
+monitor: null
+interval: step # OneCycleLR should typically be called at step level, not epoch
+frequency: 1

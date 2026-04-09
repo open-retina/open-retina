@@ -1,3 +1,4 @@
+import math
 from contextlib import contextmanager
 
 import torch
@@ -51,3 +52,29 @@ class OptimizerResetCallback(Callback):
             trainer.optimizers = [new_optimizer]  # Replace the optimizer in the trainer
 
         self.prev_lr = current_lr
+
+
+def get_core_output_based_on_dimensions(model_config):
+    if len(model_config.in_shape) == 5:
+        input_shape = model_config.in_shape[1:]
+    else:
+        input_shape = model_config.in_shape
+    ch, t, h, w = input_shape[:]
+    layers = len(model_config.core.temporal_kernel_sizes)
+
+    for i in range(layers):
+        temp_kernel_size = model_config.core.temporal_kernel_sizes[i]
+        spatial_kernel_size = model_config.core.spatial_kernel_sizes[i]
+        if isinstance(spatial_kernel_size, int):
+            spatial_kernel_size = (spatial_kernel_size, spatial_kernel_size)
+        temporal_dilation = model_config.core.get("temporal_dilation", 1)
+        spatial_dilation = model_config.core.get("spatial_dilation", 1)
+        stride = model_config.core.get("stride", [1] * layers)
+
+        t = math.floor(t - (temp_kernel_size - 1) * temporal_dilation)
+        h = math.floor((h - (spatial_kernel_size[0] - 1) * spatial_dilation - 1) / stride[i] + 1)
+        w = math.floor((w - (spatial_kernel_size[1] - 1) * spatial_dilation - 1) / stride[i] + 1)
+
+    output_shape = model_config.core.channels[layers], t, h, w
+    print("factorized core output shape:", output_shape)
+    return output_shape
