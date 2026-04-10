@@ -533,7 +533,7 @@ def load_core_readout_model(
 
     local_path = get_local_file_path(model_path_or_name, cache_directory_path)
     try:
-        return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
+        return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device, weights_only=False)
     except:  # noqa: E722
         # Support for legacy ExampleCoreReadout model
-        return ExampleCoreReadout.load_from_checkpoint(local_path, map_location=device)
+        return ExampleCoreReadout.load_from_checkpoint(local_path, map_location=device, weights_only=False)
