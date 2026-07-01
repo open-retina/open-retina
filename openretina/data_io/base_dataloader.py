@@ -267,6 +267,8 @@ def get_movie_dataloader(
     group_assignment: Float[np.ndarray, " n_neurons"] | None = None,
     drop_last: bool = True,
     allow_over_boundaries: bool = True,
+    dataset_cls: type[MovieDataSet] = MovieDataSet,
+    extra_arrays: dict[str, Any] | None = None,
     **kwargs,
 ) -> DataLoader:
     """
@@ -298,6 +300,12 @@ def get_movie_dataloader(
             Whether to drop the last incomplete batch. Defaults to True.
         allow_over_boundaries (bool, optional):
             Whether to allow chunks that exceed the scene boundaries. Defaults to True.
+        dataset_cls (type[MovieDataSet], optional):
+            Dataset class to instantiate. Defaults to MovieDataSet. Subclasses (e.g. carrying extra
+            per-frame arrays) can be injected here without affecting existing callers.
+        extra_arrays (dict[str, Any] | None, optional):
+            Extra keyword arguments forwarded to ``dataset_cls`` (e.g. ``{"pupil_center": array}``).
+            Defaults to None, which reproduces the plain MovieDataSet behavior exactly.
         **kwargs:
             Additional keyword arguments for the DataLoader.
 
@@ -329,7 +337,9 @@ def get_movie_dataloader(
             raise NotImplementedError("Start indices could not be recovered.")
         start_indices = np.arange(0, movie.shape[1], interval).tolist()  # type: ignore
 
-    dataset = MovieDataSet(movie, responses, roi_ids, roi_coords, group_assignment, split, chunk_size)
+    dataset = dataset_cls(
+        movie, responses, roi_ids, roi_coords, group_assignment, split, chunk_size, **(extra_arrays or {})
+    )
     sampler = MovieSampler(
         start_indices,
         split,
