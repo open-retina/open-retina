@@ -119,13 +119,14 @@ class Laplace1d(torch.nn.Module):
     """
     Laplace filter for (batched) 1d data.
     """
+
     def __init__(self, padding: int | None, persistent_buffer: bool = True):
         super().__init__()
         self.register_buffer("filter", torch.from_numpy(LAPLACE_1D), persistent=persistent_buffer)
         self.padding_size = LAPLACE_1D.shape[-1] // 2 if padding is None else padding
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return F.conv1d(x, self.filter, bias=None, padding=self.padding_size) # type: ignore
+        return F.conv1d(x, self.filter, bias=None, padding=self.padding_size)  # type: ignore
 
 
 class TimeLaplaceL23dnorm(nn.Module):

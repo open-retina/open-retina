@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from openretina.modules.layers import FlatLaplaceL23dnorm
 from openretina.modules.layers.convolutions import get_conv_class
 from openretina.modules.layers.reducers import WeightedChannelSumLayer
-from openretina.modules.layers.regularizers import  TimeLaplaceL23dnorm
+from openretina.modules.layers.regularizers import TimeLaplaceL23dnorm
 from openretina.modules.layers.scaling import Bias3DLayer
 
 
