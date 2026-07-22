@@ -52,11 +52,17 @@ def train_model(cfg: DictConfig) -> float | None:
         for session, neuron_data in neuron_data_dict.items():
             neuron_data.check_matching_stimulus(movies_dict[session])
 
-    dataloaders = hydra.utils.instantiate(
-        cfg.dataloader,
-        neuron_data_dictionary=neuron_data_dict,
-        movies_dictionary=movies_dict,
-    )
+    dataloader_kwargs = {
+        "neuron_data_dictionary": neuron_data_dict,
+        "movies_dictionary": movies_dict,
+    }
+    # Some datasets (e.g. qiu_2026) additionally carry a per-session behavioral trace consumed by a
+    # shifter; their data_io config exposes it as an extra "pupil" target so it can be loaded and
+    # threaded through here. Absent for all other datasets, so this is a no-op elsewhere.
+    if "pupil" in cfg.data_io:
+        dataloader_kwargs["pupil_dictionary"] = hydra.utils.call(cfg.data_io.pupil)
+
+    dataloaders = hydra.utils.instantiate(cfg.dataloader, **dataloader_kwargs)
 
     data_info = compute_data_info(neuron_data_dict, movies_dict, partial_data_info=cfg.data_io.get("data_info"))
 

@@ -1,0 +1,37 @@
+defaults:
+  - data_io: qiu_2026
+  - dataloader: qiu_2026
+  - model: qiu_2026_core_readout
+  - optimizer: adamw
+  - lr_scheduler: reduce_lr_on_plateau
+  - training_callbacks:
+      - early_stopping
+      - lr_monitor
+      - model_checkpoint
+  - logger:
+      - tensorboard
+      - csv
+  - trainer: default_deterministic
+  - hydra: default
+  - _self_ # values in this config will overwrite the defaults
+
+exp_name: core_readout_qiu_2026_mouse
+seed: 42
+check_stimuli_responses_match: true
+
+paths:
+  cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Remote files are downloaded to this location
+  # If data_dir is a local path, data will be read from there. If a remote link, the target will be downloaded to cache_dir.
+  data_dir: https://huggingface.co/datasets/open-retina/open-retina/tree/main/franke_lab/qiu_2026
+  log_dir: "." # Used as parent for output_dir. Will store train logs.
+  output_dir: ${hydra:runtime.output_dir} # Modify in the "hydra/default.yaml" config
+  load_model_path: null
+
+# Overwrite model defaults with specifics for the Qiu 2026 data format
+# (channels, time, height, width): 1 video + 2 behavior channels, clip_length, video geometry
+model:
+  in_shape:
+    - 3
+    - 300
+    - 36
+    - 64

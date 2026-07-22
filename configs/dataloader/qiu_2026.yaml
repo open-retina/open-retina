@@ -1,0 +1,6 @@
+_target_: openretina.data_io.qiu_2026.dataloaders.qiu_2026_dataloaders
+_convert_: object # Keep python objects their class and does not convert to DictConfig
+batch_size: 32
+train_chunk_size: 50 # strictly < clip_length keeps random-shift augmentation
+clip_length: 300 # integral num_clips = train_time // clip_length
+allow_over_boundaries: false # confine chunks to trial boundaries
