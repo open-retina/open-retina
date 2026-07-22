@@ -36,12 +36,39 @@ implemented and committed. **What's left is purely about running it on hardware 
 
 All 10 sessions are confirmed to live at
 `https://huggingface.co/datasets/open-retina/open-retina/tree/main/franke_lab/qiu_2026` (verified via
-`HfApi.list_repo_files`) — the guessed path in this plan was correct. They are downloaded and extracted
-locally on the machine this session ran on, at `/Users/lhoefling/data/franke_lab/qiu_2026`
-(~50.6 GB compressed / ~131 GB extracted). If continuing on that same machine, point
-`paths.data_dir` at that local folder directly (`get_local_file_path` returns a local path unchanged) to
-skip re-downloading; on a different machine, `paths.data_dir` pointing at the HF URL above will trigger
-the same download via `openretina.utils.file_utils.get_local_file_path`.
+`HfApi.list_repo_files`) — the guessed path in this plan was correct.
+
+**Data is downloaded and extracted on the bethgelab weka filesystem** at
+`/weka/bethge/bkr578/openretina_cache/franke_lab/qiu_2026` — verified 2026-07-22 as **132 GB, all 10
+session folders + all 10 `data-quality/*neurons_fluor_good.npy` masks present** (per-session sizes range
+4.1 GB `28188-16-5` → 24 GB `29163-5-8`). This is the default `~/openretina_cache` for user `bkr578`, and
+because home is a **shared weka mount it is reachable from every bethgelab compute node**, not just the
+one that downloaded it. No `paths.data_dir` override or `OPENRETINA_CACHE_DIRECTORY` env is needed — the
+default cache resolution finds it (the run logs show `Found extracted folder ...` for all 10). Leaving
+`paths.data_dir` at the HF URL is fine: `get_local_file_path` sees the extracted folders already present
+and skips the download. **(The old `/Users/lhoefling/data/...` Mac path in earlier versions of this plan
+is obsolete — that was the 34 GB laptop, now abandoned.)**
+
+### Environment fingerprint — check this at session start to skip the data re-check
+
+**The specific compute node does not matter.** The data lives on the **shared bethgelab weka
+filesystem** (home is a weka mount), so it is present and complete on *every* compute node in the
+cluster. If the one-line check below passes, **do not re-download or re-verify session-by-session** —
+just point the run at the default cache.
+
+```bash
+ls -d /weka/bethge/bkr578/openretina_cache/franke_lab/qiu_2026/dynamic*/ | wc -l   # == 10 → data present
+```
+
+(verified 2026-07-22: 132 GB, 10 session folders + 10 `data-quality/*neurons_fluor_good.npy` masks.)
+
+The node this was set up on (`mlcbm004`) is a big Intel Xeon Platinum 8468 box — 192 logical CPUs,
+~2 TiB RAM, 1× idle NVIDIA H100 80 GB — but any node of this class works, and the RAM OOM from the old
+34 GB laptop is a non-issue anywhere on this cluster.
+
+> **Caveat — CPU affinity (per-node, re-check each session):** a shell may be pinned to only a few CPUs
+> even on a 192-CPU box (`nproc` returned **4**; affinity `2,3,98,99` on `mlcbm004`). Check `nproc` /
+> `os.sched_getaffinity(0)` before setting dataloader `num_workers` — see the hardware section below.
 
 ### Two bugs found and fixed by running on real data (both in commit `923200c`)
 
@@ -105,6 +132,48 @@ OPENRETINA_CACHE_DIRECTORY=/Users/lhoefling/data uv run openretina train \
 
 On a more capable machine, first try the literal DoD command with no overrides (all 10 sessions, default
 batch size); fall back to the reduced command above only if memory is still a problem.
+
+### 2026-07-22 (later) — three node hangs on the reduced command; what the logs show
+
+The reduced 2-session / `batch_size=4` command above was launched **three more times** and each time the
+**compute node went unresponsive within ~15 s of launch** (had to recover the node between attempts). Hydra
+still captured per-run logs — they live under
+`openretina_assets/runs/core_readout_qiu_2026_mouse/<timestamp>/openretina_main.log` (+ `.hydra/` with the
+exact `overrides.yaml`). The latest is `2026-07-22_17-32-47/` (overrides confirm: `trainer=debug`, the two
+smallest sessions, `dataloader.batch_size=4`).
+
+**What that log shows (220 lines):**
+- `17:32:48` full config logged; `17:32:48–50` **first discovery pass** finds all 10 quality masks + 10
+  extracted folders; `17:33:00–02` an **identical second discovery pass** (the responses loader re-scanning).
+- Log then **stops dead at `17:33:02,996`** — no third (pupil) discovery pass, no model build, no dataloader
+  construction, no "Sanity Checking", no training step, **and no error / traceback / OOM / SIGKILL line.**
+
+**Interpretation.** The process cleared the cheap *discovery* phase (file listing, ~0 memory) and froze right
+at the boundary where the loaders begin **reading the movie/response `.npy` arrays into RAM** — the first
+memory-heavy op. The *absence* of any flushed error is itself the tell: a clean Python OOM would be SIGKILL'd
+and the shell would report it, but here the logger simply can't flush anymore — the signature of the **node
+itself seizing** (swap thrash / I/O-bound), matching the earlier 34 GB-machine behavior (swap filling, whole
+box degraded). So all evidence still points at the **RAM wall during array load**, not a code fault or a new
+environmental change.
+
+**Side observation from the log:** even with only 2 sessions requested, `load_all_*` **scans/iterates all 10
+sessions twice** during discovery. Discovery is cheap so it is *not* the hang — but confirm the loaders
+actually filter to the 2 requested sessions *before* loading arrays into memory; if `load_all_*` eagerly
+loads all 10 sessions' arrays regardless of the `sessions=[...]` filter, that alone would blow RAM and would
+be a real code bug, not just the hardware wall. **This is the first concrete thing to check next session.**
+
+**Pick-up checklist for the next session:**
+1. **Verify the session filter is applied before array load**, not after (see side observation above) —
+   inspect `load_all_stimuli` / `load_all_responses` / `load_all_pupil` in `data_io/qiu_2026/`. This is
+   cheap to check and would change the whole diagnosis if the filter is post-load.
+2. **Compare the cutoff point of all four run logs** under `openretina_assets/runs/core_readout_qiu_2026_mouse/`
+   (`16-22-40`, `16-34-49`, `17-16-28`, `17-32-47`) — if all die at the same post-discovery / pre-array-load
+   boundary, that is strong confirmation it is purely the RAM wall.
+3. **Get onto a bigger-RAM / real-GPU box** and run the literal DoD command (fall back to the reduced one).
+   The 34 GB node cannot do this at usable speed even at 2 sessions / batch_size=4 — do not keep retrying it.
+4. If a big box is not available, consider a **lazy/memmap loader** or per-trial streaming so array load does
+   not require all sessions resident at once (only worth it if step 1 shows load is already correctly filtered
+   and it is genuinely the per-batch/forward memory, per the earlier `batch_size=4` finding).
 
 ---
 
