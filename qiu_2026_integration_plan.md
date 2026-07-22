@@ -32,43 +32,22 @@ implemented and committed. **What's left is purely about running it on hardware 
 **As of this commit, these 2 commits are on the local `qiu_2026-integration` branch but not yet pushed**
 (`git log origin/qiu_2026-integration..HEAD` — check before assuming the remote has them).
 
-### The real dataset is downloaded and verified
+### The real dataset is downloaded and verified — but check which machine you're on first
 
-All 10 sessions are confirmed to live at
-`https://huggingface.co/datasets/open-retina/open-retina/tree/main/franke_lab/qiu_2026` (verified via
-`HfApi.list_repo_files`) — the guessed path in this plan was correct.
+**Rule: at the start of every session, before touching `paths.data_dir` / `OPENRETINA_CACHE_DIRECTORY`
+or assuming data is present, run the identification checklist in
+`qiu_2026_integration_plan_dataset_location.md`.** It covers the three cases and exactly how the data
+pointer should be set in each:
 
-**Data is downloaded and extracted on the bethgelab weka filesystem** at
-`/weka/bethge/bkr578/openretina_cache/franke_lab/qiu_2026` — verified 2026-07-22 as **132 GB, all 10
-session folders + all 10 `data-quality/*neurons_fluor_good.npy` masks present** (per-session sizes range
-4.1 GB `28188-16-5` → 24 GB `29163-5-8`). This is the default `~/openretina_cache` for user `bkr578`, and
-because home is a **shared weka mount it is reachable from every bethgelab compute node**, not just the
-one that downloaded it. No `paths.data_dir` override or `OPENRETINA_CACHE_DIRECTORY` env is needed — the
-default cache resolution finds it (the run logs show `Found extracted folder ...` for all 10). Leaving
-`paths.data_dir` at the HF URL is fine: `get_local_file_path` sees the extracted folders already present
-and skips the download. **(The old `/Users/lhoefling/data/...` Mac path in earlier versions of this plan
-is obsolete — that was the 34 GB laptop, now abandoned.)**
+1. **Bethgelab cluster** (any compute node) — data already present on the shared weka mount, no override
+   needed. One-line fingerprint check included.
+2. **Local Mac laptop** (`lhoefling`, 34 GB RAM) — only 2/10 sessions ever downloaded, deprecated/abandoned
+   for real runs (see the hardware blocker below).
+3. **Any other machine** — treat as **naive**: assume nothing is downloaded, budget for the full ~132 GB
+   fetch, and don't reuse either path above.
 
-### Environment fingerprint — check this at session start to skip the data re-check
-
-**The specific compute node does not matter.** The data lives on the **shared bethgelab weka
-filesystem** (home is a weka mount), so it is present and complete on *every* compute node in the
-cluster. If the one-line check below passes, **do not re-download or re-verify session-by-session** —
-just point the run at the default cache.
-
-```bash
-ls -d /weka/bethge/bkr578/openretina_cache/franke_lab/qiu_2026/dynamic*/ | wc -l   # == 10 → data present
-```
-
-(verified 2026-07-22: 132 GB, 10 session folders + 10 `data-quality/*neurons_fluor_good.npy` masks.)
-
-The node this was set up on (`mlcbm004`) is a big Intel Xeon Platinum 8468 box — 192 logical CPUs,
-~2 TiB RAM, 1× idle NVIDIA H100 80 GB — but any node of this class works, and the RAM OOM from the old
-34 GB laptop is a non-issue anywhere on this cluster.
-
-> **Caveat — CPU affinity (per-node, re-check each session):** a shell may be pinned to only a few CPUs
-> even on a 192-CPU box (`nproc` returned **4**; affinity `2,3,98,99` on `mlcbm004`). Check `nproc` /
-> `os.sched_getaffinity(0)` before setting dataloader `num_workers` — see the hardware section below.
+Do not skip this — which case you're in determines the correct `paths.data_dir` value, and guessing wrong
+looks like a data bug rather than a missing/misdirected download.
 
 ### Two bugs found and fixed by running on real data (both in commit `923200c`)
 
