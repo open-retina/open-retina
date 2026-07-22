@@ -21,6 +21,7 @@ from openretina.data_io.qiu_2026.trials import (
     discover_sessions,
     load_trial_array,
     read_condition_hash,
+    read_stimulus_type,
     read_tiers,
     resolve_session_path,
     session_key,
@@ -70,17 +71,22 @@ def load_stimuli_for_session(
     session_path: str | os.PathLike,
     *,
     behavior_channels: tuple[int, ...] = C.BEHAVIOR_CHANNELS,
+    stimulus_type: str = "clip",
 ) -> MoviesTrainTestSplit:
     """Build a :class:`MoviesTrainTestSplit` for one qiu_2026 session.
 
     The continuous train movie concatenates all train+validation trials (each trimmed to its valid
     length) in file-index order; ``test_dict`` holds one clip per ``condition_hash``, averaged over the
     condition's repeats (the movie is identical across repeats; averaging also pools the behavior traces
-    to pair with the trial-averaged responses).
+    to pair with the trial-averaged responses). Only trials matching ``stimulus_type`` (see
+    :func:`~openretina.data_io.qiu_2026.trials.read_stimulus_type`) are included; some sessions' ``test``
+    tier additionally contains non-clip functional-characterization trials with per-repeat frame-count
+    jitter that would otherwise break the repeat-stacking below.
     """
     session_path = resolve_session_path(session_path)
     tiers = read_tiers(session_path)
     condition_hash = read_condition_hash(session_path)
+    stimulus_types = read_stimulus_type(session_path)
     video_mean, video_std, behavior_mean, behavior_std = _read_norm_stats(session_path)
 
     def build_trial(i: int) -> np.ndarray:
@@ -93,10 +99,10 @@ def load_stimuli_for_session(
             video, behavior, video_mean, video_std, behavior_mean, behavior_std, behavior_channels
         )
 
-    train = np.concatenate([build_trial(i) for i in train_val_indices(tiers)], axis=1)
+    train = np.concatenate([build_trial(i) for i in train_val_indices(tiers, stimulus_types, stimulus_type)], axis=1)
 
     test_dict: dict[str, np.ndarray] = {}
-    for condition, indices in test_conditions(tiers, condition_hash).items():
+    for condition, indices in test_conditions(tiers, condition_hash, stimulus_types, stimulus_type).items():
         repeats = np.stack([build_trial(i) for i in indices], axis=0)  # (repeats, C, T, H, W)
         # TODO(qiu_2026): the video is identical across repeats, but the behavior channels are not.
         # Averaging them here pairs the test input with the trial-averaged responses; revisit whether
@@ -116,11 +122,14 @@ def load_all_stimuli(
     base_data_path: str | os.PathLike,
     *,
     behavior_channels: tuple[int, ...] = C.BEHAVIOR_CHANNELS,
+    stimulus_type: str = "clip",
     sessions: list[str] | None = None,
 ) -> dict[str, MoviesTrainTestSplit]:
     """Load every discovered qiu_2026 session into a ``{session_key: MoviesTrainTestSplit}`` dict."""
     base_data_path = Path(get_local_file_path(str(base_data_path)))
     stimuli_all_sessions: dict[str, MoviesTrainTestSplit] = {}
     for path in tqdm(discover_sessions(base_data_path, sessions), desc="qiu_2026 stimuli"):
-        stimuli_all_sessions[session_key(path)] = load_stimuli_for_session(path, behavior_channels=behavior_channels)
+        stimuli_all_sessions[session_key(path)] = load_stimuli_for_session(
+            path, behavior_channels=behavior_channels, stimulus_type=stimulus_type
+        )
     return stimuli_all_sessions

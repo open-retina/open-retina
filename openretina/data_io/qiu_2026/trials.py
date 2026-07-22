@@ -46,6 +46,30 @@ def read_condition_hash(session_path: str | os.PathLike) -> np.ndarray:
     return np.load(_trials_dir(session_path) / "condition_hash.npy")
 
 
+def read_stimulus_type(session_path: str | os.PathLike) -> np.ndarray:
+    """Per-trial coarse stimulus category: ``"clip"`` for natural-movie clip trials (the paradigm every
+    loader trains/evaluates on by default), ``"other"`` for any other presentation.
+
+    The FileTree stores per-trial identity in disjoint DataJoint-table columns depending on which
+    presentation produced the trial; ``meta/trials/clip_movie_name.npy`` is populated (non-NaN) exactly
+    for clip trials and empty otherwise. The ``test`` tier of some sessions additionally contains
+    ``presentmoviearray`` trials (functional-characterization stimuli such as ``chirp``/``moving_bar``,
+    identified via ``meta/trials/presentmoviearray_movie_name.npy``), never mixed into ``train``/
+    ``validation``. These have per-repeat frame-count jitter unlike clips, so they must be filtered out
+    before test conditions are repeat-stacked. Determining "clip" from ``clip_movie_name`` alone is
+    sufficient and avoids depending on ``presentmoviearray_movie_name.npy``, which not every session ships.
+    """
+    clip_name = np.load(_trials_dir(session_path) / "clip_movie_name.npy", allow_pickle=True)
+
+    def _is_clip(value) -> bool:
+        if value is None:
+            return False
+        text = str(value)
+        return text not in ("nan", "None", "")
+
+    return np.array(["clip" if _is_clip(value) else "other" for value in clip_name])
+
+
 def load_trial_array(session_path: str | os.PathLike, stream: str, index: int) -> np.ndarray:
     """Load ``data/<stream>/{index}.npy`` (NaN-padded to the full clip length)."""
     return np.load(Path(session_path) / "data" / stream / f"{index}.npy")
@@ -65,26 +89,51 @@ def trim_time(arr: np.ndarray, time_axis: int, n_frames: int) -> np.ndarray:
     return arr[tuple(index)]
 
 
-def train_val_indices(tiers: np.ndarray) -> list[int]:
-    """File indices of train+validation trials, in file-index order (== concatenated clip order)."""
-    return [i for i in range(len(tiers)) if str(tiers[i]) in ("train", "validation")]
+def train_val_indices(
+    tiers: np.ndarray, stimulus_types: np.ndarray | None = None, stimulus_type: str = "clip"
+) -> list[int]:
+    """File indices of train+validation trials, in file-index order (== concatenated clip order).
+
+    ``stimulus_types`` (from :func:`read_stimulus_type`), if given, restricts to trials matching
+    ``stimulus_type``. Train/validation trials are clip-only in every session seen so far, but this keeps
+    the guarantee explicit rather than assumed.
+    """
+    return [
+        i
+        for i in range(len(tiers))
+        if str(tiers[i]) in ("train", "validation")
+        and (stimulus_types is None or str(stimulus_types[i]) == stimulus_type)
+    ]
 
 
-def validation_clip_indices(tiers: np.ndarray) -> list[int]:
+def validation_clip_indices(
+    tiers: np.ndarray, stimulus_types: np.ndarray | None = None, stimulus_type: str = "clip"
+) -> list[int]:
     """Positions of validation-tier trials within the train+val concatenation.
 
     With one trial per fixed-length clip, clip index == rank in the train+val order, so these can be
     passed as ``val_clip_indices`` to the dataloader to honour the dataset's curated validation split.
     """
-    train_val = train_val_indices(tiers)
+    train_val = train_val_indices(tiers, stimulus_types, stimulus_type)
     return [rank for rank, i in enumerate(train_val) if str(tiers[i]) == "validation"]
 
 
-def test_conditions(tiers: np.ndarray, condition_hash: np.ndarray) -> dict[str, list[int]]:
-    """Map each test ``condition_hash`` to its ordered list of trial file indices (first-seen order)."""
+def test_conditions(
+    tiers: np.ndarray,
+    condition_hash: np.ndarray,
+    stimulus_types: np.ndarray | None = None,
+    stimulus_type: str = "clip",
+) -> dict[str, list[int]]:
+    """Map each test ``condition_hash`` to its ordered list of trial file indices (first-seen order).
+
+    ``stimulus_types`` (from :func:`read_stimulus_type`), if given, restricts to trials matching
+    ``stimulus_type``. Some sessions' ``test`` tier additionally contains non-clip trials (e.g. ``chirp``/
+    ``moving_bar`` functional-characterization repeats) with per-repeat frame-count jitter; mixing them in
+    breaks the repeat-stacking done downstream in stimuli.py/responses.py/pupil.py.
+    """
     conditions: dict[str, list[int]] = {}
     for i in range(len(tiers)):
-        if str(tiers[i]) == "test":
+        if str(tiers[i]) == "test" and (stimulus_types is None or str(stimulus_types[i]) == stimulus_type):
             conditions.setdefault(str(condition_hash[i]), []).append(i)
     return conditions
 

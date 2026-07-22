@@ -27,6 +27,7 @@ from openretina.data_io.qiu_2026.trials import (
     load_trial_array,
     match_quality_mask,
     read_condition_hash,
+    read_stimulus_type,
     read_tiers,
     resolve_session_path,
     session_key,
@@ -61,16 +62,21 @@ def load_responses_for_session(
     *,
     spike_inference: SpikeInference = "raw",
     coordinate_dims: int = 2,
+    stimulus_type: str = "clip",
 ) -> ResponsesTrainTestSplit:
     """Build a :class:`ResponsesTrainTestSplit` for one qiu_2026 session.
 
     ``good_idx`` is the ``neurons_fluor_good`` index array (applied to both responses and cortex
     coordinates); ``None`` keeps all neurons. ``coordinate_dims`` selects the leading cortex-coordinate
-    columns stored as the readout ``source_grid`` (2 → X,Y).
+    columns stored as the readout ``source_grid`` (2 → X,Y). Only trials matching ``stimulus_type`` (see
+    :func:`~openretina.data_io.qiu_2026.trials.read_stimulus_type`) are included; some sessions' ``test``
+    tier additionally contains non-clip functional-characterization trials with per-repeat frame-count
+    jitter that would otherwise break the repeat-stacking below.
     """
     session_path = resolve_session_path(session_path)
     tiers = read_tiers(session_path)
     condition_hash = read_condition_hash(session_path)
+    stimulus_types = read_stimulus_type(session_path)
     time_axis = STREAM_TIME_AXIS["responses"]
 
     def load_trimmed(i: int) -> np.ndarray:
@@ -80,13 +86,14 @@ def load_responses_for_session(
         n_valid = valid_length(responses, time_axis)
         return trim_time(responses, time_axis, n_valid).astype(np.float32)
 
-    train = np.concatenate([load_trimmed(i) for i in train_val_indices(tiers)], axis=1)  # (N, T_total)
+    train_indices = train_val_indices(tiers, stimulus_types, stimulus_type)
+    train = np.concatenate([load_trimmed(i) for i in train_indices], axis=1)  # (N, T_total)
     offset = _spike_offset(train, spike_inference)
     train = (train - offset).astype(np.float32)
 
     test_dict: dict[str, np.ndarray] = {}
     test_by_trial_dict: dict[str, np.ndarray] = {}
-    for condition, indices in test_conditions(tiers, condition_hash).items():
+    for condition, indices in test_conditions(tiers, condition_hash, stimulus_types, stimulus_type).items():
         by_trial = np.stack([load_trimmed(i) for i in indices], axis=0)  # (repeats, N, T_cond)
         by_trial = (by_trial - offset[None]).astype(np.float32)
         test_by_trial_dict[condition] = by_trial
@@ -101,7 +108,7 @@ def load_responses_for_session(
 
     session_kwargs = {
         "cell_motor_coordinates": source_grid,
-        "validation_clip_indices": validation_clip_indices(tiers),
+        "validation_clip_indices": validation_clip_indices(tiers, stimulus_types, stimulus_type),
     }
     return ResponsesTrainTestSplit(
         train=train,
@@ -118,6 +125,7 @@ def load_all_responses(
     apply_quality_mask: bool = True,
     spike_inference: SpikeInference = "raw",
     coordinate_dims: int = 2,
+    stimulus_type: str = "clip",
     sessions: list[str] | None = None,
 ) -> dict[str, ResponsesTrainTestSplit]:
     """Load every discovered qiu_2026 session into a ``{session_key: ResponsesTrainTestSplit}`` dict."""
@@ -130,6 +138,10 @@ def load_all_responses(
         key = session_key(path)
         good_idx = match_quality_mask(key, masks) if apply_quality_mask else None
         responses_all_sessions[key] = load_responses_for_session(
-            path, good_idx=good_idx, spike_inference=spike_inference, coordinate_dims=coordinate_dims
+            path,
+            good_idx=good_idx,
+            spike_inference=spike_inference,
+            coordinate_dims=coordinate_dims,
+            stimulus_type=stimulus_type,
         )
     return responses_all_sessions
