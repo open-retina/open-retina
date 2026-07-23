@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 
 from openretina.modules.core.base_core import Core3d
-from openretina.modules.layers import Bias3DLayer, Scale2DLayer, Scale3DLayer
+from openretina.modules.layers import Bias3DLayer, Scale3DLayer
 from openretina.modules.layers.convolutions import (
     STSeparableBatchConv3d,
     TorchFullConv3D,
@@ -215,7 +215,7 @@ class ConvGRUCore(Core3d, nn.Module):
                     if not batch_norm_scale:
                         layer["bias"] = Bias3DLayer(hidden_channels[layer_num])
                 elif batch_norm_scale:
-                    layer["scale"] = Scale2DLayer(hidden_channels[layer_num])
+                    layer["scale"] = Scale3DLayer(hidden_channels[layer_num])
             if final_nonlinearity or layer_num < self.layers - 1:
                 layer["nonlin"] = getattr(nn, nonlinearity)()
             self.features.add_module(f"layer{layer_num}", nn.Sequential(layer))
