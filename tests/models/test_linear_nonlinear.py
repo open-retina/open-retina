@@ -18,4 +18,7 @@ def test_single_cell_separated_lnp(smooth_weight_temp: float) -> None:
     x = model.crop_input(x)
     with torch.no_grad():
         y = model(x)
+        regularization = model.regularizer()
     assert y.shape[0] == 1
+    assert torch.isfinite(regularization)
+    assert regularization >= 0
