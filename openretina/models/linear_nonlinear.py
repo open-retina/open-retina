@@ -224,7 +224,7 @@ class SingleCellSeparatedLNP(LightningModule):
         else:
             images = data_point.inputs
         model_output = self.forward(images, session_id)
-        loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
+        loss = self.loss.forward(model_output, data_point.targets) / model_output.numel()
         regularization = self.regularizer()
         total_loss = loss + regularization
         evaluation_loss = self.evaluation_loss.forward(model_output, data_point.targets)

@@ -124,7 +124,7 @@ class BaseCoreReadout(LightningModule):
     def validation_step(self, batch: tuple[str, DataPoint], batch_idx: int) -> torch.Tensor:
         session_id, data_point = batch
         model_output = self.forward(data_point.inputs, session_id)
-        loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
+        loss = self.loss.forward(model_output, data_point.targets) / model_output.numel()
         regularization_loss_core = self.core.regularizer()
         regularization_loss_readout = self.readout.regularizer(session_id)  # type: ignore
         total_loss = loss + regularization_loss_core + regularization_loss_readout
@@ -141,7 +141,7 @@ class BaseCoreReadout(LightningModule):
     def test_step(self, batch: tuple[str, DataPoint], batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
         session_id, data_point = batch
         model_output = self.forward(data_point.inputs, session_id)
-        loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
+        loss = self.loss.forward(model_output, data_point.targets) / model_output.numel()
         evaluation_loss = self.evaluation_loss.forward(model_output, data_point.targets)
 
         # Add metric and performances to data_info for downstream tasks
