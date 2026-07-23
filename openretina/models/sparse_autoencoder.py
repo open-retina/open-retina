@@ -159,7 +159,7 @@ class AutoencoderWithModel(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         model_outputs: list[torch.Tensor] = []
-        for key in self.model.readout_keys():  # type: ignore
+        for key in self.model.readout.readout_keys():  # type: ignore
             out = self.model.forward(x, key)
             model_outputs.append(out)
         activations = torch.cat(model_outputs, dim=-1)
