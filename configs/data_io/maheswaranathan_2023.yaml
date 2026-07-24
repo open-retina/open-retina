@@ -14,7 +14,7 @@ responses:
   fr_normalization: 1.0
 
 data_info:
-  response_rate_hz: 30
-  stimulus_rate_hz: 30
+  response_rate_hz: 100
+  stimulus_rate_hz: 100
   stimulus_class: ${data_io.responses.stim_type}
   retina_pixel_size_um: 50 # Paper reports 50um projector pixel size, but RFs suggest 25um. See paper.
