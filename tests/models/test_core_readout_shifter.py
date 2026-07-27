@@ -13,9 +13,9 @@ BATCH_SIZE = 2
 
 def _build_core() -> SimpleCoreWrapper:
     return SimpleCoreWrapper(
-        channels=[IN_SHAPE[0], 8, 8],
-        temporal_kernel_sizes=[5, 5],
-        spatial_kernel_sizes=[5, 5],
+        channels=(IN_SHAPE[0], 8, 8),
+        temporal_kernel_sizes=(5, 5),
+        spatial_kernel_sizes=(5, 5),
         gamma_input=0.0,
         gamma_temporal=0.0,
         gamma_in_sparse=0.0,
@@ -151,7 +151,10 @@ def test_shifter_regularizer_included_in_training_step_when_present(core_and_rea
         pupil_center=torch.randn(BATCH_SIZE, 2, IN_SHAPE[1]),
     )
 
-    total_loss = model.training_step(("sess1", data_point), 0)
+    # QiuDataPoint is a distinct namedtuple from the annotated DataPoint, but training_step reads
+    # pupil_center via getattr and is duck-type compatible; mypy can't see that (same reason
+    # QiuMovieDataSet.__getitem__ carries an override-ignore).
+    total_loss = model.training_step(("sess1", data_point), 0)  # type: ignore[arg-type]
 
     assert torch.isfinite(total_loss)
     # The shifter's own regularizer is 0.0 by construction (MLPShifter.regularizer), so gamma_shifter
