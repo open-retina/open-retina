@@ -1,0 +1,184 @@
+site_name: "openretina docs"
+
+theme:
+  name: material
+  custom_dir: docs/overrides
+  palette:
+    # Media queries for color scheme switch
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: white
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+
+  logo: assets/openretina_logo.png
+  favicon: assets/openretina_logo.png
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - search.suggest
+    - navigation.tabs
+    - navigation.path
+    - navigation.prune
+    - navigation.top
+    - navigation.indexes
+    - navigation.footer
+    - navigation.sections
+    - navigation.tracking
+    - content.code.copy
+
+plugins:
+  - search
+  - social
+  - glightbox
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          options:
+            # Signatures
+            show_signature_annotations: true
+            separate_signature: true
+            signature_crossrefs: true
+            unwrap_annotated: true
+            # Docstrings
+            docstring_style: google
+            docstring_section_style: spacy
+            # Members
+            members_order: source
+            merge_init_into_class: true
+            show_if_no_docstring: false
+            # Headings
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            show_root_full_path: false
+            # Source
+            show_source: true
+  - mkdocs-jupyter:
+      execute: false
+      include_source: true
+
+hooks:
+  - docs/mkdocs_hooks.py
+
+site_url: https://open-retina.org
+
+site_description: "OpenRetina: An open-source toolkit for modeling retinal responses to visual stimuli across multiple datasets."
+
+markdown_extensions:
+  - admonition
+  - def_list
+  - pymdownx.details
+  - pymdownx.superfences
+  - attr_list
+  - md_in_html
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.tabbed:
+      alternate_style: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+
+nav:
+  - Home: index.md
+  - Package documentation:
+      - package_docs/index.md
+      - Getting Started:
+          - Installation: package_docs/installation.md
+          - Quick Start: package_docs/quickstart.md
+          - How to...:
+              - package_docs/how_to/index.md
+              - Which config should I copy?: package_docs/how_to/config_templates.md
+              - Mix and match models and datasets: package_docs/how_to/mix_and_match_models_and_datasets.md
+          - Command Line Interface: package_docs/command_line.md
+          - Architecture: package_docs/architecture.md
+      - Core Functionality:
+          - package_docs/core_functionality/index.md
+          - Data Input/Output:
+              - package_docs/data_io.md
+              - Data flow and multi-test support: package_docs/data_io_flow.md
+          - Training:
+              - package_docs/training/index.md
+              - Core-Readout Models: package_docs/training/core_readout.md
+              - Training and Evaluation: package_docs/training/training_and_evaluation.md
+              - Unified Training Script: package_docs/training/unified_training.md
+          - In-silico Experiments:
+              - package_docs/insilico/index.md
+              - Optimised Stimuli: package_docs/insilico/optimised_stimuli.md
+              - Discriminatory Stimuli: package_docs/insilico/discriminatory_stimuli.md
+              - Weight Visualisations: package_docs/insilico/weight_visualisations.md
+              - Response Gradient Analysis: package_docs/insilico/response_tuning.md
+              - LSTAs: package_docs/insilico/lsta.md
+
+      - Data Sources:
+          - package_docs/datasets/index.md
+          - Hoefling et al., 2024: package_docs/datasets/hoefling_2024.md
+          - Goldin et al., 2022: package_docs/datasets/goldin_2022.md
+
+      - Tutorials:
+          - OpenRetina Demo: notebooks/openretina_demo.ipynb
+          - New Datasets Guide: notebooks/new_datasets_guide.ipynb
+          - Hyperparameter Tuning: notebooks/hyperparameter_search_hoefling_2024.ipynb
+          - Gradient Analysis Example: notebooks/hoefling_gradient_analysis.ipynb
+
+      - Model Zoo: package_docs/model_zoo.md
+      - Contributing:
+          - Contributing Guide: package_docs/contributing.md
+          - Development Setup: package_docs/development.md
+          - Code Style: package_docs/code_style.md
+  - API Reference:
+      - api_reference/index.md
+      - Models:
+          - Overview: api_reference/models.md
+          - Core-Readout: api_reference/models/core_readout.md
+          - Linear-Nonlinear: api_reference/models/linear_nonlinear.md
+          - Sparse Autoencoder: api_reference/models/sparse_autoencoder.md
+      - Modules:
+          - Overview: api_reference/modules.md
+          - Core: api_reference/modules/core.md
+          - Readout: api_reference/modules/readout.md
+          - Layers: api_reference/modules/layers.md
+          - Loss Functions: api_reference/modules/losses.md
+      - Data I/O:
+          - Overview: api_reference/data_io.md
+          - Base Classes: api_reference/data_io/base.md
+          - Base Dataloader: api_reference/data_io/base_dataloader.md
+          - Hoefling 2024: api_reference/data_io/hoefling_2024.md
+          - Karamanlis 2024: api_reference/data_io/karamanlis_2024.md
+          - Goldin 2022: api_reference/data_io/goldin_2022.md
+          - Maheswaranathan 2023: api_reference/data_io/maheswaranathan_2023.md
+          - Sridhar 2025: api_reference/data_io/sridhar_2025.md
+          - Artificial Stimuli: api_reference/data_io/artificial_stimuli.md
+          - Cyclers: api_reference/data_io/cyclers.md
+      - In-silico:
+          - Overview: api_reference/insilico.md
+          - Stimulus Optimization: api_reference/insilico/stimulus_optimization.md
+          - Vector Field Analysis: api_reference/insilico/vector_field_analysis.md
+          - Tuning Analyses: api_reference/insilico/tuning_analyses.md
+      - Evaluation: api_reference/eval.md
+      - CLI: api_reference/cli.md
+      - Utils: api_reference/utils.md
+  - Community: community.md
+  - FAQs: faq.md
+  - How to cite: references.md
+
+repo_url: https://github.com/open-retina/open-retina
+repo_name: open-retina
+
+extra_css:
+  - assets/stylesheets/extra.css

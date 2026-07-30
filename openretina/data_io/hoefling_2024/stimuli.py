@@ -96,19 +96,18 @@ def get_all_movie_combinations(
 def gen_start_indices(
     random_sequences: np.ndarray, val_clip_idx: list[int], clip_length: int, chunk_size: int, num_clips: int
 ):
-    """
-    Optimized function to generate a list of indices for training chunks while
-    excluding validation clips.
+    """Generate a list of indices for training chunks while excluding validation clips.
 
-    :param random_sequences: int np array; 108 x 20, giving the ordering of the
-                             108 training clips for the 20 different sequences
-    :param val_clip_idx:     list of integers indicating the clips to be used
-                             for validation
-    :param clip_length:      clip length in frames (5s*30frames/s = 150 frames)
-    :param chunk_size:       temporal chunk size per sample in frames (50)
-    :param num_clips:        total number of training clips (108)
-    :return: dict; with keys train, validation, and test, and index list as
-             values
+    Args:
+        random_sequences: int np array; 108 x 20, giving the ordering of the
+            108 training clips for the 20 different sequences.
+        val_clip_idx: List of integers indicating the clips to be used for validation.
+        clip_length: Clip length in frames (5s*30frames/s = 150 frames).
+        chunk_size: Temporal chunk size per sample in frames (50).
+        num_clips: Total number of training clips (108).
+
+    Returns:
+        dict: With keys train, validation, and test, and index list as values.
     """
     # Validation clip indices are consecutive, because the validation clip and
     # stimuli are already isolated in other functions.

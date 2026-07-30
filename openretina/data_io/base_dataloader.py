@@ -120,6 +120,7 @@ def generate_movie_splits(
     num_clips: int,
     clip_length: int,
 ) -> tuple[torch.Tensor, torch.Tensor, dict[str, torch.Tensor]]:
+    """Split training movies into train/validation subsets and convert test movies to tensors."""
     movie_train = torch.tensor(movie_train, dtype=torch.float)
     movie_test_dict = {n: torch.tensor(movie, dtype=torch.float) for n, movie in movie_test.items()}
 

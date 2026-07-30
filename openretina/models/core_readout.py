@@ -510,6 +510,7 @@ def load_core_readout_from_remote(
     device: str,
     cache_directory_path: str | os.PathLike | None = None,
 ) -> BaseCoreReadout:
+    """Download and load a pre-trained core-readout model by name. Falls back to legacy ExampleCoreReadout format."""
     if cache_directory_path is None:
         cache_directory_path = get_cache_directory()
     remote_path = _MODEL_NAME_TO_REMOTE_LOCATION.get(model_path, model_path)
@@ -526,6 +527,7 @@ def load_core_readout_model(
     device: str,
     cache_directory_path: str | os.PathLike | None = None,
 ) -> BaseCoreReadout:
+    """Load a core-readout model from a local path or remote name. Tries known remote names first, then local paths."""
     if cache_directory_path is None:
         cache_directory_path = get_cache_directory()
     if model_path_or_name in _MODEL_NAME_TO_REMOTE_LOCATION:
