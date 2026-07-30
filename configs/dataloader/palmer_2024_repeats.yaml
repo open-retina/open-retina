@@ -1,0 +1,9 @@
+_target_: openretina.data_io.palmer_2024.dataloaders.repeats_dataloaders
+_convert_: object
+batch_size: 8
+train_chunk_size: 60
+clip_length: 1200
+num_val_clips: 1
+base_data_path: ${paths.data_dir}
+response_key: ${data_io.responses.response_key}
+fr_normalization: ${data_io.responses.fr_normalization}

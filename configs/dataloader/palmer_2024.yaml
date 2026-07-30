@@ -1,0 +1,7 @@
+_target_: openretina.data_io.base_dataloader.multiple_movies_dataloaders
+_convert_: object
+batch_size: 8
+train_chunk_size: 60
+clip_length: 1200
+num_val_clips: 1
+allow_over_boundaries: false
