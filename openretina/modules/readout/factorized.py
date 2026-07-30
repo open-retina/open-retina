@@ -159,7 +159,7 @@ class FactorizedReadout(Readout):
     def regularizer(self, reduction: Optional[Literal["sum", "mean"]] = None) -> torch.Tensor:
         mask_r = self.reg[0] * torch.mean(torch.sum(torch.abs(self.mask_weights), dim=0))
         wt_r = self.reg[1] * torch.mean(torch.sum(torch.abs(self.feature_weights), dim=0))
-        reshaped_masked_weights = self.mask_weights.T.reshape(-1, 1, 1, self.mask_size[0], self.mask_size[1])
+        reshaped_masked_weights = self.mask_weights.reshape(-1, 1, 1, self.mask_size[0], self.mask_size[1])
         laplace_mask_r = self.reg[2] * self._input_weights_regularizer_spatial(reshaped_masked_weights, avg=False)
         if reduction == "mean":
             return mask_r + wt_r + laplace_mask_r / 3
