@@ -65,6 +65,22 @@ make test-all
 With this repository we provide already pre-trained retina models that can be used for inference and intepretability out of the box, and dataloaders together with model architectures to train new models.
 For training new models, we rely on [pytorch lightning](https://lightning.ai/docs/pytorch/stable/) in combination with [hydra](https://hydra.cc/docs/intro/) to manage the configurations for training and dataloading.
 
+### Training a model for one neuron
+
+Any core-readout model can be trained from scratch for one neuron by adding the `single` neuron-selection config:
+
+```bash
+uv run openretina train --config-path configs \
+  --config-name sridhar_2025_wn_sc_multicell \
+  +neuron_selection=single \
+  'neuron_selection.session="04"' \
+  'neuron_selection.neuron_ids=[2]'
+```
+
+When the dataset provides stable neuron IDs, `neuron_ids` refers to those IDs rather than positions after quality
+filtering. Otherwise, it refers to zero-based positions in the loaded response array. Hydra multiruns can use the same
+override to launch one independent core-readout model per neuron.
+
 The openretina package is structured as follows:
 
 * modules: pytorch modules that define layers and losses

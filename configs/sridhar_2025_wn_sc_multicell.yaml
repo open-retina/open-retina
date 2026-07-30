@@ -35,6 +35,10 @@ dataloader:
 data_io:
   sessions:
     - ${dataloader.retina_index}
+  stimuli:
+    sessions: ${data_io.sessions}
+  responses:
+    sessions: ${data_io.sessions}
 
 model:
   in_shape:
@@ -42,8 +46,9 @@ model:
     - ${dataloader.num_of_frames}
     - ${data_io.stimulus_height}
     - ${data_io.stimulus_width}
-  sta_dir: "${paths.data_dir}/stas"
-  flip_sta: ${data_io.flip_sta}
+  readout:
+    sta_dir: "${paths.data_dir}/stas"
+    flip_sta: ${data_io.flip_sta}
 
 paths:
   load_model_path: null

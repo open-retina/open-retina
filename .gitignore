@@ -175,6 +175,7 @@ random.ipynb
 figures/
 /models
 reports/
+/artifacts/
 model-cache/
 /exp
 openretina_cache_folder/

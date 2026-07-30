@@ -10,7 +10,7 @@ import torch.nn as nn
 from jaxtyping import Float, Int
 from lightning import LightningModule
 from lightning.pytorch.utilities import grad_norm
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf, open_dict
 
 from openretina.data_io.base_dataloader import DataPoint
 from openretina.modules.core.base_core import Core, SimpleCoreWrapper
@@ -106,6 +106,7 @@ class BaseCoreReadout(LightningModule):
 
     def training_step(self, batch: tuple[str, DataPoint], batch_idx: int) -> torch.Tensor:
         session_id, data_point = batch
+        breakpoint()
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets)
         regularization_loss_core = self.core.regularizer()
@@ -340,17 +341,22 @@ class UnifiedCoreReadout(BaseCoreReadout):
         )
 
         # determine input_shape of readout if it is not already present
-        if "in_shape" not in readout:
+        if "in_shape" not in readout or OmegaConf.is_missing(readout, "in_shape") or readout.in_shape is None:
             in_shape_readout = self.compute_readout_input_shape(in_shape, core_module)
-            readout["in_shape"] = (in_shape_readout[0],) + tuple(in_shape_readout[1:])
+            with open_dict(readout):
+                readout["in_shape"] = (in_shape_readout[0],) + tuple(in_shape_readout[1:])
 
         # Extract mean_activity_dict from data_info if available
         mean_activity_dict = None if data_info is None else data_info.get("mean_activity_dict")
 
+        readout_kwargs = {}
+        if "data_info" in readout:
+            readout_kwargs["data_info"] = data_info
         readout_module = hydra.utils.instantiate(
             readout,
             n_neurons_dict=n_neurons_dict,
             mean_activity_dict=mean_activity_dict,
+            **readout_kwargs,
         )
 
         if loss is not None and isinstance(loss, DictConfig):

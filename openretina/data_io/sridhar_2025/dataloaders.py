@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset
 
+from openretina.data_io.base import ResponsesTrainTestSplit
 from openretina.data_io.sridhar_2025.constants import TEST_DATA_FRAMES
 from openretina.data_io.sridhar_2025.dataloader_utils import (
     ChunkedSampler,
@@ -19,6 +20,26 @@ from openretina.data_io.sridhar_2025.stimuli import load_frames, process_fixatio
 from openretina.utils.file_utils import get_local_file_path
 
 default_image_datapoint = namedtuple("default_image_datapoint", ["inputs", "targets"])
+
+
+def _responses_from_splits(
+    neuron_data_dictionary: dict[str, ResponsesTrainTestSplit] | None,
+) -> dict[str, dict[str, Any]] | None:
+    if not neuron_data_dictionary:
+        return None
+
+    responses = {}
+    for session_id, split in neuron_data_dictionary.items():
+        frames_per_trial = split.session_kwargs["frames_per_trial"]
+        num_trials = split.session_kwargs["num_trials"]
+        test_by_trial = split.get_test_by_trial()
+        responses[session_id] = {
+            "train_responses": split.train.reshape(split.n_neurons, frames_per_trial, num_trials),
+            "test_responses": split.test_response,
+            "test_responses_by_trial": None if test_by_trial is None else np.transpose(test_by_trial, (1, 2, 0)),
+            "cell_indices": split.neuron_ids.tolist() if split.neuron_ids is not None else None,
+        }
+    return responses
 
 
 def crop_based_on_fixation(img, x_center, y_center, img_h, img_w, flip=False, padding=200):
@@ -493,6 +514,7 @@ def frame_movie_loader(
     shuffle=None,
     sta_dir="stas",
     get_locations: bool = True,
+    neuron_data_dictionary: dict[str, ResponsesTrainTestSplit] | None = None,
     **kwargs,
 ):
     """
@@ -624,6 +646,7 @@ def frame_movie_loader(
     basepath = get_local_file_path(str(basepath))
 
     dataloaders: dict[str, dict] = {"train": {}, "validation": {}, "test": {}}
+    retina_indices: list[Any]
     if retina_index is None:
         retina_indices = list(fixation_files.keys())
     else:
@@ -633,9 +656,11 @@ def frame_movie_loader(
         fixation_file = file.readlines()
         fixations = process_fixations(fixation_file, flip_imgs=flip_imgs)
 
-    responses = load_responses(
+    responses = _responses_from_splits(neuron_data_dictionary) or load_responses(
         basepath, files=files, stimulus_seed=stimulus_seed, excluded_cells=excluded_cells, cell_index=cell_index
     )
+    if len(responses) == 1:
+        retina_indices = list(responses)
     frames = load_frames(
         img_dir_name=os.path.join(basepath, img_dir_name),
         frame_file=frame_file,
@@ -679,7 +704,10 @@ def frame_movie_loader(
         locations = None
         if get_locations:
             assert sta_dir is not None
-            if cell_index is not None:
+            selected_cell_indices = responses[retina_index].get("cell_indices")
+            if selected_cell_indices is not None:
+                cells = selected_cell_indices
+            elif cell_index is not None:
                 cells = [cell_index]
             else:
                 excluded = excluded_cells[retina_index] if excluded_cells is not None else {}
@@ -1114,15 +1142,21 @@ def white_noise_loader(
     chunked_sampling=True,
     get_locations=True,
     sta_dir="stas",
+    neuron_data_dictionary: dict[str, ResponsesTrainTestSplit] | None = None,
     **kwargs,
 ):
     basepath = get_local_file_path(str(basepath))
-    dataloaders = {"train": {}, "validation": {}, "test": {}}
+    dataloaders: dict[str, dict] = {"train": {}, "validation": {}, "test": {}}
+    retina_indices: list[Any]
     if retina_index is None:
         retina_indices = list(files.keys())
     else:
         retina_indices = [retina_index]
-    responses = load_responses(basepath, files=files, excluded_cells=excluded_cells, cell_index=cell_index)
+    responses = _responses_from_splits(neuron_data_dictionary) or load_responses(
+        basepath, files=files, excluded_cells=excluded_cells, cell_index=cell_index
+    )
+    if len(responses) == 1:
+        retina_indices = list(responses)
 
     for retina_index in retina_indices:
         train_responses = responses[retina_index]["train_responses"]
@@ -1151,10 +1185,13 @@ def white_noise_loader(
 
         if get_locations:
             assert sta_dir is not None
+            selected_cell_indices = responses[retina_index].get("cell_indices")
             locations = get_locations_from_stas(
                 sta_dir=os.path.join(basepath, sta_dir),
                 retina_index=retina_index,
-                cells=[cell_index]
+                cells=selected_cell_indices
+                if selected_cell_indices is not None
+                else [cell_index]
                 if cell_index is not None
                 else [
                     x
