@@ -159,8 +159,9 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 
-# VS Code
+# VS Code / AI Agent Setups
 .vscode/
+.claude/
 
 # Custom miscellaneous
 api_keys.sh

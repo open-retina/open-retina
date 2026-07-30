@@ -19,9 +19,10 @@ class SparsityMSELoss:
 
     @staticmethod
     def sparsity_loss(z: torch.Tensor) -> torch.Tensor:
-        # The anthropic paper just sums over all neurons
+        # The anthropic paper sums the L1 penalty over the hidden neurons and averages over examples,
+        # matching the reduction used in mse_loss so the two terms are on a comparable per-example scale.
         # Make sure the interpolation factor is small enough to not have a dominating sparsity loss
-        return z.abs().sum()
+        return z.abs().sum(dim=-1).mean()
 
     def forward(
         self, x: torch.Tensor, z: torch.Tensor, x_hat: torch.Tensor
@@ -84,7 +85,7 @@ class Autoencoder(lightning.LightningModule):
         return x_reconstruct
 
     def decoder_norm_diff_from_unit_norm(self) -> torch.Tensor:
-        column_norms_decoder = self.decoder.weight.norm(dim=1)
+        column_norms_decoder = self.decoder.weight.norm(dim=0)
         diff_from_unit_norm = torch.abs(1.0 - column_norms_decoder)
         norm_loss = torch.sum(diff_from_unit_norm)
         return norm_loss
@@ -92,13 +93,13 @@ class Autoencoder(lightning.LightningModule):
     def on_after_backward(self) -> None:
         # remove parallel information of gradient to decoder weight columns
         with torch.no_grad():
-            weight_normed = self.decoder.weight / self.decoder.weight.norm(dim=-1, keepdim=True)
-            weight_grad_proj = (self.decoder.weight.grad * weight_normed).sum(dim=-1, keepdim=True) * weight_normed
+            weight_normed = self.decoder.weight / self.decoder.weight.norm(dim=0, keepdim=True)
+            weight_grad_proj = (self.decoder.weight.grad * weight_normed).sum(dim=0, keepdim=True) * weight_normed
             self.decoder.weight.grad -= weight_grad_proj
 
     def training_step(self, batch, batch_idx) -> torch.Tensor:
         # make decoder weight unit norm
-        self.decoder.weight.data[:] = self.decoder.weight / self.decoder.weight.norm(dim=-1, keepdim=True)
+        self.decoder.weight.data[:] = self.decoder.weight / self.decoder.weight.norm(dim=0, keepdim=True)
 
         x, _ = batch
         z = self.encode(x)
@@ -158,7 +159,7 @@ class AutoencoderWithModel(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         model_outputs: list[torch.Tensor] = []
-        for key in self.model.readout_keys():  # type: ignore
+        for key in self.model.readout.readout_keys():  # type: ignore
             out = self.model.forward(x, key)
             model_outputs.append(out)
         activations = torch.cat(model_outputs, dim=-1)
