@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from openretina.modules.layers import FlatLaplaceL23dnorm
 from openretina.modules.layers.convolutions import get_conv_class
 from openretina.modules.layers.reducers import WeightedChannelSumLayer
-from openretina.modules.layers.regularizers import Laplace1d
+from openretina.modules.layers.regularizers import TimeLaplaceL23dnorm
 from openretina.modules.layers.scaling import Bias3DLayer
 
 
@@ -120,7 +120,7 @@ class SimpleCoreWrapper(Core):
             )
 
         self._input_weights_regularizer_spatial = FlatLaplaceL23dnorm(padding=0)
-        self._input_weights_regularizer_temporal = Laplace1d(padding=0, persistent_buffer=False)
+        self._input_weights_regularizer_temporal = TimeLaplaceL23dnorm(padding=0, persistent_buffer=False)
 
         self.features = torch.nn.Sequential()
         self.color_squashing_layer = (
@@ -180,7 +180,7 @@ class SimpleCoreWrapper(Core):
         assert hasattr(conv_obj, "time_conv")
         time_conv_weight: torch.Tensor = conv_obj.time_conv.weight  # type: ignore
         ch_in, ch_out, t, _, _ = time_conv_weight.shape
-        loss = self._input_weights_regularizer_temporal(time_conv_weight.view(ch_in * ch_out, 1, t), avg=False)
+        loss = self._input_weights_regularizer_temporal(time_conv_weight, avg=False)
         return loss
 
     def temporal_smoothness(self) -> torch.Tensor:
