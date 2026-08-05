@@ -121,7 +121,13 @@ def generate_movie_splits(
     num_clips: int,
     clip_length: int,
 ) -> tuple[torch.Tensor, torch.Tensor, dict[str, torch.Tensor]]:
-    movie_train = torch.tensor(movie_train, dtype=torch.float)
+    # as_tensor, not tensor: this is a whole-session movie (up to ~4 GB for qiu_2026) and it is only
+    # ever READ below -- sliced into `movie_val` and `movie_train_subset`, both of which allocate
+    # their own storage. torch.tensor() would copy it in full for nothing. Inputs that are already
+    # float32 ndarrays therefore cost zero extra bytes here; other dtypes still convert (i.e. copy),
+    # exactly as before. The test movies below stay real copies on purpose: they ARE retained by the
+    # test dataloaders, so aliasing them would keep each session's source movie alive.
+    movie_train = torch.as_tensor(movie_train, dtype=torch.float)
     movie_test_dict = {n: torch.tensor(movie, dtype=torch.float) for n, movie in movie_test.items()}
 
     channels, _, px_y, px_x = movie_train.shape
