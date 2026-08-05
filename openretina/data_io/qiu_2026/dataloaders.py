@@ -93,6 +93,7 @@ def qiu_2026_dataloaders(
     num_val_clips: int = 10,
     val_clip_indices: list[int] | None = None,
     allow_over_boundaries: bool = False,
+    release_movies: bool = False,
 ) -> dict[str, dict[str, DataLoader]]:
     """Build ``dict[split][session] -> DataLoader`` yielding :class:`QiuDataPoint` batches.
 
@@ -100,6 +101,22 @@ def qiu_2026_dataloaders(
     the session's curated ``session_kwargs["validation_clip_indices"]``, then a random draw of
     ``num_val_clips``. The curated path is the intended one — it removes the dataset's designated validation
     trials from the training subset. Each test condition is evaluated as a single whole clip.
+
+    Args:
+        release_movies: **Destructive.** Drop each session's entry from ``movies_dictionary`` as soon as its
+            splits have been taken, so already-consumed source movies are freed while the loop is still
+            running. The full dataset is ~28 GB of movies and the splits duplicate all of it, so without
+            this the caller holds both copies of every session at once; releasing as we go is what keeps
+            peak RSS down (freeing afterwards would only help the steady state). The caller's dictionary is
+            left EMPTY, so anything needing the raw movies — notably
+            :func:`~openretina.data_io.base.compute_data_info`, which reads ``.train.shape`` — must run
+            before this function, as ``openretina/cli/train.py`` and the qiu notebooks both do.
+
+            Only frees anything if the caller passes its own dictionary directly. Going through
+            ``hydra.utils.instantiate(cfg.dataloader, movies_dictionary=...)`` hands this function an
+            OmegaConf-rebuilt copy of the container and of each wrapper, so dropping entries from it
+            leaves the caller's references — and therefore the arrays — alive. Instantiate the builder
+            with ``_partial_=True`` and call it normally instead; both CLI entry points do.
     """
     assert set(neuron_data_dictionary) == set(movies_dictionary) == set(pupil_dictionary), (
         "neuron_data_dictionary, movies_dictionary and pupil_dictionary must share the same session keys."
@@ -124,6 +141,11 @@ def qiu_2026_dataloaders(
             num_clips=num_clips,
             clip_length=clip_length,
         )
+        # Last use of the raw movie for this session: everything below works off the splits above.
+        # Safe to mutate mid-loop because we iterate `neuron_data_dictionary`, not this dictionary.
+        if release_movies:
+            movies_dictionary.pop(session_key, None)
+
         pupil_train_subset, pupil_val, pupil_test_dict = _split_pupil(
             pupil_dictionary[session_key]["train"],
             pupil_dictionary[session_key]["test_dict"],

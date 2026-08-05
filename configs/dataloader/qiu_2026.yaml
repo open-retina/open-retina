@@ -4,3 +4,13 @@ batch_size: 32
 train_chunk_size: 50 # strictly < clip_length keeps random-shift augmentation
 clip_length: 300 # integral num_clips = train_time // clip_length
 allow_over_boundaries: false # confine chunks to trial boundaries
+# Frees each session's source movie once its splits are taken. Measured over all 10 sessions
+# (scratch_qiu_measure_peak_rss.py, job 427774): peak RSS 86.7 -> 58.9 GB, steady 85.8 -> 54.2 GB,
+# construction 50.5 -> 37.4 s. The 86.7 GB peak is what OOM-killed the 80G sweep tasks.
+# DESTRUCTIVE: empties the caller's movies dictionary. Every entry point here already computes
+# data_info before building dataloaders (cli/train.py, cli/eval.py never needs it after, and the qiu
+# notebooks call compute_data_info in an earlier cell), so nothing downstream reads the raw movies.
+# Only takes effect when the caller passes its own dict, i.e. via instantiate(..., _partial_=True) as
+# both CLIs do; through instantiate(cfg.dataloader, movies_dictionary=...) it is inert but harmless,
+# which is why the notebooks keep their movies dict and their stimulus-plotting cells still re-run.
+release_movies: true

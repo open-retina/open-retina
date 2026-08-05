@@ -11,7 +11,7 @@ import hydra
 import numpy as np
 import torch
 
-from openretina.data_io.base import MoviesTrainTestSplit, ResponsesTrainTestSplit
+from openretina.data_io.base import MoviesTrainTestSplit, ResponsesTrainTestSplit, compute_data_info
 from openretina.models.core_readout import UnifiedCoreReadout
 
 SESSION_KEY = "dynamic28188-16-3-Fluorescence-7b721b-v4a"
@@ -93,3 +93,101 @@ def test_qiu_2026_train_step_runs_end_to_end_with_shifter() -> None:
     total_loss = model.training_step((SESSION_KEY, train_batch), 0)
 
     assert torch.isfinite(total_loss)
+
+
+def _build_dataloaders(movies_dictionary: dict, responses, pupil, **overrides):
+    """Build dataloaders the way cli/train.py does: `_partial_`, then a plain Python call.
+
+    The call style matters for memory, not just style — see
+    ``test_release_movies_needs_the_partial_call_style``.
+    """
+    with hydra.initialize(version_base="1.3", config_path="../../configs"):
+        cfg = hydra.compose(config_name="qiu_2026_core_readout", overrides=DATALOADER_OVERRIDES)
+    build = hydra.utils.instantiate(cfg.dataloader, _partial_=True)
+    return build(
+        neuron_data_dictionary={SESSION_KEY: responses},
+        movies_dictionary=movies_dictionary,
+        pupil_dictionary={SESSION_KEY: pupil},
+        **overrides,
+    )
+
+
+def test_shipped_config_releases_source_movies_during_construction() -> None:
+    """The shipped qiu config sets release_movies, which empties the caller's dictionary as it goes.
+
+    This is what keeps peak RSS down on the real dataset (~28 GB of movies, duplicated by the splits).
+    Anything needing the raw movies must therefore run before dataloader construction — see the
+    compute_data_info ordering in cli/train.py, guarded by the next test.
+    """
+    movies, responses, pupil = _make_synthetic_session()
+    movies_dictionary = {SESSION_KEY: movies}
+
+    dataloaders = _build_dataloaders(movies_dictionary, responses, pupil)
+
+    assert movies_dictionary == {}, "shipped config should release source movies during construction"
+    # Releasing must not damage what the dataloaders yield.
+    train_batch = next(iter(dataloaders["train"][SESSION_KEY]))
+    assert train_batch.inputs.shape[1] == N_CHANNELS
+    assert torch.isfinite(train_batch.inputs).all()
+
+
+def test_release_movies_needs_the_partial_call_style() -> None:
+    """Pins WHY cli/train.py uses `_partial_` instead of instantiate(cfg.dataloader, **kwargs).
+
+    Passing the data dictionaries through instantiate() gives the builder OmegaConf-rebuilt copies of
+    the container and of each session wrapper (numpy buffers stay shared, so nothing is duplicated) —
+    but the builder then releases entries from a copy, while the caller keeps every movie alive. The
+    memory win silently disappears with no error anywhere, so it needs a test rather than a comment.
+    """
+    movies, responses, pupil = _make_synthetic_session()
+    movies_dictionary = {SESSION_KEY: movies}
+
+    with hydra.initialize(version_base="1.3", config_path="../../configs"):
+        cfg = hydra.compose(config_name="qiu_2026_core_readout", overrides=DATALOADER_OVERRIDES)
+    assert cfg.dataloader.release_movies is True, "this test is meaningless if the config disables release"
+    hydra.utils.instantiate(
+        cfg.dataloader,
+        neuron_data_dictionary={SESSION_KEY: responses},
+        movies_dictionary=movies_dictionary,
+        pupil_dictionary={SESSION_KEY: pupil},
+    )
+
+    assert movies_dictionary != {}, (
+        "instantiate(**kwargs) now propagates mutations to the caller's dict; if this ever changes, "
+        "the _partial_ dance in cli/train.py and cli/eval.py can be simplified away"
+    )
+
+
+def test_release_movies_does_not_change_the_batches() -> None:
+    movies, responses, pupil = _make_synthetic_session()
+    kept = _build_dataloaders({SESSION_KEY: movies}, responses, pupil, release_movies=False)
+    released = _build_dataloaders({SESSION_KEY: movies}, responses, pupil, release_movies=True)
+
+    for split in ("train", "validation"):
+        # The train sampler shifts chunk starts with np.random (MovieSampler.__iter__), so seed numpy —
+        # not torch — before each iterator, or the two builds draw different offsets of the same movie.
+        np.random.seed(0)
+        kept_batch = next(iter(kept[split][SESSION_KEY]))
+        np.random.seed(0)
+        released_batch = next(iter(released[split][SESSION_KEY]))
+        torch.testing.assert_close(kept_batch.inputs, released_batch.inputs)
+        torch.testing.assert_close(kept_batch.targets, released_batch.targets)
+        torch.testing.assert_close(kept_batch.pupil_center, released_batch.pupil_center)
+
+
+def test_compute_data_info_does_not_depend_on_dataloader_construction() -> None:
+    """cli/train.py computes data_info BEFORE building dataloaders; this is why that is safe."""
+    movies, responses, pupil = _make_synthetic_session()
+    movies_dictionary = {SESSION_KEY: movies}
+    neuron_data_dictionary = {SESSION_KEY: responses}
+
+    before = compute_data_info(neuron_data_dictionary, movies_dictionary)
+    _build_dataloaders(movies_dictionary, responses, pupil, release_movies=False)
+    after = compute_data_info(neuron_data_dictionary, movies_dictionary)
+
+    assert before.keys() == after.keys()
+    assert before["n_neurons_dict"] == after["n_neurons_dict"]
+    assert before["input_shape"] == after["input_shape"]
+    assert before["stim_mean"] == after["stim_mean"] and before["stim_std"] == after["stim_std"]
+    assert before["sessions_kwargs"] == after["sessions_kwargs"]
+    torch.testing.assert_close(before["mean_activity_dict"][SESSION_KEY], after["mean_activity_dict"][SESSION_KEY])
