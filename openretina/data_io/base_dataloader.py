@@ -2,6 +2,7 @@ import bisect
 import collections
 import logging
 from collections import namedtuple
+from functools import cached_property
 from typing import Any, List, Literal, Optional, SupportsIndex, cast
 
 import numpy as np
@@ -435,10 +436,14 @@ class NeuronDataSplit:
 
         return responses_train, responses_val
 
-    @property
+    @cached_property
     def response_dict(self) -> dict:
         """
         Create and return a dictionary of neural responses for train, validation, and test datasets.
+
+        Cached: every access rebuilds every tensor below, and callers index a single key per access
+        (e.g. `response_dict[fold]` once per fold), so an uncached property rebuilds the whole
+        structure once per lookup. See `response_dict_test` for how bad that gets.
 
         Structure:
             {
@@ -468,10 +473,17 @@ class NeuronDataSplit:
             "test": test_entries,
         }
 
-    @property
+    @cached_property
     def response_dict_test(self) -> dict[str, dict[str, torch.Tensor | None]]:
         """
         Torch representation of the averaged and per-trial test responses keyed by stimulus name.
+
+        Cached because callers index one stimulus per access inside a loop over stimuli
+        (`response_dict_test[name]`), while each access builds the tensors for ALL of them. Uncached,
+        a session with N test conditions did O(N^2) tensor allocations to keep N of them -- for
+        qiu_2026's ~95 conditions per session that is ~9000 allocations instead of ~95, measured at
+        49x slower for one session's worth of accesses. Whether that churn also lifted the peak RSS
+        is allocator-dependent and was not measured; the speedup alone justifies the cache.
 
         Returns:
             {
