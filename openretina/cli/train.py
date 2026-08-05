@@ -62,9 +62,19 @@ def train_model(cfg: DictConfig) -> float | None:
     if "pupil" in cfg.data_io:
         dataloader_kwargs["pupil_dictionary"] = hydra.utils.call(cfg.data_io.pupil)
 
-    dataloaders = hydra.utils.instantiate(cfg.dataloader, **dataloader_kwargs)
-
+    # Before the dataloaders, not after: compute_data_info reads only shapes and the precomputed
+    # normalization scalars (never movie pixels), so the result is identical either way -- but a builder
+    # configured with release_movies=true frees each session's source movie as it goes, leaving nothing
+    # to read afterwards. Cheap and order-independent, so it costs nothing to do it first.
     data_info = compute_data_info(neuron_data_dict, movies_dict, partial_data_info=cfg.data_io.get("data_info"))
+
+    # `_partial_` then a plain Python call, NOT instantiate(cfg.dataloader, **dataloader_kwargs).
+    # Passing the data dictionaries through instantiate() hands the builder OmegaConf-rebuilt copies of
+    # the containers and of each session's dataclass wrapper (the numpy buffers are still shared, so no
+    # data is duplicated). Those copies are enough to defeat `release_movies`: the builder would drop
+    # entries from its own copy while this function's dictionary kept every session's movie alive.
+    build_dataloaders = hydra.utils.instantiate(cfg.dataloader, _partial_=True)
+    dataloaders = build_dataloaders(**dataloader_kwargs)
 
     train_loader = data.DataLoader(
         LongCycler(dataloaders["train"], shuffle=True),
