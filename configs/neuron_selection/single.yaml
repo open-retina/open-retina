@@ -1,0 +1,3 @@
+# Train a fresh model for selected stable neuron IDs from one session.
+session: ???
+neuron_ids: ???
