@@ -9,7 +9,7 @@ import torch
 import torch.utils.data as data
 from omegaconf import DictConfig, OmegaConf
 
-from openretina.data_io.base import compute_data_info
+from openretina.data_io.base import compute_data_info, select_neurons
 from openretina.data_io.cyclers import LongCycler, ShortCycler
 from openretina.models.core_readout import UnifiedCoreReadout, load_core_readout_model
 from openretina.utils.log_to_mlflow import log_to_mlflow
@@ -48,6 +48,13 @@ def train_model(cfg: DictConfig) -> float | None:
     movies_dict = hydra.utils.call(cfg.data_io.stimuli)
     neuron_data_dict = hydra.utils.call(cfg.data_io.responses)
 
+    neuron_selection = cfg.get("neuron_selection")
+    if neuron_selection is not None:
+        session = neuron_selection.session
+        neuron_data_dict = select_neurons(neuron_data_dict, session, neuron_selection.neuron_ids)
+        if isinstance(movies_dict, dict):
+            movies_dict = {session: movies_dict[session]}
+
     if cfg.check_stimuli_responses_match:
         for session, neuron_data in neuron_data_dict.items():
             neuron_data.check_matching_stimulus(movies_dict[session])
@@ -73,6 +80,8 @@ def train_model(cfg: DictConfig) -> float | None:
 
     ### Model init
     load_model_path = cfg.paths.get("load_model_path")
+    if neuron_selection is not None and load_model_path:
+        raise ValueError("Neuron selection trains a fresh model and cannot be combined with paths.load_model_path")
     if load_model_path:
         log.info(f"Loading model from <{load_model_path}>")
         device = "cuda" if torch.cuda.is_available() else "cpu"

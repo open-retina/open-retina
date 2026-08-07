@@ -1,5 +1,6 @@
 import os
 import pickle
+from typing import Iterable
 
 import numpy as np
 from jaxtyping import Float
@@ -103,6 +104,7 @@ def build_movies_from_responses(
     stimulus_seed: int = 0,
     norm_mean: float = 0.0,
     norm_std: float = 1.0,
+    sessions: Iterable[str] | None = None,
 ) -> dict[str, MoviesTrainTestSplit]:
     """
     Create MoviesTrainTestSplit placeholders with accurate frame counts by reading response files.
@@ -124,6 +126,7 @@ def build_movies_from_responses(
         stimulus_seed: Random seed used for trial selection (affects frame counts for some sessions).
         norm_mean: Normalization mean for the stimulus.
         norm_std: Normalization std for the stimulus.
+        sessions: Optional subset of response-file session IDs to load.
 
     Returns:
         Dictionary mapping session IDs to MoviesTrainTestSplit placeholders with accurate frame counts.
@@ -131,6 +134,9 @@ def build_movies_from_responses(
 
     base_path = get_local_file_path(str(base_path))
     movies = {}
+
+    if sessions is not None:
+        response_files = {session: response_files[session] for session in sessions}
 
     for session_id, response_file in response_files.items():
         with open(os.path.join(base_path, response_file), "rb") as f:

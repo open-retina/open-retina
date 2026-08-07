@@ -428,6 +428,7 @@ def make_final_responses(
             test=test_responses,
             test_by_trial=test_responses_by_trial,
             stim_id=response_type,
+            neuron_ids=upsampled_data_dict[field]["roi_ids"],
             session_kwargs={
                 "eye": upsampled_data_dict[field]["eye"],
                 "scan_sequence_idx": upsampled_data_dict[field]["scan_sequence_idx"],

@@ -1,6 +1,6 @@
 import os
 import pickle
-from typing import Any, Optional
+from typing import Any, Iterable, Optional
 
 import numpy as np
 
@@ -19,9 +19,13 @@ def load_responses(
     stimulus_seed: int = 0,
     excluded_cells: Optional[dict[Any, list[int]]] = None,
     cell_index: Optional[int] = None,
+    sessions: Iterable[str] | None = None,
 ) -> dict[str, dict[str, Any]]:
     base_path = get_local_file_path(str(base_path))
     responses = {}
+
+    if sessions is not None:
+        files = {session: files[session] for session in sessions}
 
     for session_id, file in files.items():
         with open(os.path.join(base_path, file), "rb") as pkl:
@@ -79,6 +83,7 @@ def response_splits_from_pickles(
     stimulus_seed: int = 0,
     excluded_cells: Optional[dict[Any, list[int]]] = None,
     cell_index: Optional[int] = None,
+    sessions: Iterable[str] | None = None,
 ) -> dict[str, ResponsesTrainTestSplit]:
     """
     Convert Sridhar pickled responses into ``ResponsesTrainTestSplit`` objects compatible with the unified pipeline.
@@ -90,6 +95,7 @@ def response_splits_from_pickles(
         stimulus_seed=stimulus_seed,
         excluded_cells=excluded_cells,
         cell_index=cell_index,
+        sessions=sessions,
     )
 
     splits: dict[str, ResponsesTrainTestSplit] = {}
@@ -114,6 +120,7 @@ def response_splits_from_pickles(
             test=test_responses,
             test_by_trial=test_by_trial_formatted,
             stim_id=f"sridhar_{session_id}",
+            neuron_ids=np.asarray(cell_indices),
             session_kwargs={
                 "stimulus_seed": stimulus_seed,
                 "frames_per_trial": frames_per_trial,

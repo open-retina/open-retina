@@ -3,7 +3,7 @@ import pickle
 import warnings
 from dataclasses import InitVar, dataclass, field
 from functools import cached_property
-from typing import Any, Optional
+from typing import Any, Iterable, Optional
 
 import numpy as np
 import torch
@@ -103,6 +103,7 @@ class ResponsesTrainTestSplit:
     test_by_trial_dict: dict = field(default_factory=lambda: {})
     stim_id: str | None = None
     session_kwargs: dict[str, Any] = field(default_factory=lambda: {})
+    neuron_ids: np.ndarray | None = None
 
     def __post_init__(self, test):
         if (len(self.test_dict) == 0) == (test is None):
@@ -128,6 +129,14 @@ class ResponsesTrainTestSplit:
         assert self.train.shape[0] == self.test_neurons, (
             "Train and test responses should have the same number of neurons."
         )
+        if self.neuron_ids is None:
+            self.neuron_ids = np.arange(self.train.shape[0])
+        else:
+            self.neuron_ids = np.asarray(self.neuron_ids)
+            if self.neuron_ids.ndim != 1 or len(self.neuron_ids) != self.train.shape[0]:
+                raise ValueError("neuron_ids must contain one ID per neuron")
+            if len(set(self.neuron_ids.tolist())) != len(self.neuron_ids):
+                raise ValueError("neuron_ids must be unique")
         if self.train.shape[0] > self.train.shape[1]:
             warnings.warn(
                 "The number of neurons is greater than the number of timebins in the train responses. "
@@ -185,6 +194,54 @@ class ResponsesTrainTestSplit:
         if not self.test_by_trial_dict:
             return None
         return self.test_by_trial_dict.get(name)
+
+    def select_neurons(self, neuron_ids: Iterable[Any]) -> "ResponsesTrainTestSplit":
+        """Return a copy containing the requested stable neuron IDs."""
+        requested_ids = list(neuron_ids)
+        if not requested_ids:
+            raise ValueError("At least one neuron ID must be selected")
+
+        assert self.neuron_ids is not None
+        positions = []
+        for neuron_id in requested_ids:
+            matches = np.flatnonzero(self.neuron_ids == neuron_id)
+            if len(matches) != 1:
+                raise KeyError(f"Unknown neuron ID {neuron_id!r}; available IDs: {self.neuron_ids.tolist()}")
+            positions.append(int(matches[0]))
+        if len(set(positions)) != len(positions):
+            raise ValueError("Neuron IDs must not be repeated")
+
+        n_neurons = self.n_neurons
+
+        def select_metadata(value):
+            if isinstance(value, np.ndarray) and value.ndim > 0 and value.shape[0] == n_neurons:
+                return value[positions]
+            if isinstance(value, torch.Tensor) and value.ndim > 0 and value.shape[0] == n_neurons:
+                return value[positions]
+            if isinstance(value, (list, tuple)) and len(value) == n_neurons:
+                selected = [value[position] for position in positions]
+                return type(value)(selected)
+            return value
+
+        return ResponsesTrainTestSplit(
+            train=self.train[positions],
+            test_dict={name: responses[positions] for name, responses in self.test_dict.items()},
+            test_by_trial_dict={name: responses[:, positions] for name, responses in self.test_by_trial_dict.items()},
+            stim_id=self.stim_id,
+            session_kwargs={key: select_metadata(value) for key, value in self.session_kwargs.items()},
+            neuron_ids=self.neuron_ids[positions],
+        )
+
+
+def select_neurons(
+    responses_dictionary: dict[str, ResponsesTrainTestSplit],
+    session: str,
+    neuron_ids: Iterable[Any],
+) -> dict[str, ResponsesTrainTestSplit]:
+    """Select neurons from one session for an independent model training run."""
+    if session not in responses_dictionary:
+        raise KeyError(f"Unknown session {session!r}; available sessions: {sorted(responses_dictionary)}")
+    return {session: responses_dictionary[session].select_neurons(neuron_ids)}
 
 
 def get_n_neurons_per_session(responses_dict: dict[str, ResponsesTrainTestSplit]) -> dict[str, int]:
@@ -334,6 +391,7 @@ def compute_data_info(
 
     return {
         "n_neurons_dict": n_neurons_dict,
+        "neuron_ids_dict": {name: responses.neuron_ids for name, responses in neuron_data_dictionary.items()},
         "mean_activity_dict": mean_activity_dict,
         "input_shape": input_shape,
         "sessions_kwargs": sessions_kwargs,
