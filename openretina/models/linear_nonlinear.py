@@ -69,7 +69,7 @@ class SingleCellSeparatedLNP(LightningModule):
     nonlinearity:
         Output nonlinearity applied after the temporal stage. If "parametrized_softplus",
         uses `ParametrizedSoftplus()`. Otherwise, uses `torch.nn.functional.<nonlinearity>`
-        via `F.__dict__[nonlinearity]` (e.g. "exp", "softplus", ...).
+        via `F.__dict__[nonlinearity]` (e.g. "softplus", ...).
     normalize_weights:
         If True, renormalizes spatial and temporal kernels to unit norm at every
         forward pass (in-place, under no_grad).
@@ -122,10 +122,10 @@ class SingleCellSeparatedLNP(LightningModule):
         smooth_weight_temp: float = 0.0,
         sparse_weight: float = 0.0,
         smooth_regularizer_spat: str = "LaplaceL2norm",
-        smooth_regularizer_temp: str = "Laplace1d",
+        smooth_regularizer_temp: str = "TimeLaplaceL23dnorm",
         smooth_regularizer: str = "LaplaceL2norm",
         laplace_padding=None,
-        nonlinearity: str = "exp",
+        nonlinearity: str = "parametrized_softplus",
         normalize_weights: bool = True,
         loss=None,
         evaluation_loss=None,
@@ -263,7 +263,7 @@ class SingleCellSeparatedLNP(LightningModule):
     def laplace(self):
         return self.smooth_weight_spat * self._smooth_reg_fn_spat(
             self.space_conv.weight.squeeze(2)
-        ) + self.smooth_weight_temp * self._smooth_reg_fn_temp(self.time_conv.weight.squeeze(-1, -2))
+        ) + self.smooth_weight_temp * self._smooth_reg_fn_temp(self.time_conv.weight)
 
     def weights_l1(self, average: bool = True):
         """Returns l1 regularization across all weight dimensions

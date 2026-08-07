@@ -26,16 +26,16 @@ _HUGGINGFACE_CHECKPOINTS_BASE_PATH = (
     "https://huggingface.co/datasets/open-retina/open-retina/tree/main/model_checkpoints"
 )
 _MODEL_NAME_TO_REMOTE_LOCATION = {
+    "hoefling_2024_low_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/hoefling_2024_cnn_low_res.ckpt",
+    "hoefling_2024_high_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/hoefling_2024_cnn_high_res.ckpt",
+    "karamanlis_2024_mouse": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/karamanlis_2024_mouse.ckpt",
+    "karamanlis_2024_marmoset": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/karamanlis_2024_marmoset.ckpt",
+    "maheswaranathan_2023": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/maheswaranathan_2023.ckpt",
+    "sridhar_2025": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/sridhar_2025.ckpt",
+    "goldin_2022_axolotl": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/goldin_2022_axolotl.ckpt",
+    "goldin_2022_mouse": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/goldin_2022_mouse.ckpt",
+    # legacy model used in the first bioarxiv version of the paper
     "hoefling_2024_base_low_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/hoefling_2024_base_low_res.ckpt",
-    "hoefling_2024_base_low_res_grey_scale": (
-        f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/hoefling_2024_base_low_res_grey_scale.ckpt"
-    ),
-    "hoefling_2024_base_high_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/hoefling_2024_base_high_res.ckpt",
-    "karamanlis_2024_base_mouse": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/karamanlis_2024_base_mouse.ckpt",
-    "karamanlis_2024_base_marmoset": (
-        f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/karamanlis_2024_base_marmoset.ckpt"
-    ),
-    # "maheswaranathan_2023_base": f"",  # Todo: update
 }
 
 
@@ -111,7 +111,7 @@ class BaseCoreReadout(LightningModule):
         regularization_loss_core = self.core.regularizer()
         regularization_loss_readout = self.readout.regularizer(session_id)  # type: ignore
         total_loss = loss + regularization_loss_core + regularization_loss_readout
-        evaluation_loss = -self.evaluation_loss.forward(model_output, data_point.targets)
+        evaluation_loss = self.evaluation_loss.forward(model_output, data_point.targets)
 
         self.log("regularization_loss_core", regularization_loss_core, on_step=False, on_epoch=True)
         self.log("regularization_loss_readout", regularization_loss_readout, on_step=False, on_epoch=True)
@@ -506,24 +506,19 @@ class ExampleCoreReadout(BaseCoreReadout):
 
 
 def load_core_readout_from_remote(
-    model_name: str,
+    model_path: str,
     device: str,
     cache_directory_path: str | os.PathLike | None = None,
 ) -> BaseCoreReadout:
     if cache_directory_path is None:
         cache_directory_path = get_cache_directory()
-    if model_name not in _MODEL_NAME_TO_REMOTE_LOCATION:
-        raise ValueError(
-            f"Model name {model_name} not supported for download yet. "
-            f"The following names are supported: {sorted(_MODEL_NAME_TO_REMOTE_LOCATION.keys())}"
-        )
-    remote_path = _MODEL_NAME_TO_REMOTE_LOCATION[model_name]
+    remote_path = _MODEL_NAME_TO_REMOTE_LOCATION.get(model_path, model_path)
     local_path = get_local_file_path(remote_path, cache_directory_path)
     try:
-        return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
+        return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device, weights_only=False)
     except:  # noqa: E722
         # Support for legacy ExampleCoreReadout model
-        return ExampleCoreReadout.load_from_checkpoint(local_path, map_location=device)
+        return ExampleCoreReadout.load_from_checkpoint(local_path, map_location=device, weights_only=False)
 
 
 def load_core_readout_model(
@@ -538,7 +533,7 @@ def load_core_readout_model(
 
     local_path = get_local_file_path(model_path_or_name, cache_directory_path)
     try:
-        return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
+        return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device, weights_only=False)
     except:  # noqa: E722
         # Support for legacy ExampleCoreReadout model
-        return ExampleCoreReadout.load_from_checkpoint(local_path, map_location=device)
+        return ExampleCoreReadout.load_from_checkpoint(local_path, map_location=device, weights_only=False)

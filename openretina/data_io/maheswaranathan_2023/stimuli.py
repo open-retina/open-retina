@@ -15,7 +15,7 @@ from openretina.data_io.base import MoviesTrainTestSplit, normalize_train_test_m
 from openretina.utils.file_utils import get_local_file_path
 from openretina.utils.h5_handling import load_dataset_from_h5
 
-CLIP_LENGTH = 90  # in frames @ 30 fps
+CLIP_LENGTH = 90  # in frames @ 100 fps
 
 
 def load_all_stimuli(

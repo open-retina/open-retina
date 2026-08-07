@@ -31,7 +31,6 @@ from openretina.data_io.base_dataloader import DataPoint
 from openretina.models.core_readout import BaseCoreReadout
 from openretina.modules.core.base_core import DummyCore
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
-from openretina.modules.nonlinearities import ParametrizedSoftplus
 from openretina.modules.readout.spatial_contrast_model_readout import (
     MultiSpatialContrastReadout,
     SpatialContrastReadout,
@@ -172,8 +171,9 @@ class SingleCellSpatialContrast(LightningModule):
         self.register_buffer("spatial_filter_sum", torch.tensor(spatial_filter.sum()))
 
         # The 4 learnable parameters
-        self.nonlinearity = ParametrizedSoftplus(w=a_init, a=b_init, b=c_init, learn_a=True)
-        # The `w` here is different from the `w` used in ParametrizedSoftplus
+        self.nl_a = nn.Parameter(torch.tensor(a_init, dtype=torch.float32), requires_grad=True)
+        self.nl_b = nn.Parameter(torch.tensor(b_init, dtype=torch.float32), requires_grad=True)
+        self.nl_c = nn.Parameter(torch.tensor(c_init, dtype=torch.float32), requires_grad=True)
         self.w = nn.Parameter(torch.tensor(w_init, dtype=torch.float32), requires_grad=True)
 
     def crop_input(self, x: Float[torch.Tensor, "batch channels time height width"]) -> torch.Tensor:
@@ -258,7 +258,7 @@ class SingleCellSpatialContrast(LightningModule):
         lsc = self.compute_lsc(temp_filtered, imean)
 
         combined = imean + self.w * lsc
-        output = self.nonlinearity(combined)
+        output = self.nl_a * nn.functional.softplus(self.nl_b * combined + self.nl_c)
 
         return rearrange(output, "batch time -> batch time 1")
 
@@ -266,7 +266,7 @@ class SingleCellSpatialContrast(LightningModule):
         session_id, data_point = batch
 
         model_output = self.forward(data_point.inputs, session_id)
-        loss = self.loss.forward(model_output, data_point.targets)
+        loss = self.loss.forward(model_output, data_point.targets) / model_output.numel()
         correlation = -self.validation_loss.forward(model_output, data_point.targets)
 
         self.log("train_loss", loss, on_step=False, on_epoch=True)
@@ -278,7 +278,7 @@ class SingleCellSpatialContrast(LightningModule):
         session_id, data_point = batch
 
         model_output = self.forward(data_point.inputs, session_id)
-        loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
+        loss = self.loss.forward(model_output, data_point.targets) / model_output.numel()
         correlation = -self.validation_loss.forward(model_output, data_point.targets)
 
         self.log("val_loss", loss, logger=True, prog_bar=True)
@@ -297,7 +297,7 @@ class SingleCellSpatialContrast(LightningModule):
         optimizer.step(closure=optimizer_closure)
 
         # To avoid negative model predictions, clamp the gain parameter in the nonlinearity
-        self.nonlinearity.w.clamp(min=0.0)
+        self.w.data.clamp_(min=0.0)
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
@@ -458,8 +458,8 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
         self,
         epoch: int,
         batch_idx: int,
-        optimizer: Union[Optimizer, LightningOptimizer],
-        optimizer_closure: Optional[Callable[[], Any]] = None,
+        optimizer: Optimizer | LightningOptimizer,
+        optimizer_closure: Callable[[], Any] | None = None,
     ) -> None:
         """Clamp nl_a >= 0 after each step to avoid negative predictions."""
         optimizer.step(closure=optimizer_closure)
