@@ -1,0 +1,108 @@
+defaults:
+  - data_io: qiu_2026
+  - dataloader: qiu_2026
+  - model: qiu_2026_core_readout
+  - optimizer: adamw
+  - lr_scheduler: reduce_lr_on_plateau # NOTE: lr_scheduler, not `scheduler` -- there is no such
+    # config group. The hoefling hparams_search config declares `scheduler: one_cycle_lr` and is
+    # therefore broken; goldin_2022_core_readout_hparams_search.yaml is the working template.
+  - training_callbacks:
+      - early_stopping
+      - lr_monitor
+      - model_checkpoint
+  - logger:
+      - tensorboard
+      - csv
+      - mlflow # deliberately no wandb: configs/logger/wandb.yaml has `project: ???`
+  - trainer: default_deterministic
+  - hydra: default
+  - override hydra/sweeper: optuna # needs `uv sync --extra optuna`
+  - override hydra/sweeper/sampler: tpe
+  - _self_ # values in this config overwrite the defaults
+
+exp_name: qiu_2026_core_readout_hparams_search
+seed: 42
+check_stimuli_responses_match: false # already verified for this dataset; saves startup time per trial
+
+# Consumed at openretina/cli/train.py:151-159 as
+#   trainer.validate(model, ckpt_path="best")[0][cfg.objective_target]
+# val_evaluation_loss is CorrelationLoss3d(avg=True, negate=False) = mean Pearson r, HIGHER better.
+objective_target: val_evaluation_loss
+# Honoured only by the `openretina train` entry point (cli/openretina_main.py:54-61): on an exception
+# the trial returns -inf instead of aborting the whole sweep.
+objective_direction: maximize
+
+paths:
+  cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY}
+  # Local cache (132 GB, verified present) rather than the HF URL, so no trial re-resolves it.
+  data_dir: ${paths.cache_dir}/franke_lab/qiu_2026
+  log_dir: "."
+  output_dir: ${hydra:runtime.output_dir}
+  load_model_path: null
+
+model:
+  # (channels, time, height, width): 1 video + 2 behavior channels, clip_length, video geometry
+  in_shape: [3, 300, 36, 64]
+  core:
+    # Set OPERATIONAL by construction. The shipped value of 10 puts the spatial-Laplace penalty at
+    # 1.1e-9 of the data term (measured: train_loss -4.696e9 vs regularization_loss_core 5.024), i.e.
+    # it does nothing. 9.4e7 puts it at ~1% instead. The magnitude is only a choice of units -- the
+    # sum-reduced loss is ~1e9, so a live penalty has to be large. See the plan for the derivation.
+    gamma_input: 9.4e7
+    # gamma_temporal is left at its shipped 0.01 and NOT swept: core_reg is the sum of the spatial and
+    # temporal terms, so one logged number cannot separate them. A ~5 min probe with gamma_input=0
+    # resolves it; until then its scale is unknown.
+  readout:
+    # Same construction: shipped 1.0 gives 1.5e-5 of the data term (readout L1 = 7.247e4); 648 -> ~1%.
+    gamma: 648.0
+
+matmul_precision:
+  _target_: torch.set_float32_matmul_precision
+  precision: high # TF32 on H100; the baseline run warned that Tensor Cores were unused.
+  # NOT 16-mixed: fp16 tops out at 65504 and the loss is ~1e9. bf16-mixed shares fp32's exponent
+  # range so has no overflow issue and would be ~40% faster, but the precision of a ~3e6-term sum in
+  # bf16 is unvalidated -- test with a 1-epoch A/B before adopting it.
+
+trainer:
+  max_epochs: 15 # ep15 reaches 0.370 vs 0.402 at ep50 = 92% of final, at 30% of the cost
+  gradient_clip_val: null # fixed, not swept: clipping happens BEFORE the optimizer so it is not
+  # scale-invariant, and with a 1e9-scale loss it would fire every step and confound every gamma.
+
+training_callbacks:
+  early_stopping:
+    patience: 4 # the shipped 10 could never fire inside 15 epochs
+    min_delta: 0.002
+  model_checkpoint:
+    save_top_k: 1 # the objective reads ckpt_path="best"
+
+lr_scheduler:
+  patience: 3 # the shipped 5 leaves no room to act inside 15 epochs
+
+hydra:
+  run:
+    dir: ${paths.log_dir}/openretina_assets/runs/${exp_name}/${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: ${paths.log_dir}/openretina_assets/runs/${exp_name}/${now:%Y-%m-%d_%H-%M-%S}
+    subdir: ${hydra.job.num} # isolates each trial's output_dir, so checkpoints/loggers cannot collide
+  sweeper:
+    sampler:
+      seed: 42
+    direction: maximize
+    study_name: ${exp_name}
+    storage: null # set to sqlite:////abs/path.db + reuse study_name to share one study across GPUs
+    n_trials: 20
+    n_jobs: 1 # >1 only batches ask/tell under the basic launcher: no parallelism, blinder TPE
+    params:
+      # `tag(log, ...)` is REQUIRED for log-uniform; a bare interval() is UniformDistribution.
+      model.learning_rate: tag(log, interval(5e-4, 2e-2))
+      optimizer.weight_decay: tag(log, interval(1e-4, 1e-1))
+      model.core.dropout_rate: choice(0.0, 0.05, 0.1, 0.2)
+      # Depth fixed at 3 so len(hidden_channels) always matches the kernel lists (assert in
+      # base_core.py:82-99). List-valued choices become categoricals over string reprs that Hydra
+      # re-parses as overrides.
+      model.hidden_channels: choice([16, 16, 16], [32,32,32],[64,64,64])
+      # Both gamma ranges span 0.01% -> 100% of the data term, centred on the 1% values above.
+      # Everything below the low end is provably the same model, so the dead zone needs one
+      # representative point, not search coverage -- the low end IS that point.
+      model.core.gamma_input: tag(log, interval(1e6, 1e10))
+      model.readout.gamma: tag(log, interval(1e1, 1e5))
