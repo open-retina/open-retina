@@ -62,6 +62,7 @@ dev = [
 devmodels = ["neuralpredictors"]
 optuna = [ # for hyperparameter tuning
     "hydra-optuna-sweeper",
+    "sqlalchemy>=1.4,<2",  # optuna 2.10 + SQLAlchemy 2.0 breaks RDBStorage schema; optuna<3 required by sweeper
 ]
 
 [tool.setuptools]
