@@ -1,0 +1,21 @@
+stimuli:
+  _target_: openretina.data_io.qiu_2026.stimuli.load_all_stimuli
+  _convert_: object
+  base_data_path: ${paths.data_dir}
+
+responses:
+  _target_: openretina.data_io.qiu_2026.responses.load_all_responses
+  _convert_: object
+  base_data_path: ${paths.data_dir}
+  apply_quality_mask: true
+  spike_inference: subtract_min # CASCADE not yet implemented; see qiu_2026_integration_plan.md Step 4
+
+pupil:
+  _target_: openretina.data_io.qiu_2026.pupil.load_all_pupil
+  _convert_: object
+  base_data_path: ${paths.data_dir}
+
+data_info:
+  response_rate_hz: 30
+  stimulus_rate_hz: 30
+  animal_species: mouse

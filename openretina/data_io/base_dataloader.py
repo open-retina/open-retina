@@ -2,6 +2,7 @@ import bisect
 import collections
 import logging
 from collections import namedtuple
+from functools import cached_property
 from typing import Any, List, Literal, Optional, SupportsIndex, cast
 
 import numpy as np
@@ -120,7 +121,13 @@ def generate_movie_splits(
     num_clips: int,
     clip_length: int,
 ) -> tuple[torch.Tensor, torch.Tensor, dict[str, torch.Tensor]]:
-    movie_train = torch.tensor(movie_train, dtype=torch.float)
+    # as_tensor, not tensor: this is a whole-session movie (up to ~4 GB for qiu_2026) and it is only
+    # ever READ below -- sliced into `movie_val` and `movie_train_subset`, both of which allocate
+    # their own storage. torch.tensor() would copy it in full for nothing. Inputs that are already
+    # float32 ndarrays therefore cost zero extra bytes here; other dtypes still convert (i.e. copy),
+    # exactly as before. The test movies below stay real copies on purpose: they ARE retained by the
+    # test dataloaders, so aliasing them would keep each session's source movie alive.
+    movie_train = torch.as_tensor(movie_train, dtype=torch.float)
     movie_test_dict = {n: torch.tensor(movie, dtype=torch.float) for n, movie in movie_test.items()}
 
     channels, _, px_y, px_x = movie_train.shape
@@ -267,6 +274,8 @@ def get_movie_dataloader(
     group_assignment: Float[np.ndarray, " n_neurons"] | None = None,
     drop_last: bool = True,
     allow_over_boundaries: bool = True,
+    dataset_cls: type[MovieDataSet] = MovieDataSet,
+    extra_arrays: dict[str, Any] | None = None,
     **kwargs,
 ) -> DataLoader:
     """
@@ -298,6 +307,12 @@ def get_movie_dataloader(
             Whether to drop the last incomplete batch. Defaults to True.
         allow_over_boundaries (bool, optional):
             Whether to allow chunks that exceed the scene boundaries. Defaults to True.
+        dataset_cls (type[MovieDataSet], optional):
+            Dataset class to instantiate. Defaults to MovieDataSet. Subclasses (e.g. carrying extra
+            per-frame arrays) can be injected here without affecting existing callers.
+        extra_arrays (dict[str, Any] | None, optional):
+            Extra keyword arguments forwarded to ``dataset_cls`` (e.g. ``{"pupil_center": array}``).
+            Defaults to None, which reproduces the plain MovieDataSet behavior exactly.
         **kwargs:
             Additional keyword arguments for the DataLoader.
 
@@ -329,7 +344,9 @@ def get_movie_dataloader(
             raise NotImplementedError("Start indices could not be recovered.")
         start_indices = np.arange(0, movie.shape[1], interval).tolist()  # type: ignore
 
-    dataset = MovieDataSet(movie, responses, roi_ids, roi_coords, group_assignment, split, chunk_size)
+    dataset = dataset_cls(
+        movie, responses, roi_ids, roi_coords, group_assignment, split, chunk_size, **(extra_arrays or {})
+    )
     sampler = MovieSampler(
         start_indices,
         split,
@@ -425,10 +442,14 @@ class NeuronDataSplit:
 
         return responses_train, responses_val
 
-    @property
+    @cached_property
     def response_dict(self) -> dict:
         """
         Create and return a dictionary of neural responses for train, validation, and test datasets.
+
+        Cached: every access rebuilds every tensor below, and callers index a single key per access
+        (e.g. `response_dict[fold]` once per fold), so an uncached property rebuilds the whole
+        structure once per lookup. See `response_dict_test` for how bad that gets.
 
         Structure:
             {
@@ -458,10 +479,17 @@ class NeuronDataSplit:
             "test": test_entries,
         }
 
-    @property
+    @cached_property
     def response_dict_test(self) -> dict[str, dict[str, torch.Tensor | None]]:
         """
         Torch representation of the averaged and per-trial test responses keyed by stimulus name.
+
+        Cached because callers index one stimulus per access inside a loop over stimuli
+        (`response_dict_test[name]`), while each access builds the tensors for ALL of them. Uncached,
+        a session with N test conditions did O(N^2) tensor allocations to keep N of them -- for
+        qiu_2026's ~95 conditions per session that is ~9000 allocations instead of ~95, measured at
+        49x slower for one session's worth of accesses. Whether that churn also lifted the peak RSS
+        is allocator-dependent and was not measured; the speedup alone justifies the cache.
 
         Returns:
             {

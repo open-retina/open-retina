@@ -94,6 +94,9 @@ The openretina package is structured as follows:
   * Dataset: Sridhar S, Gollisch T (2025) Dataset -  Marmoset retinal ganglion cell responses to naturalistic movies and spatiotemporal white noise. G-Node. 
 https://doi.gin.g-node.org/10.12751/g-node.3dfiti/
   * Models: Models trained on this dataset were developed as part of [A systematic comparison of predictive models on the retina](https://www.biorxiv.org/content/10.1101/2024.03.06.583740v2)
+* qiu\_2026: Originally published by Qiu et al. (2026), biorxiv
+  * Paper: [The functional organization of retinal input to the mouse superior colliculus](https://www.biorxiv.org/content/10.64898/2026.04.15.718783v1)
+  * Dataset: originally uploaded to the openretina HuggingFace repository under `franke_lab/qiu_2026`: https://huggingface.co/datasets/open-retina/open-retina/tree/main/franke_lab/qiu_2026
   
 
 The paper [Most discriminative stimuli for functional cell type clustering](https://openreview.net/forum?id=9W6KaAcYlr) explains the discriminatory stimulus objective we showcase in [notebooks/most\_discriminative\_stimulus](https://github.com/open-retina/open-retina/blob/main/notebooks/most_discriminative_stimulus.ipynb).

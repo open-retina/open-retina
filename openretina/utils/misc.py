@@ -171,10 +171,22 @@ class SafeLoaderWithTuple(yaml.SafeLoader):
     pass
 
 
-def check_server_responding(url: str) -> bool:
+def check_server_responding(url: str, timeout: float = 5.0) -> bool:
+    """Return whether `url` answers with 200, False on any network-level failure.
+
+    Catches requests.exceptions.RequestException, NOT the builtin ConnectionError: requests raises its
+    own identically-named class from a different hierarchy (requests.exceptions.ConnectionError ->
+    RequestException -> OSError), which is not a subclass of the builtin, so `except ConnectionError`
+    looked right and caught nothing. RequestException is the base of every error requests raises, so
+    timeouts and redirect loops report "not responding" too, rather than escaping.
+
+    This runs inside a pytest `skipif` condition, which is evaluated at COLLECTION time -- an escaping
+    exception aborts collection of the whole suite instead of skipping one test, and a hang stalls it,
+    hence the timeout.
+    """
     try:
-        response = requests.get(url)
-    except ConnectionError:
+        response = requests.get(url, timeout=timeout)
+    except requests.exceptions.RequestException:
         return False
 
     return response.status_code == 200

@@ -7,6 +7,7 @@ from typing import Any, Iterable, Optional
 import hydra.utils
 import torch
 import torch.nn as nn
+from einops import rearrange
 from jaxtyping import Float, Int
 from lightning import LightningModule
 from lightning.pytorch.utilities import grad_norm
@@ -57,6 +58,7 @@ class BaseCoreReadout(LightningModule):
         loss: nn.Module | None = None,
         evaluation_loss: nn.Module | None = None,
         data_info: dict[str, Any] | None = None,
+        shifter: nn.Module | None = None,
     ):
         """
         Initializes a BaseCoreReadout module.
@@ -71,11 +73,15 @@ class BaseCoreReadout(LightningModule):
                 Defaults to CorrelationLoss3d (avg=True) if None.
             data_info (dict[str, Any], optional): Dictionary containing data-specific metadata, such as input_shape,
                 session neuron counts, etc. If None, defaults to empty dict.
+            shifter (nn.Module, optional): Multi-session shifter mapping a behavioral variable (e.g. pupil
+                position) to a readout-grid shift, keyed by session like the readout. If None, no shift is
+                applied, matching pre-shifter behavior exactly.
         """
         super().__init__()
 
         self.core = core
         self.readout = readout
+        self.shifter = shifter
         self.learning_rate = learning_rate
         self.loss = loss if loss is not None else PoissonLoss3d()
         self.evaluation_loss = (
@@ -99,18 +105,33 @@ class BaseCoreReadout(LightningModule):
         readout_norms = grad_norm(self.readout, norm_type=2)
         self.log_dict(readout_norms, on_step=False, on_epoch=True)
 
-    def forward(self, x: Float[torch.Tensor, "batch channels t h w"], data_key: str | None = None) -> torch.Tensor:
+    def forward(
+        self,
+        x: Float[torch.Tensor, "batch channels t h w"],
+        data_key: str | None = None,
+        pupil_center: Float[torch.Tensor, "batch two t"] | None = None,
+    ) -> torch.Tensor:
         output_core = self.core(x)
-        output_readout = self.readout(output_core, data_key=data_key)
+        readout_kwargs: dict[str, Any] = {}
+        if self.shifter is not None and pupil_center is not None and data_key is not None:
+            model_cut_frames = x.size(2) - output_core.size(2)
+            pupil_aligned = rearrange(pupil_center[:, :, model_cut_frames:], "batch two t -> (batch t) two")
+            readout_kwargs["shift"] = self.shifter(pupil_aligned, data_key)
+        output_readout = self.readout(output_core, data_key=data_key, **readout_kwargs)
         return output_readout
 
     def training_step(self, batch: tuple[str, DataPoint], batch_idx: int) -> torch.Tensor:
         session_id, data_point = batch
-        model_output = self.forward(data_point.inputs, session_id)
+        pupil_center = getattr(data_point, "pupil_center", None)
+        model_output = self.forward(data_point.inputs, session_id, pupil_center=pupil_center)
         loss = self.loss.forward(model_output, data_point.targets)
         regularization_loss_core = self.core.regularizer()
         regularization_loss_readout = self.readout.regularizer(session_id)  # type: ignore
         total_loss = loss + regularization_loss_core + regularization_loss_readout
+        if self.shifter is not None:
+            regularization_loss_shifter = self.shifter.regularizer(session_id)  # type: ignore
+            total_loss = total_loss + regularization_loss_shifter
+            self.log("regularization_loss_shifter", regularization_loss_shifter, on_step=False, on_epoch=True)
         evaluation_loss = self.evaluation_loss.forward(model_output, data_point.targets)
 
         self.log("regularization_loss_core", regularization_loss_core, on_step=False, on_epoch=True)
@@ -123,11 +144,16 @@ class BaseCoreReadout(LightningModule):
 
     def validation_step(self, batch: tuple[str, DataPoint], batch_idx: int) -> torch.Tensor:
         session_id, data_point = batch
-        model_output = self.forward(data_point.inputs, session_id)
+        pupil_center = getattr(data_point, "pupil_center", None)
+        model_output = self.forward(data_point.inputs, session_id, pupil_center=pupil_center)
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
         regularization_loss_core = self.core.regularizer()
         regularization_loss_readout = self.readout.regularizer(session_id)  # type: ignore
         total_loss = loss + regularization_loss_core + regularization_loss_readout
+        if self.shifter is not None:
+            regularization_loss_shifter = self.shifter.regularizer(session_id)  # type: ignore
+            total_loss = total_loss + regularization_loss_shifter
+            self.log("val_regularization_loss_shifter", regularization_loss_shifter, logger=True)
         evaluation_loss = self.evaluation_loss.forward(model_output, data_point.targets)
 
         self.log("val_loss", loss, logger=True, prog_bar=True)
@@ -140,7 +166,8 @@ class BaseCoreReadout(LightningModule):
 
     def test_step(self, batch: tuple[str, DataPoint], batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
         session_id, data_point = batch
-        model_output = self.forward(data_point.inputs, session_id)
+        pupil_center = getattr(data_point, "pupil_center", None)
+        model_output = self.forward(data_point.inputs, session_id, pupil_center=pupil_center)
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
         evaluation_loss = self.evaluation_loss.forward(model_output, data_point.targets)
 
@@ -298,6 +325,7 @@ class UnifiedCoreReadout(BaseCoreReadout):
         data_info: dict[str, Any] | None = None,
         optimizer: DictConfig | None = None,
         lr_scheduler: DictConfig | None = None,
+        shifter: DictConfig | None = None,
     ):
         """
         Initializes a UnifiedCoreReadout for multi-session configurable neural modeling via Hydra configs.
@@ -325,6 +353,10 @@ class UnifiedCoreReadout(BaseCoreReadout):
                 Hydra config for optimizer instantiation. If None, defaults to AdamW.
             lr_scheduler (DictConfig, optional):
                 Hydra config for learning rate scheduler. If None, defaults to ReduceLROnPlateau.
+            shifter (DictConfig, optional):
+                Hydra config for a multi-session shifter module (keyed by session like the readout),
+                mapping a behavioral variable (e.g. pupil position) to a readout-grid shift. If None,
+                no shifter is built and the model behaves exactly as without one.
         """
         # Make sure in_shape and hidden_channels are a tuple
         # (with hydra configs they can be a `omegaconf.listconfig.ListConfig`).
@@ -353,6 +385,10 @@ class UnifiedCoreReadout(BaseCoreReadout):
             mean_activity_dict=mean_activity_dict,
         )
 
+        shifter_module = None
+        if shifter is not None:
+            shifter_module = hydra.utils.instantiate(shifter, n_neurons_dict=n_neurons_dict)
+
         if loss is not None and isinstance(loss, DictConfig):
             loss_module = hydra.utils.instantiate(loss)
         else:
@@ -374,6 +410,7 @@ class UnifiedCoreReadout(BaseCoreReadout):
             loss=loss_module,
             evaluation_loss=evaluation_loss_module,
             data_info=data_info,
+            shifter=shifter_module,
         )
 
     def configure_optimizers(self):

@@ -64,8 +64,11 @@ def evaluate_model(cfg: DictConfig) -> float:
         for session, neuron_data in neuron_data_dict.items():
             neuron_data.check_matching_stimulus(movies_dict[session])
 
-    dataloaders = hydra.utils.instantiate(
-        cfg.dataloader,
+    # `_partial_` then a plain call, so builders configured with `release_movies` can actually free each
+    # session's source movie as they go -- see the comment in cli/train.py for why instantiate(**kwargs)
+    # defeats that. `movies_dict` is not read after this point.
+    build_dataloaders = hydra.utils.instantiate(cfg.dataloader, _partial_=True)
+    dataloaders = build_dataloaders(
         neuron_data_dictionary=neuron_data_dict,
         movies_dictionary=movies_dict,
     )
