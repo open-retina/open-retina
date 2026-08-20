@@ -17,7 +17,7 @@ core:
   hidden_padding: [0, 2, 2]
   use_gru: false
   use_projections: true
-  batch_adaptation: false
+  learn_session_log_speed: false
   convolution_type: "custom_separable"
   channels: ??? # set dynamically based on input channels
   gru_kwargs:

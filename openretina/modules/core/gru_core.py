@@ -1,3 +1,4 @@
+import warnings
 from builtins import int
 from collections import OrderedDict
 from typing import Any
@@ -38,7 +39,8 @@ class ConvGRUCore(Core3d, nn.Module):
         batch_norm_scale: bool = True,
         batch_norm_momentum: float = 0.1,
         laplace_padding: int | None = 0,
-        batch_adaptation: bool = False,
+        batch_adaptation: bool | None = None,
+        learn_session_log_speed: bool | None = None,
         use_avg_reg: bool = False,
         nonlinearity: str = "ELU",
         convolution_type: str = "custom_separable",
@@ -55,12 +57,31 @@ class ConvGRUCore(Core3d, nn.Module):
         # Get convolution class
         self.conv_class = get_conv_class(convolution_type)
 
+        if learn_session_log_speed is None:
+            learn_session_log_speed = bool(batch_adaptation) if batch_adaptation is not None else False
+        elif batch_adaptation is not None and batch_adaptation != learn_session_log_speed:
+            raise ValueError(
+                "batch_adaptation and learn_session_log_speed were both provided with conflicting values."
+            )
+        if batch_adaptation is not None:
+            warnings.warn(
+                "batch_adaptation is deprecated; use learn_session_log_speed instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        self.learn_session_log_speed = learn_session_log_speed
+        if self.learn_session_log_speed and self.conv_class != STSeparableBatchConv3d:
+            raise ValueError(
+                "learn_session_log_speed is only supported with convolution_type='custom_separable', "
+                f"but got {convolution_type!r}."
+            )
+
         if n_neurons_dict is None:
             n_neurons_dict = {}
-            if batch_adaptation:
+            if self.learn_session_log_speed:
                 raise ValueError(
-                    "If batch_adaptation is True, n_neurons_dict must be provided to "
-                    "learn the adaptation terms per session."
+                    "If learn_session_log_speed is True, n_neurons_dict must be provided to "
+                    "learn the speed terms per session."
                 )
 
         self.gamma_input = gamma_input
@@ -80,7 +101,7 @@ class ConvGRUCore(Core3d, nn.Module):
         self.features = nn.Sequential()
 
         # Log speed dictionary
-        log_speed_dict = self.generate_log_speed_dict(n_neurons_dict, batch_adaptation) if batch_adaptation else {}
+        log_speed_dict = self._initialize_session_log_speeds(n_neurons_dict, self.learn_session_log_speed)
 
         # Padding logic
         self.input_pad, self.hidden_pad = self.calculate_padding(input_padding, hidden_padding, spatial_kernel_sizes)
@@ -219,15 +240,6 @@ class ConvGRUCore(Core3d, nn.Module):
             if final_nonlinearity or layer_num < self.layers - 1:
                 layer["nonlin"] = getattr(nn, nonlinearity)()
             self.features.add_module(f"layer{layer_num}", nn.Sequential(layer))
-
-    def generate_log_speed_dict(self, n_neurons_dict, batch_adaptation):
-        log_speed_dict = {}
-        for k in n_neurons_dict:
-            var_name = "_".join(["log_speed", k])
-            log_speed_val = torch.nn.Parameter(data=torch.zeros(1), requires_grad=batch_adaptation)
-            setattr(self, var_name, log_speed_val)
-            log_speed_dict[var_name] = log_speed_val
-        return log_speed_dict
 
     def spatial_laplace(self):
         return self._input_weights_regularizer_spatial(self.features[0].conv.weight_spatial, avg=self.use_avg_reg)

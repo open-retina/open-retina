@@ -13,6 +13,7 @@ core:
   input_padding: 0
   hidden_padding: [0, 2, 2]
   convolution_type: custom_separable
+  learn_session_log_speed: false
   temporal_kernel_sizes: [21, 11]
   spatial_kernel_sizes: [11, 5]
   cut_first_n_frames: 0

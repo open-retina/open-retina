@@ -22,6 +22,27 @@ def temporal_smoothing(sin: torch.Tensor, cos: torch.Tensor) -> torch.Tensor:
 
 
 class Core(nn.Module):
+    def _initialize_session_log_speeds(
+        self,
+        n_neurons_dict: dict[str, int] | None,
+        learn_session_log_speed: bool,
+    ) -> dict[str, nn.Parameter]:
+        """Create one shared scalar log-speed parameter for each recording session."""
+        if not learn_session_log_speed:
+            return {}
+        if not n_neurons_dict:
+            raise ValueError(
+                "n_neurons_dict must contain at least one session when learn_session_log_speed is enabled."
+            )
+
+        log_speed_dict = {}
+        for data_key in n_neurons_dict:
+            parameter_name = f"log_speed_{data_key}"
+            log_speed = nn.Parameter(torch.zeros(1))
+            setattr(self, parameter_name, log_speed)
+            log_speed_dict[parameter_name] = log_speed
+        return log_speed_dict
+
     def initialize(self) -> None:
         pass
 
@@ -77,7 +98,8 @@ class SimpleCoreWrapper(Core):
         hidden_padding: bool | int | str | tuple[int, int, int] = True,
         color_squashing_weights: tuple[float, ...] | None = None,
         convolution_type: str = "custom_separable",
-        n_neurons_dict: dict[str, int] | None = None,  # for compatibility
+        n_neurons_dict: dict[str, int] | None = None,
+        learn_session_log_speed: bool = False,
     ):
         # Input validation
         if len(channels) < 2:
@@ -100,6 +122,12 @@ class SimpleCoreWrapper(Core):
 
         super().__init__()
         self.convolution_type = convolution_type
+        self.learn_session_log_speed = learn_session_log_speed
+        if self.learn_session_log_speed and self.convolution_type != "custom_separable":
+            raise ValueError(
+                "learn_session_log_speed is only supported with convolution_type='custom_separable', "
+                f"but got {self.convolution_type!r}."
+            )
         self.gamma_input = gamma_input
         self.gamma_temporal = gamma_temporal
         self.gamma_in_sparse = gamma_in_sparse
@@ -123,6 +151,7 @@ class SimpleCoreWrapper(Core):
         self._input_weights_regularizer_temporal = TimeLaplaceL23dnorm(padding=0, persistent_buffer=False)
 
         self.features = torch.nn.Sequential()
+        log_speed_dict = self._initialize_session_log_speeds(n_neurons_dict, self.learn_session_log_speed)
         self.color_squashing_layer = (
             WeightedChannelSumLayer(self.color_squashing_weights) if self.color_squashing_weights is not None else None
         )
@@ -142,7 +171,7 @@ class SimpleCoreWrapper(Core):
             layer["conv"] = conv_class(
                 num_in_channels,
                 num_out_channels,
-                log_speed_dict={},
+                log_speed_dict=log_speed_dict,
                 temporal_kernel_size=temporal_kernel_sizes[layer_id],
                 spatial_kernel_size=spatial_kernel_sizes[layer_id],
                 bias=False,
@@ -158,14 +187,16 @@ class SimpleCoreWrapper(Core):
                 layer["pool"] = torch.nn.MaxPool3d((1, 2, 2))
             self.features.add_module(f"layer{layer_id}", torch.nn.Sequential(layer))  # type: ignore
 
-    def forward(self, input_: torch.Tensor) -> torch.Tensor:
+    def forward(self, input_: torch.Tensor, data_key: str | None = None) -> torch.Tensor:
         if self.color_squashing_layer is not None:
             input_ = self.color_squashing_layer(input_)
 
         if self._downsample_input_kernel_size is not None:
             input_ = torch.nn.functional.avg_pool3d(input_, kernel_size=self._downsample_input_kernel_size)  # type: ignore
 
-        res = self.features(input_)
+        res = input_
+        for feature in self.features:
+            res = feature((res, data_key))
         # To keep compatibility with hoefling model scores
         res_cut = res[:, :, self._cut_first_n_frames :, :, :]
         return res_cut

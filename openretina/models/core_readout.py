@@ -100,7 +100,7 @@ class BaseCoreReadout(LightningModule):
         self.log_dict(readout_norms, on_step=False, on_epoch=True)
 
     def forward(self, x: Float[torch.Tensor, "batch channels t h w"], data_key: str | None = None) -> torch.Tensor:
-        output_core = self.core(x)
+        output_core = self.core(x, data_key=data_key)
         output_readout = self.readout(output_core, data_key=data_key)
         return output_readout
 
@@ -446,6 +446,7 @@ class ExampleCoreReadout(BaseCoreReadout):
         downsample_input_kernel_size: Optional[tuple[int, int, int]] = None,
         convolution_type: str = "custom_separable",
         color_squashing_weights: tuple[float, ...] | None = None,
+        core_learn_session_log_speed: bool = False,
         data_info: dict[str, Any] | None = None,
     ):
         warnings.warn(
@@ -472,6 +473,8 @@ class ExampleCoreReadout(BaseCoreReadout):
             color_squashing_weights=color_squashing_weights,
             hidden_padding=core_hidden_padding,
             convolution_type=convolution_type,
+            n_neurons_dict=n_neurons_dict,
+            learn_session_log_speed=core_learn_session_log_speed,
         )
 
         # Run one forward pass to determine output shape of core

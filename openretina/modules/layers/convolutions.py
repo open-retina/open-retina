@@ -8,6 +8,30 @@ import torch.nn.functional as F
 from matplotlib.colors import Normalize
 
 
+def _store_log_speeds(module: nn.Module, log_speed_dict: dict[str, nn.Parameter]) -> None:
+    """Register shared session log-speeds and remember which session keys are valid."""
+    setattr(module, "_log_speed_names", {key.removeprefix("log_speed_") for key in log_speed_dict})
+    for key, val in log_speed_dict.items():
+        setattr(module, key, val)
+
+
+def _resolve_log_speed(module: nn.Module, data_key: str | None) -> torch.Tensor:
+    """Return a session log-speed, or the fixed unit-speed default when learning is disabled."""
+    log_speed_names: set[str] = getattr(module, "_log_speed_names")
+    if data_key is None or not log_speed_names:
+        log_speed_default = getattr(module, "_log_speed_default")
+        assert isinstance(log_speed_default, torch.Tensor)
+        return log_speed_default
+    if data_key not in log_speed_names:
+        raise ValueError(
+            f"Unknown data_key {data_key!r} for session log-speed. "
+            f"Available data keys: {sorted(log_speed_names)}"
+        )
+    log_speed = getattr(module, f"log_speed_{data_key}")
+    assert isinstance(log_speed, torch.Tensor)
+    return log_speed
+
+
 class TorchFullConv3D(nn.Module):
     def __init__(
         self,
@@ -24,8 +48,7 @@ class TorchFullConv3D(nn.Module):
     ):
         super().__init__()
         # Store log speeds for each data key
-        for key, val in log_speed_dict.items():
-            setattr(self, key, val)
+        _store_log_speeds(self, log_speed_dict)
 
         if spatial_kernel_size2 is None:
             spatial_kernel_size2 = spatial_kernel_size
@@ -75,8 +98,7 @@ class TorchSTSeparableConv3D(nn.Module):
     ):
         super().__init__()
         # Store log speeds for each data key
-        for key, val in log_speed_dict.items():
-            setattr(self, key, val)
+        _store_log_speeds(self, log_speed_dict)
 
         if spatial_kernel_size2 is None:
             spatial_kernel_size2 = spatial_kernel_size
@@ -104,10 +126,7 @@ class TorchSTSeparableConv3D(nn.Module):
             x, data_key = input_
 
         # Compute temporal kernel based on the provided data key
-        if data_key is None:
-            log_speed = self._log_speed_default
-        else:
-            log_speed = getattr(self, "_".join(["log_speed", data_key]))
+        log_speed = _resolve_log_speed(self, data_key)
 
         space_conv = self.space_conv(x)
         exp_log_speed = torch.exp(log_speed)  # type: ignore
@@ -130,8 +149,7 @@ class TimeIndependentConv3D(nn.Module):
     ):
         super().__init__()
         # Store log speeds for each data key
-        for key, val in log_speed_dict.items():
-            setattr(self, key, val)
+        _store_log_speeds(self, log_speed_dict)
         self.in_channels = in_channels
         self.out_channels = out_channels
 
@@ -307,8 +325,7 @@ class STSeparableBatchConv3d(nn.Module):
         self.register_buffer("_log_speed_default", torch.zeros(1))
 
         # Store log speeds for each data key
-        for key, val in log_speed_dict.items():
-            setattr(self, key, val)
+        _store_log_speeds(self, log_speed_dict)
 
     def forward(self, input_: tuple[torch.Tensor, str] | torch.Tensor) -> torch.Tensor:
         """
@@ -327,10 +344,7 @@ class STSeparableBatchConv3d(nn.Module):
             x, data_key = input_
 
         # Compute temporal kernel based on the provided data key
-        if data_key is None:
-            log_speed = self._log_speed_default
-        else:
-            log_speed = getattr(self, "_".join(["log_speed", data_key]))
+        log_speed = _resolve_log_speed(self, data_key)
         self.weight_temporal = compute_temporal_kernel(
             log_speed,
             self.sin_weights,

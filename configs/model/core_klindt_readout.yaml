@@ -17,6 +17,7 @@ core:
   maxpool_every_n_layers: null
   downsample_input_kernel_size: null
   convolution_type: "custom_separable"
+  learn_session_log_speed: false
   cut_first_n_frames: 0
   dropout_rate: 0.0
   channels: ??? # set dynamically based on input channels
