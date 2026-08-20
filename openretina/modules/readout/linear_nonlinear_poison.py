@@ -1,4 +1,5 @@
 from math import ceil, sqrt
+from typing import Callable
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,7 +11,7 @@ from jaxtyping import Float, Int
 from matplotlib.colors import Normalize
 
 from openretina.modules.layers import regularizers
-from openretina.modules.readout.base import Readout
+from openretina.modules.readout.base import Readout, initialize_bias_from_mean_rate, softplus_inverse
 
 
 class LNPReadout(Readout):
@@ -129,5 +130,15 @@ class LNPReadout(Readout):
         return self.n_neurons
 
     def initialize(self, mean_activity: Float[torch.Tensor, " n_neurons"] | None = None) -> None:
-        if self.inner_product_kernel.bias is not None and mean_activity is not None:
-            self.inner_product_kernel.bias.data = mean_activity
+        bias = self.inner_product_kernel.bias
+        if bias is None or mean_activity is None:
+            return
+
+        if self.nonlinearity is torch.exp:
+            inverse_link: Callable[[torch.Tensor], torch.Tensor] = torch.log
+        elif self.nonlinearity is torch.nn.functional.softplus:
+            inverse_link = softplus_inverse
+        else:
+            # Preserve the previous initialization for links without a known inverse.
+            inverse_link = nn.Identity()
+        initialize_bias_from_mean_rate(bias, mean_activity, inverse_link=inverse_link)

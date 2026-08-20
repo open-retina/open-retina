@@ -6,12 +6,46 @@ https://github.com/sinzlab/neuralpredictors/blob/v0.3.0.pre/neuralpredictors/lay
 import os
 import warnings
 from abc import ABC, abstractmethod
-from typing import Any, Literal, Optional
+from typing import Any, Callable, Literal, Optional
 
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 from jaxtyping import Float
+
+MIN_MEAN_RATE = 1e-6
+
+
+def sanitize_mean_rate(mean_rate: torch.Tensor, minimum_rate: float = MIN_MEAN_RATE) -> torch.Tensor:
+    """Return finite, positive rates suitable for an inverse output link."""
+    if not mean_rate.is_floating_point():
+        mean_rate = mean_rate.float()
+    return torch.nan_to_num(
+        mean_rate,
+        nan=minimum_rate,
+        posinf=minimum_rate,
+        neginf=minimum_rate,
+    ).clamp_min(minimum_rate)
+
+
+def softplus_inverse(mean_rate: torch.Tensor, minimum_rate: float = MIN_MEAN_RATE) -> torch.Tensor:
+    """Numerically stable inverse softplus for non-negative rate targets."""
+    safe_rate = sanitize_mean_rate(mean_rate, minimum_rate=minimum_rate)
+    return safe_rate + torch.log(-torch.expm1(-safe_rate))
+
+
+def initialize_bias_from_mean_rate(
+    bias: torch.Tensor,
+    mean_rate: torch.Tensor,
+    inverse_link: Callable[[torch.Tensor], torch.Tensor] = softplus_inverse,
+) -> None:
+    """Initialize a preactivation bias without aliasing the statistics tensor."""
+    safe_rate = sanitize_mean_rate(mean_rate.to(device=bias.device, dtype=bias.dtype))
+    preactivation_bias = inverse_link(safe_rate)
+    if not torch.isfinite(preactivation_bias).all():
+        raise ValueError("Inverse output link produced a non-finite readout bias")
+    with torch.no_grad():
+        bias.copy_(preactivation_bias)
 
 
 class Readout(nn.Module, ABC):
@@ -53,20 +87,26 @@ class Readout(nn.Module, ABC):
                 f"Reduction method '{reduction}' is not recognized. Valid values are ['mean', 'sum', None]"
             )
 
-    def initialize_bias(self, mean_activity: Optional[Float[torch.Tensor, " n_neurons"]] = None) -> None:
+    def initialize_bias(
+        self,
+        mean_activity: Optional[Float[torch.Tensor, " n_neurons"]] = None,
+        inverse_link: Callable[[torch.Tensor], torch.Tensor] = softplus_inverse,
+    ) -> None:
         """
         Initialize the biases in readout.
         Args:
             mean_activity: Tensor containing the mean activity of neurons.
+            inverse_link: Maps output rates to readout preactivations.
 
         Returns:
 
         """
         if mean_activity is None:
             warnings.warn("Readout is NOT initialized with mean activity but with 0!")
-            self.bias.data.fill_(0)
+            with torch.no_grad():
+                self.bias.fill_(0)
         else:
-            self.bias.data = mean_activity
+            initialize_bias_from_mean_rate(self.bias, mean_activity, inverse_link=inverse_link)
 
     def __repr__(self) -> str:
         return super().__repr__() + " [{}]\n".format(self.__class__.__name__)

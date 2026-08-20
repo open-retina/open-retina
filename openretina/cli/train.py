@@ -58,7 +58,12 @@ def train_model(cfg: DictConfig) -> float | None:
         movies_dictionary=movies_dict,
     )
 
-    data_info = compute_data_info(neuron_data_dict, movies_dict, partial_data_info=cfg.data_io.get("data_info"))
+    data_info = compute_data_info(
+        neuron_data_dict,
+        movies_dict,
+        partial_data_info=cfg.data_io.get("data_info"),
+        train_dataloaders=dataloaders["train"],
+    )
 
     train_loader = data.DataLoader(
         LongCycler(dataloaders["train"], shuffle=True),

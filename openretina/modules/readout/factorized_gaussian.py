@@ -95,7 +95,8 @@ class GaussianMaskReadout(Readout):
         """
         Initialize bias using base helper to optionally use mean activity.
         """
-        self.initialize_bias(mean_activity)
+        if isinstance(self.bias, nn.Parameter):
+            self.initialize_bias(mean_activity)
 
     def feature_l1(self, average: bool = False) -> torch.Tensor:
         features_abs = self.features.abs()

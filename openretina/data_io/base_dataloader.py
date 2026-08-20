@@ -10,7 +10,7 @@ from jaxtyping import Float
 from torch.utils.data import DataLoader, Dataset, Sampler
 from tqdm.auto import tqdm
 
-from openretina.data_io.base import MoviesTrainTestSplit, ResponsesTrainTestSplit
+from openretina.data_io.base import MoviesTrainTestSplit, ResponsesTrainTestSplit, compute_mean_activity
 
 log = logging.getLogger(__name__)
 
@@ -75,7 +75,8 @@ class MovieDataSet(Dataset):
 
         self.chunk_size = chunk_size
         # Calculate the mean response per neuron (used for bias init in the model)
-        self.mean_response = torch.mean(torch.Tensor(self.samples[1]), dim=0)
+        response_samples = cast(np.ndarray | torch.Tensor, self.samples[1])
+        self.mean_response = compute_mean_activity(response_samples, neuron_axis=1)
         self.group_assignment = group_assignment
         self.roi_coords = roi_coords
 

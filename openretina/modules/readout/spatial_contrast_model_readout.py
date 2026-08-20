@@ -96,7 +96,10 @@ class SpatialContrastReadout(Readout):
         return self.w
 
     def initialize(self, mean_activity: Float[torch.Tensor, " n_neurons"] | None = None) -> None:
-        self.initialize_bias(mean_activity)
+        # This compatibility parameter is not part of the forward pass; the
+        # actual preactivation offset for this readout is ``nl_c``.
+        with torch.no_grad():
+            self.bias.zero_()
 
     def regularizer(self, reduction: Literal["sum", "mean", None] = "sum") -> torch.Tensor:
         """No regularization needed for 4 params per neuron."""

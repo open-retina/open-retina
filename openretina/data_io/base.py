@@ -191,6 +191,28 @@ def get_n_neurons_per_session(responses_dict: dict[str, ResponsesTrainTestSplit]
     return {name: responses.n_neurons for name, responses in responses_dict.items()}
 
 
+def compute_mean_activity(
+    responses: np.ndarray | torch.Tensor,
+    neuron_axis: int,
+) -> torch.Tensor:
+    """Compute per-neuron means from finite response samples only.
+
+    Neurons without any finite samples receive a zero mean. The readout
+    initializer subsequently floors those rates before applying an inverse link.
+    """
+    response_tensor = torch.as_tensor(responses, dtype=torch.float32)
+    if response_tensor.ndim != 2:
+        raise ValueError(f"Expected two-dimensional responses, got shape {tuple(response_tensor.shape)}")
+    if neuron_axis not in (0, 1):
+        raise ValueError(f"neuron_axis must be 0 or 1, got {neuron_axis}")
+
+    time_axis = 1 - neuron_axis
+    finite = torch.isfinite(response_tensor)
+    finite_count = finite.sum(dim=time_axis)
+    finite_sum = torch.where(finite, response_tensor, 0).sum(dim=time_axis)
+    return torch.where(finite_count > 0, finite_sum / finite_count.clamp_min(1), 0)
+
+
 @dataclass
 class DatasetStatistics:
     """Statistics about unique frames and transitions across sessions, computed from dataloaders.
@@ -270,6 +292,7 @@ def compute_data_info(
     neuron_data_dictionary: dict[str, ResponsesTrainTestSplit],
     movies_dictionary: dict[str, MoviesTrainTestSplit] | MoviesTrainTestSplit,
     partial_data_info: dict[str, Any] | None = None,
+    train_dataloaders: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Computes information related to the data used to train a model, including the number of neurons, the shape of the
@@ -279,6 +302,8 @@ def compute_data_info(
     - neuron_data_dictionary: dictionary of responses for each session
     - movies_dictionary: dictionary of movies for each session
     - partial_data_info: dictionary of partial data info from the config, to be merged with the computed data info
+    - train_dataloaders: optional per-session training loaders. When provided, mean
+      activity is calculated from their datasets after the validation split.
 
     Returns:
     - data_info: dictionary containing various data info useful for downstream tasks, including the number of neurons,
@@ -287,12 +312,28 @@ def compute_data_info(
     """
     n_neurons_dict = get_n_neurons_per_session(neuron_data_dictionary)
 
-    # Compute mean activity for each session from training responses
+    if train_dataloaders is not None:
+        missing_sessions = set(neuron_data_dictionary) - set(train_dataloaders)
+        if missing_sessions:
+            raise ValueError(f"Missing training dataloaders for sessions: {sorted(missing_sessions)}")
+
+    # Compute mean activity for each session from training responses only.
     mean_activity_dict = {}
     for session_name, responses in neuron_data_dictionary.items():
-        # responses.train has shape (n_neurons, n_timepoints)
-        # Compute mean across time dimension
-        mean_activity = torch.tensor(responses.train.mean(axis=1), dtype=torch.float32)
+        if train_dataloaders is None:
+            # responses.train has shape (n_neurons, n_timepoints). This fallback is
+            # for datasets without a separate validation fold.
+            mean_activity = compute_mean_activity(responses.train, neuron_axis=0)
+        else:
+            train_dataset = train_dataloaders[session_name].dataset
+            if hasattr(train_dataset, "responses"):
+                mean_activity = compute_mean_activity(train_dataset.responses, neuron_axis=1)
+            elif hasattr(train_dataset, "mean_response"):
+                mean_activity = torch.as_tensor(train_dataset.mean_response, dtype=torch.float32).clone()
+            else:
+                raise ValueError(
+                    f"Training dataset for session {session_name!r} exposes neither responses nor mean_response"
+                )
         mean_activity_dict[session_name] = mean_activity
 
     if isinstance(movies_dictionary, MoviesTrainTestSplit):
@@ -332,7 +373,7 @@ def compute_data_info(
         session_name: responses.session_kwargs for session_name, responses in neuron_data_dictionary.items()
     }
 
-    return {
+    data_info = {
         "n_neurons_dict": n_neurons_dict,
         "mean_activity_dict": mean_activity_dict,
         "input_shape": input_shape,
@@ -341,3 +382,6 @@ def compute_data_info(
         "stim_std": stim_std,
         **(partial_data_info or {}),
     }
+    # Initialization statistics are always measured, never supplied by config.
+    data_info["mean_activity_dict"] = mean_activity_dict
+    return data_info

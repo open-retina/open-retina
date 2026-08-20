@@ -202,7 +202,7 @@ class FactorizedReadout(Readout):
         return self.outdims
 
     def initialize(self, mean_activity: Float[torch.Tensor, " outdims"] | None = None) -> None:
-        if mean_activity is not None:
+        if self.readout_bias and mean_activity is not None:
             self.initialize_bias(mean_activity)
 
 
