@@ -213,6 +213,7 @@ class MarmosetMovieDataset(Dataset):
         self.time_chunk_size = time_chunk_size + self.frame_overhead
 
         self.cache: list[Any] = []
+        self.last_trial_index: int | None = None
         self.last_start_index = -1
         self.last_end_index = -1
 
@@ -375,7 +376,11 @@ class MarmosetMovieDataset(Dataset):
         fixations = self.fixations[int(starting_line) : int(ending_line)]
         frames = torch.zeros((self.time_chunk_size, self.img_h, self.img_w))
         for i, (fixation, index) in enumerate(zip(fixations, range(starting_img_index, ending_img_index))):
-            if (index >= self.last_start_index) and (index < self.last_end_index):
+            if (
+                trial_index == self.last_trial_index
+                and index >= self.last_start_index
+                and index < self.last_end_index
+            ):
                 img = self.cache[index - self.last_start_index]
             else:
                 img = torch.from_numpy(self.frames[fixation["img_index"]].astype(np.float32))
@@ -394,6 +399,7 @@ class MarmosetMovieDataset(Dataset):
         frames = torch.movedim(frames, 0, 2)
         frames = self.transform(frames)
         frames = torch.movedim(frames, 2, 0)
+        self.last_trial_index = trial_index
         self.last_start_index = starting_img_index
         self.last_end_index = ending_img_index
         self.cache = cache
