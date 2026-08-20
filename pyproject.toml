@@ -28,7 +28,7 @@ dependencies = [
     "torchaudio",
     "torchvision",
     "einops",
-    "lightning",
+    "lightning>=2.6",
     "wandb",
     "hydra-core",
     "omegaconf",
