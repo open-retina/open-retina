@@ -1,0 +1,49 @@
+# Architecture recovered from models/hoefling_2024_GRU_low_res_model.ckpt.
+#
+# The checkpoint was produced with the legacy GRUCoreReadout class, but its
+# saved core_use_gru flag is false and its state dict contains no GRU weights.
+# Keep use_gru disabled here so this config describes the uploaded checkpoint
+# exactly; setting it to true defines a different, randomly initialized model.
+defaults:
+  - hoefling_2024_core_readout_low_res
+  - override model: GRU_core_readout
+  - _self_
+
+exp_name: hoefling_2024_core_readout_low_res_gru
+
+model:
+  in_shape: [2, 150, 18, 16]
+  hidden_channels: [32, 64]
+  learning_rate: 0.01
+
+  core:
+    temporal_kernel_sizes: [21, 11]
+    spatial_kernel_sizes: [11, 5]
+    gamma_hidden: 0.0
+    gamma_input: 0.3
+    gamma_in_sparse: 1.0
+    gamma_temporal: 40.0
+    bias: true
+    input_padding: false
+    hidden_padding: true
+    use_gru: false
+    use_projections: true
+    batch_adaptation: false
+    convolution_type: custom_separable
+    gru_kwargs:
+      rec_channels: 64
+      input_kern: 4
+      rec_kern: 4
+      groups: 1
+      gamma_rec: 1
+      pad_input: true
+
+  readout:
+    scale: true
+    bias: true
+    gaussian_mean_scale: 6.0
+    gaussian_var_scale: 4.0
+    positive: true
+    mask_l1_reg: 0.1
+    feature_weights_l1_reg: 0.4
+    readout_reg_avg: false
