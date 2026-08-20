@@ -1,0 +1,11 @@
+defaults:
+  - hoefling_2024_core_readout_low_res
+  - _self_
+
+# Same setup as hoefling_2024_core_readout_low_res, with one learned temporal
+# speed factor per recording session.
+exp_name: hoefling_2024_core_readout_low_res_filtered_log_speed
+
+model:
+  core:
+    learn_session_log_speed: true
