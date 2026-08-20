@@ -148,8 +148,8 @@ class TimeIndependentConv3D(nn.Module):
         )
 
     @property
-    def weight_spatial(self):
-        return self.conv.weight.data
+    def weight_spatial(self) -> torch.Tensor:
+        return self.conv.weight
 
     def forward(self, input_: torch.Tensor | tuple[torch.Tensor, str]) -> torch.Tensor:
         if type(input_) is torch.Tensor:
