@@ -1,7 +1,7 @@
 defaults:
   - data_io: goldin_2022
   - dataloader: goldin_2022
-  - model: base_core_readout
+  - model: core_gaussian_readout
   - optimizer: adamw
   - lr_scheduler: reduce_lr_on_plateau
   - training_callbacks:
@@ -34,20 +34,38 @@ data_io:
 # Overwrite model defaults
 model:
   in_shape: [1, 1, 108, 108]
-  hidden_channels: [4]
+  hidden_channels: [64, 64]
+  learning_rate: 0.005
   core:
-    temporal_kernel_sizes: [1]
-    spatial_kernel_sizes: [30]
+    temporal_kernel_sizes: [1, 1]
+    spatial_kernel_sizes: [11, 11]
+    gamma_input: 0.28244013235889076
+    gamma_in_sparse: 0.01168774607827805
+    gamma_hidden: 0.37605406981720907
     gamma_temporal: 0.0
-    gamma_input: 0.4654576767872573
+    input_padding: false
+    hidden_padding: [0, 0, 0]
+    maxpool_every_n_layers: null
+    downsample_input_kernel_size: null
     convolution_type: "time_independent"
+    dropout_rate: 0.01175505972706517
+    cut_first_n_frames: 0
   readout:
-    mask_l1_reg: 0.0  # 5.924553274051563
-    feature_weights_l1_reg: 0.0  # 6.075840974162483
-    positive: false
+    bias: true
+    gamma: 0.41481588699036054
+    init_mu_range: 0.05578578551827034
+    init_sigma_range: 0.389355744189837
+    reg_avg: false
+    batch_sample: true
+    align_corners: true
+    gauss_type: "full"
+    grid_mean_predictor: null
+    shared_features: null
+    init_grid: null
+    shared_grid: null
   evaluation_loss:
     _target_: openretina.modules.losses.poisson.PoissonLoss3d
-    avg: True
+    avg: true
 
 lr_scheduler:
   mode: min
