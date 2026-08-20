@@ -49,6 +49,9 @@ model:
     _target_: openretina.modules.losses.poisson.PoissonLoss3d
     avg: True
 
+lr_scheduler:
+  mode: min
+
 matmul_precision:
   _target_: torch.set_float32_matmul_precision
   precision: highest
