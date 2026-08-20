@@ -27,7 +27,8 @@ model:
   in_shape: [2, 150, 18, 16]
 
 data_io:
-  retina_pixel_size_um: 50 # 4x bigger than high res model
+  data_info:
+    retina_pixel_size_um: 50 # 4x bigger than high res model
 
 paths:
   load_model_path: null

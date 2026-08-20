@@ -66,7 +66,8 @@ class Readout(nn.Module, ABC):
             warnings.warn("Readout is NOT initialized with mean activity but with 0!")
             self.bias.data.fill_(0)
         else:
-            self.bias.data = mean_activity
+            with torch.no_grad():
+                self.bias.copy_(mean_activity)
 
     def __repr__(self) -> str:
         return super().__repr__() + " [{}]\n".format(self.__class__.__name__)

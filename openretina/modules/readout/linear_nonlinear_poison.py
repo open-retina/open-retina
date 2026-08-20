@@ -130,4 +130,5 @@ class LNPReadout(Readout):
 
     def initialize(self, mean_activity: Float[torch.Tensor, " n_neurons"] | None = None) -> None:
         if self.inner_product_kernel.bias is not None and mean_activity is not None:
-            self.inner_product_kernel.bias.data = mean_activity
+            with torch.no_grad():
+                self.inner_product_kernel.bias.copy_(mean_activity)
