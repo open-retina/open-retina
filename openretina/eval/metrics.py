@@ -87,7 +87,7 @@ def corr_stop3d(model: torch.nn.Module, loader, avg: bool = True, device: str = 
         Gets called by early stopping and the model performance evaluation
     """
 
-    n_neurons, correlations_sum = 0, 0
+    n_neurons, correlations_sum = 0, 0.0
     if not avg:
         all_correlations = np.array([])
 
