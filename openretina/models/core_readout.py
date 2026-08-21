@@ -39,6 +39,13 @@ _MODEL_NAME_TO_REMOTE_LOCATION = {
 }
 
 
+def _stable_objective_tensor(value: torch.Tensor) -> torch.Tensor:
+    """Upcast low-precision activations before sensitive loss reductions."""
+    if value.dtype in {torch.float16, torch.bfloat16}:
+        return value.float()
+    return value
+
+
 class BaseCoreReadout(LightningModule):
     """
     Base module for models combining a shared core and a multi-session readout.
@@ -107,11 +114,14 @@ class BaseCoreReadout(LightningModule):
     def training_step(self, batch: tuple[str, DataPoint], batch_idx: int) -> torch.Tensor:
         session_id, data_point = batch
         model_output = self.forward(data_point.inputs, session_id)
-        loss = self.loss.forward(model_output, data_point.targets)
-        regularization_loss_core = self.core.regularizer()
-        regularization_loss_readout = self.readout.regularizer(session_id)  # type: ignore
-        total_loss = loss + regularization_loss_core + regularization_loss_readout
-        evaluation_loss = self.evaluation_loss.forward(model_output, data_point.targets)
+        with torch.autocast(device_type=model_output.device.type, enabled=False):
+            stable_output = _stable_objective_tensor(model_output)
+            stable_targets = _stable_objective_tensor(data_point.targets)
+            loss = self.loss.forward(stable_output, stable_targets)
+            regularization_loss_core = self.core.regularizer()
+            regularization_loss_readout = self.readout.regularizer(session_id)  # type: ignore
+            total_loss = loss + regularization_loss_core + regularization_loss_readout
+            evaluation_loss = self.evaluation_loss.forward(stable_output, stable_targets)
 
         self.log("regularization_loss_core", regularization_loss_core, on_step=False, on_epoch=True)
         self.log("regularization_loss_readout", regularization_loss_readout, on_step=False, on_epoch=True)
@@ -124,11 +134,14 @@ class BaseCoreReadout(LightningModule):
     def validation_step(self, batch: tuple[str, DataPoint], batch_idx: int) -> torch.Tensor:
         session_id, data_point = batch
         model_output = self.forward(data_point.inputs, session_id)
-        loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
-        regularization_loss_core = self.core.regularizer()
-        regularization_loss_readout = self.readout.regularizer(session_id)  # type: ignore
-        total_loss = loss + regularization_loss_core + regularization_loss_readout
-        evaluation_loss = self.evaluation_loss.forward(model_output, data_point.targets)
+        with torch.autocast(device_type=model_output.device.type, enabled=False):
+            stable_output = _stable_objective_tensor(model_output)
+            stable_targets = _stable_objective_tensor(data_point.targets)
+            loss = self.loss.forward(stable_output, stable_targets) / sum(model_output.shape)
+            regularization_loss_core = self.core.regularizer()
+            regularization_loss_readout = self.readout.regularizer(session_id)  # type: ignore
+            total_loss = loss + regularization_loss_core + regularization_loss_readout
+            evaluation_loss = self.evaluation_loss.forward(stable_output, stable_targets)
 
         self.log("val_loss", loss, logger=True, prog_bar=True)
         self.log("val_regularization_loss_core", regularization_loss_core, logger=True)
@@ -141,8 +154,11 @@ class BaseCoreReadout(LightningModule):
     def test_step(self, batch: tuple[str, DataPoint], batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
         session_id, data_point = batch
         model_output = self.forward(data_point.inputs, session_id)
-        loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
-        evaluation_loss = self.evaluation_loss.forward(model_output, data_point.targets)
+        with torch.autocast(device_type=model_output.device.type, enabled=False):
+            stable_output = _stable_objective_tensor(model_output)
+            stable_targets = _stable_objective_tensor(data_point.targets)
+            loss = self.loss.forward(stable_output, stable_targets) / sum(model_output.shape)
+            evaluation_loss = self.evaluation_loss.forward(stable_output, stable_targets)
 
         # Add metric and performances to data_info for downstream tasks
         if "pretrained_performance_metric" not in self.data_info:
