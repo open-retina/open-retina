@@ -482,7 +482,7 @@ def frame_movie_loader(
     retina_index=None,
     device: str = "cpu",
     time_chunk_size: int = 1,
-    num_of_layers=None,
+    num_of_layers: int = 1,
     excluded_cells: dict[Any, list[int]] | None = None,
     frame_file="_img_",
     img_dir_name="stimuli",
@@ -747,7 +747,7 @@ class NoiseDataset(Dataset):
         self,
         responses: dict,
         dir,
-        *data_keys: list,
+        *data_keys: str,
         indices: list,
         use_cache: bool = True,
         trial_prefix: str = "trial",
@@ -1045,12 +1045,12 @@ def get_noise_dataloader(
     shuffle=True,
     use_cache=True,
     cache_maxsize=20,
-    num_of_frames=None,
+    num_of_frames: int = 15,
     device="cpu",
     crop=50,
     subsample=20,
-    time_chunk_size=1,
-    num_of_layers=None,
+    time_chunk_size: int = 1,
+    num_of_layers: int = 1,
     temporal_dilation=1,
     hidden_temporal_dilation=1,
     num_of_hidden_frames=None,
@@ -1106,13 +1106,13 @@ def white_noise_loader(
     retina_index=None,
     num_of_trials_to_use=None,
     start_using_trial=0,
-    num_of_frames=None,
+    num_of_frames: int | list[int] = 15,
     temporal_dilation=1,
     hidden_temporal_dilation=1,
     cell_index=0,
     device="cpu",
-    time_chunk_size=None,
-    num_of_layers=None,
+    time_chunk_size: int = 1,
+    num_of_layers: int = 1,
     retina_specific_crops=True,
     extra_frame=0,
     hard_coded=None,
@@ -1122,7 +1122,7 @@ def white_noise_loader(
     **kwargs,
 ):
     basepath = get_local_file_path(str(basepath))
-    dataloaders = {"train": {}, "validation": {}, "test": {}}
+    dataloaders: dict[str, dict] = {"train": {}, "validation": {}, "test": {}}
     if retina_index is None:
         retina_indices = list(files.keys())
     else:
