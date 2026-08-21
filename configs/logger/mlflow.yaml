@@ -2,9 +2,9 @@
 mlflow:
   _target_: lightning.pytorch.loggers.MLFlowLogger
   # OmegaConf (oc.env) checks for environment variables and falls back to defaults if not set
-  # MLFLOW_EXPERIMENT_NAME defaults to ${exp_name}, MLFLOW_TRACKING_URI defaults to local file path
+  # MLFLOW_EXPERIMENT_NAME defaults to ${exp_name}, MLFLOW_TRACKING_URI defaults to a local SQLite database
   experiment_name: ${oc.env:MLFLOW_EXPERIMENT_NAME,${exp_name}}
-  tracking_uri: "${oc.env:MLFLOW_TRACKING_URI,${paths.log_dir}/openretina_assets/mlflow}"
+  tracking_uri: "${oc.env:MLFLOW_TRACKING_URI,sqlite:///${paths.log_dir}/openretina_assets/mlflow.db}"
   log_model: false # Handled manually in the training script
   run_name: ${exp_name}_run_${now:%Y%m%d_%H%M%S}
   tags:

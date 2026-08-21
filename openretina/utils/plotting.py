@@ -362,7 +362,7 @@ def plot_vector_field_resp_iso(
     # cm = ColorMapper("cool", vmin=gradient_norm_grid.min(),
     #                  vmax=gradient_norm_grid.max())
 
-    with mpl.rc_context(rc_dict):
+    with mpl.rc_context(mpl.RcParams(rc_dict)):
         fig = plt.figure()
 
         # Create a contour plot with isoresponse lines
