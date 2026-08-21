@@ -18,9 +18,7 @@ def load_frames(
     """
     img_dir_name = get_local_file_path(str(img_dir_name))
     print(f"Loading all frames from: {img_dir_name} into memory")
-    image_paths = [
-        os.path.join(img_dir_name, name) for name in sorted(os.listdir(img_dir_name)) if frame_file in name
-    ]
+    image_paths = [os.path.join(img_dir_name, name) for name in sorted(os.listdir(img_dir_name)) if frame_file in name]
     all_frames = np.empty((len(image_paths), full_img_w, full_img_h), dtype=np.float16)
     if not image_paths:
         return all_frames
