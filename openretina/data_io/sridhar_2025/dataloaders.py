@@ -1155,6 +1155,7 @@ def white_noise_loader(
         if retina_specific_crops:
             crop = big_crops[retina_index]
 
+        locations = None
         if get_locations:
             assert sta_dir is not None
             locations = get_locations_from_stas(
