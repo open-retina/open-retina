@@ -521,8 +521,7 @@ def frame_movie_loader(
         expected to have shape ``(n_neurons, frames_per_trial, n_trials)``.
     fixation_files : Mapping[int, str]
         Mapping from retina index to a fixation file path (relative to
-        ``basepath``). TODO: only the first entry is actually read and used
-        for all retinas in this function, assuming a shared fixation stream.
+        ``basepath``). Each retina's fixation file is read and processed separately.
     big_crops : Mapping[int, int | tuple[int, int, int, int]]
         Retina-specific crop specifications *(top, bottom, left, right)* used
         if ``retina_specific_crops=True``.
@@ -618,8 +617,8 @@ def frame_movie_loader(
     - **Expected response shapes:** ``load_responses`` should return, for each
       retina, a dict with keys ``"train_responses"`` (``n_neurons × T_train ×
       n_trials``) and ``"test_responses"`` (``n_neurons × T_test``).
-    - TODO: **Fixations.** Right now, only the first path from ``fixation_files`` is opened and
-      parsed via ``process_fixations`` and then reused for all retinas.
+    - **Fixations.** Each path in ``fixation_files`` is parsed via
+      ``process_fixations`` for its corresponding retina.
     - **Trial selection window.** After the split, trials are restricted to the
       contiguous window
       ``[start_using_trial, start_using_trial + num_of_trials_to_use)`` (clipped
@@ -634,10 +633,6 @@ def frame_movie_loader(
         retina_indices = list(fixation_files.keys())
     else:
         retina_indices = [retina_index]
-
-    with open(f"{basepath}/{fixation_files[retina_indices[0]]}", "r") as file:
-        fixation_file = file.readlines()
-        fixations = process_fixations(fixation_file, flip_imgs=flip_imgs)
 
     responses = load_responses(
         basepath, files=files, stimulus_seed=stimulus_seed, excluded_cells=excluded_cells, cell_index=cell_index
@@ -654,6 +649,10 @@ def frame_movie_loader(
         img_w = full_img_w - 3 * padding
 
     for retina_index in retina_indices:
+        with open(f"{basepath}/{fixation_files[retina_index]}", "r") as file:
+            fixation_file = file.readlines()
+            fixations = process_fixations(fixation_file, flip_imgs=flip_imgs)
+
         train_responses, test_responses = (
             responses[retina_index]["train_responses"],
             responses[retina_index]["test_responses"],
