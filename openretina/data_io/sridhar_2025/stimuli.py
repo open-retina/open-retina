@@ -13,14 +13,22 @@ from openretina.utils.file_utils import get_local_file_path
 def load_frames(
     img_dir_name: str | os.PathLike, frame_file: str, full_img_w: int, full_img_h: int
 ) -> Float[np.ndarray, "frames width height"]:
-    """
-    loads all stimulus frames of the movie into memory
-    """
+    """Load and normalize movie frames, using a packed cache when available."""
     img_dir_name = get_local_file_path(str(img_dir_name))
-    print("Loading all frames from:", img_dir_name, "into memory")
     image_paths = [
         os.path.join(img_dir_name, name) for name in sorted(os.listdir(img_dir_name)) if frame_file in name
     ]
+    cache_path = os.path.join(
+        img_dir_name,
+        f".openretina_frames_{len(image_paths)}_{full_img_w}x{full_img_h}.npy",
+    )
+    if os.path.isfile(cache_path):
+        print(f"Loading packed frames from: {cache_path}")
+        cached_frames = np.load(cache_path)
+        if cached_frames.shape == (len(image_paths), full_img_w, full_img_h) and cached_frames.dtype == np.float16:
+            return cached_frames
+
+    print(f"Loading all frames from: {img_dir_name} into memory")
     all_frames = np.empty((len(image_paths), full_img_w, full_img_h), dtype=np.float16)
     if not image_paths:
         return all_frames
@@ -30,7 +38,20 @@ def load_frames(
     with ThreadPoolExecutor(max_workers=min(4, len(image_paths))) as executor:
         loaded_frames = executor.map(np.load, image_paths)
         for i, img in enumerate(tqdm(loaded_frames, total=len(image_paths))):
-            all_frames[i] = img / 255
+            np.divide(img, 255, out=all_frames[i], casting="unsafe")
+
+    temporary_cache_path = f"{cache_path}.{os.getpid()}.tmp"
+    try:
+        with open(temporary_cache_path, "wb") as cache_file:
+            np.save(cache_file, all_frames)
+        os.replace(temporary_cache_path, cache_path)
+    except OSError:
+        # The dataset may be mounted read-only; loading should still succeed.
+        pass
+    finally:
+        if os.path.exists(temporary_cache_path):
+            os.remove(temporary_cache_path)
+
     return all_frames
 
 
