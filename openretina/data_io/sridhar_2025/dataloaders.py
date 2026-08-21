@@ -1165,6 +1165,7 @@ def white_noise_loader(
         locations = None
         if get_locations:
             assert sta_dir is not None
+            excluded = set(excluded_cells.get(retina_index, [])) if excluded_cells is not None else set()
             locations = get_locations_from_stas(
                 sta_dir=os.path.join(basepath, sta_dir),
                 retina_index=retina_index,
@@ -1172,8 +1173,8 @@ def white_noise_loader(
                 if cell_index is not None
                 else [
                     x
-                    for x in range(0, train_responses.shape[0] + len(excluded_cells[retina_index]))
-                    if x not in excluded_cells[retina_index]
+                    for x in range(0, train_responses.shape[0] + len(excluded))
+                    if x not in excluded
                 ],
                 crop=crop,
                 flip_sta=False,
