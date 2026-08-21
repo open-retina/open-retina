@@ -259,10 +259,11 @@ class MarmosetMovieDataset(Dataset):
             return images
 
         elif len(images.shape) == 4:
-            h, w, num_of_imgs = images.shape[:2]
+            _, h, w, _ = images.shape
             images = images[
-                self.crop[0][0] : h - self.crop[0][1] : self.subsample,
-                self.crop[1][0] : w - self.crop[1][1] : self.subsample,
+                :,
+                self.crop[0] : h - self.crop[1] : self.subsample,
+                self.crop[2] : w - self.crop[3] : self.subsample,
                 :,
             ]
             images = images.permute(0, 3, 1, 2)
@@ -935,10 +936,11 @@ class NoiseDataset(Dataset):
             return images
 
         elif len(images.shape) == 4:
-            h, w, num_of_imgs = images.shape[:2]
+            _, h, w, _ = images.shape
             images = images[
-                self.crop[0][0] : h - self.crop[0][1] : self.subsample,
-                self.crop[1][0] : w - self.crop[1][1] : self.subsample,
+                :,
+                self.crop[0] : h - self.crop[1] : self.subsample,
+                self.crop[2] : w - self.crop[3] : self.subsample,
                 :,
             ]
             images = images.permute(0, 3, 1, 2)
