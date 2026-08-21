@@ -1,5 +1,6 @@
 import os
 import pickle
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 from jaxtyping import Float
@@ -17,15 +18,19 @@ def load_frames(
     """
     img_dir_name = get_local_file_path(str(img_dir_name))
     print("Loading all frames from:", img_dir_name, "into memory")
-    images = os.listdir(img_dir_name)
-    images = [frame for frame in images if frame_file in frame]
-    all_frames = np.zeros((len(images), full_img_w, full_img_h), dtype=np.float16)
-    i = 0
-    for img_file in tqdm(sorted(images)):
-        img = np.load(f"{img_dir_name}/{img_file}")
+    image_paths = [
+        os.path.join(img_dir_name, name) for name in sorted(os.listdir(img_dir_name)) if frame_file in name
+    ]
+    all_frames = np.empty((len(image_paths), full_img_w, full_img_h), dtype=np.float16)
+    if not image_paths:
+        return all_frames
 
-        all_frames[i] = img / 255
-        i += 1
+    # A few concurrent reads hide the per-file latency of network filesystems
+    # without putting excessive I/O or memory pressure on local machines.
+    with ThreadPoolExecutor(max_workers=min(4, len(image_paths))) as executor:
+        loaded_frames = executor.map(np.load, image_paths)
+        for i, img in enumerate(tqdm(loaded_frames, total=len(image_paths))):
+            all_frames[i] = img / 255
     return all_frames
 
 
