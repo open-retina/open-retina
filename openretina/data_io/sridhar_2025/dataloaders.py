@@ -381,11 +381,7 @@ class MarmosetMovieDataset(Dataset):
         fixations = self.fixations[int(starting_line) : int(ending_line)]
         frames = torch.zeros((self.time_chunk_size, self.img_h, self.img_w))
         for i, (fixation, index) in enumerate(zip(fixations, range(starting_img_index, ending_img_index))):
-            if (
-                trial_index == self.last_trial_index
-                and index >= self.last_start_index
-                and index < self.last_end_index
-            ):
+            if trial_index == self.last_trial_index and index >= self.last_start_index and index < self.last_end_index:
                 img = self.cache[index - self.last_start_index]
             else:
                 img = torch.from_numpy(self.frames[fixation["img_index"]].astype(np.float32))
@@ -469,9 +465,9 @@ def get_dataloader(
 
 
 def frame_movie_loader(
-    files,
-    fixation_files: dict[int, str],
-    big_crops: dict[int, int | tuple[int, int, int, int]],
+    files: dict[str, str],
+    fixation_files: dict[str, str],
+    big_crops: dict[str, int | tuple[int, int, int, int]],
     basepath,
     batch_size: int = 16,
     seed=None,
@@ -484,7 +480,7 @@ def frame_movie_loader(
     temporal_dilation: int | tuple[int, ...] = 1,
     hidden_temporal_dilation: int | tuple[int, ...] = 1,
     cell_index=None,
-    retina_index=None,
+    retina_index: str | None = None,
     device: str = "cpu",
     time_chunk_size: int = 1,
     num_of_layers: int = 1,
@@ -1169,11 +1165,7 @@ def white_noise_loader(
                 retina_index=retina_index,
                 cells=[cell_index]
                 if cell_index is not None
-                else [
-                    x
-                    for x in range(0, train_responses.shape[0] + len(excluded))
-                    if x not in excluded
-                ],
+                else [x for x in range(0, train_responses.shape[0] + len(excluded)) if x not in excluded],
                 crop=crop,
                 flip_sta=False,
             )
