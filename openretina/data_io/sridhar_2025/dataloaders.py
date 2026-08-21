@@ -273,6 +273,30 @@ class MarmosetMovieDataset(Dataset):
             )
         return images
 
+    def _transformed_frame_shape(self) -> tuple[int, int]:
+        """Return the spatial shape after the configured crop and subsampling."""
+        height = len(range(self.crop[0], self.img_h - self.crop[1], self.subsample))
+        width = len(range(self.crop[2], self.img_w - self.crop[3], self.subsample))
+        return height, width
+
+    def _render_frame(self, fixation) -> torch.Tensor:
+        """Crop and subsample a source frame without copying discarded pixels."""
+        img = torch.from_numpy(self.frames[fixation["img_index"]])
+        img = crop_based_on_fixation(
+            img=img,
+            x_center=fixation["center_x"],
+            y_center=fixation["center_y"],
+            flip=fixation["flip"] == 0,
+            img_h=self.img_h,
+            img_w=self.img_w,
+            padding=self.padding,
+        )
+        img = torch.movedim(img, 0, 1)
+        return img[
+            self.crop[0] : self.img_h - self.crop[1] : self.subsample,
+            self.crop[2] : self.img_w - self.crop[3] : self.subsample,
+        ]
+
     def __len__(self) -> int:
         return self._len
 
@@ -304,24 +328,11 @@ class MarmosetMovieDataset(Dataset):
 
     def _build_full_movie(self) -> torch.Tensor:
         """Render the entire test movie based on pre-loaded frames and fixations."""
-        frames = torch.zeros((self.num_of_imgs, self.img_h, self.img_w), dtype=torch.float32)
+        transformed_h, transformed_w = self._transformed_frame_shape()
+        frames = torch.zeros((self.num_of_imgs, transformed_h, transformed_w), dtype=torch.float32)
         fixations = self.fixations[: self.num_of_imgs]
         for i, fixation in enumerate(fixations):
-            img = torch.from_numpy(self.frames[fixation["img_index"]].astype(np.float32))
-            img = crop_based_on_fixation(
-                img=img,
-                x_center=fixation["center_x"],
-                y_center=fixation["center_y"],
-                flip=fixation["flip"] == 0,
-                img_h=self.img_h,
-                img_w=self.img_w,
-                padding=self.padding,
-            )
-            img = torch.movedim(img, 0, 1)
-            frames[i] = img
-        frames = torch.movedim(frames, 0, 2)
-        frames = self.transform(frames)
-        frames = torch.movedim(frames, 2, 0)
+            frames[i] = self._render_frame(fixation)
         return frames
 
     def __getitem__(self, item):
@@ -379,27 +390,15 @@ class MarmosetMovieDataset(Dataset):
             ending_line = starting_line + self.time_chunk_size
 
         fixations = self.fixations[int(starting_line) : int(ending_line)]
-        frames = torch.zeros((self.time_chunk_size, self.img_h, self.img_w))
+        transformed_h, transformed_w = self._transformed_frame_shape()
+        frames = torch.zeros((self.time_chunk_size, transformed_h, transformed_w))
         for i, (fixation, index) in enumerate(zip(fixations, range(starting_img_index, ending_img_index))):
             if trial_index == self.last_trial_index and index >= self.last_start_index and index < self.last_end_index:
                 img = self.cache[index - self.last_start_index]
             else:
-                img = torch.from_numpy(self.frames[fixation["img_index"]].astype(np.float32))
-                img = crop_based_on_fixation(
-                    img=img,
-                    x_center=fixation["center_x"],
-                    y_center=fixation["center_y"],
-                    flip=fixation["flip"] == 0,
-                    img_h=self.img_h,
-                    img_w=self.img_w,
-                    padding=self.padding,
-                )
-                img = torch.movedim(img, 0, 1)
+                img = self._render_frame(fixation)
             frames[i] = img
             cache.append(img)
-        frames = torch.movedim(frames, 0, 2)
-        frames = self.transform(frames)
-        frames = torch.movedim(frames, 2, 0)
         self.last_trial_index = trial_index
         self.last_start_index = starting_img_index
         self.last_end_index = ending_img_index
@@ -1005,8 +1004,8 @@ class NoiseDataset(Dataset):
             imgs = torch.from_numpy(imgs)
             imgs = self.transform_image(imgs)
             if self.use_cache:
-                if len(list(self._cache[data_key].keys())) >= self.cache_maxsize:
-                    last_key = list(self._cache[data_key].keys())[-1]
+                if len(self._cache[data_key]) >= self.cache_maxsize:
+                    last_key = next(reversed(self._cache[data_key]))
                     del self._cache[data_key][last_key]
                 self._cache[data_key][trial_file_index] = imgs
             return imgs
@@ -1020,7 +1019,7 @@ class NoiseDataset(Dataset):
 
     def get_trial_portion(self, trial_file_index, data_key, starting_img_index, ending_img_index):
         if not self._test:
-            if self.use_cache and trial_file_index in list(self._cache[data_key].keys()):
+            if self.use_cache and trial_file_index in self._cache[data_key]:
                 value = self._cache[data_key][trial_file_index][:, :, starting_img_index:ending_img_index]
             else:
                 imgs = self.get_trial_file(trial_file_index, data_key=data_key)
