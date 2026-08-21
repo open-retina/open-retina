@@ -116,7 +116,7 @@ class MarmosetMovieDataset(Dataset):
         responses: dict,
         dir,
         *data_keys: str,
-        indices: list,
+        indices: list[int] | np.ndarray | None,
         frames: np.ndarray,
         fixations,
         temporal_dilation: int | tuple[int, ...] = 1,
@@ -188,8 +188,7 @@ class MarmosetMovieDataset(Dataset):
         self.img_dir_name = img_dir_name
         self.frame_file = frame_file
         self.response_dict = responses
-        if indices is not None:
-            self.train_responses = torch.from_numpy(responses["train_responses"]).float()
+        self.train_responses = torch.from_numpy(responses["train_responses"]).float()
         self.test_responses = torch.from_numpy(responses["test_responses"]).float()
         raw_test_by_trial = responses.get("test_responses_by_trial")
         self._test_responses_by_trial: torch.Tensor | None = (
@@ -202,7 +201,7 @@ class MarmosetMovieDataset(Dataset):
         self.indices = indices
         self.frames = frames
 
-        self.random_indices = np.random.permutation(indices)
+        self.random_indices = np.random.permutation(indices) if indices is not None else np.array([], dtype=int)
         self.n_neurons = self.train_responses.shape[0]
         self.num_of_trials = self.train_responses.shape[2]
 
@@ -222,6 +221,8 @@ class MarmosetMovieDataset(Dataset):
             self._len = int(
                 np.floor((self.num_of_imgs - self.frame_overhead) / (self.time_chunk_size - self.frame_overhead))
             )
+        elif self.indices is None:
+            raise ValueError("indices are required for the training and validation splits.")
         else:
             self._len = int(
                 len(self.indices)
@@ -329,7 +330,11 @@ class MarmosetMovieDataset(Dataset):
                 item / np.floor((self.num_of_imgs - self.frame_overhead) / (self.time_chunk_size - self.frame_overhead))
             )
         )
-        actual_trial_index = self.indices[trial_index]
+        if self._test:
+            actual_trial_index = 0
+        else:
+            assert self.indices is not None
+            actual_trial_index = self.indices[trial_index]
         trial_portion = int(
             item % np.floor((self.num_of_imgs - self.frame_overhead) / (self.time_chunk_size - self.frame_overhead))
         )
@@ -748,7 +753,7 @@ class NoiseDataset(Dataset):
         responses: dict,
         dir,
         *data_keys: str,
-        indices: list,
+        indices: list[int] | np.ndarray | None,
         use_cache: bool = True,
         trial_prefix: str = "trial",
         test: bool = False,
@@ -790,7 +795,7 @@ class NoiseDataset(Dataset):
                                 f'{dir}/{trial_prefix}_{int representing trial number}.zfill(3)/all_images.npy'
                     Expected shape of numpy array in all_images.npy is: height x width x num_of_images in trial
         :param data_keys: list of keys to be used for the datapoints, expected ['inputs', 'targets']
-        :param indices: Indices of the trials selected for the given dataset
+        :param indices: Trial indices selected for training or validation. Ignored for the test split.
         :param transforms: List of transformations that are supposed to be performed on images
         :param use_cache: Whether to use caching when loading image data
         :param trial_prefix: prefix of trial file, followed by '_{trial number}'
@@ -846,8 +851,7 @@ class NoiseDataset(Dataset):
         self.trial_prefix = trial_prefix
         self.data_keys = data_keys
         self.basepath = dir
-        if indices is not None:
-            self.train_responses = torch.from_numpy(responses["train_responses"]).float()
+        self.train_responses = torch.from_numpy(responses["train_responses"]).float()
 
         self.test_responses = torch.from_numpy(responses["test_responses"]).float()
         raw_test_by_trial = responses.get("test_responses_by_trial")
@@ -857,7 +861,7 @@ class NoiseDataset(Dataset):
             else None
         )
         self.indices = indices
-        self.random_indices = np.random.permutation(indices)
+        self.random_indices = np.random.permutation(indices) if indices is not None else np.array([], dtype=int)
         self.n_neurons = self.train_responses.shape[0]
         self.num_of_trials = self.train_responses.shape[2]
         self.locations = locations
@@ -877,6 +881,8 @@ class NoiseDataset(Dataset):
                 - self.extra_frame
             )
 
+        elif self.indices is None:
+            raise ValueError("indices are required for the training and validation splits.")
         else:
             self._len = (
                 int(
@@ -960,7 +966,11 @@ class NoiseDataset(Dataset):
                 item / np.floor((self.num_of_imgs - self.frame_overhead) / (self.time_chunk_size - self.frame_overhead))
             )
         )
-        trial_file_index = self.indices[trial_index]
+        if self._test:
+            trial_file_index = 0
+        else:
+            assert self.indices is not None
+            trial_file_index = self.indices[trial_index]
         trial_portion = int(
             item % np.floor((self.num_of_imgs - self.frame_overhead) / (self.time_chunk_size - self.frame_overhead))
         )
