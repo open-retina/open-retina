@@ -640,8 +640,13 @@ def frame_movie_loader(
     else:
         retina_indices = [retina_index]
 
+    selected_files = {index: files[index] for index in retina_indices}
     responses = load_responses(
-        basepath, files=files, stimulus_seed=stimulus_seed, excluded_cells=excluded_cells, cell_index=cell_index
+        basepath,
+        files=selected_files,
+        stimulus_seed=stimulus_seed,
+        excluded_cells=excluded_cells,
+        cell_index=cell_index,
     )
     frames = load_frames(
         img_dir_name=os.path.join(basepath, img_dir_name),
@@ -1129,7 +1134,8 @@ def white_noise_loader(
         retina_indices = list(files.keys())
     else:
         retina_indices = [retina_index]
-    responses = load_responses(basepath, files=files, excluded_cells=excluded_cells, cell_index=cell_index)
+    selected_files = {index: files[index] for index in retina_indices}
+    responses = load_responses(basepath, files=selected_files, excluded_cells=excluded_cells, cell_index=cell_index)
 
     for retina_index in retina_indices:
         train_responses = responses[retina_index]["train_responses"]
