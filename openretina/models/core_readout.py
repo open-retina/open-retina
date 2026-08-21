@@ -181,7 +181,7 @@ class BaseCoreReadout(LightningModule):
             best_model_path = self.trainer.checkpoint_callback.best_model_path
             if best_model_path:
                 final_path = best_model_path.replace(".ckpt", "_final.ckpt")
-                self.trainer.save_checkpoint(final_path)
+                self.trainer.save_checkpoint(final_path, weights_only=False)
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
