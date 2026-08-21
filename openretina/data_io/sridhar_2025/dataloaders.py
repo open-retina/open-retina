@@ -875,22 +875,18 @@ class NoiseDataset(Dataset):
         self.time_chunk_size = time_chunk_size + self.frame_overhead
 
         self._test = test
-        if self._test:
-            self._len = (
-                int(np.floor((self.num_of_imgs - self.frame_overhead) / (self.time_chunk_size - self.frame_overhead)))
-                - self.extra_frame
+        self.chunks_per_trial = int(
+            np.floor(
+                (self.num_of_imgs - self.frame_overhead - self.extra_frame)
+                / (self.time_chunk_size - self.frame_overhead)
             )
-
+        )
+        if self._test:
+            self._len = self.chunks_per_trial
         elif self.indices is None:
             raise ValueError("indices are required for the training and validation splits.")
         else:
-            self._len = (
-                int(
-                    len(self.indices)
-                    * np.floor((self.num_of_imgs - self.frame_overhead) / (self.time_chunk_size - self.frame_overhead))
-                )
-                - self.extra_frame
-            )
+            self._len = len(self.indices) * self.chunks_per_trial
 
         self._cache: dict[Any, Any] = {data_key: {} for data_key in data_keys}
 
@@ -961,19 +957,13 @@ class NoiseDataset(Dataset):
         return x
 
     def get_whole_trials(self, item):
-        trial_index = int(
-            np.floor(
-                item / np.floor((self.num_of_imgs - self.frame_overhead) / (self.time_chunk_size - self.frame_overhead))
-            )
-        )
+        trial_index = int(np.floor(item / self.chunks_per_trial))
         if self._test:
             trial_file_index = 0
         else:
             assert self.indices is not None
             trial_file_index = self.indices[trial_index]
-        trial_portion = int(
-            item % np.floor((self.num_of_imgs - self.frame_overhead) / (self.time_chunk_size - self.frame_overhead))
-        )
+        trial_portion = int(item % self.chunks_per_trial)
         starting_img_index = int(trial_portion * self.time_chunk_size)
         starting_img_index -= trial_portion * self.frame_overhead
         ending_img_index = int(starting_img_index + self.time_chunk_size)

@@ -192,9 +192,7 @@ class ChunkedSampler(Sampler):
         self.num_of_imgs = dataset.num_of_imgs
         self.num_of_frames = dataset.num_of_frames
         self.len = len(dataset)
-        self.chunk_size = int(
-            np.floor(dataset.num_of_imgs - dataset.frame_overhead) / (dataset.time_chunk_size - dataset.frame_overhead)
-        )
+        self.chunk_size = dataset.chunks_per_trial
         self.seed = seed
         self.indices = np.arange(len(dataset))
         self.num_chunks = int(np.ceil(self.len / self.chunk_size))
