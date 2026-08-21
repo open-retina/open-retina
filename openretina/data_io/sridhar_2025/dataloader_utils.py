@@ -193,7 +193,7 @@ class ChunkedSampler(Sampler):
         self.num_of_frames = dataset.num_of_frames
         self.len = len(dataset)
         self.chunk_size = dataset.chunks_per_trial
-        self.seed = seed
+        self.rng = np.random.default_rng(seed)
         self.indices = np.arange(len(dataset))
         self.num_chunks = int(np.ceil(self.len / self.chunk_size))
         # print(f"chunk size: {self.chunk_size}, frames in trial: {self.dataset.num_of_imgs}")  # Size of each chunk
@@ -204,10 +204,10 @@ class ChunkedSampler(Sampler):
 
         # Shuffle within each chunk
         for chunk in chunks:
-            np.random.shuffle(chunk)
+            self.rng.shuffle(chunk)
 
         # Shuffle the order of chunks
-        np.random.shuffle(chunks)
+        self.rng.shuffle(chunks)
 
         # Flatten shuffled chunks into a single ordered list
         return np.concatenate(chunks)
