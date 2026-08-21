@@ -167,11 +167,15 @@ def filter_trials(
     else:
         # If hard_coded is provided, use those IDs directly
         num_trials = train_responses.shape[-1]
-        train_ids = [int(x) for x in all_train_ids if int(x) < min(num_trials, num_of_trials_to_use + starting_trial)]  # type: ignore
+        train_ids = [
+            int(x)
+            for x in all_train_ids
+            if starting_trial <= int(x) < min(num_trials, num_of_trials_to_use + starting_trial)  # type: ignore
+        ]
         valid_ids = [
             int(x)
             for x in all_validation_ids
-            if int(x) < min(num_trials, num_of_trials_to_use + starting_trial)  # type: ignore
+            if starting_trial <= int(x) < min(num_trials, num_of_trials_to_use + starting_trial)  # type: ignore
         ]
 
     return train_ids, valid_ids
