@@ -1,8 +1,11 @@
 # Greyscale LNP on hoefling_2024 — plan and handoff
 
-Status as of 2026-08-25: **code complete and verified offline, training not yet run.**
-Everything below is committed on branch `feature/greyscale-lnp`. The remaining work is to
-submit `run_hoefling_lnp_grey.sh` on a machine with a GPU allocation and interpret the result.
+Status as of 2026-08-25: **code complete, verified, and both arms trained.** See
+[Results](#results-job-442421) below. Everything is committed on branch `feature/greyscale-lnp`.
+
+Headline: greyscale costs almost nothing, and `smooth_weight=3e4` still helps at half the
+parameter count. The one loose end is that the `grey_base` arm was cut off by EarlyStopping while
+still improving, so its score is a floor rather than a peak.
 
 ## Why
 
@@ -184,6 +187,41 @@ from the earlier colour sweep and is therefore not on this branch. The script gu
 absence and tells you where the raw `csv/metrics.csv` files are. To summarize by hand: peak
 validation correlation is `max(val_evaluation_loss)`, and the test score is the
 `CorrelationLoss3d/dataloader_idx_2` row written by `trainer.test`.
+
+## Results (job 442421)
+
+Ran on `cpu-ferranti`/`mlcbm101`, **no GPU**, both arms sequentially in **4 min 14 s**, MaxRSS
+4.24 GB. Every H100 on the cluster was allocated with a GPU request backlogged three weeks out,
+and this model is small enough that CPU was no slower in practice -- so `--gres` was dropped.
+
+| arm | train corr | val corr (best) | test corr | best epoch | stop epoch | reg / data term |
+|---|---|---|---|---|---|---|
+| `grey_base` (smooth 1) | 0.0997 | 0.0873 | 0.2438 | 20 | 20 (truncated) | 0.0001 |
+| `grey_smooth3e4` | 0.0667 | **0.0925** | **0.2563** | 51 | 59 (converged) | 0.0227 |
+| colour base (441210) | -- | 0.0860 | 0.2503 | 3 | 13 | ~0.0002 |
+| colour smooth3e4 (441210) | -- | 0.0983 | 0.2594 | 83 | -- | -- |
+
+Both arms logged `in_shape_readout=torch.Size([1, 120, 18, 16])` and both greyscale receipts read
+`GREYSCALE`, so the squash demonstrably happened.
+
+**1. `smooth_weight=3e4` transfers to the half-size model.** +0.0052 val and +0.0125 test over
+`grey_base`. The test gain is well clear of the ~0.004 val noise floor, so the capacity cut does
+*not* substitute for the regularizer. The train/val ordering corroborates it: `grey_base` overfits
+(train 0.0997 > val 0.0873) while `grey_smooth3e4` is regularized (train 0.0667 < val 0.0925), and
+the penalty is 2.3% of the objective rather than the inert 0.01%.
+
+**2. Greyscale costs little.** On the comparable `smooth3e4` arm, grey is 0.0058 val and 0.0031
+test below colour -- the val gap is marginally past the noise floor, the test gap is inside it. So
+this model class extracts little from the chromatic dimension, which is consistent with it having
+no temporal filter either (`kernel_size=(1, 18, 16)`, `# Not using time`).
+
+**3. Caveat on `grey_base`.** It stopped at epoch 20 with its best value *at the final epoch*,
+still climbing monotonically (0.0851 -> 0.0862 -> 0.0869 -> 0.0873). That is EarlyStopping's
+`min_delta=1e-3`: each step must beat the reference by >0.001 to reset patience, and those steps
+were +0.0011, +0.0007, +0.0004. So 0.0873 is a lower bound and the +0.0052 val gain in finding 1
+is an upper bound. To close this, rerun that arm with a smaller `min_delta` or a larger patience:
+`training_callbacks.early_stopping.min_delta=1e-4`. The colour baseline is unaffected -- it was
+*decaying* when it stopped, not climbing.
 
 ## Numbers to compare against
 
