@@ -21,3 +21,22 @@ def test_weighted_channel_sum_layer(
     assert torch.allclose(
         x_out, x[:, 0:1, ...] * init_channel_weights[0] + x[:, 1:2, ...] * init_channel_weights[1], atol=1e-9
     )
+
+
+def test_weighted_channel_sum_layer_passes_through_single_channel():
+    """A stimulus that is already greyscale must be returned untouched."""
+    layer = WeightedChannelSumLayer((0.5, 0.5))
+
+    x = torch.ones((1, 1, 50, 18, 16))
+    assert torch.equal(layer.forward(x), x)
+
+
+@pytest.mark.parametrize("init_channel_weights", [(0.5,), (0.3, 0.3, 0.4)])
+def test_weighted_channel_sum_layer_rejects_channel_mismatch(
+    init_channel_weights: tuple[float, ...],
+):
+    """A single weight would otherwise broadcast and silently sum all channels equally."""
+    layer = WeightedChannelSumLayer(init_channel_weights)
+
+    with pytest.raises(ValueError, match="channel weights"):
+        layer.forward(torch.ones((1, 2, 50, 18, 16)))
