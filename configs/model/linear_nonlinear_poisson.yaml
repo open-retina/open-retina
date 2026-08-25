@@ -5,6 +5,7 @@ core:
   _target_: openretina.modules.core.base_core.DummyCore
   _convert_: object
   cut_first_n_frames: 30
+  color_squashing_weights: null # e.g. [0.5, 0.5] to squash a 2-color stimulus down to greyscale
 
 readout:
   _target_: openretina.modules.readout.multi_readout.MultipleLNPReadout
