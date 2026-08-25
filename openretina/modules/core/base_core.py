@@ -249,13 +249,34 @@ class SimpleCoreWrapper(Core):
 class DummyCore(Core):
     """
     A dummy core that does nothing. Used for readout only models, like the LNP model.
+
+    Optionally collapses a multi-channel (color) stimulus into a single greyscale channel with a
+    fixed weighted sum, so readout-only models can be trained on greyscale input.
+
+    Note that `in_shape` in the model config stays the *pre-squash* stimulus shape here, unlike
+    `SimpleCoreWrapper`, which requires `channels[0] == 1`. The readout's channel count is derived
+    by probing this core (see `BaseCoreReadout.compute_readout_input_shape`), so squashing here
+    shrinks the readout kernels automatically.
+
+    Keyword arguments are deliberately not swallowed: a typo such as `color_squashing_weight`
+    would otherwise be silently ignored and train a color model labelled as greyscale.
     """
 
-    def __init__(self, cut_first_n_frames: int | None = None, **kwargs):
+    def __init__(
+        self,
+        cut_first_n_frames: int | None = None,
+        color_squashing_weights: tuple[float, ...] | None = None,
+        n_neurons_dict: dict[str, int] | None = None,  # for compatibility
+    ):
         super().__init__()
         self._cut_first_n_frames = cut_first_n_frames
+        self.color_squashing_layer = (
+            WeightedChannelSumLayer(tuple(color_squashing_weights)) if color_squashing_weights is not None else None
+        )
 
     def forward(self, x, data_key=None, **kwargs):
+        if self.color_squashing_layer is not None:
+            x = self.color_squashing_layer(x)
         res = x[:, :, self._cut_first_n_frames :]
         return res
 
