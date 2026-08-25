@@ -37,6 +37,7 @@
 #   OPENRETINA_BIN              path to the `openretina` entry point   (default .venv/bin/openretina)
 #   PYTHON_BIN                  path to the python interpreter          (default .venv/bin/python)
 #   MAX_EPOCHS                  training epoch cap                      (default 300)
+#   EXTRA_OVERRIDES             extra hydra overrides applied to both arms (default none)
 #
 # The model is tiny (<1M trainable weights). The colour reference runs took under 3 minutes each
 # on one H100 with a measured peak RSS of 4.5 GB, hence --mem=16G and the short walltime; a small,
@@ -73,6 +74,11 @@ OPENRETINA_BIN="${OPENRETINA_BIN:-$REPO/.venv/bin/openretina}"
 PYTHON_BIN="${PYTHON_BIN:-$REPO/.venv/bin/python}"
 MAX_EPOCHS="${MAX_EPOCHS:-300}"
 
+# Extra hydra overrides appended to every arm, whitespace separated. For example, to stop the
+# arms on a genuine plateau rather than on EarlyStopping's default 1e-3 improvement threshold:
+#   EXTRA_OVERRIDES="training_callbacks.early_stopping.min_delta=1e-4"
+read -r -a EXTRA_OVERRIDES_ARR <<< "${EXTRA_OVERRIDES:-}"
+
 for bin in "$OPENRETINA_BIN" "$PYTHON_BIN"; do
   [[ -x "$bin" ]] || { echo "ERROR: $bin not found or not executable." >&2; exit 1; }
 done
@@ -105,7 +111,8 @@ for arm in "${ARMS[@]}"; do
       exp_name="lnp_grey_$NAME" \
       hydra.run.dir="$OUT" \
       trainer.max_epochs="$MAX_EPOCHS" \
-      model.readout.smooth_weight="$SMOOTH"; then
+      model.readout.smooth_weight="$SMOOTH" \
+      ${EXTRA_OVERRIDES_ARR[@]+"${EXTRA_OVERRIDES_ARR[@]}"}; then
     echo "!!! arm '$NAME' failed (continuing)"
     continue
   fi
