@@ -3,6 +3,8 @@ defaults:
   - quality_checks: hoefling_2024
   - dataloader: hoefling_2024
   - model: linear_nonlinear_poisson # linear_nonlinear_poisson
+  - optimizer: adamw
+  - lr_scheduler: reduce_lr_on_plateau
   - training_callbacks:
       - early_stopping
       - lr_monitor
