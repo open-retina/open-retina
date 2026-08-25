@@ -3,9 +3,10 @@
 Status as of 2026-08-25: **code complete, verified, and both arms trained.** See
 [Results](#results-job-442421) below. Everything is committed on branch `feature/greyscale-lnp`.
 
-Headline: greyscale costs almost nothing, and `smooth_weight=3e4` still helps at half the
-parameter count. The one loose end is that the `grey_base` arm was cut off by EarlyStopping while
-still improving, so its score is a floor rather than a peak.
+Headline: greyscale costs little. `smooth_weight=3e4` helps clearly on the **trial-averaged test**
+correlation (+0.0133) but not at all on single-trial validation correlation, where it ties the
+unregularized arm. Validation correlation turned out to be a poor discriminator here -- see
+[the min_delta rerun](#the-min_delta-rerun-job-442473).
 
 ## Why
 
@@ -222,6 +223,39 @@ were +0.0011, +0.0007, +0.0004. So 0.0873 is a lower bound and the +0.0052 val g
 is an upper bound. To close this, rerun that arm with a smaller `min_delta` or a larger patience:
 `training_callbacks.early_stopping.min_delta=1e-4`. The colour baseline is unaffected -- it was
 *decaying* when it stopped, not climbing.
+
+## The min_delta rerun (job 442473)
+
+Job 442421's `grey_base` arm was cut off by EarlyStopping's `min_delta=1e-3` while still improving,
+so both arms were rerun with `min_delta=1e-4` (4m36s, CPU) for a matched pair:
+
+| setting | arm | best val | best ep | stop ep | test | train corr |
+|---|---|---|---|---|---|---|
+| `min_delta=1e-3` | `grey_base` | 0.0873 | 20 | 20 | 0.2438 | 0.0997 |
+| `min_delta=1e-3` | `grey_smooth3e4` | 0.0925 | 51 | 59 | 0.2563 | 0.0667 |
+| `min_delta=1e-4` | `grey_base` | **0.0926** | 40 | 49 | 0.2430 | 0.1062 |
+| `min_delta=1e-4` | `grey_smooth3e4` | 0.0925 | 51 | 60 | 0.2563 | 0.0652 |
+
+**The validation gain from the regularizer was a truncation artifact.** Given its full run,
+`grey_base` reaches 0.0926 val -- statistically identical to `grey_smooth3e4`'s 0.0925. The
+"+0.0052 val" advantage reported from job 442421 does not exist.
+
+**The test gain is real and unaffected**: 0.2563 vs 0.2430, i.e. +0.0133, and it reproduces across
+both stopping rules (+0.0125 and +0.0133).
+
+**Validation correlation is a poor discriminator for this model.** `grey_base` gained 0.0053 val
+over 20 extra epochs while its test score stayed flat (0.2438 -> 0.2430). Validation correlation is
+single-trial and therefore noise-dominated; the test set is trial-averaged over 95 clip conditions
+and is the metric that tracks the underlying tuning. Note the practical consequence: the
+`ModelCheckpoint` and `EarlyStopping` callbacks both monitor `val_evaluation_loss`, so model
+selection cannot separate these two arms even though their test scores differ by 0.013.
+
+The regularized arm reproduced **exactly** across the two jobs -- same 0.0925 peak, same epoch 51,
+same 0.2563 test -- which is a useful determinism check on the seed and the `deterministic: "warn"`
+trainer setting.
+
+Train-vs-val also stays consistent: `grey_base` overfits (train 0.1062 > val 0.0926) while
+`grey_smooth3e4` does not (train 0.0652 < val 0.0925).
 
 ## Numbers to compare against
 
