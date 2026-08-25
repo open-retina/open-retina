@@ -6,6 +6,11 @@ from torch import nn, optim
 
 from openretina.insilico.stimulus_optimization.objective import IncreaseObjective
 
+# See also: `openretina.insilico.tuning_analyses.behavior_modulation`, which sweeps *behavioral*
+# inputs rather than chromatic contrasts. It parametrizes the grid differently -- it sets a channel
+# to each value, where this module multiplies the stimulus by it -- and uses finite differences
+# instead of per-point autograd.
+
 
 class MeiAcrossContrasts(nn.Module):
     """
@@ -93,8 +98,10 @@ def get_gradient_grid(
     resp_grid = np.zeros((len(green_contrast_values), len(uv_contrast_values)))
     norm_grid = np.zeros((len(green_contrast_values), len(uv_contrast_values)))
 
-    for i, contrast_green in enumerate(np.arange(-1, 1 + step_size, step_size)):
-        for j, contrast_uv in enumerate(np.arange(-1, 1 + step_size, step_size)):
+    # Iterate the arrays computed above rather than re-deriving a hard-coded [-1, 1] range, which
+    # silently ignored `start`/`stop`. A no-op for the default start=-1, stop=1.
+    for i, contrast_green in enumerate(green_contrast_values):
+        for j, contrast_uv in enumerate(uv_contrast_values):
             mei_contrast_gen = MeiAcrossContrasts(torch.Tensor([contrast_green, contrast_uv]), stim)
             response_gradient, response = trainer_fn(mei_contrast_gen, model_neuron, lr=0.1)
             grid[0, i, j] = response_gradient[0]

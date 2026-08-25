@@ -1,6 +1,7 @@
 import datetime
 import os
 import tempfile
+from collections.abc import Sequence
 from functools import partial
 from typing import Any, Literal
 
@@ -333,6 +334,9 @@ def plot_vector_field_resp_iso(
     cmap_lines: str = "hot_r",
     cmap_fill: str = "Greys",
     n_lines=10,
+    xlabel: str = "Green contrast",
+    ylabel: str = "UV contrast",
+    tick_locations: Sequence[float] | None = (-1, 0, 1),
 ) -> plt.Figure:
     """
     Plots a vector field response with isoresponse lines.
@@ -346,6 +350,12 @@ def plot_vector_field_resp_iso(
     colour_norm (bool, optional): If True, apply color normalization. Default is False.
     rc_dict (dict, optional): A dictionary of rc settings to use in the plot. Default is an empty dictionary.
     cmap (str, optional): The colormap to use for the plot. Default is "hsv".
+    xlabel (str, optional): Label for the x-axis. Defaults to the chromatic-contrast grid this
+        function was written for.
+    ylabel (str, optional): Label for the y-axis. Same default.
+    tick_locations (sequence, optional): Fixed tick positions on both axes, formatted as integers.
+        Pass None to let matplotlib choose -- necessary for any grid that is not the [-1, 1]
+        contrast grid, where three fixed ticks would all land near the middle.
 
     Returns:
     None
@@ -355,7 +365,12 @@ def plot_vector_field_resp_iso(
     if normalize_response:
         Z = Z / Z.max() * 100
     gradient_grid = gradient_dict[:, 1:-1, 1:-1]
-    X, Y = np.meshgrid(x, x)
+    if gradient_dict.shape[1:] != (len(x), len(y)):
+        raise ValueError(
+            f"gradient_dict has grid shape {gradient_dict.shape[1:]}, but the axes are "
+            f"({len(x)}, {len(y)}). Expected (len(x), len(y))."
+        )
+    X, Y = np.meshgrid(x, y)
 
     # Define levels for isoresponse lines
     levels = np.linspace(Z.min(), Z.max(), n_lines)
@@ -402,12 +417,13 @@ def plot_vector_field_resp_iso(
                     color="grey",
                     zorder=300,
                 )
-        ax.set_xlabel("Green contrast")
-        ax.set_ylabel("UV contrast")
-        ax.xaxis.set_major_locator(FixedLocator([-1, 0, 1]))
-        ax.xaxis.set_major_formatter(FormatStrFormatter("%d"))
-        ax.yaxis.set_major_locator(FixedLocator([-1, 0, 1]))
-        ax.yaxis.set_major_formatter(FormatStrFormatter("%d"))
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        if tick_locations is not None:
+            ax.xaxis.set_major_locator(FixedLocator(list(tick_locations)))
+            ax.xaxis.set_major_formatter(FormatStrFormatter("%d"))
+            ax.yaxis.set_major_locator(FixedLocator(list(tick_locations)))
+            ax.yaxis.set_major_formatter(FormatStrFormatter("%d"))
         sns.despine()
     return fig
 

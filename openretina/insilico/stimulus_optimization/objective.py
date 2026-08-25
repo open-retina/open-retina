@@ -2,8 +2,11 @@ import functools
 import logging
 from abc import ABC, abstractmethod
 from collections import OrderedDict
+from collections.abc import Sequence
+from typing import Any
 
 import torch
+from jaxtyping import Float
 
 log = logging.getLogger(__name__)
 
@@ -52,15 +55,48 @@ class SliceMeanReducer(ResponseReducer):
 
 
 class AbstractObjective(ABC):
-    def __init__(self, model, data_key: str | None):
+    def __init__(
+        self,
+        model,
+        data_key: str | None,
+        pupil_center: Float[torch.Tensor, " two"] | Sequence[float] | None = None,
+    ):
+        """
+        Args:
+            model: model to evaluate the stimulus with.
+            data_key: session id, or None for single-session models.
+            pupil_center: fixed eye position held constant over the whole stimulus, in whatever units
+                the model's shifter was trained on. For ``qiu_2026`` the pupil trace is z-scored per
+                session, so ``(0.0, 0.0)`` is the session-mean eye position and is the canonical
+                setting. ``None`` (the default) omits the argument from the model call entirely, so
+                shifter-free models and every pre-existing caller behave exactly as before -- but note
+                that for a *shifted* model this pins the readout at the bare ``mu``, which equals the
+                mean eye position only if the shifter happens to map the mean pupil to zero. Requires
+                ``data_key``, since the shifter is keyed by session.
+        """
+        if pupil_center is not None:
+            if data_key is None:
+                raise ValueError(
+                    "pupil_center requires a data_key: the shifter is keyed by session, so there is no way "
+                    "to apply an eye position without knowing which session's shifter to use."
+                )
+            pupil_center = torch.as_tensor(pupil_center, dtype=torch.float32).reshape(2)
         self._model = model
         self._data_key = data_key
+        self._pupil_center = pupil_center
 
     def model_forward(self, stimulus: torch.Tensor) -> torch.Tensor:
+        kwargs: dict[str, Any] = {}
         if self._data_key is not None:
-            responses = self._model(stimulus, data_key=self._data_key)
-        else:
-            responses = self._model(stimulus)
+            kwargs["data_key"] = self._data_key
+        if self._pupil_center is not None:
+            # (2,) -> (batch, 2, t_in). `BaseCoreReadout.forward` itself drops the leading frames the
+            # core consumes, so this has to be aligned with the *input* time dimension, not the output.
+            batch_size, time_steps = stimulus.shape[0], stimulus.shape[2]
+            kwargs["pupil_center"] = (
+                self._pupil_center.to(stimulus.device).view(1, 2, 1).expand(batch_size, 2, time_steps)
+            )
+        responses = self._model(stimulus, **kwargs)
         # squeeze batch dimension
         return responses.squeeze(0)
 
@@ -70,8 +106,15 @@ class AbstractObjective(ABC):
 
 
 class IncreaseObjective(AbstractObjective):
-    def __init__(self, model, neuron_indices: list[int] | int, data_key: str | None, response_reducer: ResponseReducer):
-        super().__init__(model, data_key)
+    def __init__(
+        self,
+        model,
+        neuron_indices: list[int] | int,
+        data_key: str | None,
+        response_reducer: ResponseReducer,
+        pupil_center: Float[torch.Tensor, " two"] | Sequence[float] | None = None,
+    ):
+        super().__init__(model, data_key, pupil_center)
         self._neuron_indices = [neuron_indices] if isinstance(neuron_indices, int) else neuron_indices
         self._response_reducer = response_reducer
 
@@ -110,8 +153,14 @@ class _ModuleHook:
 
 
 class InnerNeuronVisualizationObjective(AbstractObjective):
-    def __init__(self, model, data_key: str | None, response_reducer: ResponseReducer):
-        super().__init__(model, data_key)
+    def __init__(
+        self,
+        model,
+        data_key: str | None,
+        response_reducer: ResponseReducer,
+        pupil_center: Float[torch.Tensor, " two"] | Sequence[float] | None = None,
+    ):
+        super().__init__(model, data_key, pupil_center)
         self.features_dict = self.hook_model(model)
         self._response_reducer = response_reducer
         self.layer_name = ""
@@ -185,8 +234,9 @@ class ContrastiveNeuronObjective(AbstractObjective):
         data_key: str | None,
         response_reducer: ResponseReducer,
         temperature: float = 1.6,
+        pupil_center: Float[torch.Tensor, " two"] | Sequence[float] | None = None,
     ):
-        super().__init__(model, data_key)
+        super().__init__(model, data_key, pupil_center)
         self._on_cluster_idc = on_cluster_idc
         self._off_cluster_idc_list = off_cluster_idc_list
         self._response_reducer = response_reducer

@@ -7,7 +7,9 @@ each behavior channel is z-scored with its own shipped statistics *inside* the t
 ``norm_mean``/``norm_std`` stored on the container describe only the video channel.
 """
 
+import logging
 import os
+from collections.abc import Mapping
 from pathlib import Path
 
 import numpy as np
@@ -32,6 +34,8 @@ from openretina.data_io.qiu_2026.trials import (
 )
 from openretina.utils.file_utils import get_local_file_path
 
+LOGGER = logging.getLogger(__name__)
+
 
 def _read_norm_stats(session_path: Path) -> tuple[float, float, np.ndarray, np.ndarray]:
     """Return (video_mean, video_std, behavior_mean[3], behavior_std[3]) from the shipped statistics."""
@@ -41,6 +45,77 @@ def _read_norm_stats(session_path: Path) -> tuple[float, float, np.ndarray, np.n
     behavior_mean = np.asarray(np.load(stat / "behavior" / "all" / "mean.npy")[..., 0], dtype=np.float32)
     behavior_std = np.asarray(np.load(stat / "behavior" / "all" / "std.npy")[..., 0], dtype=np.float32)
     return video_mean, video_std, behavior_mean, behavior_std
+
+
+def measure_video_range(
+    movies: Mapping[str, MoviesTrainTestSplit],
+    percentiles: tuple[float, float] = (0.1, 99.9),
+    video_channel: int = 0,
+    max_elements_per_session: int | None = 50_000_000,
+) -> dict[str, float]:
+    """Measure the range and RMS of the *normalized* video channel across sessions.
+
+    In-silico stimulus optimization needs to know what a plausible input looks like: a range to clip
+    to and a norm to hold the stimulus at. Both are properties of the z-scored video the model was
+    trained on, so they have to be measured once rather than guessed. (``MoviesTrainTestSplit`` also
+    carries ``norm_mean``/``norm_std``, but those are the *raw* 8-bit statistics of a single session,
+    not a usable range.)
+
+    Run this once on the cluster and transcribe the result into
+    :data:`openretina.data_io.qiu_2026.constants.STIMULUS_RANGE_CONSTRAINTS`; never call it at import
+    time. Free cross-check that needs no pixels: the raw video is 8-bit, so ``-mean/std`` and
+    ``(255 - mean)/std`` from each session's shipped scalars bound the measured percentiles.
+
+    Args:
+        movies: ``{session: MoviesTrainTestSplit}``, as returned by :func:`load_all_stimuli`.
+        percentiles: low/high percentiles to report instead of the raw min/max, which a handful of
+            saturated pixels would otherwise dominate.
+        video_channel: index of the video channel within the assembled input tensor.
+        max_elements_per_session: subsample a session's pixels down to this many before computing
+            percentiles (deterministic strided subsample; the RMS is always computed on everything).
+            None disables subsampling. Whatever is dropped is logged, never silent.
+
+    Returns:
+        ``{"x_min_video", "x_max_video", "rms_video"}`` -- the lowest low percentile and the highest
+        high percentile over all sessions, and the RMS pooled exactly over every pixel of every
+        session.
+    """
+    low_percentile, high_percentile = percentiles
+    lows: list[float] = []
+    highs: list[float] = []
+    total_square_sum = 0.0
+    total_count = 0
+
+    for session, split in movies.items():
+        video = np.asarray(split.train[video_channel], dtype=np.float64).ravel()
+        total_square_sum += float(np.dot(video, video))
+        total_count += video.size
+
+        sampled = video
+        if max_elements_per_session is not None and video.size > max_elements_per_session:
+            stride = int(np.ceil(video.size / max_elements_per_session))
+            sampled = video[::stride]
+            LOGGER.info(
+                "%s: %d pixels subsampled to %d (every %dth) for the percentile estimate; "
+                "the RMS still uses all of them.",
+                session,
+                video.size,
+                sampled.size,
+                stride,
+            )
+        low, high = np.percentile(sampled, [low_percentile, high_percentile])
+        LOGGER.info("%s: p%s=%.4f p%s=%.4f", session, low_percentile, low, high_percentile, high)
+        lows.append(float(low))
+        highs.append(float(high))
+
+    if not lows:
+        raise ValueError("`movies` is empty; nothing to measure.")
+
+    return {
+        "x_min_video": min(lows),
+        "x_max_video": max(highs),
+        "rms_video": float(np.sqrt(total_square_sum / total_count)),
+    }
 
 
 def _build_input_tensor(

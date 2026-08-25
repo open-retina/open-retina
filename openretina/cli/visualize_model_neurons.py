@@ -93,7 +93,11 @@ def _get_min_max_values_and_norm(num_channels: int) -> tuple[list[tuple], float 
         norm = float(STIMULUS_RANGE_CONSTRAINTS["norm"])
         return min_max_values, norm
     else:
-        return [(None, None)], None
+        # One (min, max) pair per channel: `ChangeNormJointlyClipRangeSeparately` and
+        # `RangeRegularizationLoss` both index this list by channel, and the former asserts its
+        # length matches. Returning a single pair worked only for 1-channel models and tripped
+        # that assert for every other non-2-channel model (e.g. qiu_2026's 3 channels).
+        return [(None, None)] * num_channels, None
 
 
 def visualize_model_neurons(
