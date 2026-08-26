@@ -183,7 +183,20 @@ def plot_stimulus_composition(
     spatial_ax,
     lowpass_cutoff: float = 10.0,
     highlight_x_list: list[tuple[int, int]] | None = None,
+    scale_bar_label: str | None = "50 µm",
 ) -> None:
+    """Plot a stimulus as a rank-1 space/time decomposition plus its frequency content.
+
+    Note that the spatial panel is the *leading singular vector* of the whole (time, height, width)
+    tensor, so it is a fair summary only to the extent the stimulus is space-time separable. Check
+    that before reading it -- `decompose_kernel` returns the second singular value for exactly this
+    purpose.
+
+    Args:
+        scale_bar_label: text for the spatial scale bar. The bar's width is hard-coded for the
+            hoefling_2024 retina geometry, so pass `None` for any other dataset rather than
+            annotating a stimulus with a pixel size it does not have.
+    """
     if isinstance(stimulus, torch.Tensor):
         stimulus = stimulus.detach().cpu().numpy()
     assert len(stimulus.shape) == 4
@@ -245,13 +258,14 @@ def plot_stimulus_composition(
         x_offset += kernel_width
 
     # In the low res model the stimulus shape was 18x16 (50 um pixels), for the high-res it is 72x64 (12.5um pixels)
-    scale_bar_with = 4 if stimulus.shape[-1] > 20 else 1
-    scale_bar = Rectangle(xy=(6, 15), width=scale_bar_with, height=1, color="k", transform=spatial_ax.transData)
-    spatial_ax.annotate(
-        text="50 µm",
-        xy=(6, 14),
-    )
-    spatial_ax.add_patch(scale_bar)
+    if scale_bar_label is not None:
+        scale_bar_with = 4 if stimulus.shape[-1] > 20 else 1
+        scale_bar = Rectangle(xy=(6, 15), width=scale_bar_with, height=1, color="k", transform=spatial_ax.transData)
+        spatial_ax.annotate(
+            text=scale_bar_label,
+            xy=(6, 14),
+        )
+        spatial_ax.add_patch(scale_bar)
     spatial_ax.axis("off")
 
     for color_idx in range(num_color_channels):

@@ -50,6 +50,62 @@ class RangeRegularizationLoss(StimulusRegularizationLoss):
         return loss
 
 
+class SmoothnessRegularizationLoss(StimulusRegularizationLoss):
+    """Penalizes high spatial and/or temporal frequencies in the stimulus.
+
+    A squared first-difference (total-variation-style) penalty on neighbouring elements, divided by
+    the stimulus' mean square. The normalization matters: `ChangeNormJointlyClipRangeSeparately`
+    pins the norm, so an unnormalized penalty would scale with the contrast target and `factor`
+    would mean something different at every `rms_factor` rung.
+
+    Normalized this way, each term equals `2 * (1 - r)` with `r` the lag-1 autocorrelation along
+    that axis, so the knob acts directly on the quantity you measure on the result: pushing the
+    spatial term down is the same as pushing the MEI's lag-1 spatial autocorrelation up.
+
+    Note on scale: `optimize_stimulus` minimizes `-objective + sum(regularizers)`, and each term
+    here is dimensionless and O(1). The factors therefore have to be comparable to the *objective's*
+    magnitude to bite at all -- for a model whose responses are O(1e3), a factor of O(1e2..1e3) is
+    the interesting range, not O(0.1).
+
+    Both weights default to 0.0, so the loss is inert until one is set and adding it to an existing
+    call site changes nothing until you ask it to.
+
+    Args:
+        factor_spatial: weight on the height/width first differences.
+        factor_temporal: weight on the time first differences.
+        eps: guard for the division by the mean square.
+    """
+
+    def __init__(
+        self,
+        factor_spatial: float = 0.0,
+        factor_temporal: float = 0.0,
+        eps: float = 1e-8,
+    ):
+        self._factor_spatial = factor_spatial
+        self._factor_temporal = factor_temporal
+        self._eps = eps
+
+    def forward(self, stimulus: torch.Tensor) -> torch.Tensor:
+        loss = torch.zeros((), device=stimulus.device, dtype=stimulus.dtype)
+        if self._factor_spatial == 0.0 and self._factor_temporal == 0.0:
+            return loss
+
+        mean_square = stimulus.pow(2).mean() + self._eps
+        if self._factor_spatial != 0.0:
+            spatial = stimulus.diff(dim=-2).pow(2).mean() + stimulus.diff(dim=-1).pow(2).mean()
+            loss = loss + self._factor_spatial * spatial / mean_square
+        if self._factor_temporal != 0.0:
+            temporal = stimulus.diff(dim=-3).pow(2).mean()
+            loss = loss + self._factor_temporal * temporal / mean_square
+        return loss
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}(factor_spatial={self._factor_spatial}, factor_temporal={self._factor_temporal})"
+        )
+
+
 class StimulusPostprocessor:
     """Base class for stimulus clippers."""
 
@@ -94,6 +150,36 @@ class ChangeNormJointlyClipRangeSeparately(StimulusPostprocessor):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._norm=}, {self._min_max_values=})"
+
+
+class ZeroOutsideMaskProcessor(StimulusPostprocessor):
+    """Holds the stimulus at zero outside a spatial mask, after every step.
+
+    Masking the *initial* stimulus is not enough once any regularizer is active. The objective's
+    gradient is confined to what the model can see -- for an unpadded core with a point readout, a
+    ~20x20 px footprint of the frame -- but a smoothness or range loss is computed over the whole
+    tensor, so its gradient reaches the surround too and pushes it back off zero. Measured on
+    `qiu_2026`, a spatial smoothness weight of 1e3 leaked 5% of the squared norm outside the support
+    and 1e4 leaked 9%.
+
+    Chain this *before* the norm postprocessor, so the norm is renormalized over the masked tensor
+    and therefore actually hits its target on the region that matters:
+
+        stimulus_postprocessor=[ZeroOutsideMaskProcessor(mask), ChangeNormJointlyClipRangeSeparately(...)]
+
+    Args:
+        mask: boolean or 0/1 tensor broadcastable against the stimulus' trailing dimensions -- an
+            ``(height, width)`` mask is the usual case.
+    """
+
+    def __init__(self, mask: torch.Tensor):
+        self._mask = mask
+
+    def process(self, x: Float[torch.Tensor, "batch_dim channels time height width"]) -> torch.Tensor:
+        return x * self._mask.to(device=x.device, dtype=x.dtype)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(mask_shape={tuple(self._mask.shape)}, kept={int(self._mask.sum())})"
 
 
 class TemporalGaussianLowPassFilterProcessor(StimulusPostprocessor):
