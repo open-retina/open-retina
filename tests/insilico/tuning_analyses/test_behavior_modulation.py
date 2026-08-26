@@ -317,3 +317,50 @@ def test_shift_to_core_pixels_rejects_bad_inputs() -> None:
         shift_to_core_pixels(np.zeros((4, 3)), (10, 20))
     with pytest.raises(ValueError, match="at least 2 entries"):
         shift_to_core_pixels(np.zeros(2), (20,))
+
+
+def test_response_grid_save_load_roundtrip(tmp_path, linear_behavior_stub) -> None:
+    grid = behavior_response_grid(
+        linear_behavior_stub, "sess_a", _video(), MeanReducer(axis=0), behavior_values=SMALL_GRID
+    )
+
+    path = grid.save(tmp_path / "grid")
+    restored = ResponseGrid.load(path)
+
+    assert path.name == "grid.npz"
+    assert restored.axis_names == grid.axis_names
+    assert restored.n_neurons == grid.n_neurons
+    np.testing.assert_array_equal(restored.responses, grid.responses)
+    np.testing.assert_array_equal(restored.axis_values[0], grid.axis_values[0])
+    np.testing.assert_array_equal(restored.axis_values[1], grid.axis_values[1])
+    assert restored.gradients is not None
+    np.testing.assert_array_equal(restored.gradients, grid.gradients)
+    np.testing.assert_array_equal(restored.modulation_index(), grid.modulation_index())
+
+
+def test_response_grid_save_load_without_gradients(tmp_path) -> None:
+    axis = np.linspace(-1.0, 1.0, 4)
+    grid = ResponseGrid((axis, axis.copy()), ("x", "y"), np.random.default_rng(0).random((4, 4, 2)))
+
+    restored = ResponseGrid.load(grid.save(tmp_path / "no_grad.npz"))
+
+    assert restored.gradients is None
+    np.testing.assert_array_equal(restored.responses, grid.responses)
+
+
+def test_response_grid_save_creates_parent_directories(tmp_path) -> None:
+    axis = np.linspace(0.0, 1.0, 3)
+    grid = ResponseGrid((axis, axis.copy()), ("x", "y"), np.zeros((3, 3, 1)))
+
+    path = grid.save(tmp_path / "deep" / "nested" / "grid")
+
+    assert path.exists() and path.parent.is_dir()
+
+
+def test_response_grid_load_refuses_pickled_objects(tmp_path) -> None:
+    """The saved format is plain arrays, so loading must never execute code from the file."""
+    path = tmp_path / "pickled.npz"
+    np.savez(path, axis_values_0=np.array([object()], dtype=object))
+
+    with pytest.raises(ValueError):
+        ResponseGrid.load(path)

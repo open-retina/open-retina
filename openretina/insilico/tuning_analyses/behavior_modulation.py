@@ -22,8 +22,10 @@ default grid spans +/-2 standard deviations.
     ``movies[session].train[1:3, :, 0, 0]`` -- before reading anything into the corners.
 """
 
+import os
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -65,6 +67,44 @@ class ResponseGrid:
         """
         gradients = None if self.gradients is None else self.gradients[:, :, :, index]
         return self.responses[:, :, index], gradients
+
+    def save(self, path: str | os.PathLike) -> Path:
+        """Write this grid to a ``.npz`` so it can be re-plotted without recomputing it.
+
+        Deliberately plain arrays rather than a pickle: the file stays loadable if this class ever
+        changes, and :meth:`load` can refuse pickles outright. The ``.npz`` suffix is added if
+        missing, and parent directories are created.
+        """
+        path = Path(path)
+        if path.suffix != ".npz":
+            path = path.with_suffix(".npz")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        arrays = {
+            "axis_values_0": np.asarray(self.axis_values[0]),
+            "axis_values_1": np.asarray(self.axis_values[1]),
+            "axis_names": np.asarray(self.axis_names),
+            "responses": np.asarray(self.responses),
+        }
+        if self.gradients is not None:
+            arrays["gradients"] = np.asarray(self.gradients)
+        # allow_pickle=False refuses to *write* anything but plain arrays, so a file produced
+        # here is always safe for `load` to read back with pickling disabled.
+        np.savez_compressed(path, allow_pickle=False, **arrays)
+        return path
+
+    @classmethod
+    def load(cls, path: str | os.PathLike) -> "ResponseGrid":
+        """Read back a grid written by :meth:`save`.
+
+        Loads with ``allow_pickle=False``, so a tampered-with file cannot execute code.
+        """
+        with np.load(Path(path), allow_pickle=False) as data:
+            return cls(
+                axis_values=(data["axis_values_0"], data["axis_values_1"]),
+                axis_names=(str(data["axis_names"][0]), str(data["axis_names"][1])),
+                responses=data["responses"],
+                gradients=data["gradients"] if "gradients" in data.files else None,
+            )
 
     def modulation_index(self) -> Float[np.ndarray, " neurons"]:
         """``(max - min) / (max + min)`` over the grid, per neuron.
