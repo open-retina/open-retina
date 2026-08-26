@@ -1,16 +1,24 @@
 #!/bin/bash
 #SBATCH --job-name=qiu_insilico_nb
-#SBATCH --partition=a100-galvani,bethge,v100-galvani,2080-galvani
-# Generic gpu:1, not gpu:a100:1 -- the partition list above spans a100, v100 and rtx2080ti,
-# and a typed gres would silently restrict the job to a100-galvani again.
+# a100 and v100 only. `bethge` and `2080-galvani` are both entirely rtx2080ti, and a 2080 Ti is
+# too slow for this notebook now that the MEI cells run ~1e5 forward/backward passes -- an earlier
+# run landed on one and was heading for the 8 h wall. The trade is queue time: dropping `bethge`
+# gives up the lab's own nodes for shared ones.
+#SBATCH --partition=a100-galvani,v100-galvani
+# Generic gpu:1, not gpu:a100:1 -- the partition list above spans a100 and v100, and a typed gres
+# would silently restrict the job to a100-galvani.
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
-#SBATCH --time=0-03:00:00
+#SBATCH --time=0-08:00:00
 #SBATCH --output=/mnt/lustre/work/bethge/bkr578/projects/open-retina/openretina_assets/slurm/qiu_insilico_nb_%j.log
 #
 # Phase 4: execute notebooks/qiu_2026_insilico.ipynb end-to-end against the trained checkpoint,
 # writing the outputs back into the notebook so the figures are committed with it.
+#
+# The wall clock and the per-cell timeout are generous because the MEI cells dominate: 24 boutons x
+# 2 states x 1000 iterations, plus a 13-setting knob sweep over 4 boutons. That is roughly 1e5
+# forward/backward passes in two single cells, so a 1-hour per-cell limit is not enough.
 #
 # Runs in-place on a copy first, then swaps, so a mid-run failure cannot leave a half-executed
 # notebook in the working tree.
@@ -47,7 +55,7 @@ uv run jupyter nbconvert \
   --to notebook \
   --execute \
   --inplace \
-  --ExecutePreprocessor.timeout=3600 \
+  --ExecutePreprocessor.timeout=14400 \
   --ExecutePreprocessor.kernel_name=python3 \
   "$WORK"
 
