@@ -93,6 +93,14 @@ movies — worth ~28 GB of RAM on `qiu_2026`, with no error raised anywhere. See
 - `vector_field_analysis/` — gradient-based trajectory analysis
 - `tuning_analyses/` — neuron property analysis
 
+**Read `mei_optimization_reference.md` before touching `stimulus_optimization/`.** The shipped MEI
+recipe is calibrated for `hoefling_2024` and several of its steps are inert or wrong at `qiu_2026`'s
+geometry — silently, with no error: `RangeRegularizationLoss` contributes exactly zero under the norm
+projection, the `* 0.1` on the init is undone by that same projection, a whole-frame norm does not
+constrain the ~20×20 px a single neuron can see, and fixed-step SGD orbits rather than converges (so
+never assert on the final iterate). That doc also carries the diagnostics, what the first
+instrumented run found, and what is still unresolved.
+
 ### Pre-trained models
 
 Models are hosted on HuggingFace (`open-retina/open-retina`). Load them with:
