@@ -365,6 +365,7 @@ def repeats_dataloaders(
         if len(set(val_clip_idx)) != len(val_clip_idx) or any(idx < 0 or idx >= num_clips for idx in val_clip_idx):
             raise ValueError(f"Invalid Palmer validation movie indices: {val_clip_idx}.")
 
+        train_dataset: PalmerAveragedDataset | PalmerRepeatDataset
         if average_repeats:
             train_dataset = PalmerAveragedDataset(
                 movie=movie_train,
