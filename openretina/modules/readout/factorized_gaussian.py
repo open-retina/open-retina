@@ -171,18 +171,13 @@ class GaussianMaskReadout(Readout):
         res_array.append(children_string)
         return "\n".join(res_array)
 
-    def plot_weight_for_neuron(
+    def _plot_weight_for_neuron(
         self,
         neuron_id: int,
-        axes: tuple[plt.Axes, plt.Axes] | None = None,
+        axes: tuple[plt.Axes, plt.Axes],
         add_titles: bool = True,
-        remove_readout_ticks: bool = False,
-    ) -> plt.Figure:
-        if axes is None:
-            fig_axes_tuple = plt.subplots(ncols=2, figsize=(2 * 6, 6))
-            ax_readout, ax_features = fig_axes_tuple[1]  # type: ignore
-        else:
-            ax_readout, ax_features = axes
+    ) -> None:
+        ax_readout, ax_features = axes
 
         masks = self.get_mask().detach().cpu().numpy()
         features = self.features.detach().cpu().numpy()
@@ -190,29 +185,14 @@ class GaussianMaskReadout(Readout):
         mask_neuron = masks[neuron_id, :, :]
 
         ax_readout.imshow(mask_neuron, interpolation="none", cmap="RdBu_r", norm=Normalize(-mask_abs_max, mask_abs_max))
-        ax_readout.axes.get_xaxis().set_ticks([])
-        ax_readout.axes.get_yaxis().set_ticks([])
 
         features_neuron = features[0, :, 0, neuron_id]
         ax_features.bar(range(features_neuron.shape[0]), features_neuron)
         ax_features.set_ylim((features.min(), features.max()))
-        if remove_readout_ticks:
-            ax_features.axes.get_xaxis().set_ticks([])
-            ax_features.axes.get_yaxis().set_ticks([])
 
         if add_titles:
             ax_readout.set_title("Readout Mask")
             ax_features.set_title("Readout Feature Weights")
 
-        return plt.gcf()
-
-    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg", state_suffix: str = "") -> None:
-        for neuron_id in range(self.outdims):
-            fig_axes_tuple = plt.subplots(ncols=2, figsize=(2 * 6, 6))
-            axes: tuple[plt.Axes, plt.Axes] = fig_axes_tuple[1]  # type: ignore
-            self.plot_weight_for_neuron(neuron_id, axes)
-
-            plot_path = f"{folder_path}/neuron_{neuron_id}_{state_suffix}.{file_format}"
-            fig_axes_tuple[0].savefig(plot_path, bbox_inches="tight", facecolor="w", dpi=300)
-            fig_axes_tuple[0].clf()
-            plt.close()
+    def number_of_neurons(self) -> int:
+        return self.outdims

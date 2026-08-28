@@ -1,0 +1,11 @@
+# StepLR scheduler configuration
+# Decays the learning rate by gamma every step_size epochs
+_target_: torch.optim.lr_scheduler.StepLR
+step_size: 10 # Period of learning rate decay
+gamma: 0.1 # Multiplicative factor of learning rate decay
+last_epoch: -1
+
+# PyTorch Lightning specific parameters
+monitor: null # StepLR doesn't need to monitor a metric
+interval: epoch
+frequency: 1

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openretina"
-version = "1.0.0"
+version = "1.1.1"
 authors = [
     { name = "Federico D'Agostino" },
     { name = "Thomas Zenkel" },
@@ -28,7 +28,7 @@ dependencies = [
     "torchaudio",
     "torchvision",
     "einops",
-    "lightning",
+    "lightning>=2.6",
     "wandb",
     "hydra-core",
     "omegaconf",

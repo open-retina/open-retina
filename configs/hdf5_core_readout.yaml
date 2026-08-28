@@ -2,13 +2,15 @@ defaults:
   - data_io: hdf5_reader
   - dataloader: hdf5_loader
   - model: base_core_readout
+  - optimizer: adamw
+  - lr_scheduler: reduce_lr_on_plateau
   - training_callbacks:
-    - early_stopping
-    - lr_monitor
-    - model_checkpoint
+      - early_stopping
+      - lr_monitor
+      - model_checkpoint
   - logger:
-    - tensorboard
-    - csv
+      - tensorboard
+      - csv
   - trainer: default_deterministic
   - hydra: default
   - _self_ # values in this config will overwrite the defaults
@@ -24,10 +26,10 @@ paths:
   output_dir: ${hydra:runtime.output_dir} # Modify in the "hydra/default.yaml" config
 
 model:
-  in_shape: 
+  in_shape:
     - ${data_io.color_channels}
     - 100
-    - ${data_io.video_height} 
+    - ${data_io.video_height}
     - ${data_io.video_width}
   hidden_channels: [8, 8, 8]
   core:

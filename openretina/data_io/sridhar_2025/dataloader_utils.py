@@ -167,11 +167,15 @@ def filter_trials(
     else:
         # If hard_coded is provided, use those IDs directly
         num_trials = train_responses.shape[-1]
-        train_ids = [int(x) for x in all_train_ids if int(x) < min(num_trials, num_of_trials_to_use + starting_trial)]  # type: ignore
+        train_ids = [
+            int(x)
+            for x in all_train_ids
+            if starting_trial <= int(x) < min(num_trials, num_of_trials_to_use + starting_trial)  # type: ignore
+        ]
         valid_ids = [
             int(x)
             for x in all_validation_ids
-            if int(x) < min(num_trials, num_of_trials_to_use + starting_trial)  # type: ignore
+            if starting_trial <= int(x) < min(num_trials, num_of_trials_to_use + starting_trial)  # type: ignore
         ]
 
     return train_ids, valid_ids
@@ -192,10 +196,8 @@ class ChunkedSampler(Sampler):
         self.num_of_imgs = dataset.num_of_imgs
         self.num_of_frames = dataset.num_of_frames
         self.len = len(dataset)
-        self.chunk_size = int(
-            np.floor(dataset.num_of_imgs - dataset.frame_overhead) / (dataset.time_chunk_size - dataset.frame_overhead)
-        )
-        self.seed = seed
+        self.chunk_size = dataset.chunks_per_trial
+        self.rng = np.random.default_rng(seed)
         self.indices = np.arange(len(dataset))
         self.num_chunks = int(np.ceil(self.len / self.chunk_size))
         # print(f"chunk size: {self.chunk_size}, frames in trial: {self.dataset.num_of_imgs}")  # Size of each chunk
@@ -206,10 +208,10 @@ class ChunkedSampler(Sampler):
 
         # Shuffle within each chunk
         for chunk in chunks:
-            np.random.shuffle(chunk)
+            self.rng.shuffle(chunk)
 
         # Shuffle the order of chunks
-        np.random.shuffle(chunks)
+        self.rng.shuffle(chunks)
 
         # Flatten shuffled chunks into a single ordered list
         return np.concatenate(chunks)

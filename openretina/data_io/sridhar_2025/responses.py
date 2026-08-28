@@ -19,7 +19,7 @@ def load_responses(
     stimulus_seed: int = 0,
     excluded_cells: Optional[dict[Any, list[int]]] = None,
     cell_index: Optional[int] = None,
-) -> dict[str, dict[str, np.ndarray]]:
+) -> dict[str, dict[str, Any]]:
     base_path = get_local_file_path(str(base_path))
     responses = {}
 
@@ -29,12 +29,20 @@ def load_responses(
 
         test_responses_raw = neural_data["test_responses"]
         train_responses = neural_data["train_responses"]
+        total_n_neurons = train_responses.shape[0]
+        all_indices = list(range(total_n_neurons))
+
         if cell_index is not None:
             train_responses = train_responses[cell_index : cell_index + 1, :, :]
             test_responses_raw = test_responses_raw[cell_index : cell_index + 1, :, :]
+            remaining_indices = [cell_index]
         elif excluded_cells is not None:
+            excluded = set(excluded_cells.get(session_id, []))
+            remaining_indices = [i for i in all_indices if i not in excluded]
             train_responses = np.delete(train_responses, excluded_cells[session_id], axis=0)
             test_responses_raw = np.delete(test_responses_raw, excluded_cells[session_id], axis=0)
+        else:
+            remaining_indices = all_indices
 
         if "seeds" in neural_data.keys():
             seed_info: list[int] = neural_data["seeds"]
@@ -60,6 +68,7 @@ def load_responses(
             "train_responses": train_responses,
             "test_responses": test_responses,
             "test_responses_by_trial": test_responses_by_trial,
+            "cell_indices": remaining_indices,
         }
     return responses
 
@@ -88,6 +97,7 @@ def response_splits_from_pickles(
         train_responses = np.asarray(tensors["train_responses"], dtype=np.float32)
         test_responses = np.asarray(tensors["test_responses"], dtype=np.float32)
         test_by_trial = tensors.get("test_responses_by_trial")
+        cell_indices: list[int] = tensors["cell_indices"]
 
         n_neurons, frames_per_trial, n_trials = train_responses.shape
         train_matrix = train_responses.reshape(n_neurons, frames_per_trial * n_trials)
@@ -108,6 +118,7 @@ def response_splits_from_pickles(
                 "stimulus_seed": stimulus_seed,
                 "frames_per_trial": frames_per_trial,
                 "num_trials": n_trials,
+                "cell_indices": cell_indices,
             },
         )
     return splits

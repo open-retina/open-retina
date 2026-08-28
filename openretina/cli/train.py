@@ -21,7 +21,7 @@ logging.captureWarnings(True)
 @hydra.main(
     version_base="1.3",
     config_path="../../configs",
-    config_name="vystrcilova_2024_nm_cnn",
+    config_name="hoefling_2024_core_readout_low_res",
 )
 def main(cfg: DictConfig) -> float | None:
     score = train_model(cfg)
@@ -93,7 +93,7 @@ def train_model(cfg: DictConfig) -> float | None:
                     data_info[k] = model.data_info[k] | data_info[k]
                 else:
                     log.warning(f"data_info key {k} when loading model: {model.data_info.keys()=}")
-            data_info["n_neurons_dict"] = model.data_info
+            data_info["n_neurons_dict"] = model.data_info["n_neurons_dict"]
             model.update_model_data_info(data_info)
     else:
         # Assign missing n_neurons_dict to model
@@ -132,7 +132,7 @@ def train_model(cfg: DictConfig) -> float | None:
     short_cyclers = [(n, ShortCycler(dl)) for n, dl in dataloaders.items()]
     dataloader_mapping = {f"DataLoader {i}": x[0] for i, x in enumerate(short_cyclers)}
     log.info(f"Dataloader mapping: {dataloader_mapping}")
-    trainer.test(model, dataloaders=[c for _, c in short_cyclers], ckpt_path="best")
+    trainer.test(model, dataloaders=[c for _, c in short_cyclers], ckpt_path="best", weights_only=False)
 
     # Check if MLflow is one of the loggers and save model and datasets as artifacts
     mlflow_logger_array = [logger for logger in logger_array if "mlflow" in str(type(logger)).lower()]
@@ -147,7 +147,9 @@ def train_model(cfg: DictConfig) -> float | None:
         return None
 
     log.info("Starting validation for Optuna")
-    target_score = trainer.validate(model, dataloaders=[valid_loader], ckpt_path="best")[0][cfg.objective_target]
+    target_score = trainer.validate(model, dataloaders=[valid_loader], ckpt_path="best", weights_only=False)[0][
+        cfg.objective_target
+    ]
     if target_score is None:
         log.error(f"Score for objective target '{cfg.objective_target}' is None!")
     return target_score

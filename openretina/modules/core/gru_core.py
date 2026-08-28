@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 
 from openretina.modules.core.base_core import Core3d
-from openretina.modules.layers import Bias3DLayer, Scale2DLayer, Scale3DLayer
+from openretina.modules.layers import Bias3DLayer, Scale3DLayer
 from openretina.modules.layers.convolutions import (
     STSeparableBatchConv3d,
     TorchFullConv3D,
@@ -41,7 +41,7 @@ class ConvGRUCore(Core3d, nn.Module):
         batch_adaptation: bool = False,
         use_avg_reg: bool = False,
         nonlinearity: str = "ELU",
-        conv_type: str = "custom_separable",
+        convolution_type: str = "custom_separable",
         use_gru: bool = False,
         use_projections: bool = False,
         gru_kwargs: dict[str, int | float] | None = None,
@@ -53,7 +53,7 @@ class ConvGRUCore(Core3d, nn.Module):
         self._input_weights_regularizer_temporal = TimeLaplaceL23dnorm(padding=laplace_padding)
 
         # Get convolution class
-        self.conv_class = get_conv_class(conv_type)
+        self.conv_class = get_conv_class(convolution_type)
 
         if n_neurons_dict is None:
             n_neurons_dict = {}
@@ -215,7 +215,7 @@ class ConvGRUCore(Core3d, nn.Module):
                     if not batch_norm_scale:
                         layer["bias"] = Bias3DLayer(hidden_channels[layer_num])
                 elif batch_norm_scale:
-                    layer["scale"] = Scale2DLayer(hidden_channels[layer_num])
+                    layer["scale"] = Scale3DLayer(hidden_channels[layer_num])
             if final_nonlinearity or layer_num < self.layers - 1:
                 layer["nonlin"] = getattr(nn, nonlinearity)()
             self.features.add_module(f"layer{layer_num}", nn.Sequential(layer))
@@ -237,7 +237,7 @@ class ConvGRUCore(Core3d, nn.Module):
         for layer in self.features:
             if hasattr(layer, "conv"):
                 spatial_weight_layer = layer.conv.weight_spatial
-                norm = spatial_weight_layer.pow(2).sum([2, 3, 4]).sqrt().sum(1)
+                norm = spatial_weight_layer.pow(2).sum([1, 2, 3, 4]).sqrt()
                 sparsity_loss_layer = (spatial_weight_layer.pow(2).sum([2, 3, 4]).sqrt().sum(1) / norm).sum()
                 sparsity_loss += sparsity_loss_layer
             else:

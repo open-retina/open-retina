@@ -87,7 +87,7 @@ def corr_stop3d(model: torch.nn.Module, loader, avg: bool = True, device: str = 
         Gets called by early stopping and the model performance evaluation
     """
 
-    n_neurons, correlations_sum = 0, 0
+    n_neurons, correlations_sum = 0, 0.0
     if not avg:
         all_correlations = np.array([])
 
@@ -159,7 +159,7 @@ def MSE_stop3d(model: torch.nn.Module, loader, avg: bool = True, device: str = "
 
         ret = (output - target) ** 2
         if np.any(np.isnan(ret)):
-            warnings.warn(f"{np.isnan(ret).mean:.1%} NaNs")
+            warnings.warn(f"{np.isnan(ret).mean():.1%} NaNs")
 
         mse_losses = np.append(mse_losses, np.nansum(ret, axis=(0, 1)))  # sum over batches (0) and time (1)
         n_neurons += output.shape[-1]
@@ -219,8 +219,8 @@ def feve(
             f"Targets and predictions must have the same shape, got {targets.shape} and {predictions.shape}"
         )
 
-    sum_square_res = [(target - prediction) ** 2 for target, prediction in zip(targets, predictions, strict=True)]
-    sum_square_res = np.concatenate(sum_square_res, axis=0)
+    squared_residuals = [(target - prediction) ** 2 for target, prediction in zip(targets, predictions, strict=True)]
+    sum_square_res = np.concatenate(squared_residuals, axis=0)
 
     var_ratio, explainable_var = explainable_vs_total_var(targets)
     # Invert the formula to get the noise variance

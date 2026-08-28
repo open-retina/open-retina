@@ -3,6 +3,8 @@ defaults:
   - quality_checks: hoefling_2024
   - dataloader: hoefling_2024
   - model: base_core_readout
+  - optimizer: adamw
+  - scheduler: one_cycle_lr
   - training_callbacks:
       - early_stopping
       - lr_monitor
@@ -25,9 +27,10 @@ dataloader:
   batch_size: 64
 
 data_io:
-  retina_pixel_size_um: 50 # 4x bigger than high res model
+  data_info:
+    retina_pixel_size_um: 50 # 4x bigger than high res model
 
-objective_target: val_correlation
+objective_target: val_evaluation_loss
 
 hydra:
   run:
@@ -49,6 +52,8 @@ hydra:
 model:
   in_shape: [2, 150, 18, 16]
   hidden_channels: [16, 16, 16, 16]
+  optimizer: ${optimizer}
+  lr_scheduler: ${scheduler}
   core:
     temporal_kernel_sizes: [15, 15, 7, 7]
     spatial_kernel_sizes: [15, 15, 7, 7]

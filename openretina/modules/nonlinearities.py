@@ -24,4 +24,6 @@ class ParametrizedSoftplus(nn.Module):
         self.w = nn.Parameter(torch.tensor(w), requires_grad=True)
 
     def forward(self, x):
-        return self.w * torch.log(1 + torch.exp(self.a * x + self.b))
+        scaled_x = self.a * x + self.b
+        # using torch's softplus is numerically more stable
+        return self.w * nn.functional.softplus(scaled_x)

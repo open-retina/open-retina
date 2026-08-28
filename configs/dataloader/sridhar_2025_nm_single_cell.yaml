@@ -1,3 +1,7 @@
+# Single-cell dataloader for the Sridhar 2025 natural movie dataset.
+# Used by both LN and SC models. To select a different neuron, override
+# cell_index and retina_index in the outer config.
+
 _target_: openretina.data_io.sridhar_2025.dataloaders.frame_movie_loader
 _convert_: object
 basepath: "${paths.data_dir}"
@@ -12,40 +16,50 @@ fixation_files:
   "02": "fixations/complete_fixations_seed2022_s4.txt"
   "03": "fixations/complete_fixations_seed_2022and2023_s4_fixed.txt"
   "04": "fixations/complete_fixations_seed_2022and2023_s4_fixed.txt"
+
+# --- Cell selection (override in the outer config) ---
+cell_index: ???
+retina_index: ???
+
+# --- Stimulus spatial cropping ---
 big_crops:
   "01": [35, 35, 55, 55]
   "02": [35, 35, 55, 55]
   "03": [35, 35, 55, 55]
   "04": [35, 35, 55, 55]
+retina_specific_crops: True
+
+# --- Stimulus image paths ---
 frame_file: "_img_"
 img_dir_name: "stimuli_padded_4"
 full_img_h: 300
 full_img_w: 350
 img_h: 150
 img_w: 200
-final_training: False
 padding: 50
+
+# --- Training settings ---
 batch_size: 128
-seed: null
 train_frac: 0.8
+num_of_frames: 30
+num_of_layers: 1
+
+# --- Advanced / dataset-specific settings ---
+final_training: False
+seed: null
 subsample: 1
 crop: 0
-cell_index: 2
 num_of_trials_to_use: null
 start_using_trial: 0
-num_of_frames: 30
 temporal_dilation: 1
 hidden_temporal_dilation: 1
-retina_index: "04"
 device: "cuda"
 time_chunk_size: 100
-num_of_layers: 1
 excluded_cells:
   "01": []
   "02": []
   "03": []
   "04": []
-retina_specific_crops: True
 hard_coded: null
 flip_imgs: False
 shuffle: null

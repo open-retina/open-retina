@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from openretina.modules.layers import FlatLaplaceL23dnorm
 from openretina.modules.layers.convolutions import get_conv_class
 from openretina.modules.layers.reducers import WeightedChannelSumLayer
-from openretina.modules.layers.regularizers import Laplace1d
+from openretina.modules.layers.regularizers import TimeLaplaceL23dnorm
 from openretina.modules.layers.scaling import Bias3DLayer
 
 
@@ -120,7 +120,7 @@ class SimpleCoreWrapper(Core):
             )
 
         self._input_weights_regularizer_spatial = FlatLaplaceL23dnorm(padding=0)
-        self._input_weights_regularizer_temporal = Laplace1d(padding=0, persistent_buffer=False)
+        self._input_weights_regularizer_temporal = TimeLaplaceL23dnorm(padding=0, persistent_buffer=False)
 
         self.features = torch.nn.Sequential()
         self.color_squashing_layer = (
@@ -180,7 +180,7 @@ class SimpleCoreWrapper(Core):
         assert hasattr(conv_obj, "time_conv")
         time_conv_weight: torch.Tensor = conv_obj.time_conv.weight  # type: ignore
         ch_in, ch_out, t, _, _ = time_conv_weight.shape
-        loss = self._input_weights_regularizer_temporal(time_conv_weight.view(ch_in * ch_out, 1, t), avg=False)
+        loss = self._input_weights_regularizer_temporal(time_conv_weight, avg=False)
         return loss
 
     def temporal_smoothness(self) -> torch.Tensor:
@@ -208,12 +208,15 @@ class SimpleCoreWrapper(Core):
         return torch.sum(torch.stack(result_array))
 
     def group_sparsity(self) -> torch.Tensor:
+        if len(self.features) <= 1:
+            return torch.tensor(0.0)
+
         sparsities: list[torch.Tensor] = []
         for feat in self.features[1:]:  # type: ignore
             val = feat.conv.weight_spatial.pow(2).sum([2, 3, 4]).sqrt().sum(1) / torch.sqrt(
                 1e-8 + feat.conv.weight_spatial.pow(2).sum([1, 2, 3, 4])
             )
-            sparsities.append(val)
+            sparsities.append(val.sum())
         return torch.sum(torch.stack(sparsities))
 
     def regularizer(self) -> torch.Tensor:

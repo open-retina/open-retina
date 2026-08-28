@@ -12,10 +12,13 @@ from einops import rearrange
 from omegaconf import DictConfig, OmegaConf
 from tqdm.auto import tqdm
 
+from openretina.data_io.base import DatasetStatistics
 from openretina.eval.metrics import MSE_numpy, correlation_numpy, explainable_vs_total_var, feve
 from openretina.eval.oracles import oracle_corr_jackknife
 from openretina.models.core_readout import load_core_readout_model
 from openretina.modules.losses import PoissonLoss3d
+from openretina.utils.eval_utils import EvaluationSummary, align_responses_to_model_output
+from openretina.utils.frame_fingerprints import compute_dataloader_statistics
 from openretina.utils.misc import reorder_like_a
 
 log = logging.getLogger(__name__)
@@ -36,9 +39,9 @@ def evaluate_model(cfg: DictConfig) -> float:
     log.info("Logging full config:")
     log.info(OmegaConf.to_yaml(cfg))
 
-    if cfg.paths.cache_dir is None:
-        raise ValueError("Please provide a cache_dir for the data in the config file or as a command line argument.")
-    if cfg.evaluation.model_path is None:
+    if cfg.get("paths", {}).get("cache_dir") is None:
+        raise ValueError("Please provide paths.cache_dir for the data in the config file or via the command line.")
+    if cfg.get("evaluation", {}).get("model_path") is None:
         raise ValueError("Please provide evaluation.model_path to define which model to test.")
 
     # Set cache folder
@@ -84,18 +87,23 @@ def evaluate_model(cfg: DictConfig) -> float:
 
     for session, dl in tqdm(dataloader_dict.items(), desc="Evaluating sessions", unit="session"):
         dataset = dl.dataset
-        movies = dataset.movies.to(device).unsqueeze(0)
 
         with torch.no_grad():
-            model_responses_torch = model.forward(movies, data_key=session)
-            targets = dataset.responses.to(device).unsqueeze(0)
-            poisson_loss_session = poisson_loss(model_responses_torch, targets)
+            model_responses_torch_array = []
+            targets_array = []
+            for data_point in dl:
+                model_resp_batch = model.forward(data_point[0].to(device), data_key=session)
+                model_resp = model_resp_batch.flatten(0, 1)
+                model_responses_torch_array.append(model_resp)
+                targets_array.append(data_point[1].flatten(0, 1))
+            model_responses_torch = torch.concat(model_responses_torch_array)
+            targets = torch.concat(targets_array).to(device)
+            poisson_loss_session = poisson_loss(model_responses_torch.unsqueeze(0), targets.unsqueeze(0))
 
         poisson_loss_values = poisson_loss_session.cpu().numpy()
-        model_responses = model_responses_torch.squeeze(0).cpu().numpy()
+        model_responses = model_responses_torch.cpu().numpy()
 
         avg_responses = dataset.responses.numpy()
-        has_trial_data = True
         try:
             responses_by_trial = dataset.test_responses_by_trial.cpu().numpy()
             responses_by_trial = reorder_like_a(a=avg_responses, b=responses_by_trial)
@@ -115,22 +123,17 @@ def evaluate_model(cfg: DictConfig) -> float:
                 exc_info=True,
             )
             responses_by_trial = avg_responses[:, np.newaxis, :]
-            has_trial_data = False
 
-        # adjust responses to lag
-        new_lag = avg_responses.shape[0] - model_responses.shape[0]
-        if lag < 0:
-            lag = new_lag
-        elif new_lag != lag:
-            log.error(
-                f"Inconsistent lag between sessions: {new_lag=} {lag=}"
-                "\nThis might indicate a problem with the model or the data."
-            )
-            lag = new_lag
+        avg_responses, responses_by_trial, lag = align_responses_to_model_output(
+            targets=targets,
+            model_responses=model_responses,
+            avg_responses=avg_responses,
+            responses_by_trial=responses_by_trial,
+            dataset=dataset,
+            lag=lag,
+        )
 
-        avg_responses = avg_responses[lag:]
         n_neurons_session = avg_responses.shape[1]
-        responses_by_trial = responses_by_trial[lag:]
 
         if model_responses.shape != avg_responses.shape:
             raise ValueError(f"Inconsistent Shapes: {model_responses.shape=}, {avg_responses.shape}, {lag=}")
@@ -142,19 +145,20 @@ def evaluate_model(cfg: DictConfig) -> float:
         # Compute evaluation metrics (all are arrays of length n_neurons_session)
         corr_to_average = correlation_numpy(avg_responses, model_responses, axis=0)
         mse_to_average = MSE_numpy(avg_responses, model_responses, axis=0)
-        feve_values = feve(responses_by_trial, model_responses)
-        jackknife, _ = oracle_corr_jackknife(responses_by_trial, cut_first_n_frames=lag)
 
-        # Compute variance ratio (explainable to total variance ratio)
-        n_trials_for_var = responses_by_trial.shape[1]
-        if has_trial_data and n_trials_for_var > 1:
+        n_trials = responses_by_trial.shape[1]
+        if n_trials > 1:
+            feve_values = feve(responses_by_trial, model_responses)
+            # we already cut the frames from responses_by_trial
+            jackknife, _ = oracle_corr_jackknife(responses_by_trial, cut_first_n_frames=None)
             var_ratio, explainable_var = explainable_vs_total_var(responses_by_trial)
         else:
+            feve_values = np.full(n_neurons_session, np.nan)
+            jackknife = np.full(n_neurons_session, np.nan)
             # Cannot compute var_ratio without multiple trials
             var_ratio = np.full(n_neurons_session, np.nan)
 
         # Compute per-trial metrics
-        n_trials = responses_by_trial.shape[1]
         n_trials_per_session.append(n_trials)
         corr_by_trial = {}
         mse_by_trial = {}
@@ -228,99 +232,64 @@ def evaluate_model(cfg: DictConfig) -> float:
     # Check if var_ratio can be used for filtering
     n_neurons_total = len(df)
     n_neurons_with_var_ratio = df["var_ratio"].notna().sum()
-    can_filter = n_neurons_with_var_ratio > 0
 
-    if not can_filter:
+    if n_neurons_with_var_ratio == 0:
         log.warning(
             f"No neurons have valid variance ratio values. "
             f"Skipping var_ratio_cutoff filtering. All {n_neurons_total} neurons will be included in evaluation."
         )
         df_filtered = df.copy()
-        n_neurons_filtered = n_neurons_total
-        n_neurons_excluded = 0
         filtering_applied = False
     else:
         df_filtered = df[df["var_ratio"].notna() & (df["var_ratio"] >= var_ratio_cutoff)].copy()
-        n_neurons_filtered = len(df_filtered)
-        n_neurons_excluded = n_neurons_total - n_neurons_filtered
         filtering_applied = True
 
-    # Print header with model info
-    print("=" * 80)
-    print("Model Evaluation Results")
-    print("=" * 80)
-    print(f"Model path: {cfg.evaluation.model_path}")
-    print(f"Data split: {data_split}")
-    print(f"Lag: {lag}")
-    print("-" * 80)
-    print(f"Total neurons: {n_neurons_total}")
-    if can_filter:
-        print(f"Variance ratio cutoff: {var_ratio_cutoff}")
-        if filtering_applied:
-            print(f"Neurons above var_ratio threshold (≥{var_ratio_cutoff}): {n_neurons_filtered}")
-            excluded_pct = n_neurons_excluded / n_neurons_total * 100
-            print(f"Neurons excluded: {n_neurons_excluded} ({excluded_pct:.1f}%)")
-        else:
-            print("Note: var_ratio filtering not applied (no valid var_ratio values)")
+    # Compute dataset statistics by iterating over the actual dataloaders (if enabled)
+    if cfg.evaluation.get("compute_dataset_statistics", False):
+        dataset_stats = compute_dataloader_statistics(dataloaders)
     else:
-        print(f"Variance ratio cutoff: {var_ratio_cutoff} (NOT APPLIED - no trial/repeats data available)")
-        print("Note: var_ratio could not be computed (no trial/repeats data). All neurons included.")
-    print("-" * 80)
+        dataset_stats = DatasetStatistics.empty()
 
-    # Print metrics (using filtered data)
-    if filtering_applied and can_filter:
-        print("\nTrial/repeats-averaged metrics (computed on neurons above var_ratio threshold):")
-    else:
-        print("\nTrial/repeats-averaged metrics (computed on all neurons - var_ratio filtering not applied):")
+    # Extract metadata from config
+    model_tag = cfg.evaluation.get("model_tag", cfg.evaluation.model_path)
+    exp_name = cfg.get("exp_name", "unknown")
+    species = None
+    if hasattr(cfg, "data_io") and hasattr(cfg.data_io, "responses"):
+        species = cfg.data_io.responses.get("specie", None)
+    if species is None and hasattr(cfg, "data_io") and hasattr(cfg.data_io, "stimuli"):
+        species = cfg.data_io.stimuli.get("specie", None)
 
-    # Print statistics about number of trials/repeats across sessions
-    if not n_trials_per_session or all(n == 1 for n in n_trials_per_session):
-        print("\n(Number of trials/repeats: N/A)")
-    else:
-        n_trials_min = min(n_trials_per_session)
-        n_trials_max = max(n_trials_per_session)
-        n_trials_avg = np.mean(n_trials_per_session)
-        if n_trials_min == n_trials_max:
-            print(f"(Number of trials/repeats: {n_trials_min} (constant across all sessions))")
-        else:
-            print(f"(Number of trials/repeats: min={n_trials_min}, max={n_trials_max}, avg={n_trials_avg:.1f})")
-    print("-" * 80)
-    metric_names = {
-        "corr_to_average": "Correlation",
-        "mse_to_average": "MSE",
-        "feve": "FEVe",
-        "poisson_loss_to_average": "Poisson loss",
-    }
-    for k, display_name in metric_names.items():
-        if k in df_filtered.columns:
-            mean_val = np.nanmean(df_filtered[k])
-            print(f"  {display_name:30s}: {mean_val:.4f}")
+    # Build evaluation summary from DataFrame
+    summary = EvaluationSummary.from_dataframe(
+        df_filtered,
+        model_path=str(cfg.evaluation.model_path),
+        model_tag=str(model_tag),
+        exp_name=str(exp_name),
+        species=str(species) if species else None,
+        data_split=data_split,
+        temporal_lag=lag,
+        n_trials_per_session=n_trials_per_session,
+        n_neurons_total=n_neurons_total,
+        var_ratio_cutoff=var_ratio_cutoff,
+        filtering_applied=filtering_applied,
+        dataset_stats=dataset_stats,
+    )
 
-    # Comparison to individual traces
-    if filtering_applied and can_filter:
-        print("\nPer-trial metrics (computed on neurons above var_ratio threshold):")
-    else:
-        print("\nPer-trial metrics (computed on all neurons - var_ratio filtering not applied):")
-    print("-" * 80)
-    for k in ["corr", "mse"]:
-        avgs, i = [], 0
-        while (key_ := f"{k}_{i}") in df_filtered.columns:
-            avgs.append(np.nanmean(df_filtered[key_]))
-            i += 1
-        if avgs:
-            mean_val = np.nanmean(avgs)
-            std_val = np.nanstd(avgs)
-            display_name = "Correlation" if k == "corr" else "MSE"
-            print(f"  {display_name:30s}: {mean_val:.4f} (±{std_val:.4f})")
+    # Print formatted report
+    summary.print_report()
 
-    print("=" * 80)
-
+    # Save per-neuron results
     if cfg.evaluation.get("model_results_path") is not None:
         df.to_csv(cfg.evaluation.model_results_path)
+        log.info(f"Per-neuron results saved to {cfg.evaluation.model_results_path}")
+
+    # Save summary results
+    if cfg.evaluation.get("summary_results_path") is not None:
+        summary.save_json(cfg.evaluation.summary_results_path)
+        log.info(f"Summary results saved to {cfg.evaluation.summary_results_path}")
 
     # Return average correlation computed on filtered neurons
-    avg_correlation = float(np.nanmean(df_filtered["corr_to_average"]))
-    return avg_correlation
+    return summary.corr_to_avg_mean
 
 
 if __name__ == "__main__":

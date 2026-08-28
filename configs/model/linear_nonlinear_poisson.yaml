@@ -17,3 +17,5 @@ readout:
 
 # training
 learning_rate: 0.005
+optimizer: ${optimizer} # References the optimizer from defaults
+lr_scheduler: ${lr_scheduler} # References the scheduler from defaults

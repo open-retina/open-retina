@@ -5,7 +5,6 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from git import Optional
 from PIL import Image
 from scipy.interpolate import griddata
 from sklearn.decomposition import PCA
@@ -148,8 +147,8 @@ def prepare_movies_dataset(
     session_id: str,
     n_image_frames: int = 16,
     normalize_movies: bool = True,
-    image_library: Optional[np.ndarray] = None,
-    image_dir: Optional[str] = None,
+    image_library: np.ndarray | None = None,
+    image_dir: str | None = None,
     device: str = "cuda",
 ) -> tuple[np.ndarray, int]:
     """
@@ -483,7 +482,7 @@ def plot_clean_vectorfield(
     explained_variance: np.ndarray,
     x_bins: int = 31,
     y_bins: int = 31,
-    responses: Optional[np.ndarray] = None,
+    responses: np.ndarray | None = None,
 ) -> plt.Figure:
     """
     Plots a cleaned vector field representation of binned image and LSTA data projected onto principal components.

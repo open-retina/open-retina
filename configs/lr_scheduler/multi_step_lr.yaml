@@ -1,0 +1,11 @@
+# MultiStepLR scheduler configuration
+# Decays the learning rate by gamma once the number of epochs reaches one of the milestones
+_target_: torch.optim.lr_scheduler.MultiStepLR
+milestones: [30, 60, 90] # List of epoch indices at which to decay the learning rate
+gamma: 0.1 # Multiplicative factor of learning rate decay
+last_epoch: -1
+
+# PyTorch Lightning specific parameters
+monitor: null
+interval: epoch
+frequency: 1

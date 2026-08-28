@@ -1,3 +1,7 @@
+# Single-cell dataloader for the Sridhar 2025 white noise dataset.
+# Used by both LN and SC models. To select a different neuron, override
+# cell_index and retina_index in the outer config.
+
 _target_: openretina.data_io.sridhar_2025.dataloaders.white_noise_loader
 _convert_: object
 basepath: "${paths.data_dir}"
@@ -6,11 +10,18 @@ files:
   "02": "responses/cell_responses_02_wn.pkl"
   "04": "responses/cell_responses_04_wn.pkl"
 
+# --- Cell selection (override in the outer config) ---
+cell_index: ???
+retina_index: ???
+
+# --- Stimulus spatial cropping ---
 big_crops:
   "01": [35, 35, 55, 55]
   "02": [35, 35, 55, 55]
   "04": [35, 35, 55, 55]
+retina_specific_crops: True
 
+# --- Stimulus image paths ---
 train_image_path:
   "01": "non_repeating_stimuli_1"
   "02": "non_repeating_stimuli_1"
@@ -21,31 +32,30 @@ test_image_path:
   "02": "repeating_stimuli_1"
   "04": "repeating_stimuli_2"
 
-excluded_cells:
-  "01": []
-  "02": []
-  "03": []
-  "04": []
-
+# --- Training settings ---
 batch_size: 16
-seed: null
 train_frac: 0.8
+num_of_frames: 30
+num_of_layers: 1
+
+# --- Advanced / dataset-specific settings ---
+seed: null
 subsample: 1
 crop: 0
 use_cache: True
 cache_maxsize: 1
 num_of_trials_to_use: null
 start_using_trial: 0
-num_of_frames: 30
 num_of_hidden_frames: 5
 temporal_dilation: 1
 hidden_temporal_dilation: 1
-cell_index: 8
 device: "cuda"
 time_chunk_size: 100
-num_of_layers: 1
-retina_index: "01"
-retina_specific_crops: True
+excluded_cells:
+  "01": []
+  "02": []
+  "03": []
+  "04": []
 extra_frame: 0
 hard_coded: null
 chunked_sampling: True

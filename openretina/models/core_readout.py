@@ -17,6 +17,7 @@ from openretina.modules.core.base_core import Core, SimpleCoreWrapper
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
 from openretina.modules.readout.multi_readout import MultiGaussianMaskReadout, MultiReadoutBase
 from openretina.utils.file_utils import get_cache_directory, get_local_file_path
+from openretina.utils.optimizer_utils import instantiate_optimizer, instantiate_scheduler
 
 LOGGER = logging.getLogger(__name__)
 
@@ -25,16 +26,16 @@ _HUGGINGFACE_CHECKPOINTS_BASE_PATH = (
     "https://huggingface.co/datasets/open-retina/open-retina/tree/main/model_checkpoints"
 )
 _MODEL_NAME_TO_REMOTE_LOCATION = {
+    "hoefling_2024_low_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/hoefling_2024_cnn_low_res.ckpt",
+    "hoefling_2024_high_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/hoefling_2024_cnn_high_res.ckpt",
+    "karamanlis_2024_mouse": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/karamanlis_2024_mouse.ckpt",
+    "karamanlis_2024_marmoset": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/karamanlis_2024_marmoset.ckpt",
+    "maheswaranathan_2023": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/maheswaranathan_2023.ckpt",
+    "sridhar_2025": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/sridhar_2025.ckpt",
+    "goldin_2022_axolotl": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/goldin_2022_axolotl.ckpt",
+    "goldin_2022_mouse": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/goldin_2022_mouse.ckpt",
+    # legacy model used in the first bioarxiv version of the paper
     "hoefling_2024_base_low_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/hoefling_2024_base_low_res.ckpt",
-    "hoefling_2024_base_low_res_grey_scale": (
-        f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/hoefling_2024_base_low_res_grey_scale.ckpt"
-    ),
-    "hoefling_2024_base_high_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/hoefling_2024_base_high_res.ckpt",
-    "karamanlis_2024_base_mouse": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/karamanlis_2024_base_mouse.ckpt",
-    "karamanlis_2024_base_marmoset": (
-        f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/karamanlis_2024_base_marmoset.ckpt"
-    ),
-    # "maheswaranathan_2023_base": f"",  # Todo: update
 }
 
 
@@ -54,7 +55,7 @@ class BaseCoreReadout(LightningModule):
         readout: MultiReadoutBase,
         learning_rate: float,
         loss: nn.Module | None = None,
-        validation_loss: nn.Module | None = None,
+        evaluation_loss: nn.Module | None = None,
         data_info: dict[str, Any] | None = None,
     ):
         """
@@ -66,7 +67,7 @@ class BaseCoreReadout(LightningModule):
                 per session.
             learning_rate (float): Learning rate for network training.
             loss (nn.Module, optional): Loss function for training. Defaults to PoissonLoss3d if None.
-            validation_loss (nn.Module, optional): Loss used to compute correlation performance metric.
+            evaluation_loss (nn.Module, optional): Metric used to compute evaluate the model.
                 Defaults to CorrelationLoss3d (avg=True) if None.
             data_info (dict[str, Any], optional): Dictionary containing data-specific metadata, such as input_shape,
                 session neuron counts, etc. If None, defaults to empty dict.
@@ -77,7 +78,9 @@ class BaseCoreReadout(LightningModule):
         self.readout = readout
         self.learning_rate = learning_rate
         self.loss = loss if loss is not None else PoissonLoss3d()
-        self.validation_loss = validation_loss if validation_loss is not None else CorrelationLoss3d(avg=True)
+        self.evaluation_loss = (
+            evaluation_loss if evaluation_loss is not None else (CorrelationLoss3d(avg=True, negate=False))
+        )
         if data_info is None:
             data_info = {}
         self.data_info = data_info
@@ -108,13 +111,13 @@ class BaseCoreReadout(LightningModule):
         regularization_loss_core = self.core.regularizer()
         regularization_loss_readout = self.readout.regularizer(session_id)  # type: ignore
         total_loss = loss + regularization_loss_core + regularization_loss_readout
-        correlation = -self.validation_loss.forward(model_output, data_point.targets)
+        evaluation_loss = self.evaluation_loss.forward(model_output, data_point.targets)
 
         self.log("regularization_loss_core", regularization_loss_core, on_step=False, on_epoch=True)
         self.log("regularization_loss_readout", regularization_loss_readout, on_step=False, on_epoch=True)
         self.log("train_total_loss", total_loss, on_step=False, on_epoch=True)
         self.log("train_loss", loss, on_step=False, on_epoch=True)
-        self.log("train_correlation", correlation, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("train_evaluation_loss", evaluation_loss, on_step=False, on_epoch=True, prog_bar=True)
 
         return total_loss
 
@@ -125,13 +128,13 @@ class BaseCoreReadout(LightningModule):
         regularization_loss_core = self.core.regularizer()
         regularization_loss_readout = self.readout.regularizer(session_id)  # type: ignore
         total_loss = loss + regularization_loss_core + regularization_loss_readout
-        correlation = -self.validation_loss.forward(model_output, data_point.targets)
+        evaluation_loss = self.evaluation_loss.forward(model_output, data_point.targets)
 
         self.log("val_loss", loss, logger=True, prog_bar=True)
         self.log("val_regularization_loss_core", regularization_loss_core, logger=True)
         self.log("val_regularization_loss_readout", regularization_loss_readout, logger=True)
         self.log("val_total_loss", total_loss, logger=True)
-        self.log("val_correlation", correlation, logger=True, prog_bar=True)
+        self.log("val_evaluation_loss", evaluation_loss, logger=True, prog_bar=True)
 
         return loss
 
@@ -139,26 +142,31 @@ class BaseCoreReadout(LightningModule):
         session_id, data_point = batch
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
-        avg_correlation = -self.validation_loss.forward(model_output, data_point.targets)
-        per_neuron_correlation = self.validation_loss._per_neuron_correlations
+        evaluation_loss = self.evaluation_loss.forward(model_output, data_point.targets)
 
         # Add metric and performances to data_info for downstream tasks
         if "pretrained_performance_metric" not in self.data_info:
-            self.data_info["pretrained_performance_metric"] = "test " + type(self.validation_loss).__name__
+            self.data_info["pretrained_performance_metric"] = "test " + type(self.evaluation_loss).__name__
 
         if "pretrained_performance" not in self.data_info:
             self.data_info["pretrained_performance"] = {}
+        if getattr(self.evaluation_loss, "_per_neuron_correlations", None) is not None:
+            per_neuron_correlation = self.evaluation_loss._per_neuron_correlations
+            self.data_info["pretrained_performance"][session_id] = per_neuron_correlation
+        else:
+            self.data_info["pretrained_performance"][session_id] = evaluation_loss.detach().cpu()
 
         # Also add cut frames if not present
+        model_cut_frames = data_point.targets.size(1) - model_output.size(1)
         if "model_cut_frames" not in self.data_info:
-            self.data_info["model_cut_frames"] = data_point.targets.size(1) - model_output.size(1)
-
-        self.data_info["pretrained_performance"][session_id] = per_neuron_correlation
+            self.data_info["model_cut_frames"] = model_cut_frames
+        elif self.data_info["model_cut_frames"] != model_cut_frames:
+            LOGGER.warning(f"Model cut frames inconsistent: {self.data_info['model_cut_frames']=}, {model_cut_frames=}")
 
         self.log_dict(
             {
-                "test_loss": loss,
-                "test_correlation": avg_correlation,
+                type(self.loss).__name__: loss,
+                type(self.evaluation_loss).__name__: evaluation_loss,
             }
         )
 
@@ -173,7 +181,7 @@ class BaseCoreReadout(LightningModule):
             best_model_path = self.trainer.checkpoint_callback.best_model_path
             if best_model_path:
                 final_path = best_model_path.replace(".ckpt", "_final.ckpt")
-                self.trainer.save_checkpoint(final_path)
+                self.trainer.save_checkpoint(final_path, weights_only=False)
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
@@ -194,7 +202,7 @@ class BaseCoreReadout(LightningModule):
             "optimizer": optimizer,
             "lr_scheduler": {
                 "scheduler": scheduler,
-                "monitor": "val_correlation",
+                "monitor": "val_evaluation_loss",
                 "frequency": 1,
             },
         }
@@ -285,7 +293,11 @@ class UnifiedCoreReadout(BaseCoreReadout):
         readout: DictConfig,
         hidden_channels: tuple[int, ...] | Iterable[int] | None = None,
         learning_rate: float = 0.001,
+        loss: nn.Module | DictConfig | None = None,
+        evaluation_loss: nn.Module | DictConfig | None = None,
         data_info: dict[str, Any] | None = None,
+        optimizer: DictConfig | None = None,
+        lr_scheduler: DictConfig | None = None,
     ):
         """
         Initializes a UnifiedCoreReadout for multi-session configurable neural modeling via Hydra configs.
@@ -303,8 +315,16 @@ class UnifiedCoreReadout(BaseCoreReadout):
                 Hydra config for the readout module (specifies type and custom session-aware params).
             learning_rate (float, optional):
                 Learning rate for model training. Defaults to 0.001.
+            loss (nn.Module, optional):
+                Loss function for training. Defaults to PoissonLoss3d if None.
+            evaluation_loss (nn.Module, optional):
+                Metric used to evaluate the model. Defaults to CorrelationLoss3d(avg=True) if None.
             data_info (dict[str, Any], optional):
                 Additional metadata dictionary, e.g., with input shape and neuron mapping.
+            optimizer (DictConfig, optional):
+                Hydra config for optimizer instantiation. If None, defaults to AdamW.
+            lr_scheduler (DictConfig, optional):
+                Hydra config for learning rate scheduler. If None, defaults to ReduceLROnPlateau.
         """
         # Make sure in_shape and hidden_channels are a tuple
         # (with hydra configs they can be a `omegaconf.listconfig.ListConfig`).
@@ -333,7 +353,56 @@ class UnifiedCoreReadout(BaseCoreReadout):
             mean_activity_dict=mean_activity_dict,
         )
 
-        super().__init__(core=core_module, readout=readout_module, learning_rate=learning_rate, data_info=data_info)
+        if loss is not None and isinstance(loss, DictConfig):
+            loss_module = hydra.utils.instantiate(loss)
+        else:
+            loss_module = loss
+
+        if evaluation_loss is not None and isinstance(evaluation_loss, DictConfig):
+            evaluation_loss_module = hydra.utils.instantiate(evaluation_loss)
+        else:
+            evaluation_loss_module = evaluation_loss
+
+        # Store optimizer and scheduler configs for use in configure_optimizers
+        self.optimizer_config = optimizer
+        self.lr_scheduler_config = lr_scheduler
+
+        super().__init__(
+            core=core_module,
+            readout=readout_module,
+            learning_rate=learning_rate,
+            loss=loss_module,
+            evaluation_loss=evaluation_loss_module,
+            data_info=data_info,
+        )
+
+    def configure_optimizers(self):
+        """
+        Configure optimizers and schedulers using Hydra configs.
+
+        This method overrides BaseCoreReadout.configure_optimizers() to use
+        configurable optimizers and schedulers via the utility functions.
+        """
+
+        # Instantiate optimizer using utility function
+        optimizer = instantiate_optimizer(
+            self.optimizer_config,
+            self.parameters(),
+            self.learning_rate,
+        )
+
+        # Instantiate scheduler using utility function
+        scheduler_dict = instantiate_scheduler(
+            self.lr_scheduler_config,
+            optimizer,
+            self.learning_rate,
+            trainer=getattr(self, "trainer", None),
+        )
+
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": scheduler_dict,
+        }
 
 
 class ExampleCoreReadout(BaseCoreReadout):
@@ -437,24 +506,19 @@ class ExampleCoreReadout(BaseCoreReadout):
 
 
 def load_core_readout_from_remote(
-    model_name: str,
+    model_path: str,
     device: str,
     cache_directory_path: str | os.PathLike | None = None,
 ) -> BaseCoreReadout:
     if cache_directory_path is None:
         cache_directory_path = get_cache_directory()
-    if model_name not in _MODEL_NAME_TO_REMOTE_LOCATION:
-        raise ValueError(
-            f"Model name {model_name} not supported for download yet. "
-            f"The following names are supported: {sorted(_MODEL_NAME_TO_REMOTE_LOCATION.keys())}"
-        )
-    remote_path = _MODEL_NAME_TO_REMOTE_LOCATION[model_name]
+    remote_path = _MODEL_NAME_TO_REMOTE_LOCATION.get(model_path, model_path)
     local_path = get_local_file_path(remote_path, cache_directory_path)
     try:
-        return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
+        return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device, weights_only=False)
     except:  # noqa: E722
         # Support for legacy ExampleCoreReadout model
-        return ExampleCoreReadout.load_from_checkpoint(local_path, map_location=device)
+        return ExampleCoreReadout.load_from_checkpoint(local_path, map_location=device, weights_only=False)
 
 
 def load_core_readout_model(
@@ -469,7 +533,7 @@ def load_core_readout_model(
 
     local_path = get_local_file_path(model_path_or_name, cache_directory_path)
     try:
-        return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
+        return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device, weights_only=False)
     except:  # noqa: E722
         # Support for legacy ExampleCoreReadout model
-        return ExampleCoreReadout.load_from_checkpoint(local_path, map_location=device)
+        return ExampleCoreReadout.load_from_checkpoint(local_path, map_location=device, weights_only=False)
