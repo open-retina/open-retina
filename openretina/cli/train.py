@@ -59,6 +59,14 @@ def train_model(cfg: DictConfig) -> float | None:
     )
 
     data_info = compute_data_info(neuron_data_dict, movies_dict, partial_data_info=cfg.data_io.get("data_info"))
+    # Bias initialization must use the actual training split, not responses that still include held-out validation
+    # clips. All built-in movie datasets expose their split-specific mean response.
+    for session_key, session_loader in dataloaders["train"].items():
+        split_mean_response = getattr(session_loader.dataset, "mean_response", None)
+        if split_mean_response is not None:
+            data_info["mean_activity_dict"][session_key] = torch.as_tensor(
+                split_mean_response, dtype=torch.float32
+            ).detach()
 
     train_loader = data.DataLoader(
         LongCycler(dataloaders["train"], shuffle=True),

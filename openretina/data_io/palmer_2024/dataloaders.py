@@ -28,6 +28,76 @@ from openretina.data_io.palmer_2024.stimuli import _decode_movie_names, _resolve
 DataPoint = namedtuple("DataPoint", ["inputs", "targets"])
 
 
+class PalmerAveragedDataset(Dataset):
+    """Strided Palmer movie chunks paired with valid-repeat averaged responses."""
+
+    def __init__(
+        self,
+        movie: torch.Tensor,
+        averaged_responses: torch.Tensor,
+        movie_boundaries: list[int],
+        chunk_size: int,
+        chunk_stride: int | None = None,
+        excluded_movie_indices: list[int] | None = None,
+    ):
+        self.movie = movie
+        self.averaged_responses = averaged_responses
+        self.chunk_size = chunk_size
+        self.chunk_stride = chunk_size if chunk_stride is None else chunk_stride
+        self.excluded_movie_indices = set(excluded_movie_indices or [])
+
+        if self.chunk_size <= 0:
+            raise ValueError(f"chunk_size must be positive, got {self.chunk_size}.")
+        if self.chunk_stride <= 0:
+            raise ValueError(f"chunk_stride must be positive, got {self.chunk_stride}.")
+        if movie.shape[1] != averaged_responses.shape[0]:
+            raise ValueError(
+                f"Palmer movie and averaged response lengths differ: {movie.shape[1]} != {averaged_responses.shape[0]}."
+            )
+
+        self.indices: list[tuple[int, int]] = []
+        included_movies = []
+        included_responses = []
+        for movie_idx, (start_time, end_time) in enumerate(zip(movie_boundaries[:-1], movie_boundaries[1:])):
+            movie_len = end_time - start_time
+            if movie_len < self.chunk_size:
+                raise ValueError(
+                    f"Palmer movie {movie_idx} has {movie_len} frames, shorter than chunk_size={self.chunk_size}."
+                )
+            if movie_idx in self.excluded_movie_indices:
+                continue
+
+            included_movies.append(movie[:, start_time:end_time])
+            included_responses.append(averaged_responses[start_time:end_time])
+            for chunk_start in range(start_time, end_time - self.chunk_size + 1, self.chunk_stride):
+                self.indices.append((chunk_start, chunk_start + self.chunk_size))
+
+        if not self.indices:
+            raise ValueError("PalmerAveragedDataset contains no training chunks after applying the validation split.")
+
+        self._movies = torch.cat(included_movies, dim=1)
+        self._responses = torch.cat(included_responses, dim=0)
+        self.mean_response = self._responses.mean(dim=0)
+
+    def __len__(self) -> int:
+        return len(self.indices)
+
+    def __getitem__(self, idx: int) -> DataPoint:
+        chunk_start, chunk_end = self.indices[idx]
+        return DataPoint(
+            inputs=self.movie[:, chunk_start:chunk_end],
+            targets=self.averaged_responses[chunk_start:chunk_end],
+        )
+
+    @property
+    def movies(self) -> torch.Tensor:
+        return self._movies
+
+    @property
+    def responses(self) -> torch.Tensor:
+        return self._responses
+
+
 class PalmerRepeatDataset(Dataset):
     """
     Dataset for Palmer 2024 that indexes over (trial, chunk) pairs without duplicating stimuli.
@@ -42,6 +112,7 @@ class PalmerRepeatDataset(Dataset):
         movie_boundaries: Time boundaries for each training movie (cumulative), e.g. [0, 1200, 2400, ...].
         n_reps_per_movie: Number of valid (non-padded) repeats for each training movie.
         chunk_size: Number of frames per sample.
+        chunk_stride: Distance between adjacent chunks. Defaults to ``chunk_size``.
         split: "train" or "validation".
     """
 
@@ -52,12 +123,18 @@ class PalmerRepeatDataset(Dataset):
         movie_boundaries: list[int],
         n_reps_per_movie: list[int],
         chunk_size: int,
+        chunk_stride: int | None = None,
         split: str = "train",
         excluded_movie_indices: list[int] | None = None,
     ):
         self.movie = movie  # [C, T_total, H, W]
         self.train_repeats = train_repeats  # [n_trials, n_neurons, T_total]
         self.chunk_size = chunk_size
+        self.chunk_stride = chunk_size if chunk_stride is None else chunk_stride
+        if self.chunk_size <= 0:
+            raise ValueError(f"chunk_size must be positive, got {self.chunk_size}.")
+        if self.chunk_stride <= 0:
+            raise ValueError(f"chunk_stride must be positive, got {self.chunk_stride}.")
         self.split = split
         self.movie_boundaries = movie_boundaries
         self.n_reps_per_movie = n_reps_per_movie
@@ -76,7 +153,11 @@ class PalmerRepeatDataset(Dataset):
             start_time = movie_boundaries[movie_idx]
             end_time = movie_boundaries[movie_idx + 1]
             movie_len = end_time - start_time
-            n_chunks_per_trial = movie_len // chunk_size
+            if movie_len < self.chunk_size:
+                raise ValueError(
+                    f"Palmer movie {movie_idx} has {movie_len} frames, shorter than chunk_size={self.chunk_size}."
+                )
+            chunk_starts = range(start_time, end_time - self.chunk_size + 1, self.chunk_stride)
 
             n_valid_repeats = n_reps_per_movie[movie_idx]
             movie_responses = self.train_repeats[trial_offset : trial_offset + n_valid_repeats, :, start_time:end_time]
@@ -88,9 +169,8 @@ class PalmerRepeatDataset(Dataset):
 
                 for local_trial in range(n_valid_repeats):
                     trial_idx = trial_offset + local_trial
-                    for chunk_idx in range(n_chunks_per_trial):
-                        chunk_start = start_time + chunk_idx * chunk_size
-                        chunk_end = chunk_start + chunk_size
+                    for chunk_start in chunk_starts:
+                        chunk_end = chunk_start + self.chunk_size
                         self.indices.append((trial_idx, chunk_start, chunk_end))
 
             trial_offset += n_valid_repeats
@@ -188,6 +268,8 @@ def repeats_dataloaders(
     neuron_data_dictionary: dict[str, ResponsesTrainTestSplit],
     movies_dictionary: dict[str, MoviesTrainTestSplit],
     train_chunk_size: int = 60,
+    train_chunk_stride: int | None = None,
+    average_repeats: bool = False,
     batch_size: int = 8,
     seed: int = 42,
     clip_length: int = 1170,
@@ -201,19 +283,24 @@ def repeats_dataloaders(
     """
     Create dataloaders for Palmer 2024 that leverage per-trial repeats without duplicating stimuli.
 
-    For training: uses PalmerRepeatDataset to index over (trial, chunk) pairs.
+    For training: uses repeat-averaged responses by default when ``average_repeats`` is enabled, otherwise indexes
+    over individual (trial, chunk) pairs with ``PalmerRepeatDataset``.
     For validation and test: uses the standard multiple_movies_dataloaders approach.
 
     Args:
         neuron_data_dictionary: Session responses (must contain train_movies info in session_kwargs).
         movies_dictionary: Session movies.
         train_chunk_size: Chunk size for training samples.
+        train_chunk_stride: Distance between adjacent training chunks. Defaults to ``train_chunk_size``. For the
+            Palmer core-readout model, a stride of 30 pairs overlapping 60-frame inputs with the 30-frame model
+            output, covering every predictable response frame exactly once per repeat.
+        average_repeats: Train on the valid-repeat averaged response instead of individual repeat targets.
         batch_size: Batch size for dataloaders.
         seed: Random seed for validation split.
         clip_length: Length of each movie clip (used for validation splits).
         num_val_clips: Number of clips to reserve for validation.
         val_clip_indices: Optional explicit validation clip indices.
-        base_data_path: Path to HDF5 file (required to load per-trial repeats).
+        base_data_path: Path to HDF5 file. Required only when loading individual repeat targets.
         response_key: Which response type to use from HDF5.
         fr_normalization: Scalar to divide firing rates.
         exclude_initial_frames: Number of bins already removed from the start of every loaded movie and response.
@@ -225,14 +312,15 @@ def repeats_dataloaders(
         "neuron_data_dictionary and movies_dictionary keys must match."
     )
 
-    if base_data_path is None:
-        raise ValueError("base_data_path is required to load per-trial repeats from HDF5.")
-
-    h5_path = _resolve_h5_path(base_data_path)
+    h5_path = None
+    if not average_repeats:
+        if base_data_path is None:
+            raise ValueError("base_data_path is required to load per-trial repeats from HDF5.")
+        h5_path = _resolve_h5_path(base_data_path)
 
     dataloaders: dict[str, Any] = collections.defaultdict(dict)
 
-    for session_key, session_data in tqdm(neuron_data_dictionary.items(), desc="Creating Palmer repeat dataloaders"):
+    for session_key, session_data in tqdm(neuron_data_dictionary.items(), desc="Creating Palmer dataloaders"):
         # Extract train_movies from session_kwargs
         train_movies = session_data.session_kwargs.get("train_movies")
         if train_movies is None:
@@ -277,35 +365,43 @@ def repeats_dataloaders(
         if len(set(val_clip_idx)) != len(val_clip_idx) or any(idx < 0 or idx >= num_clips for idx in val_clip_idx):
             raise ValueError(f"Invalid Palmer validation movie indices: {val_clip_idx}.")
 
-        # Load per-trial repeats with variable reps handling
-        with h5py.File(h5_path, "r") as f:
-            movie_names = _decode_movie_names(np.asarray(f["test/movie_names"]))
+        if average_repeats:
+            train_dataset = PalmerAveragedDataset(
+                movie=movie_train,
+                averaged_responses=torch.tensor(session_data.train.T, dtype=torch.float32),
+                movie_boundaries=movie_boundaries,
+                chunk_size=train_chunk_size,
+                chunk_stride=train_chunk_stride,
+                excluded_movie_indices=val_clip_idx,
+            )
+        else:
+            assert h5_path is not None
+            # Load per-trial repeats with variable reps handling
+            with h5py.File(h5_path, "r") as f:
+                movie_names = _decode_movie_names(np.asarray(f["test/movie_names"]))
 
-        train_repeats_np, n_reps_per_movie, trial_to_movie = _load_train_repeats_with_variable_reps(
-            h5_path=h5_path,
-            movie_names=movie_names,
-            train_movies=train_movies,
-            movie_boundaries=movie_boundaries,
-            response_key=response_key,
-            fr_normalization=fr_normalization,
-            exclude_initial_frames=exclude_initial_frames,
-        )
+            train_repeats_np, n_reps_per_movie, trial_to_movie = _load_train_repeats_with_variable_reps(
+                h5_path=h5_path,
+                movie_names=movie_names,
+                train_movies=train_movies,
+                movie_boundaries=movie_boundaries,
+                response_key=response_key,
+                fr_normalization=fr_normalization,
+                exclude_initial_frames=exclude_initial_frames,
+            )
 
-        train_repeats = torch.tensor(train_repeats_np, dtype=torch.float32)  # [n_trials, n_neurons, T_total]
-
-        # Compute n_reps_per_movie for training (all trials)
-        train_n_reps_per_movie = [trial_to_movie.count(m) for m in range(len(train_movies))]
-
-        # Create training dataset with per-trial repeats
-        train_dataset = PalmerRepeatDataset(
-            movie=movie_train,
-            train_repeats=train_repeats,
-            movie_boundaries=movie_boundaries,
-            n_reps_per_movie=train_n_reps_per_movie,
-            chunk_size=train_chunk_size,
-            split="train",
-            excluded_movie_indices=val_clip_idx,
-        )
+            train_repeats = torch.tensor(train_repeats_np, dtype=torch.float32)  # [trials, neurons, time]
+            train_n_reps_per_movie = [trial_to_movie.count(m) for m in range(len(train_movies))]
+            train_dataset = PalmerRepeatDataset(
+                movie=movie_train,
+                train_repeats=train_repeats,
+                movie_boundaries=movie_boundaries,
+                n_reps_per_movie=train_n_reps_per_movie,
+                chunk_size=train_chunk_size,
+                chunk_stride=train_chunk_stride,
+                split="train",
+                excluded_movie_indices=val_clip_idx,
+            )
 
         dataloaders["train"][session_key] = DataLoader(
             train_dataset,

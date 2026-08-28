@@ -1,7 +1,9 @@
 defaults:
   - data_io: palmer_2024
-  - dataloader: palmer_2024_repeats
+  - dataloader: palmer_2024_averaged
   - model: base_core_readout
+  - optimizer: adamw
+  - lr_scheduler: reduce_lr_on_plateau
   - training_callbacks:
       - early_stopping
       - lr_monitor
@@ -23,7 +25,7 @@ paths:
   output_dir: ${hydra:runtime.output_dir}
 
 model:
-  in_shape: [1, 60, 86, 86]
+  in_shape: [1, 90, 86, 86]
   hidden_channels: [16, 16]
   core:
     spatial_kernel_sizes: [11, 5]

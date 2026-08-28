@@ -11,6 +11,7 @@ test_movies:
 video_height: 86 # full size is 344, this sets the downsampled size
 video_width: 86 # full size is 344, this sets the downsampled size
 exclude_initial_frames: 30 # Exclude the 500 ms onset transient reported in Palmer et al.
+movie_frame_bin_seconds: 0.016666666666666666 # Spikes are binned at the 60 Hz movie-frame interval.
 
 stimuli:
   _target_: openretina.data_io.palmer_2024.stimuli.load_stimuli
@@ -31,8 +32,8 @@ responses:
   base_data_path: ${data_io.base_data_path}
   train_movies: ${data_io.train_movies}
   test_movies: ${data_io.test_movies}
-  response_key: "firing_rate_60ms" # or "binned"
-  fr_normalization: 1.0
+  response_key: "binned"
+  fr_normalization: ${data_io.movie_frame_bin_seconds} # Convert counts per movie frame to spikes/s.
   exclude_initial_frames: ${data_io.exclude_initial_frames}
   session_id: "palmer_2024_salamander"
 
