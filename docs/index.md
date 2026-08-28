@@ -28,7 +28,7 @@ hide:
     Check out the main package repository on GitHub
 
 
--   [:fontawesome-regular-newspaper:{ .lg .middle } __Read the paper__](https://www.biorxiv.org/content/10.1101/2025.03.07.642012v1){:target="_blank"}
+-   [:fontawesome-regular-newspaper:{ .lg .middle } __Read the paper__](https://www.biorxiv.org/content/10.1101/2025.03.07.642012v2){:target="_blank"}
 
     ---
 
