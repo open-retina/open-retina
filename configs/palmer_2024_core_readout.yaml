@@ -1,0 +1,29 @@
+defaults:
+  - data_io: palmer_2024
+  - dataloader: palmer_2024_repeats
+  - model: base_core_readout
+  - training_callbacks:
+      - early_stopping
+      - lr_monitor
+      - model_checkpoint
+  - logger:
+      - tensorboard
+      - csv
+  - trainer: default_deterministic
+  - hydra: default
+  - _self_
+
+exp_name: palmer_2024_core_readout
+seed: 42
+check_stimuli_responses_match: true
+
+paths:
+  cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY}
+  log_dir: "."
+  output_dir: ${hydra:runtime.output_dir}
+
+model:
+  in_shape: [1, 60, 86, 86]
+  hidden_channels: [16, 16]
+  core:
+    spatial_kernel_sizes: [11, 5]

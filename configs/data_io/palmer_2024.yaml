@@ -1,3 +1,5 @@
+base_data_path: https://huggingface.co/datasets/open-retina/open-retina/resolve/main/marre_lab/palmer_2024/salamander_session_1_structured_data.h5
+
 train_movies:
   - "MultipleMoviesStim_1_tree.avi"
   - "MultipleMoviesStim_2_water.avi"
@@ -8,27 +10,30 @@ test_movies:
 
 video_height: 86 # full size is 344, this sets the downsampled size
 video_width: 86 # full size is 344, this sets the downsampled size
+exclude_initial_frames: 30 # Exclude the 500 ms onset transient reported in Palmer et al.
 
 stimuli:
   _target_: openretina.data_io.palmer_2024.stimuli.load_stimuli
   _convert_: object
-  base_data_path: ${paths.data_dir}
+  base_data_path: ${data_io.base_data_path}
   train_movies: ${data_io.train_movies}
   test_movies: ${data_io.test_movies}
   normalize_stimuli: true
   resize_hw:
     - ${data_io.video_height}
     - ${data_io.video_width}
+  exclude_initial_frames: ${data_io.exclude_initial_frames}
   session_id: "palmer_2024_salamander"
 
 responses:
   _target_: openretina.data_io.palmer_2024.responses.load_responses
   _convert_: object
-  base_data_path: ${paths.data_dir}
+  base_data_path: ${data_io.base_data_path}
   train_movies: ${data_io.train_movies}
   test_movies: ${data_io.test_movies}
   response_key: "firing_rate_60ms" # or "binned"
   fr_normalization: 1.0
+  exclude_initial_frames: ${data_io.exclude_initial_frames}
   session_id: "palmer_2024_salamander"
 
 data_info:

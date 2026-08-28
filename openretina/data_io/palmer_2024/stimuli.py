@@ -136,6 +136,7 @@ def load_stimuli(
     *,
     normalize_stimuli: bool = True,
     resize_hw: tuple[int, int] | None = None,
+    exclude_initial_frames: int = 30,
     session_id: str = "palmer_2024_salamander",
 ) -> dict[str, MoviesTrainTestSplit]:
     """
@@ -147,6 +148,8 @@ def load_stimuli(
         test_movies: Movie names to keep as frozen test stimuli. Defaults to remaining movies.
         normalize_stimuli: Whether to z-score using the training movie statistics.
         resize_hw: Optional (height, width) to resize both train and test movies before building splits.
+        exclude_initial_frames: Number of frames to remove from the beginning of every movie. The Palmer et al.
+            analysis excludes the first 500 ms, corresponding to 30 frames at 60 Hz.
         session_id: Key used for the returned dictionary.
     """
     h5_path = _resolve_h5_path(base_data_path)
@@ -163,6 +166,9 @@ def load_stimuli(
             time_bins = movie_data.shape[1]
         # Clip to ensure we don't exceed available data
         time_bins = min(time_bins, movie_data.shape[1])
+
+    if not 0 <= exclude_initial_frames < time_bins:
+        raise ValueError(f"exclude_initial_frames must be in [0, {time_bins}), got {exclude_initial_frames}.")
 
     if train_movies is None:
         train_movies = movie_names[:3]
@@ -182,10 +188,12 @@ def load_stimuli(
     train_idx = _indices_for_movies(movie_names, train_movies, "train")
     test_idx = _indices_for_movies(movie_names, test_movies, "test")
 
-    train_movie = np.concatenate([movie_data[i, :time_bins] for i in train_idx], axis=0)  # [time, H, W]
+    train_movie = np.concatenate(
+        [movie_data[i, exclude_initial_frames:time_bins] for i in train_idx], axis=0
+    )  # [time, H, W]
     # Use sorted test_movies for keys to ensure consistency with responses
     # test_idx is already sorted by canonical order, matching test_movies order
-    test_dict = {name: movie_data[idx, :time_bins] for name, idx in zip(test_movies, test_idx)}
+    test_dict = {name: movie_data[idx, exclude_initial_frames:time_bins] for name, idx in zip(test_movies, test_idx)}
 
     # Add channel dimension
     train_movie = train_movie[None, ...]
