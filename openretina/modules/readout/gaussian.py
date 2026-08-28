@@ -381,7 +381,7 @@ class PointGaussianReadout(Readout):
         if (c_in, w_in, h_in) != (c, w, h):
             warnings.warn("the specified feature map dimension is not the readout's expected input dimension")
         feat = self.features.view(1, c, self.outdims)
-        bias = self.bias
+        bias: torch.Tensor | None = self.bias
         outdims = self.outdims
 
         if self.batch_sample:
@@ -407,7 +407,7 @@ class PointGaussianReadout(Readout):
         y = F.grid_sample(x, grid, align_corners=self.align_corners)
         y = (y.squeeze(-1) * feat).sum(1).view(N, outdims)
 
-        if self.bias is not None:
+        if bias is not None:
             y = y + bias
         return y
 
