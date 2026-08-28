@@ -70,7 +70,7 @@ import torch
 from openretina.models import load_core_readout_from_remote
 
 # Load a pre-trained model
-model = load_core_readout_from_remote("hoefling_2024_base_low_res", "cpu")
+model = load_core_readout_from_remote("hoefling_2024_low_res", "cpu")
 
 # Run a forward pass with random input
 responses = model.forward(torch.rand(model.stimulus_shape(time_steps=50)))

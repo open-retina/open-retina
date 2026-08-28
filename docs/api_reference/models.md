@@ -51,7 +51,6 @@ the **Core + Readout** pattern: a shared feature extraction core paired with per
 
 ## Sub-modules
 
-- [Core-Readout Models](models/core_readout.md) — Full module reference
+- [Core-Readout Models](models/core_readout.md) — Architecture components and related references
 - [Linear-Nonlinear Models](models/linear_nonlinear.md) — LNP cascade models
 - [Sparse Autoencoder](models/sparse_autoencoder.md) — Sparse representation models
-

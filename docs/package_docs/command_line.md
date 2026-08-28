@@ -16,7 +16,7 @@ openretina create-data --help
 openretina create-data ./test_data --num-colors 3 --num-stimuli 4 --num-sessions 2
 ```
 
-And use this artificial data to train a new model from scratch  using the provided configs (make sure you have also cloned the  Github repository for this). When working with your own dataset, be sure to adjust the number of colour channels and the video dimensions accordingly and specify the names of the stimuli to be used for testing.
+Use this artificial data to train a new model from scratch with the provided configs (make sure you have also cloned the GitHub repository). When working with your own dataset, adjust the number of colour channels and the video dimensions accordingly, and specify the names of the stimuli to use for testing.
 
 ## Train a model
 
@@ -42,18 +42,20 @@ openretina train --config-path configs --config-name hoefling_2024_core_readout_
 Use `openretina eval` to run the evaluation pipeline for one split (`test` by default):
 
 ```bash
-openretina eval --config-path configs --config-name karamanlis_2024_eval \
-  evaluation.model_path=karamanlis_2024_base_mouse
+openretina eval --config-path configs --config-name karamanlis_2024_core_readout \
+  +evaluation=default \
+  evaluation.model_path=karamanlis_2024_mouse
 ```
 
-Where the model path can either be the model tag of one of the models stored in the `openretina` huggingface, or a path to a local checkpoint you have trained.
+The model path can be either the identifier of a bundled model hosted on the OpenRetina Hugging Face repository or a path to a local checkpoint you have trained.
 Similarly, the config path and name can be set to the local configs you have used for training.
 
 You can also evaluate on a different split by overriding:
 
 ```bash
-openretina eval --config-path configs --config-name karamanlis_2024_eval \
-  evaluation.model_path=karamanlis_2024_base_mouse \
+openretina eval --config-path configs --config-name karamanlis_2024_core_readout \
+  +evaluation=default \
+  evaluation.model_path=karamanlis_2024_mouse \
   evaluation.data_split=validation
 ```
 
@@ -68,7 +70,7 @@ The model path can be either a local checkpoint path or a Hugging Face model ide
 openretina visualize --help
 
 # Download and visualize a pretrained model
-openretina visualize --model-path hoefling_2024_base_low_res --save-folder visualizations
+openretina visualize --model-path hoefling_2024_low_res --save-folder visualizations
 
 # Visualize original Hoefling et al. (2024) ensemble model
 openretina visualize --is-hoefling-ensemble-model --model-id 0 --save-folder vis_ensemble_0

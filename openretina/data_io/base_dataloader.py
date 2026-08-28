@@ -24,7 +24,7 @@ class MovieDataSet(Dataset):
     Args:
         movies (Float[np.ndarray | torch.Tensor, "n_channels n_frames h w"]): The movie data.
         responses (Float[np.ndarray, "n_frames n_neurons"] | dict[str, Float[np.ndarray, "n_frames n_neurons"]]):
-        The neural responses. Can be a single array or a dictionary of arrays, containing "avg" and "by_trial" keys.
+            The neural responses. Can be a single array or a dictionary containing `avg` and `by_trial` arrays.
         roi_ids (Optional[Float[np.ndarray, " n_neurons"]]): A list of ROI IDs.
         roi_coords (Optional[Float[np.ndarray, "n_neurons 2"]]): A list of ROI coordinates.
         group_assignment (Optional[Float[np.ndarray, " n_neurons"]]): A list of group assignments (cell types).
@@ -268,7 +268,7 @@ def get_movie_dataloader(
     group_assignment: Float[np.ndarray, " n_neurons"] | None = None,
     drop_last: bool = True,
     allow_over_boundaries: bool = True,
-    **kwargs,
+    **kwargs: Any,
 ) -> DataLoader:
     """
     Create a DataLoader for processing movie data and associated responses.

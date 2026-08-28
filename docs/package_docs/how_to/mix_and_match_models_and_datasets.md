@@ -44,7 +44,7 @@ Important: `n_neurons_dict` is required by the model, but it is injected automat
 ## Compatibility caveats
 
 Not every model can run on every dataset without adaptation.
-For example, the package conatins single-cell models that rely on white-noise-derived receptive field parameters, which may require metadata that natural-movie-only datasets do not provide.
+For example, the package contains single-cell models that rely on white-noise-derived receptive field parameters, which may require metadata that natural-movie-only datasets do not provide.
 
 ## How to validate compatibility quickly
 

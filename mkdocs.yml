@@ -128,7 +128,10 @@ nav:
       - Data Sources:
           - package_docs/datasets/index.md
           - Hoefling et al., 2024: package_docs/datasets/hoefling_2024.md
+          - Karamanlis et al., 2024: package_docs/datasets/karamanlis_2024.md
+          - Maheswaranathan et al., 2023: package_docs/datasets/maheswaranathan_2023.md
           - Goldin et al., 2022: package_docs/datasets/goldin_2022.md
+          - Sridhar et al., 2025: package_docs/datasets/sridhar_2025.md
 
       - Tutorials:
           - OpenRetina Demo: notebooks/openretina_demo.ipynb

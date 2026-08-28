@@ -10,70 +10,30 @@ OpenRetina provides a collection of pre-trained retinal models from published re
 
 All models are automatically downloaded and cached when first used. They are hosted on [Hugging Face](https://huggingface.co/datasets/open-retina/open-retina).
 
-### Höfling et al., 2024 Models
+The following identifiers are accepted by `load_core_readout_from_remote`:
 
-Based on the paper ["A chromatic feature detector in the retina signals visual context changes"](https://doi.org/10.7554/eLife.86860) (eLife 2024).
+| Model identifier | Dataset | Variant |
+| --- | --- | --- |
+| `hoefling_2024_low_res` | Höfling et al., 2024 | Low-resolution mouse model |
+| `hoefling_2024_high_res` | Höfling et al., 2024 | High-resolution mouse model |
+| `karamanlis_2024_mouse` | Karamanlis et al., 2024 | Mouse model |
+| `karamanlis_2024_marmoset` | Karamanlis et al., 2024 | Marmoset model |
+| `maheswaranathan_2023` | Maheswaranathan et al., 2023 | Multi-session tiger salamander model |
+| `sridhar_2025` | Sridhar et al., 2025 | Marmoset model |
+| `goldin_2022_mouse` | Goldin et al., 2022 | Mouse model |
+| `goldin_2022_axolotl` | Goldin et al., 2022 | Axolotl model |
 
-| Model Name                    | Type         | Input Shape    | Description                                                       | Size  |
-| ----------------------------- | ------------ | -------------- | ----------------------------------------------------------------- | ----- |
-| `hoefling_2024_base_low_res`  | Core-Readout | (2, T, 16, 18) | Low-resolution model trained on mouse retina calcium imaging data | ~5MB |
-| `hoefling_2024_base_high_res` | Core-Readout | (2, T, 64, 72) | High-resolution version with larger spatial input                 | ~10MB |
+The legacy identifier `hoefling_2024_base_low_res` remains available for analyses that require the model used in the first version of the OpenRetina preprint.
 
-**Dataset**: Mouse retina calcium imaging responses to natural scenes and artificial stimuli. TODO link
+See the dataset references for [Höfling et al., 2024](../api_reference/data_io/hoefling_2024.md), [Karamanlis et al., 2024](../api_reference/data_io/karamanlis_2024.md), [Maheswaranathan et al., 2023](../api_reference/data_io/maheswaranathan_2023.md), [Sridhar et al., 2025](../api_reference/data_io/sridhar_2025.md), and [Goldin et al., 2022](../api_reference/data_io/goldin_2022.md).
 
-**Usage Example**:
 ```python
+import torch
+
 from openretina.models import load_core_readout_from_remote
 
-# Load low-resolution model
-model = load_core_readout_from_remote("hoefling_2024_base_low_res", "cpu")
-
-# Create sample input (batch_size=1, time_steps=50, height=16, width=18, channels=2)
-stimulus = torch.rand(1, 50, 16, 18, 2)
-responses = model(stimulus)
-```
-
-### Karamanlis et al., 2024 Models
-
-Based on the paper ["Nonlinear receptive fields evoke redundant retinal coding of natural scenes"](https://doi.org/10.1038/s41586-024-08212-3) (Nature 2024).
-
-| Model Name             | Type             | Input Shape  | Description                                 | Size  |
-| ---------------------- | ---------------- | ------------ | ------------------------------------------- | ----- |
-| `karamanlis_2024_base` | Core-Readout     | (1, T, H, W) | Base convolutional model for primate retina | ~60MB |
-| `karamanlis_2024_gru`  | GRU Core-Readout | (1, T, H, W) | Model with GRU temporal processing          | ~70MB |
-
-**Dataset**: Primate retina responses to natural scenes. TODO dataset link.
-
-**Usage Example**:
-```python
-# Load GRU-based model
-model = load_core_readout_from_remote("karamanlis_2024_gru", "cuda")
-
-# The exact input dimensions depend on the specific dataset preprocessing
-stimulus_shape = model.stimulus_shape(time_steps=100)
-stimulus = torch.rand(stimulus_shape)
-responses = model(stimulus)
-```
-
-### Maheswaranathan et al., 2023 Models
-
-Based on the paper ["Interpreting the retinal neural code for natural scenes: From computations to neurons"](https://doi.org/10.1016/j.neuron.2023.06.007) (Neuron 2023).
-
-| Model Name                  | Type             | Input Shape  | Description                            | Size  |
-| --------------------------- | ---------------- | ------------ | -------------------------------------- | ----- |
-| `maheswaranathan_2023_base` | Core-Readout     | (1, T, H, W) | Base model for salamander retina       | ~45MB |
-| `maheswaranathan_2023_gru`  | GRU Core-Readout | (1, T, H, W) | Model with recurrent temporal dynamics | ~55MB |
-
-**Dataset**: Salamander retina responses to natural movies. TODO dataset link.
-
-**Usage Example**:
-```python
-# Load base model
-model = load_core_readout_from_remote("maheswaranathan_2023_base", "cpu")
-
-# Get appropriate input shape
-input_shape = model.stimulus_shape(time_steps=200, num_batches=4)
-stimulus = torch.rand(input_shape)
+model = load_core_readout_from_remote("hoefling_2024_low_res", "cpu")
+stimulus = torch.rand(model.stimulus_shape(time_steps=50))
 responses = model(stimulus)
 ```
 
@@ -86,10 +46,10 @@ import torch
 from openretina.models import load_core_readout_from_remote
 
 # Load any available model
-model = load_core_readout_from_remote("hoefling_2024_base_low_res", "cpu")
+model = load_core_readout_from_remote("hoefling_2024_low_res", "cpu")
 
 # Check model properties
-print(f"Number of neurons: {model.readout.n_neurons}")
+print(f"Readout sessions: {model.readout.readout_keys()}")
 print(f"Input shape for 50 time steps: {model.stimulus_shape(time_steps=50)}")
 ```
 
@@ -98,7 +58,7 @@ print(f"Input shape for 50 time steps: {model.stimulus_shape(time_steps=50)}")
 ```python
 # Load on GPU if available
 device = "cuda" if torch.cuda.is_available() else "cpu"
-model = load_core_readout_from_remote("karamanlis_2024_gru", device)
+model = load_core_readout_from_remote("karamanlis_2024_mouse", device)
 
 # Move existing model to different device
 model = model.to("cuda")
@@ -121,7 +81,7 @@ print(f"Models cached in: {cache_dir}")
 
 # Load with custom cache location
 model = load_core_readout_from_remote(
-    "hoefling_2024_base_low_res", 
+    "hoefling_2024_low_res",
     "cpu", 
     cache_directory_path="/custom/path"
 )

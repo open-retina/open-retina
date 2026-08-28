@@ -15,10 +15,10 @@ model = load_core_readout_from_remote("hoefling_2024_base_low_res", "cpu")
 # Define objective that increases the activity of a single neuron 
 # between timestep 10 and 20.
 objective = IncreaseObjective(
-model,
-neuron_indices=[10],
-data_key="session_2_ventral2_20201016",
-response_reducer=SliceMeanReducer(axis=0, start=10, length=10),
+    model,
+    neuron_indices=[10],
+    data_key="session_2_ventral2_20201016",
+    response_reducer=SliceMeanReducer(axis=0, start=10, length=10),
 )
 
 # Initialise random stimulus with a variance of 0.1
@@ -41,7 +41,7 @@ plot_stimulus_composition(stimulus[0], axes[0,0], axes[0,1], axes[1,0])
 
 In this case, the pre-implemented objective maximises the response of a single neuron: we initialise a random stimulus and optimise it towards our objective using gradient descent with a learning rate of 100.0 for 10 optimisation steps.
 The result is the stimulus that the model predicts to be maximally exciting for the given neuron.
-This optimised stimulus can then be saved as a video, as shown in the example code, or decomposed into its temporal and spatial components; for illustration, see the accompanying Jupyter notebook [notebooks/mei_example.ipynb](https://github.com/open-retina/open-retina/blob/main/notebooks/hoefling_gradient_analysis.ipynb).
+This optimised stimulus can then be saved as a video, as shown in the example code, or decomposed into its temporal and spatial components; for illustration, see the accompanying Jupyter notebook [notebooks/mei_example.ipynb](https://github.com/open-retina/open-retina/blob/main/notebooks/mei_example.ipynb).
 For the decomposition, we followed [Höfling et al., eLife, 2024](https://doi.org/10.7554/eLife.86860) and ran singular value decomposition on each colour channel individually.
 The visualisation then shows the first singular vector for the decomposed spatial and temporal dimensions, respectively. 
 MEIs can be used to gain insights about neurons’ tuning properties. 

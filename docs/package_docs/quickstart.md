@@ -12,7 +12,7 @@ import torch
 from openretina.models import load_core_readout_from_remote
 
 # Load a pre-trained model (will download if not already cached)
-model = load_core_readout_from_remote("hoefling_2024_base_low_res", "cpu")
+model = load_core_readout_from_remote("hoefling_2024_low_res", "cpu")
 ```
 
 ## Running Inference

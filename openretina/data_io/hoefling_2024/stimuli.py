@@ -1,4 +1,5 @@
 import os
+from typing import Any
 
 import numpy as np
 import torch
@@ -95,7 +96,7 @@ def get_all_movie_combinations(
 
 def gen_start_indices(
     random_sequences: np.ndarray, val_clip_idx: list[int], clip_length: int, chunk_size: int, num_clips: int
-):
+) -> dict[str, Any]:
     """Generate a list of indices for training chunks while excluding validation clips.
 
     Args:

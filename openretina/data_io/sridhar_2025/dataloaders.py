@@ -114,7 +114,7 @@ class MarmosetMovieDataset(Dataset):
     def __init__(
         self,
         responses: dict,
-        dir,
+        dir: str | os.PathLike,
         *data_keys: str,
         indices: list[int] | np.ndarray | None,
         frames: np.ndarray,
@@ -751,7 +751,7 @@ class NoiseDataset(Dataset):
     def __init__(
         self,
         responses: dict,
-        dir,
+        dir: str | os.PathLike,
         *data_keys: str,
         indices: list[int] | np.ndarray | None,
         use_cache: bool = True,
@@ -797,7 +797,6 @@ class NoiseDataset(Dataset):
                 Expected shape of numpy array in all_images.npy is: height x width x num_of_images in trial.
             data_keys: List of keys to be used for the datapoints, expected ['inputs', 'targets'].
             indices: Trial indices selected for training or validation. Ignored for the test split.
-            transforms: List of transformations that are supposed to be performed on images.
             use_cache: Whether to use caching when loading image data.
             trial_prefix: Prefix of trial file, followed by '_{trial number}'.
             test: Whether the data we are loading is test data.

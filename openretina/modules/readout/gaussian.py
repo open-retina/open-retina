@@ -359,7 +359,7 @@ class PointGaussianReadout(Readout):
         self.register_buffer("grid_sharing_index", torch.from_numpy(sharing_idx))
         self._shared_grid = True
 
-    def forward(self, x, sample=None, shift=None, out_idx=None, **kwargs):
+    def forward(self, x, sample=None, shift=None, out_idx=None, **kwargs) -> torch.Tensor:
         """
         Propagates the input forwards through the readout
         Args:
@@ -374,7 +374,7 @@ class PointGaussianReadout(Readout):
             out_idx (bool): index of neurons to be predicted
 
         Returns:
-            y: neuronal activity
+            torch.Tensor: Neuronal activity.
         """
         N, c, w, h = x.size()
         c_in, _, w_in, h_in = self.in_shape

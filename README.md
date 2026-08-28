@@ -58,7 +58,7 @@ responses = model.forward(torch.rand(model.stimulus_shape(time_steps=50)))
 - **I want to train from CLI configs**: see [Unified Training Script](https://open-retina.org/package_docs/training/unified_training/).
 - **I want to add a new dataset**: start from [`notebooks/new_datasets_guide.ipynb`](https://github.com/open-retina/open-retina/blob/main/notebooks/new_datasets_guide.ipynb) and [Data I/O docs](https://open-retina.org/package_docs/data_io/).
 - **I want to contribute a model or code**: see [Contributing](https://open-retina.org/package_docs/contributing/) and [Development setup](https://open-retina.org/package_docs/development/).
-- **I want to...**: Ceck out the docs [How to... hub](https://open-retina.org/package_docs/how_to/).
+- **I want to...**: Check out the docs [How to... hub](https://open-retina.org/package_docs/how_to/).
 
 ## Contributing
 

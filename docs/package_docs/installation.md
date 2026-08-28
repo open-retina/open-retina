@@ -110,7 +110,7 @@ print(f"Using device: {device}")
 
 from openretina.models import load_core_readout_from_remote
 # Load a small pre-trained model
-model = load_core_readout_from_remote("hoefling_2024_base_low_res", device)
+model = load_core_readout_from_remote("hoefling_2024_low_res", device)
 # Run forward pass
 responses = model.forward(torch.rand(model.stimulus_shape(time_steps=50)))
 ```

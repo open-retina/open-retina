@@ -129,19 +129,7 @@ See the [Contributing Guide](package_docs/contributing.md) for more details.
 
 ### How do I cite `openretina`?
 
-TODO refer to citations page, put only a short version here.
-
-If you use `openretina` in your research, please cite both the `openretina` paper and any specific model papers:
-TODO: check and extend
-```
-@article{openretina2025,
-  title={`openretina`: An open-source toolkit for modeling retinal responses to visual stimuli},
-  author={...},
-  journal={bioRxiv},
-  year={2025},
-  doi={10.1101/2025.03.07.642012}
-}
-```
+See [How to cite](references.md) for the current project citation and the papers associated with each dataset. The OpenRetina preprint is available at [doi.org/10.1101/2025.03.07.642012](https://doi.org/10.1101/2025.03.07.642012), and version-specific software metadata is maintained in [`CITATION.cff`](https://github.com/open-retina/open-retina/blob/main/CITATION.cff).
 
 For models like the Höfling et al. model, also cite the original paper:
 

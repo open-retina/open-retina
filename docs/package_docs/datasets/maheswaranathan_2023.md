@@ -1,26 +1,21 @@
 # Maheswaranathan et al., 2023
 
+This dataset contains tiger salamander retinal ganglion cell responses to natural scenes.
+
 ## Dataset at a glance
 
-| Species | Recording technique | Stimulus type(s) | Stim channels | Total cells (quality filtered) | Original recording fs | Original stim fs | Test repeats | Train repeats | Saccade-like correction | Pixel size on retina [um] |
-|---------|---------------------|------------------|---------------|--------------------------------|----------------------|------------------|--------------|---------------|-----------------------------------------------------------|---------------------------|
-| ...     | ...                 | ...              | ...           | ...                            | ...                  | ...              | ...          | ...           | ...                                                       | ...                       |
+| Species | Recording technique | Stimulus type(s) | Stim channels | Total cells (quality filtered) | Original recording fs | Original stim fs | Test repeats | Train repeats | Saccade-like correction | Pixel size on retina [µm] |
+| --- | --- | --- | --- | ---: | --- | --- | ---: | --- | --- | ---: |
+| Tiger salamander | MEA | Jittered natural scenes | Greyscale | 50 |  |  | 5–10 |  |  | 50 |
 
-## Dataset description
+The values filled into the previously empty cells are from Table 1 of the [OpenRetina preprint](https://doi.org/10.1101/2025.03.07.642012).
 
+## Resources
 
-## Unique characteristics
-Why was this dataset collected?
+- **Paper:** [Interpreting the retinal neural code for natural scenes: From computations to neurons](https://doi.org/10.1016/j.neuron.2023.06.007)
+- **Original dataset:** [Stanford Digital Repository](https://purl.stanford.edu/rk663dm5577)
+- **OpenRetina mirror:** [Hugging Face](https://huggingface.co/datasets/open-retina/open-retina/tree/main/baccus_lab/maheswaranathan_2023)
 
-How is it different from other datasets?
+## OpenRetina support
 
-What features of it make it nice for modelling? For modelling which aspects?
-
-
-## Citation information
-
-Original collecting paper
-
-Original source for dataset
-
-## HuggingFace mirror
+See the [Maheswaranathan dataset API reference](../../api_reference/data_io/maheswaranathan_2023.md) for the available stimulus and response loaders.

@@ -148,12 +148,12 @@ class NeuronDataSplitHoefling:
 
     def roi2readout(
         self,
-        single_roi_mask,
-        roi_mask_pixelsize=2,
-        readout_mask_pixelsize=50,
-        x_offset=2.75,
-        y_offset=2.75,
-    ):
+        single_roi_mask: np.ndarray,
+        roi_mask_pixelsize: float = 2,
+        readout_mask_pixelsize: float = 50,
+        x_offset: float = 2.75,
+        y_offset: float = 2.75,
+    ) -> np.ndarray:
         """Maps a roi mask of a single roi from recording coordinates to model readout coordinates.
 
         Args:

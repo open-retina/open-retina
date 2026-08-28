@@ -2,12 +2,12 @@
 
 ## Dataset at a glance
 
-| Retinal piece | Species  | Recording technique           | Stimulus type(s)                      | Stim channels        | Total cells (not quality filtered) | Original recording fs | Original stim fs | Test repeats   | Train repeats | Saccade-like correction | Pixel size on retina [um]                       |
-|---------------|----------|-------------------------------|---------------------------------------|----------------------|------------------------------------|-----------------------|------------------|----------------|---------------|-----------------------------------------------------------|-------------------------------------------------|
-| Retina 01     | marmoset | multi-electrode arrays (MAEs) | white noise (WN) & natural movie (NM) | 1 for both WN and NM | 370                                | 85                    | 85               | WN: 11  NM: 10 | WN: 11 NM: 21 |                                                           | WN: 30  NM: 7.5 (downsampled to 30 used for training) |
-| Retina 02     | marmoset | multi-electrode arrays (MAEs) | white noise (WN) & natural movie (NM) | 1 for both WN and NM | 181                                | 85                    | 85               | WN: 10  NM: 11 | WN: 10 NM: 11 | ...                                                       | WN: 30  NM: 7.5 (downsampled to 30 used for training)                                                |
-| Retina 03     | marmoset | multi-electrode arrays (MAEs) | white noise (WN) & natural movie (NM) | 1 for both WN and NM | 495                                | 85                    | 85               | WN: 10  NM: 20 | WN: 10 NM: 20 | ...                                                       | WN: 30  NM: 7.5 (downsampled to 30 used for training)                                                |
-| Retina 04     | marmoset | multi-electrode arrays (MAEs) | white noise (WN) & natural movie (NM) | 1 for both WN and NM | 110                                | 85                    | 85               | WN: 10  NM: 20 | WN: 10 NM: 20 | ...                                                       | WN: 30  NM: 7.5 (downsampled to 30 used for training)                                                |
+| Retinal piece | Species | Recording technique | Stimulus type(s) | Stim channels | Total cells (not quality filtered) | Original recording fs | Original stim fs | Test repeats | Train repeats | Saccade-like correction | Pixel size on retina [µm] |
+| --- | --- | --- | --- | --- | ---: | ---: | ---: | --- | --- | --- | --- |
+| Retina 01 | marmoset | multielectrode arrays (MEAs) | white noise (WN) & natural movie (NM) | 1 for both WN and NM | 370 | 85 | 85 | WN: 11, NM: 10 | WN: 11, NM: 21 |  | WN: 30, NM: 7.5 (downsampled to 30 for training) |
+| Retina 02 | marmoset | multielectrode arrays (MEAs) | white noise (WN) & natural movie (NM) | 1 for both WN and NM | 181 | 85 | 85 | WN: 10, NM: 11 | WN: 10, NM: 11 |  | WN: 30, NM: 7.5 (downsampled to 30 for training) |
+| Retina 03 | marmoset | multielectrode arrays (MEAs) | white noise (WN) & natural movie (NM) | 1 for both WN and NM | 495 | 85 | 85 | WN: 10, NM: 20 | WN: 10, NM: 20 |  | WN: 30, NM: 7.5 (downsampled to 30 for training) |
+| Retina 04 | marmoset | multielectrode arrays (MEAs) | white noise (WN) & natural movie (NM) | 1 for both WN and NM | 110 | 85 | 85 | WN: 10, NM: 20 | WN: 10, NM: 20 |  | WN: 30, NM: 7.5 (downsampled to 30 for training) |
 
 ## Dataset description
 
@@ -18,13 +18,14 @@ different types of ganglion cells, recorded extracellularly with multielectrode 
 The visual stimuli shown are spatio-temporal white noise and naturalistic stimuli. 
 Each of these stimuli is stored as a separate dataset having its own dataset class within open-retina.
 
-For the natural movie dat is the `MarmosetMovieDataset` class in `openretina/data_io/sridhar_2025/dataloaders.py`.  
-For white noise dataloader is the `NoiseDataset` class in `openretina/data_io/sridhar_2025/dataloaders.py`.
+For natural movies, use the `MarmosetMovieDataset` class in `openretina/data_io/sridhar_2025/dataloaders.py`.
+
+For white noise, use the `NoiseDataset` class in `openretina/data_io/sridhar_2025/dataloaders.py`.
 
 ### Natural movie dataset description
 The naturalistic movie stimulus was derived from the film [Tears of Steel](https://mango.blender.org/about/) by 
 Blender Studios. It was processed to grayscale and projected at a resolution of 1600x1200 pixels. 
-Fro training models, it is by default cropped to 800x600 pixels and downsample to 200x150, matching 
+For model training, it is cropped to 800x600 pixels by default and downsampled to 200x150, matching
 the white-noise dataset resolution. 
 Jittering was introduced to the movie frames to mimic the statistics of active vision in marmosets, including saccades, 
 fixations, and fixational eye movements.
@@ -35,12 +36,11 @@ This dataset is organized into five main directories containing different types 
 versions for different seeds. The `complete_fixations_seed_2022and2023_s4_fixed.txt` file is used as the default for 
 model training.
 * **`responses`**: Stores `.pkl` (pickle) files containing recorded cell responses to fixation movies.
-* **`stas`**: Holds `.npy` (numpy) files for Spike-Triggered Averages (STAs), with files indexed 
-* by both the retinal piece dataset index (e.g., 01, 02) and individual cell index (e.g., cell_0 to cell_370).
+* **`stas`**: Holds `.npy` (NumPy) files for spike-triggered averages (STAs), indexed by both the retinal piece dataset index (e.g., 01, 02) and individual cell index (e.g., cell_0 to cell_370).
 * **`stimuli_padded`**: Contains the original padded stimulus images as `.npy` files.
 * **`stimuli_padded_4`**: Contains the 4x downsampled version of the padded stimulus images as `.npy` files, corresponding to the fixations in files like `complete_fixations_seed_2022and2023_s4_fixed.txt`.
 
-```angular2html
+```text
 
 nm_marmoset_data
 ├── fixations
