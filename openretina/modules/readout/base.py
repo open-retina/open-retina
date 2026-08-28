@@ -66,7 +66,8 @@ class Readout(nn.Module, ABC):
             warnings.warn("Readout is NOT initialized with mean activity but with 0!")
             self.bias.data.fill_(0)
         else:
-            self.bias.data = mean_activity
+            with torch.no_grad():
+                self.bias.copy_(mean_activity)
 
     def __repr__(self) -> str:
         return super().__repr__() + " [{}]\n".format(self.__class__.__name__)
@@ -135,8 +136,8 @@ class ClonedReadout(Readout):
         super().__init__()  # type: ignore[no-untyped-call]
 
         self._source = original_readout
-        self.alpha = nn.Parameter(torch.ones(self._source.features.shape[-1]))
-        self.beta = nn.Parameter(torch.zeros(self._source.features.shape[-1]))
+        self.alpha = nn.Parameter(torch.ones(self._source.number_of_neurons()))
+        self.beta = nn.Parameter(torch.zeros(self._source.number_of_neurons()))
 
     def forward(self, x: torch.Tensor, **kwarg: Any) -> torch.Tensor:
         x = self._source(x) * self.alpha + self.beta

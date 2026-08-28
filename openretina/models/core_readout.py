@@ -181,7 +181,7 @@ class BaseCoreReadout(LightningModule):
             best_model_path = self.trainer.checkpoint_callback.best_model_path
             if best_model_path:
                 final_path = best_model_path.replace(".ckpt", "_final.ckpt")
-                self.trainer.save_checkpoint(final_path)
+                self.trainer.save_checkpoint(final_path, weights_only=False)
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
@@ -516,10 +516,10 @@ def load_core_readout_from_remote(
     remote_path = _MODEL_NAME_TO_REMOTE_LOCATION.get(model_path, model_path)
     local_path = get_local_file_path(remote_path, cache_directory_path)
     try:
-        return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
+        return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device, weights_only=False)
     except:  # noqa: E722
         # Support for legacy ExampleCoreReadout model
-        return ExampleCoreReadout.load_from_checkpoint(local_path, map_location=device)
+        return ExampleCoreReadout.load_from_checkpoint(local_path, map_location=device, weights_only=False)
 
 
 def load_core_readout_model(
@@ -535,7 +535,7 @@ def load_core_readout_model(
 
     local_path = get_local_file_path(model_path_or_name, cache_directory_path)
     try:
-        return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device)
+        return UnifiedCoreReadout.load_from_checkpoint(local_path, map_location=device, weights_only=False)
     except:  # noqa: E722
         # Support for legacy ExampleCoreReadout model
-        return ExampleCoreReadout.load_from_checkpoint(local_path, map_location=device)
+        return ExampleCoreReadout.load_from_checkpoint(local_path, map_location=device, weights_only=False)

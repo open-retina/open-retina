@@ -136,7 +136,7 @@ def train_model(cfg: DictConfig) -> float | None:
     short_cyclers = [(n, ShortCycler(dl)) for n, dl in dataloaders.items()]
     dataloader_mapping = {f"DataLoader {i}": x[0] for i, x in enumerate(short_cyclers)}
     log.info(f"Dataloader mapping: {dataloader_mapping}")
-    trainer.test(model, dataloaders=[c for _, c in short_cyclers], ckpt_path="best")
+    trainer.test(model, dataloaders=[c for _, c in short_cyclers], ckpt_path="best", weights_only=False)
 
     # Check if MLflow is one of the loggers and save model and datasets as artifacts
     mlflow_logger_array = [logger for logger in logger_array if "mlflow" in str(type(logger)).lower()]
@@ -151,7 +151,9 @@ def train_model(cfg: DictConfig) -> float | None:
         return None
 
     log.info("Starting validation for Optuna")
-    target_score = trainer.validate(model, dataloaders=[valid_loader], ckpt_path="best")[0][cfg.objective_target]
+    target_score = trainer.validate(model, dataloaders=[valid_loader], ckpt_path="best", weights_only=False)[0][
+        cfg.objective_target
+    ]
     if target_score is None:
         log.error(f"Score for objective target '{cfg.objective_target}' is None!")
     return target_score

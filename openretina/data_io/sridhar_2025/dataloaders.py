@@ -116,7 +116,7 @@ class MarmosetMovieDataset(Dataset):
         responses: dict,
         dir,
         *data_keys: str,
-        indices: list,
+        indices: list[int] | np.ndarray | None,
         frames: np.ndarray,
         fixations,
         temporal_dilation: int | tuple[int, ...] = 1,
@@ -188,8 +188,7 @@ class MarmosetMovieDataset(Dataset):
         self.img_dir_name = img_dir_name
         self.frame_file = frame_file
         self.response_dict = responses
-        if indices is not None:
-            self.train_responses = torch.from_numpy(responses["train_responses"]).float()
+        self.train_responses = torch.from_numpy(responses["train_responses"]).float()
         self.test_responses = torch.from_numpy(responses["test_responses"]).float()
         raw_test_by_trial = responses.get("test_responses_by_trial")
         self._test_responses_by_trial: torch.Tensor | None = (
@@ -202,7 +201,7 @@ class MarmosetMovieDataset(Dataset):
         self.indices = indices
         self.frames = frames
 
-        self.random_indices = np.random.permutation(indices)
+        self.random_indices = np.random.permutation(indices) if indices is not None else np.array([], dtype=int)
         self.n_neurons = self.train_responses.shape[0]
         self.num_of_trials = self.train_responses.shape[2]
 
@@ -213,6 +212,7 @@ class MarmosetMovieDataset(Dataset):
         self.time_chunk_size = time_chunk_size + self.frame_overhead
 
         self.cache: list[Any] = []
+        self.last_trial_index: int | None = None
         self.last_start_index = -1
         self.last_end_index = -1
 
@@ -221,6 +221,8 @@ class MarmosetMovieDataset(Dataset):
             self._len = int(
                 np.floor((self.num_of_imgs - self.frame_overhead) / (self.time_chunk_size - self.frame_overhead))
             )
+        elif self.indices is None:
+            raise ValueError("indices are required for the training and validation splits.")
         else:
             self._len = int(
                 len(self.indices)
@@ -271,6 +273,30 @@ class MarmosetMovieDataset(Dataset):
             )
         return images
 
+    def _transformed_frame_shape(self) -> tuple[int, int]:
+        """Return the spatial shape after the configured crop and subsampling."""
+        height = len(range(self.crop[0], self.img_h - self.crop[1], self.subsample))
+        width = len(range(self.crop[2], self.img_w - self.crop[3], self.subsample))
+        return height, width
+
+    def _render_frame(self, fixation) -> torch.Tensor:
+        """Crop and subsample a source frame without copying discarded pixels."""
+        img = torch.from_numpy(self.frames[fixation["img_index"]])
+        img = crop_based_on_fixation(
+            img=img,
+            x_center=fixation["center_x"],
+            y_center=fixation["center_y"],
+            flip=fixation["flip"] == 0,
+            img_h=self.img_h,
+            img_w=self.img_w,
+            padding=self.padding,
+        )
+        img = torch.movedim(img, 0, 1)
+        return img[
+            self.crop[0] : self.img_h - self.crop[1] : self.subsample,
+            self.crop[2] : self.img_w - self.crop[3] : self.subsample,
+        ]
+
     def __len__(self) -> int:
         return self._len
 
@@ -302,24 +328,11 @@ class MarmosetMovieDataset(Dataset):
 
     def _build_full_movie(self) -> torch.Tensor:
         """Render the entire test movie based on pre-loaded frames and fixations."""
-        frames = torch.zeros((self.num_of_imgs, self.img_h, self.img_w), dtype=torch.float32)
+        transformed_h, transformed_w = self._transformed_frame_shape()
+        frames = torch.zeros((self.num_of_imgs, transformed_h, transformed_w), dtype=torch.float32)
         fixations = self.fixations[: self.num_of_imgs]
         for i, fixation in enumerate(fixations):
-            img = torch.from_numpy(self.frames[fixation["img_index"]].astype(np.float32))
-            img = crop_based_on_fixation(
-                img=img,
-                x_center=fixation["center_x"],
-                y_center=fixation["center_y"],
-                flip=fixation["flip"] == 0,
-                img_h=self.img_h,
-                img_w=self.img_w,
-                padding=self.padding,
-            )
-            img = torch.movedim(img, 0, 1)
-            frames[i] = img
-        frames = torch.movedim(frames, 0, 2)
-        frames = self.transform(frames)
-        frames = torch.movedim(frames, 2, 0)
+            frames[i] = self._render_frame(fixation)
         return frames
 
     def __getitem__(self, item):
@@ -328,7 +341,11 @@ class MarmosetMovieDataset(Dataset):
                 item / np.floor((self.num_of_imgs - self.frame_overhead) / (self.time_chunk_size - self.frame_overhead))
             )
         )
-        actual_trial_index = self.indices[trial_index]
+        if self._test:
+            actual_trial_index = 0
+        else:
+            assert self.indices is not None
+            actual_trial_index = self.indices[trial_index]
         trial_portion = int(
             item % np.floor((self.num_of_imgs - self.frame_overhead) / (self.time_chunk_size - self.frame_overhead))
         )
@@ -373,27 +390,16 @@ class MarmosetMovieDataset(Dataset):
             ending_line = starting_line + self.time_chunk_size
 
         fixations = self.fixations[int(starting_line) : int(ending_line)]
-        frames = torch.zeros((self.time_chunk_size, self.img_h, self.img_w))
+        transformed_h, transformed_w = self._transformed_frame_shape()
+        frames = torch.zeros((self.time_chunk_size, transformed_h, transformed_w))
         for i, (fixation, index) in enumerate(zip(fixations, range(starting_img_index, ending_img_index))):
-            if (index >= self.last_start_index) and (index < self.last_end_index):
+            if trial_index == self.last_trial_index and index >= self.last_start_index and index < self.last_end_index:
                 img = self.cache[index - self.last_start_index]
             else:
-                img = torch.from_numpy(self.frames[fixation["img_index"]].astype(np.float32))
-                img = crop_based_on_fixation(
-                    img=img,
-                    x_center=fixation["center_x"],
-                    y_center=fixation["center_y"],
-                    flip=fixation["flip"] == 0,
-                    img_h=self.img_h,
-                    img_w=self.img_w,
-                    padding=self.padding,
-                )
-                img = torch.movedim(img, 0, 1)
+                img = self._render_frame(fixation)
             frames[i] = img
             cache.append(img)
-        frames = torch.movedim(frames, 0, 2)
-        frames = self.transform(frames)
-        frames = torch.movedim(frames, 2, 0)
+        self.last_trial_index = trial_index
         self.last_start_index = starting_img_index
         self.last_end_index = ending_img_index
         self.cache = cache
@@ -458,9 +464,9 @@ def get_dataloader(
 
 
 def frame_movie_loader(
-    files,
-    fixation_files: dict[int, str],
-    big_crops: dict[int, int | tuple[int, int, int, int]],
+    files: dict[str, str],
+    fixation_files: dict[str, str],
+    big_crops: dict[str, int | tuple[int, int, int, int]],
     basepath,
     batch_size: int = 16,
     seed=None,
@@ -473,10 +479,10 @@ def frame_movie_loader(
     temporal_dilation: int | tuple[int, ...] = 1,
     hidden_temporal_dilation: int | tuple[int, ...] = 1,
     cell_index=None,
-    retina_index=None,
+    retina_index: str | None = None,
     device: str = "cpu",
     time_chunk_size: int = 1,
-    num_of_layers=None,
+    num_of_layers: int = 1,
     excluded_cells: dict[Any, list[int]] | None = None,
     frame_file="_img_",
     img_dir_name="stimuli",
@@ -515,8 +521,7 @@ def frame_movie_loader(
         expected to have shape ``(n_neurons, frames_per_trial, n_trials)``.
     fixation_files : Mapping[int, str]
         Mapping from retina index to a fixation file path (relative to
-        ``basepath``). TODO: only the first entry is actually read and used
-        for all retinas in this function, assuming a shared fixation stream.
+        ``basepath``). Each retina's fixation file is read and processed separately.
     big_crops : Mapping[int, int | tuple[int, int, int, int]]
         Retina-specific crop specifications *(top, bottom, left, right)* used
         if ``retina_specific_crops=True``.
@@ -612,8 +617,8 @@ def frame_movie_loader(
     - **Expected response shapes:** ``load_responses`` should return, for each
       retina, a dict with keys ``"train_responses"`` (``n_neurons × T_train ×
       n_trials``) and ``"test_responses"`` (``n_neurons × T_test``).
-    - TODO: **Fixations.** Right now, only the first path from ``fixation_files`` is opened and
-      parsed via ``process_fixations`` and then reused for all retinas.
+    - **Fixations.** Each path in ``fixation_files`` is parsed via
+      ``process_fixations`` for its corresponding retina.
     - **Trial selection window.** After the split, trials are restricted to the
       contiguous window
       ``[start_using_trial, start_using_trial + num_of_trials_to_use)`` (clipped
@@ -629,12 +634,13 @@ def frame_movie_loader(
     else:
         retina_indices = [retina_index]
 
-    with open(f"{basepath}/{fixation_files[retina_indices[0]]}", "r") as file:
-        fixation_file = file.readlines()
-        fixations = process_fixations(fixation_file, flip_imgs=flip_imgs)
-
+    selected_files = {index: files[index] for index in retina_indices}
     responses = load_responses(
-        basepath, files=files, stimulus_seed=stimulus_seed, excluded_cells=excluded_cells, cell_index=cell_index
+        basepath,
+        files=selected_files,
+        stimulus_seed=stimulus_seed,
+        excluded_cells=excluded_cells,
+        cell_index=cell_index,
     )
     frames = load_frames(
         img_dir_name=os.path.join(basepath, img_dir_name),
@@ -648,6 +654,10 @@ def frame_movie_loader(
         img_w = full_img_w - 3 * padding
 
     for retina_index in retina_indices:
+        with open(f"{basepath}/{fixation_files[retina_index]}", "r") as file:
+            fixation_file = file.readlines()
+            fixations = process_fixations(fixation_file, flip_imgs=flip_imgs)
+
         train_responses, test_responses = (
             responses[retina_index]["train_responses"],
             responses[retina_index]["test_responses"],
@@ -742,8 +752,8 @@ class NoiseDataset(Dataset):
         self,
         responses: dict,
         dir,
-        *data_keys: list,
-        indices: list,
+        *data_keys: str,
+        indices: list[int] | np.ndarray | None,
         use_cache: bool = True,
         trial_prefix: str = "trial",
         test: bool = False,
@@ -786,7 +796,7 @@ class NoiseDataset(Dataset):
                 f'{dir}/{trial_prefix}_{int representing trial number}.zfill(3)/all_images.npy'.
                 Expected shape of numpy array in all_images.npy is: height x width x num_of_images in trial.
             data_keys: List of keys to be used for the datapoints, expected ['inputs', 'targets'].
-            indices: Indices of the trials selected for the given dataset.
+            indices: Trial indices selected for training or validation. Ignored for the test split.
             transforms: List of transformations that are supposed to be performed on images.
             use_cache: Whether to use caching when loading image data.
             trial_prefix: Prefix of trial file, followed by '_{trial number}'.
@@ -842,8 +852,7 @@ class NoiseDataset(Dataset):
         self.trial_prefix = trial_prefix
         self.data_keys = data_keys
         self.basepath = dir
-        if indices is not None:
-            self.train_responses = torch.from_numpy(responses["train_responses"]).float()
+        self.train_responses = torch.from_numpy(responses["train_responses"]).float()
 
         self.test_responses = torch.from_numpy(responses["test_responses"]).float()
         raw_test_by_trial = responses.get("test_responses_by_trial")
@@ -853,7 +862,7 @@ class NoiseDataset(Dataset):
             else None
         )
         self.indices = indices
-        self.random_indices = np.random.permutation(indices)
+        self.random_indices = np.random.permutation(indices) if indices is not None else np.array([], dtype=int)
         self.n_neurons = self.train_responses.shape[0]
         self.num_of_trials = self.train_responses.shape[2]
         self.locations = locations
@@ -867,20 +876,18 @@ class NoiseDataset(Dataset):
         self.time_chunk_size = time_chunk_size + self.frame_overhead
 
         self._test = test
+        self.chunks_per_trial = int(
+            np.floor(
+                (self.num_of_imgs - self.frame_overhead - self.extra_frame)
+                / (self.time_chunk_size - self.frame_overhead)
+            )
+        )
         if self._test:
-            self._len = (
-                int(np.floor((self.num_of_imgs - self.frame_overhead) / (self.time_chunk_size - self.frame_overhead)))
-                - self.extra_frame
-            )
-
+            self._len = self.chunks_per_trial
+        elif self.indices is None:
+            raise ValueError("indices are required for the training and validation splits.")
         else:
-            self._len = (
-                int(
-                    len(self.indices)
-                    * np.floor((self.num_of_imgs - self.frame_overhead) / (self.time_chunk_size - self.frame_overhead))
-                )
-                - self.extra_frame
-            )
+            self._len = len(self.indices) * self.chunks_per_trial
 
         self._cache: dict[Any, Any] = {data_key: {} for data_key in data_keys}
 
@@ -951,15 +958,13 @@ class NoiseDataset(Dataset):
         return x
 
     def get_whole_trials(self, item):
-        trial_index = int(
-            np.floor(
-                item / np.floor((self.num_of_imgs - self.frame_overhead) / (self.time_chunk_size - self.frame_overhead))
-            )
-        )
-        trial_file_index = self.indices[trial_index]
-        trial_portion = int(
-            item % np.floor((self.num_of_imgs - self.frame_overhead) / (self.time_chunk_size - self.frame_overhead))
-        )
+        trial_index = int(np.floor(item / self.chunks_per_trial))
+        if self._test:
+            trial_file_index = 0
+        else:
+            assert self.indices is not None
+            trial_file_index = self.indices[trial_index]
+        trial_portion = int(item % self.chunks_per_trial)
         starting_img_index = int(trial_portion * self.time_chunk_size)
         starting_img_index -= trial_portion * self.frame_overhead
         ending_img_index = int(starting_img_index + self.time_chunk_size)
@@ -1000,8 +1005,8 @@ class NoiseDataset(Dataset):
             imgs = torch.from_numpy(imgs)
             imgs = self.transform_image(imgs)
             if self.use_cache:
-                if len(list(self._cache[data_key].keys())) >= self.cache_maxsize:
-                    last_key = list(self._cache[data_key].keys())[-1]
+                if len(self._cache[data_key]) >= self.cache_maxsize:
+                    last_key = next(reversed(self._cache[data_key]))
                     del self._cache[data_key][last_key]
                 self._cache[data_key][trial_file_index] = imgs
             return imgs
@@ -1015,7 +1020,7 @@ class NoiseDataset(Dataset):
 
     def get_trial_portion(self, trial_file_index, data_key, starting_img_index, ending_img_index):
         if not self._test:
-            if self.use_cache and trial_file_index in list(self._cache[data_key].keys()):
+            if self.use_cache and trial_file_index in self._cache[data_key]:
                 value = self._cache[data_key][trial_file_index][:, :, starting_img_index:ending_img_index]
             else:
                 imgs = self.get_trial_file(trial_file_index, data_key=data_key)
@@ -1041,12 +1046,12 @@ def get_noise_dataloader(
     shuffle=True,
     use_cache=True,
     cache_maxsize=20,
-    num_of_frames=None,
+    num_of_frames: int = 15,
     device="cpu",
     crop=50,
     subsample=20,
-    time_chunk_size=1,
-    num_of_layers=None,
+    time_chunk_size: int = 1,
+    num_of_layers: int = 1,
     temporal_dilation=1,
     hidden_temporal_dilation=1,
     num_of_hidden_frames=None,
@@ -1102,13 +1107,13 @@ def white_noise_loader(
     retina_index=None,
     num_of_trials_to_use=None,
     start_using_trial=0,
-    num_of_frames=None,
+    num_of_frames: int | list[int] = 15,
     temporal_dilation=1,
     hidden_temporal_dilation=1,
     cell_index=0,
     device="cpu",
-    time_chunk_size=None,
-    num_of_layers=None,
+    time_chunk_size: int = 1,
+    num_of_layers: int = 1,
     retina_specific_crops=True,
     extra_frame=0,
     hard_coded=None,
@@ -1118,12 +1123,13 @@ def white_noise_loader(
     **kwargs,
 ):
     basepath = get_local_file_path(str(basepath))
-    dataloaders = {"train": {}, "validation": {}, "test": {}}
+    dataloaders: dict[str, dict] = {"train": {}, "validation": {}, "test": {}}
     if retina_index is None:
         retina_indices = list(files.keys())
     else:
         retina_indices = [retina_index]
-    responses = load_responses(basepath, files=files, excluded_cells=excluded_cells, cell_index=cell_index)
+    selected_files = {index: files[index] for index in retina_indices}
+    responses = load_responses(basepath, files=selected_files, excluded_cells=excluded_cells, cell_index=cell_index)
 
     for retina_index in retina_indices:
         train_responses = responses[retina_index]["train_responses"]
@@ -1150,18 +1156,16 @@ def white_noise_loader(
         if retina_specific_crops:
             crop = big_crops[retina_index]
 
+        locations = None
         if get_locations:
             assert sta_dir is not None
+            excluded = set(excluded_cells.get(retina_index, [])) if excluded_cells is not None else set()
             locations = get_locations_from_stas(
                 sta_dir=os.path.join(basepath, sta_dir),
                 retina_index=retina_index,
                 cells=[cell_index]
                 if cell_index is not None
-                else [
-                    x
-                    for x in range(0, train_responses.shape[0] + len(excluded_cells[retina_index]))
-                    if x not in excluded_cells[retina_index]
-                ],
+                else [x for x in range(0, train_responses.shape[0] + len(excluded)) if x not in excluded],
                 crop=crop,
                 flip_sta=False,
             )
