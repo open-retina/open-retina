@@ -79,7 +79,7 @@ Yes! `openretina` provides base classes for creating custom data loaders. Your d
 
 ### How do I create a custom model?
 
-You can create custom models by combining different core and readout modules, or by implementing your own PyTorch modules that follow the `openretina` interfaces. See the [Training Tutorial](package_docs/tutorials/training.md) for examples.
+You can create custom models by combining different core and readout modules, or by implementing your own PyTorch modules that follow the `openretina` interfaces. See [Training and Evaluation](package_docs/training/training_and_evaluation.md) for examples.
 
 ## **Performance and Troubleshooting**
 

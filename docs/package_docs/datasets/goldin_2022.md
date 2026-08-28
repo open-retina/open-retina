@@ -8,7 +8,7 @@
 | Axoltl     | multi-electrode array(MAEs) | Flashed Natural Images          | 1 (greyscale)              | 48           | (3.33Hz) One image every 300ms                            | 3.33Hz                  | 20              | 1           | None                                                       | 28                       |
 
 ## Dataset description
-Response to flashed images from the Van Hateren dataset (http://bethgelab.org/datasets/vanhateren/.).
+Response to flashed images from the Van Hateren dataset.
 All images are shown for 300ms and precedeed by 300ms of grey (~3000 images).  
 Some images are repeated and form the test set (30 images).
 The 'stimulus' section of the dataset contained only the image themselves.

@@ -8,7 +8,7 @@ This is the API reference for OpenRetina. It documents all public classes, funct
 - **Search**: Use the search function to find specific classes or functions
 - **Link to source**: Most entries link directly to the source code
 
-If you're new to OpenRetina, start with the [Quick Start](../package_docs/quickstart.md) or [Tutorials](../package_docs/tutorials/pretrained_models.md) before diving into the API reference.
+If you're new to OpenRetina, start with the [Quick Start](../package_docs/quickstart.md) or [training guide](../package_docs/training/index.md) before diving into the API reference.
 
 ## Modules
 

@@ -491,4 +491,4 @@ export MPLBACKEND="Agg"
 - [Installation Guide](../package_docs/installation.md): Setting up the environment
 - [Models API](./models.md): Using utilities with models
 - [Data I/O API](./data_io.md): Data handling utilities
-- [Plotting Examples](../package_docs/tutorials/pretrained_models.md): Visualization examples
+- [Quick Start](../package_docs/quickstart.md): Visualization examples

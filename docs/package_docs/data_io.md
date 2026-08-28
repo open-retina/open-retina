@@ -4,7 +4,7 @@
 
 Throughout the documentation we use *session* or *experimental session* to describe a single recording of retinal tissue under controlled conditions. Each session includes both the stimulus presentation and the corresponding neural responses, ensuring a shared temporal reference for inputs and outputs. Unless stated otherwise, we describe the general case of datasets that contain multiple sessions.
 
-If you are still surveying which datasets are already available, take a look at the [dataset reference](./datasets.md). For an end-to-end overview of how data flows into the training pipeline, see the [training guide](./training/index.md). For the exact container/dataloader/CLI data contract (including supporting multiple test dataloaders), see [Data IO flow and multi-test support](./data_io_flow.md).
+If you are still surveying which datasets are already available, take a look at the [dataset reference](./datasets/index.md). For an end-to-end overview of how data flows into the training pipeline, see the [training guide](./training/index.md). For the exact container/dataloader/CLI data contract (including supporting multiple test dataloaders), see [Data IO flow and multi-test support](./data_io_flow.md).
 
 ## Integrating a New Dataset
 

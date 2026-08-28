@@ -42,7 +42,7 @@ Beyond these required parameters you can tune regularisation weights and other h
 
 ## Extending or Customising Models
 
-Every core + readout variant inherits from `openretina.models.core_readout.BaseCoreReadout`, a subclass of `pytorch_lightning.LightningModule`. Lightning integration keeps the training loop, logging, and checkpointing logic inside the model, so you can focus on architecture design while staying compatible with the standard trainer entry points described in the [training tutorial](../tutorials/training.md).
+Every core + readout variant inherits from `openretina.models.core_readout.BaseCoreReadout`, a subclass of `pytorch_lightning.LightningModule`. Lightning integration keeps the training loop, logging, and checkpointing logic inside the model, so you can focus on architecture design while staying compatible with the standard trainer entry points described in [Training and Evaluation](./training_and_evaluation.md).
 
 When defining a new subclass you typically provide:
 

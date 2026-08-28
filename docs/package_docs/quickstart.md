@@ -62,5 +62,5 @@ Now that you're familiar with the basics, you can continue to learn about:
 - [Command Line Interface](./command_line.md)
 - [Architecture](./architecture.md)
 - [Loading different datasets](./data_io.md)
-- [Training your own models](./tutorials/training.md)
+- [Training your own models](./training/index.md)
 - [Advanced in-silico experiments](./insilico/index.md) 

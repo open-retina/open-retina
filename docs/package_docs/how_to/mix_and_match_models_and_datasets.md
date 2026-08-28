@@ -56,4 +56,4 @@ See also:
 
 - [Config templates](./config_templates.md)
 - [Unified Training Script](../training/unified_training.md)
-- [`docs/data_io_flow.md`](../../data_io_flow.md)
+- [`docs/package_docs/data_io_flow.md`](../data_io_flow.md)

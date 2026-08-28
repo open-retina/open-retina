@@ -23,15 +23,15 @@ OpenRetina is an open-source neural network toolkit for modeling retinal respons
 
 ## Tutorials
 
-- [Loading Pre-trained Models](./tutorials/pretrained_models.md) - Use existing models
-- [Training Custom Models](./tutorials/training.md) - Train on your own data
-- [Stimulus Optimization](./tutorials/stimulus_optimization.md) - Generate optimal stimuli
+- [Loading Pre-trained Models](./quickstart.md) - Use existing models
+- [Training Custom Models](./training/training_and_evaluation.md) - Train on your own data
+- [Stimulus Optimization](./insilico/optimised_stimuli.md) - Generate optimal stimuli
 
 ## Reference
 
 - [API Reference](../api_reference/index.md) - Complete API documentation
 - [Model Zoo](./model_zoo.md) - Available pre-trained models
-- [Dataset Reference](./datasets.md) - Supported datasets
+- [Dataset Reference](./datasets/index.md) - Supported datasets
 
 ## Contribution Guides
 

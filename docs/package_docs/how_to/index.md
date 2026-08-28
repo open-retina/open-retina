@@ -8,7 +8,7 @@ This page is the fastest way to find the right OpenRetina entry point for your g
 - **Run a pre-trained model for inference**: use the [Quick Start guide](../quickstart.md).
 - **Train in a notebook first**: begin with [`notebooks/openretina_demo.ipynb`](https://github.com/open-retina/open-retina/blob/main/notebooks/openretina_demo.ipynb), then check [Training overview](../training/index.md).
 - **Train from the CLI with configs**: go to the [Command Line guide](../command_line.md) and the [Unified Training Script guide](../training/unified_training.md).
-- **Add a new dataset**: follow [Data I/O](../data_io.md), [`docs/data_io_flow.md`](../../data_io_flow.md), and [`notebooks/new_datasets_guide.ipynb`](https://github.com/open-retina/open-retina/blob/main/notebooks/new_datasets_guide.ipynb).
+- **Add a new dataset**: follow [Data I/O](../data_io.md), [`docs/package_docs/data_io_flow.md`](../data_io_flow.md), and [`notebooks/new_datasets_guide.ipynb`](https://github.com/open-retina/open-retina/blob/main/notebooks/new_datasets_guide.ipynb).
 - **Contribute a new model**: start from [Core-Readout models](../training/core_readout.md) and [Contributing](../contributing.md).
 - **Evaluate an existing or trained model**: use [Command Line](../command_line.md#evaluate-a-model) and [Training and Evaluation](../training/training_and_evaluation.md).
 
