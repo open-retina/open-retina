@@ -359,7 +359,7 @@ class PointGaussianReadout(Readout):
         self.register_buffer("grid_sharing_index", torch.from_numpy(sharing_idx))
         self._shared_grid = True
 
-    def forward(self, x, sample=None, shift=None, out_idx=None, **kwargs):
+    def forward(self, x, sample=None, shift=None, out_idx=None, **kwargs) -> torch.Tensor:
         """
         Propagates the input forwards through the readout
         Args:
@@ -374,14 +374,14 @@ class PointGaussianReadout(Readout):
             out_idx (bool): index of neurons to be predicted
 
         Returns:
-            y: neuronal activity
+            torch.Tensor: Neuronal activity.
         """
         N, c, w, h = x.size()
         c_in, _, w_in, h_in = self.in_shape
         if (c_in, w_in, h_in) != (c, w, h):
             warnings.warn("the specified feature map dimension is not the readout's expected input dimension")
         feat = self.features.view(1, c, self.outdims)
-        bias = self.bias
+        bias: torch.Tensor | None = self.bias
         outdims = self.outdims
 
         if self.batch_sample:
@@ -407,7 +407,7 @@ class PointGaussianReadout(Readout):
         y = F.grid_sample(x, grid, align_corners=self.align_corners)
         y = (y.squeeze(-1) * feat).sum(1).view(N, outdims)
 
-        if self.bias is not None:
+        if bias is not None:
             y = y + bias
         return y
 

@@ -3,6 +3,8 @@ from typing import Optional
 
 
 class OptimizationStopper:
+    """Base stopping criterion for stimulus optimization. Stops after max_iterations."""
+
     def __init__(self, max_iterations: Optional[int]):
         if max_iterations is None:
             self.max_iterations = sys.maxsize
@@ -14,6 +16,8 @@ class OptimizationStopper:
 
 
 class EarlyStopper(OptimizationStopper):
+    """Stops optimization when loss stops improving for `patience` consecutive steps."""
+
     def __init__(self, max_iterations: Optional[int] = None, patience: int = 1, min_delta: float = 0.0):
         super().__init__(max_iterations)
         self._patience = patience

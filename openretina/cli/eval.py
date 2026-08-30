@@ -36,6 +36,9 @@ def main(cfg: DictConfig) -> float | None:
 
 
 def evaluate_model(cfg: DictConfig) -> float:
+    """Run the full evaluation pipeline: load a trained model, compute per-neuron metrics
+    (correlation, FEVe, Poisson loss, oracle), and return the mean correlation.
+    """
     log.info("Logging full config:")
     log.info(OmegaConf.to_yaml(cfg))
 

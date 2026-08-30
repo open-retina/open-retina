@@ -2,6 +2,11 @@ import torch
 
 
 class PoissonLoss3d(torch.nn.Module):
+    """Poisson negative log-likelihood loss for 3D (batch, time, neurons) predictions.
+
+    Handles temporal lag between target and output automatically.
+    """
+
     def __init__(self, bias: float = 1e-16, per_neuron: bool = False, avg: bool = False):
         super().__init__()
         self.bias = bias
@@ -55,6 +60,8 @@ class L1PoissonLoss3d(torch.nn.Module):
 
 
 class CelltypePoissonLoss3d(torch.nn.Module):
+    """Poisson loss with inverse-frequency weighting by cell type, so under-represented types contribute equally."""
+
     def __init__(self, bias: float = 1e-16, per_neuron: bool = False, avg: bool = False):
         super().__init__()
         self.bias = bias

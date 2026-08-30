@@ -120,9 +120,8 @@ def load_all_stimuli(
     Load stimuli for all sessions.
 
     Args:
-        base_data_path (str | os.PathLike): Base directory containing session data.
-                                            Can also be the path to the "sessions" folder in the huggingface mirror.
-        "https://huggingface.co/datasets/open-retina/open-retina/tree/main/gollisch_lab/karamanlis_2024/sessions"
+        base_data_path (str | os.PathLike): Base directory containing session data. The `sessions` folder in the
+            OpenRetina Hugging Face mirror is also supported.
         stim_type (str): The stimulus type to filter files.
         normalize_stimuli (bool): Whether to normalize the stimuli.
         specie (str): Animal species (e.g., "mouse", "marmoset").

@@ -1,6 +1,6 @@
 import os
 import warnings
-from typing import Callable, Iterable, Literal, Optional
+from typing import Any, Callable, Iterable, Literal, Optional
 
 import torch
 import torch.nn as nn
@@ -23,7 +23,7 @@ class MultiReadoutBase(nn.ModuleDict):
 
 
     Args:
-        in_shape_dict (dict): dictionary of data_key and the corresponding dataset's shape as an output of the core.
+        in_shape (tuple): Shape of the core output passed to each readout.
 
         n_neurons_dict (dict): dictionary of data_key and the corresponding dataset's number of neurons
 
@@ -38,8 +38,6 @@ class MultiReadoutBase(nn.ModuleDict):
                                 scale and offset. This is a rather simple method to enforce parameter-sharing
                                 between readouts.
 
-        gamma_readout (float): regularization strength
-
         **kwargs: additional keyword arguments to be passed to the base_readout's constructor
     """
 
@@ -53,7 +51,7 @@ class MultiReadoutBase(nn.ModuleDict):
         mean_activity_dict: dict[str, Float[torch.Tensor, " neurons"]] | None = None,
         clone_readout=False,
         readout_reg_avg: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ):
         # The `base_readout` can be overridden only if the static property `_base_readout_cls` is not set
         if self._base_readout_cls is None:

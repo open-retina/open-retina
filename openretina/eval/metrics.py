@@ -203,7 +203,8 @@ def feve(
     Args:
         targets (array-like): Neuron responses (ground truth) over time / different images across repetitions.
         predictions (array-like): Model predictions to the repeated images, either including or excluding
-        repetitions. Dimensions: np.array(images/time, num_repeats, num_neurons) or np.array(images/time, num_neurons)
+            repetitions. Expected shape is `(frames, repeats, neurons)` or `(frames, neurons)`.
+
     Returns:
         FEVe (np.array): the fraction of explainable variance explained per neuron
 
@@ -233,11 +234,14 @@ def feve(
 
 
 def crop_responses(responses: np.ndarray, predictions: np.ndarray) -> tuple[np.ndarray, int]:
-    """
+    """Crop responses to match prediction length, accounting for temporal lag.
 
-    :param responses: array of responses, last axis is time
-    :param predictions: array of predictions, first axis is time
-    :return: responses cropped to same shape as predictions
+    Args:
+        responses: Array of responses, last axis is time.
+        predictions: Array of predictions, first axis is time.
+
+    Returns:
+        Tuple of (cropped responses, lag).
     """
 
     lag = responses.shape[-1] - predictions.shape[0]

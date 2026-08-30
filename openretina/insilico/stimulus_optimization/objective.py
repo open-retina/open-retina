@@ -9,6 +9,8 @@ log = logging.getLogger(__name__)
 
 
 class ResponseReducer(ABC):
+    """Abstract base class for reducing a response tensor (e.g. over time) to a scalar objective value."""
+
     def __init__(self, axis: int = 0):
         self._axis = axis
 
@@ -27,7 +29,7 @@ class MeanReducer(ResponseReducer):
 
 class SliceMeanReducer(ResponseReducer):
     def __init__(self, axis: int, start: int, length: int):
-        """ """
+        """Reduce by averaging over a temporal slice starting at `start` for `length` frames."""
         super().__init__(axis)
         self.start = start
         self.length = length
@@ -52,6 +54,8 @@ class SliceMeanReducer(ResponseReducer):
 
 
 class AbstractObjective(ABC):
+    """Base class for stimulus optimization objectives. Wraps a model and optional data_key for forward passes."""
+
     def __init__(self, model, data_key: str | None):
         self._model = model
         self._data_key = data_key
@@ -70,6 +74,8 @@ class AbstractObjective(ABC):
 
 
 class IncreaseObjective(AbstractObjective):
+    """Objective that maximizes the mean response of specified neurons."""
+
     def __init__(self, model, neuron_indices: list[int] | int, data_key: str | None, response_reducer: ResponseReducer):
         super().__init__(model, data_key)
         self._neuron_indices = [neuron_indices] if isinstance(neuron_indices, int) else neuron_indices
@@ -110,6 +116,9 @@ class _ModuleHook:
 
 
 class InnerNeuronVisualizationObjective(AbstractObjective):
+    """Objective for visualizing feature preferences of individual channels in intermediate
+    model layers via forward hooks."""
+
     def __init__(self, model, data_key: str | None, response_reducer: ResponseReducer):
         super().__init__(model, data_key)
         self.features_dict = self.hook_model(model)
