@@ -275,9 +275,11 @@ class DummyCore(Core):
         )
 
     def forward(self, x, data_key=None, **kwargs):
-        if self.color_squashing_layer is not None:
-            x = self.color_squashing_layer(x)
+        # Cut first, squash second: the squash is pointwise in time, so squashing frames that are
+        # about to be dropped only buys a larger intermediate (25% larger at 150 frames, cut 30).
         res = x[:, :, self._cut_first_n_frames :]
+        if self.color_squashing_layer is not None:
+            res = self.color_squashing_layer(res)
         return res
 
     def regularizer(self):
