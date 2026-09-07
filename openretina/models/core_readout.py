@@ -402,12 +402,20 @@ class UnifiedCoreReadout(BaseCoreReadout):
             self.learning_rate,
         )
 
+        # `self.trainer` raises RuntimeError rather than AttributeError when the model is not
+        # attached to one, which `getattr(self, "trainer", None)` does not catch - so the optional
+        # trainer (only OneCycleLR needs it) has to be obtained explicitly.
+        try:
+            trainer = self.trainer
+        except RuntimeError:
+            trainer = None
+
         # Instantiate scheduler using utility function
         scheduler_dict = instantiate_scheduler(
             self.lr_scheduler_config,
             optimizer,
             self.learning_rate,
-            trainer=getattr(self, "trainer", None),
+            trainer=trainer,
         )
 
         return {
