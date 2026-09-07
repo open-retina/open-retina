@@ -32,7 +32,8 @@ model:
     color_squashing_weights: [0.5, 0.5] # mean of the green and UV channels
 
 data_io:
-  retina_pixel_size_um: 50 # 4x bigger than high res model
+  data_info:
+    retina_pixel_size_um: 50 # 4x bigger than high res model
 
 paths:
   load_model_path: null
