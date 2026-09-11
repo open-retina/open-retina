@@ -149,7 +149,8 @@ class TimeIndependentConv3D(nn.Module):
 
     @property
     def weight_spatial(self):
-        return self.conv.weight.data
+        # Return the parameter itself (not .data), so that regularizers using it contribute gradients
+        return self.conv.weight
 
     def forward(self, input_: torch.Tensor | tuple[torch.Tensor, str]) -> torch.Tensor:
         if type(input_) is torch.Tensor:
@@ -171,7 +172,8 @@ class TimeIndependentConv3D(nn.Module):
         fig_axes_tuple = plt.subplots(ncols=ncols, figsize=(ncols * 6, 6))
         fig: plt.Figure = fig_axes_tuple[0]
         axes: list[plt.Axes] = fig_axes_tuple[1]  # type: ignore
-        spatial_weight = self.conv.weight.data.detach().cpu().numpy()[out_channel, in_channel, 0]
+        # Copy, as numpy() shares memory with the weights on cpu and we potentially flip the sign below
+        spatial_weight = self.conv.weight.detach().cpu().numpy()[out_channel, in_channel, 0].copy()
 
         center_x, center_y = int(spatial_weight.shape[0] / 2), int(spatial_weight.shape[1] / 2)
         # Optionally make sure the center of the weight matrix is positive
@@ -350,7 +352,8 @@ class STSeparableBatchConv3d(nn.Module):
 
     def get_spatial_weight(self, in_channel: int, out_channel: int) -> np.ndarray:
         spatial_2d_tensor = self.weight_spatial[out_channel, in_channel, 0]
-        spatial_2d_np = spatial_2d_tensor.detach().cpu().numpy()
+        # Copy, as numpy() shares memory with the weights on cpu and callers might modify the array
+        spatial_2d_np = spatial_2d_tensor.detach().cpu().numpy().copy()
         return spatial_2d_np
 
     def get_temporal_weight(self, in_channel: int, out_channel: int) -> tuple[np.ndarray, float]:
@@ -367,8 +370,9 @@ class STSeparableBatchConv3d(nn.Module):
         return temporal_trace_np, global_abs_max
 
     def get_sin_cos_weights(self, in_channel: int, out_channel: int) -> tuple[np.ndarray, np.ndarray]:
-        sin_trace = self.sin_weights[out_channel, in_channel].detach().cpu().numpy()
-        cos_trace = self.cos_weights[out_channel, in_channel].detach().cpu().numpy()
+        # Copy, as numpy() shares memory with the weights on cpu and callers might modify the arrays
+        sin_trace = self.sin_weights[out_channel, in_channel].detach().cpu().numpy().copy()
+        cos_trace = self.cos_weights[out_channel, in_channel].detach().cpu().numpy().copy()
         return sin_trace, cos_trace
 
     def plot_weights(
