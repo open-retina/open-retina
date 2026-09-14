@@ -49,6 +49,7 @@ test-notebooks:  # ignore compute and disk space heavy notebooks
 		--ignore-glob='notebooks/training*.ipynb' \
 		--ignore-glob='notebooks/vector_field_analysis*.ipynb' \
 		--ignore-glob='notebooks/new_datasets_guide*.ipynb' \
+		--ignore-glob='notebooks/qiu_2026_*.ipynb' \
 		notebooks/
 
 # Fast tool runs without creating a full project environment - used in actions
