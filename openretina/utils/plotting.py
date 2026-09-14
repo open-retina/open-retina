@@ -355,7 +355,12 @@ def plot_vector_field_resp_iso(
     if normalize_response:
         Z = Z / Z.max() * 100
     gradient_grid = gradient_dict[:, 1:-1, 1:-1]
-    X, Y = np.meshgrid(x, x)
+    if gradient_dict.shape[1:] != (len(x), len(y)):
+        raise ValueError(
+            f"gradient_dict has grid shape {gradient_dict.shape[1:]}, but the axes are "
+            f"({len(x)}, {len(y)}). Expected (len(x), len(y))."
+        )
+    X, Y = np.meshgrid(x, y)
 
     # Define levels for isoresponse lines
     levels = np.linspace(Z.min(), Z.max(), n_lines)
