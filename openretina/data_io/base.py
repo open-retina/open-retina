@@ -308,14 +308,19 @@ def compute_data_info(
 
         if len(norm_means) > 0:
             if not np.allclose(norm_means, norm_means[0], atol=1, rtol=0):
-                raise ValueError(f"Normalization means are not consistent across stimuli: {norm_means}")
+                # Some datasets (e.g. qiu_2026) intentionally normalize each session with its own
+                # statistics rather than a single shared scalar; stim_mean/stim_std are only consumed by
+                # the (optional) vector-field-analysis interpretability tool, not by training/eval, so we
+                # warn and fall back to the first session's value rather than hard-failing every
+                # multi-session run of such datasets.
+                warnings.warn(f"Normalization means are not consistent across stimuli: {norm_means}", stacklevel=2)
             stim_mean = norm_means[0]
         else:
             stim_mean = 0.0
             warnings.warn(f"No stimulus mean set, setting {stim_mean=}")
         if len(norm_stds) > 0:
             if not np.allclose(norm_stds, norm_stds[0], atol=1, rtol=0):
-                raise ValueError(f"Normalization stds are not consistent across stimuli: {norm_stds}")
+                warnings.warn(f"Normalization stds are not consistent across stimuli: {norm_stds}", stacklevel=2)
             stim_std = norm_stds[0]
         else:
             stim_std = 1.0
