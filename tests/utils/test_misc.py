@@ -48,3 +48,14 @@ def test_check_server_responding_passes_a_timeout(monkeypatch) -> None:
     monkeypatch.setattr(requests, "get", _capture)
     assert check_server_responding(URL, timeout=1.5) is True
     assert captured["timeout"] == 1.5
+
+
+@pytest.mark.parametrize("bad_url", ["example.invalid/no-scheme", "https://"])
+def test_check_server_responding_propagates_malformed_urls(bad_url: str) -> None:
+    """A typo in the URL is a caller bug, not an unreachable server.
+
+    Reporting it as "not responding" would make a `skipif` guarded on it skip its test silently and
+    forever, so MissingSchema/InvalidURL are deliberately outside the caught set.
+    """
+    with pytest.raises(requests.exceptions.RequestException):
+        check_server_responding(bad_url)

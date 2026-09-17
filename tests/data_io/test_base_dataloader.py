@@ -99,3 +99,7 @@ def test_neuron_data_split_response_dicts_are_cached() -> None:
     # Same tensor object per key, not just an equal one -- that is what makes the loop O(N) not O(N^2).
     assert neuron_data.response_dict_test["cond1"]["avg"] is neuron_data.response_dict_test["cond1"]["avg"]
     assert neuron_data.response_dict["train"].shape[1] == N_NEURONS
+
+    # The "test" entry must be the same object, not a duplicate: no caller reads it, and caching a
+    # second copy of every test tensor would hold it for the lifetime of the instance.
+    assert neuron_data.response_dict["test"] is neuron_data.response_dict_test

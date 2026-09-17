@@ -199,8 +199,19 @@ def plot_stimulus_composition(
         2: ("Green", "UV"),
         3: ("Red", "Green", "Blue"),
     }
-    color_array = color_array_map[num_color_channels]
-    color_channel_names_array = color_channel_names_map[num_color_channels]
+    # Past three channels there is no colour convention to guess at -- channels are not necessarily
+    # colours (qiu_2026 folds behavioural traces in as extra input channels). Fall back to
+    # matplotlib's cycle and generic names instead of raising KeyError, which callers such as
+    # `openretina visualize-model-neurons` would hit only after paying for the whole optimisation.
+    fallback_colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+    color_array = color_array_map.get(
+        num_color_channels,
+        [fallback_colors[i % len(fallback_colors)] for i in range(num_color_channels)],
+    )
+    color_channel_names_array = color_channel_names_map.get(
+        num_color_channels,
+        tuple(f"Ch{i}" for i in range(num_color_channels)),
+    )
 
     stimulus_time = np.linspace(0, time_steps / FRAME_RATE_MODEL, time_steps)
     weighted_main_freqs = [0.0] * num_color_channels

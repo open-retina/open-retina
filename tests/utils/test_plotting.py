@@ -7,6 +7,7 @@ import pytest
 
 from openretina.utils.plotting import (
     numpy_to_mp4_video,
+    plot_stimulus_composition,
     plot_vector_field_resp_iso,
     save_stimulus_to_mp4_video,
 )
@@ -77,3 +78,29 @@ def test_plot_vector_field_resp_iso_rejects_a_mismatched_grid() -> None:
 
     with pytest.raises(ValueError, match="grid shape"):
         plot_vector_field_resp_iso(x, y, gradient_dict, resp_dict)
+
+
+@pytest.mark.parametrize("num_channels", [1, 2, 3, 4, 6])
+def test_plot_stimulus_composition_handles_any_channel_count(num_channels: int) -> None:
+    """Channels are not necessarily colours, so >3 of them must plot rather than raise.
+
+    The colour maps only key 1/2/3; indexing them directly raised `KeyError: 4` for a 4-channel
+    model, and `visualize_model_neurons` hits this call outside its try/except -- i.e. after the
+    full MEI optimisation has already been paid for.
+    """
+    # >18 frames: the frequency panel lowpass-filters the temporal trace and needs the padlen.
+    stimulus = np.random.rand(num_channels, 50, 18, 16)
+    fig, axes = plt.subplots(2, 2)
+
+    plot_stimulus_composition(
+        stimulus=stimulus,
+        temporal_trace_ax=axes[0, 0],
+        freq_ax=axes[0, 1],
+        spatial_ax=axes[1, 0],
+    )
+
+    # One temporal trace per channel, each in a distinct colour.
+    lines = axes[0, 0].get_lines()
+    assert len(lines) == num_channels
+    assert len({line.get_color() for line in lines}) == num_channels
+    plt.close(fig)

@@ -174,11 +174,14 @@ class SafeLoaderWithTuple(yaml.SafeLoader):
 def check_server_responding(url: str, timeout: float = 5.0) -> bool:
     """Return whether `url` answers with 200, False on any network-level failure.
 
-    Catches requests.exceptions.RequestException, NOT the builtin ConnectionError: requests raises its
-    own identically-named class from a different hierarchy (requests.exceptions.ConnectionError ->
+    Catches requests' own exception classes, NOT the builtin ConnectionError: requests raises an
+    identically-named class from a different hierarchy (requests.exceptions.ConnectionError ->
     RequestException -> OSError), which is not a subclass of the builtin, so `except ConnectionError`
-    looked right and caught nothing. RequestException is the base of every error requests raises, so
-    timeouts and redirect loops report "not responding" too, rather than escaping.
+    looked right and caught nothing. Timeouts and redirect loops report "not responding" too.
+
+    Deliberately narrower than the RequestException base: that also covers MissingSchema/InvalidURL,
+    which mean the *caller's* URL is malformed, not that the server is down. Swallowing those would
+    make a typo in a `skipif` URL skip the guarded test silently and forever, so they propagate.
 
     This runs inside a pytest `skipif` condition, which is evaluated at COLLECTION time -- an escaping
     exception aborts collection of the whole suite instead of skipping one test, and a hang stalls it,
@@ -186,7 +189,11 @@ def check_server_responding(url: str, timeout: float = 5.0) -> bool:
     """
     try:
         response = requests.get(url, timeout=timeout)
-    except requests.exceptions.RequestException:
+    except (
+        requests.exceptions.ConnectionError,
+        requests.exceptions.Timeout,
+        requests.exceptions.TooManyRedirects,
+    ):
         return False
 
     return response.status_code == 200

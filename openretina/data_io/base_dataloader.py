@@ -441,6 +441,12 @@ class NeuronDataSplit:
         (e.g. `response_dict[fold]` once per fold), so an uncached property rebuilds the whole
         structure once per lookup. See `response_dict_test` for how bad that gets.
 
+        The "test" entry IS the cached `response_dict_test` object, not a second copy of it. Building
+        the test tensors here too would allocate a full duplicate of every test response (torch.tensor
+        always copies) and, now that this property is cached, hold it for the lifetime of the instance
+        -- while no caller of this class ever reads `response_dict["test"]`; they all go through
+        `response_dict_test`.
+
         Structure:
             {
                 "train": Tensor[T_train, neurons],
@@ -454,19 +460,10 @@ class NeuronDataSplit:
                 }
             }
         """
-        test_entries = {
-            name: {
-                "avg": torch.tensor(responses.T, dtype=torch.float),
-                "by_trial": torch.tensor(self.test_responses_by_trial[name], dtype=torch.float)
-                if name in self.test_responses_by_trial
-                else None,
-            }
-            for name, responses in self.neural_responses.test_dict.items()
-        }
         return {
             "train": torch.tensor(self.responses_train, dtype=torch.float),
             "validation": torch.tensor(self.responses_val, dtype=torch.float),
-            "test": test_entries,
+            "test": self.response_dict_test,
         }
 
     @cached_property

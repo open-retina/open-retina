@@ -62,7 +62,14 @@ dev = [
 devmodels = ["neuralpredictors"]
 optuna = [ # for hyperparameter tuning
     "hydra-optuna-sweeper",
-    "sqlalchemy>=1.4,<2",  # optuna 2.10 + SQLAlchemy 2.0 breaks RDBStorage schema; optuna<3 required by sweeper
+    # optuna 2.10 + SQLAlchemy 2.0 breaks the RDBStorage schema, and optuna<3 is required by the
+    # sweeper. NOTE: this pin is not confined to the extra -- uv resolves one version per package
+    # across all extras, so uv.lock holds sqlalchemy 1.4.54 for EVERY install, including plain
+    # `uv sync`. mlflow (a core dependency) therefore runs on SQLAlchemy 1.4; that is inside its
+    # declared `>=1.4.0,<3` range, so it is supported rather than broken. Isolating the pin would
+    # mean declaring the extras conflicting under [tool.uv], which would stop `dev` and `optuna`
+    # from being installed together.
+    "sqlalchemy>=1.4,<2",
 ]
 
 [tool.setuptools]
