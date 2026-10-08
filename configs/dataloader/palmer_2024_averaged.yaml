@@ -1,0 +1,12 @@
+_target_: openretina.data_io.palmer_2024.dataloaders.repeats_dataloaders
+_convert_: object
+average_repeats: true
+batch_size: 4
+train_chunk_size: 90
+train_chunk_stride: 60 # The core removes 30 context frames, so 60-frame predictions tile the movie continuously.
+clip_length: 1170
+num_val_clips: 1
+val_clip_indices: [1] # Leave out water; sweep [0], [1], [2], [3] for four-fold leave-one-movie-out validation.
+response_key: ${data_io.responses.response_key}
+fr_normalization: ${data_io.responses.fr_normalization}
+exclude_initial_frames: ${data_io.exclude_initial_frames}
