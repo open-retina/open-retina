@@ -49,13 +49,7 @@ def _vector_field_inputs(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.n
 
 
 def test_plot_vector_field_resp_iso_uses_the_y_axis_for_y() -> None:
-    """`np.meshgrid(x, x)` drew the response surface on the x range in BOTH directions.
-
-    `y` was a declared parameter the body never read, so any grid whose two axes differ -- the
-    normal case once the function is used for anything but the symmetric [-1, 1] chromatic
-    contrast grid -- put the contours at the wrong coordinates while the arrows, which do read
-    `y`, stayed correct. Nothing raised; the figure was simply wrong.
-    """
+    """The response contours must be drawn on the y axis, not on x in both directions."""
     x = np.linspace(-1.0, 1.0, 5)
     y = np.linspace(10.0, 12.0, 5)
     gradient_dict, resp_dict = _vector_field_inputs(x, y)
@@ -63,8 +57,6 @@ def test_plot_vector_field_resp_iso_uses_the_y_axis_for_y() -> None:
     fig = plot_vector_field_resp_iso(x, y, gradient_dict, resp_dict)
     ax = fig.gca()
 
-    # The drawn data must lie within the y range, not the x range. Under the bug the contour
-    # surface spanned [-1, 1] vertically, dragging the lower bound far below y.min().
     assert ax.dataLim.y0 >= y.min() - 0.5, f"y data starts at {ax.dataLim.y0}, below the y axis {y.min()}"
     assert ax.dataLim.y1 <= y.max() + 0.5, f"y data ends at {ax.dataLim.y1}, above the y axis {y.max()}"
     plt.close(fig)
@@ -82,12 +74,7 @@ def test_plot_vector_field_resp_iso_rejects_a_mismatched_grid() -> None:
 
 @pytest.mark.parametrize("num_channels", [1, 2, 3, 4, 6])
 def test_plot_stimulus_composition_handles_any_channel_count(num_channels: int) -> None:
-    """Channels are not necessarily colours, so >3 of them must plot rather than raise.
-
-    The colour maps only key 1/2/3; indexing them directly raised `KeyError: 4` for a 4-channel
-    model, and `visualize_model_neurons` hits this call outside its try/except -- i.e. after the
-    full MEI optimisation has already been paid for.
-    """
+    """Channels are not necessarily colours, so >3 of them must plot rather than raise."""
     # >18 frames: the frequency panel lowpass-filters the temporal trace and needs the padlen.
     stimulus = np.random.rand(num_channels, 50, 18, 16)
     fig, axes = plt.subplots(2, 2)

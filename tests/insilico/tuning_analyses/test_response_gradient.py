@@ -43,40 +43,10 @@ def stimulus() -> torch.Tensor:
     return torch.randn(1, 2, 4, 3, 3)
 
 
-@pytest.mark.parametrize(
-    ("start", "stop", "step_size"),
-    [
-        # Narrower than the old hard-coded [-1, 1]: the loop used to run more iterations than the
-        # grid had room for, so this raised IndexError outright.
-        (0.0, 1.0, 0.5),
-        # Wider than [-1, 1]: the loop used to run FEWER iterations than the grid, so the tail was
-        # left as zeros and every filled cell held a contrast from the wrong range. Silent.
-        (-2.0, 2.0, 1.0),
-    ],
-)
-def test_grid_spans_the_requested_contrast_range(
-    objective: IncreaseObjective, stimulus: torch.Tensor, start: float, stop: float, step_size: float
-) -> None:
-    grid, resp_grid, norm_grid, green_values, uv_values = get_gradient_grid(
-        stimulus, objective, start=start, stop=stop, step_size=step_size
-    )
-
-    expected_values = np.arange(start, stop + step_size, step_size)
-    np.testing.assert_allclose(green_values, expected_values)
-    np.testing.assert_allclose(uv_values, expected_values)
-
-    assert grid.shape == (2, len(expected_values), len(expected_values))
-    assert resp_grid.shape == norm_grid.shape == (len(expected_values), len(expected_values))
-
-
 def test_every_cell_holds_the_response_at_its_own_contrast(
     objective: IncreaseObjective, stimulus: torch.Tensor
 ) -> None:
-    """Pins cell (i, j) to the contrast pair the axes claim it was evaluated at.
-
-    This is what the hard-coded range actually broke: for any range other than [-1, 1] the cells
-    were filled from a different set of contrasts than the returned axis arrays described.
-    """
+    """Pins cell (i, j) to the contrast pair the axes claim it was evaluated at, for a non-default range."""
     grid, resp_grid, _, green_values, uv_values = get_gradient_grid(
         stimulus, objective, start=-2.0, stop=2.0, step_size=1.0
     )

@@ -121,12 +121,8 @@ def generate_movie_splits(
     num_clips: int,
     clip_length: int,
 ) -> tuple[torch.Tensor, torch.Tensor, dict[str, torch.Tensor]]:
-    # as_tensor, not tensor: this is a whole-session movie (up to ~4 GB for qiu_2026) and it is only
-    # ever READ below -- sliced into `movie_val` and `movie_train_subset`, both of which allocate
-    # their own storage. torch.tensor() would copy it in full for nothing. Inputs that are already
-    # float32 ndarrays therefore cost zero extra bytes here; other dtypes still convert (i.e. copy),
-    # exactly as before. The test movies below stay real copies on purpose: they ARE retained by the
-    # test dataloaders, so aliasing them would keep each session's source movie alive.
+    # as_tensor avoids copying the (potentially multi-GB) movie: it is only read and sliced into new
+    # tensors below. The test movies are copied on purpose, as the test dataloaders retain them.
     movie_train = torch.as_tensor(movie_train, dtype=torch.float)
     movie_test_dict = {n: torch.tensor(movie, dtype=torch.float) for n, movie in movie_test.items()}
 
@@ -437,15 +433,8 @@ class NeuronDataSplit:
         """
         Create and return a dictionary of neural responses for train, validation, and test datasets.
 
-        Cached: every access rebuilds every tensor below, and callers index a single key per access
-        (e.g. `response_dict[fold]` once per fold), so an uncached property rebuilds the whole
-        structure once per lookup. See `response_dict_test` for how bad that gets.
-
-        The "test" entry IS the cached `response_dict_test` object, not a second copy of it. Building
-        the test tensors here too would allocate a full duplicate of every test response (torch.tensor
-        always copies) and, now that this property is cached, hold it for the lifetime of the instance
-        -- while no caller of this class ever reads `response_dict["test"]`; they all go through
-        `response_dict_test`.
+        Cached, since callers index one key per access. The "test" entry is the cached
+        `response_dict_test` object rather than a copy of it.
 
         Structure:
             {
@@ -471,12 +460,8 @@ class NeuronDataSplit:
         """
         Torch representation of the averaged and per-trial test responses keyed by stimulus name.
 
-        Cached because callers index one stimulus per access inside a loop over stimuli
-        (`response_dict_test[name]`), while each access builds the tensors for ALL of them. Uncached,
-        a session with N test conditions did O(N^2) tensor allocations to keep N of them -- for
-        qiu_2026's ~95 conditions per session that is ~9000 allocations instead of ~95, measured at
-        49x slower for one session's worth of accesses. Whether that churn also lifted the peak RSS
-        is allocator-dependent and was not measured; the speedup alone justifies the cache.
+        Cached because callers index one stimulus per access inside a loop over stimuli, while
+        building it creates the tensors for all of them.
 
         Returns:
             {

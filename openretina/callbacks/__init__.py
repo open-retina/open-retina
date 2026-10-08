@@ -1,2 +1,1 @@
-"""Lightning callbacks used by the training CLI.
-"""
+"""Lightning callbacks used by the training CLI."""

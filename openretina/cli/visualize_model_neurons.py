@@ -93,10 +93,7 @@ def _get_min_max_values_and_norm(num_channels: int) -> tuple[list[tuple], float 
         norm = float(STIMULUS_RANGE_CONSTRAINTS["norm"])
         return min_max_values, norm
     else:
-        # One (min, max) pair per channel: `ChangeNormJointlyClipRangeSeparately` and
-        # `RangeRegularizationLoss` both index this list by channel, and the former asserts its
-        # length matches. Returning a single pair worked only for 1-channel models and tripped
-        # that assert for every other non-2-channel model.
+        # One (min, max) pair per channel: downstream regularizers index this list by channel.
         return [(None, None)] * num_channels, None
 
 

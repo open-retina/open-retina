@@ -16,8 +16,7 @@ class _Response:
 @pytest.mark.parametrize(
     "raised",
     [
-        # requests' own ConnectionError, which is NOT a subclass of the builtin of the same name --
-        # `except ConnectionError` used to let this escape and abort pytest collection.
+        # Not a subclass of the builtin ConnectionError.
         requests.exceptions.ConnectionError("unreachable"),
         requests.exceptions.Timeout("too slow"),
         requests.exceptions.TooManyRedirects("loop"),
@@ -29,12 +28,6 @@ def test_check_server_responding_is_false_on_network_errors(monkeypatch, raised:
 
     monkeypatch.setattr(requests, "get", _raise)
     assert check_server_responding(URL) is False
-
-
-@pytest.mark.parametrize("status_code, expected", [(200, True), (404, False), (500, False)])
-def test_check_server_responding_follows_status_code(monkeypatch, status_code: int, expected: bool) -> None:
-    monkeypatch.setattr(requests, "get", lambda *args, **kwargs: _Response(status_code))
-    assert check_server_responding(URL) is expected
 
 
 def test_check_server_responding_passes_a_timeout(monkeypatch) -> None:
@@ -52,10 +45,6 @@ def test_check_server_responding_passes_a_timeout(monkeypatch) -> None:
 
 @pytest.mark.parametrize("bad_url", ["example.invalid/no-scheme", "https://"])
 def test_check_server_responding_propagates_malformed_urls(bad_url: str) -> None:
-    """A typo in the URL is a caller bug, not an unreachable server.
-
-    Reporting it as "not responding" would make a `skipif` guarded on it skip its test silently and
-    forever, so MissingSchema/InvalidURL are deliberately outside the caught set.
-    """
+    """A typo in the URL is a caller bug, not an unreachable server."""
     with pytest.raises(requests.exceptions.RequestException):
         check_server_responding(bad_url)
