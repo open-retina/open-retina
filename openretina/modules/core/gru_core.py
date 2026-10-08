@@ -1,3 +1,4 @@
+import os
 from builtins import int
 from collections import OrderedDict
 from typing import Any
@@ -280,6 +281,16 @@ class ConvGRUCore(Core3d, nn.Module):
     @property
     def outchannels(self):
         return len(self.features) * self.hidden_channels[-1]
+
+    def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg", state_suffix: str = "") -> None:
+        # Projection and GRU modules have no plottable conv, and not every conv class supports plotting
+        for name, layer in self.features.named_children():
+            conv = getattr(layer, "conv", None)
+            if conv is None or not hasattr(conv, "save_weight_visualizations"):
+                continue
+            output_dir = os.path.join(folder_path, f"weights_{name}")
+            os.makedirs(output_dir, exist_ok=True)
+            conv.save_weight_visualizations(output_dir, file_format, state_suffix)
 
 
 class ConditionedGRUCore(ConvGRUCore, nn.Module):
