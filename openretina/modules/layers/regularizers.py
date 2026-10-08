@@ -173,7 +173,7 @@ class GaussianLaplaceL2(nn.Module):
 
     """
 
-    def __init__(self, kernel, padding=None):
+    def __init__(self, kernel: int | tuple[int, int], padding: int | None = None):
         """
         Args:
             kernel: Size of the convolutional kernel of the filter that is getting regularized

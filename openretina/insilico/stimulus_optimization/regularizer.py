@@ -16,11 +16,15 @@ def _gaussian_1d_kernel(sigma: float, kernel_size: int) -> torch.Tensor:
 
 
 class StimulusRegularizationLoss:
+    """Base class for regularization losses applied to the optimized stimulus. Default returns 0."""
+
     def forward(self, stimulus: torch.Tensor) -> torch.Tensor:
         return 0.0  # type: ignore
 
 
 class RangeRegularizationLoss(StimulusRegularizationLoss):
+    """Penalizes stimulus values outside specified per-channel min/max ranges and optionally constrains total norm."""
+
     def __init__(
         self,
         min_max_values: Iterable[tuple[float | None, float | None]],

@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Callable, Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -39,7 +39,7 @@ class GaussianMaskReadout(Readout):
         positive: bool = False,
         scale: bool = False,
         bias: bool = True,
-        nonlinearity_function=torch.nn.functional.softplus,
+        nonlinearity_function: Callable[..., torch.Tensor] = torch.nn.functional.softplus,
         mask_l1_reg: float = 1.0,
         feature_weights_l1_reg: float = 1.0,
     ):

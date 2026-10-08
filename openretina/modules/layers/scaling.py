@@ -45,8 +45,6 @@ class FiLM(nn.Module):
         num_features (int): The number of features in the input tensor.
         cond_dim (int): The dimensionality of the conditioning tensor.
 
-    Returns:
-        Tensor: The modulated output tensor after applying the scaling and shifting.
     """
 
     def __init__(self, num_features: int, cond_dim: int):

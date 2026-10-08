@@ -1,0 +1,95 @@
+name: Deploy Documentation
+
+on:
+  push:
+    branches: [ main, 'feature/documentation' ]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - 'openretina/**'  # Include source code changes to regenerate API docs
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - 'openretina/**'
+  workflow_dispatch:  # Allow manual triggering
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  # Build job
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for proper git info in mkdocs
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install ".[dev]"
+
+      - name: Setup Pages
+        id: pages
+        uses: actions/configure-pages@v4
+
+      - name: Build with MkDocs
+        run: |
+          mkdocs build --clean
+        env:
+          # For mkdocs-social plugin (generates social cards)
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./site
+
+  # Production deployment - only main branch uses environment protection
+  deploy-production:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+        
+      - name: Report production deployment
+        run: echo "🚀 Production deployment completed to open-retina.org"
+
+  # Preview deployment - feature branch without environment protection  
+  deploy-preview:
+    if: github.ref == 'refs/heads/feature/documentation' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+        
+      - name: Report preview deployment
+        run: |
+          echo "📖 Documentation preview deployed successfully!"
+          echo "🔗 Preview URL: ${{ steps.deployment.outputs.page_url }}"

@@ -60,7 +60,7 @@ def get_io_dims(data_loader) -> dict[str, tuple[int, ...]] | tuple:
         return tuple(v.shape for v in items)
 
 
-def filter_nan_collate(batch):
+def filter_nan_collate(batch: list[Any]) -> Any:
     """
     Filters out batches containing NaN values and then calls the default_collate function.
     Can happen for inferred spikes exported with CASCADE.
@@ -70,7 +70,7 @@ def filter_nan_collate(batch):
         batch (list): A list of tuples representing the batch.
 
     Returns:
-        tuple of torch.Tensor: The collated batch after filtering out NaN values.
+        The collated batch after filtering out NaN values.
 
     """
     batch = list(filter(lambda x: not np.isnan(x[1]).any(), batch))

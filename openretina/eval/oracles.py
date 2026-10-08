@@ -60,8 +60,7 @@ def global_mean_oracle(
         responses (np.ndarray): Neural responses array. Can be either:
             - 3D array of shape (frames, repeats, neurons)
             - 2D array of shape (frames, neurons) which will be treated as single repeat
-        return_oracle (bool, optional): If True, returns both correlation values and oracle responses.
-            Defaults to False.
+        cut_first_n_frames (int | None, optional): Number of initial frames to exclude. Defaults to None.
 
     Returns:
         - 1D array of shape (neurons,) containing correlation values for each neuron

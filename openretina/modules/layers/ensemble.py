@@ -1,3 +1,5 @@
+from typing import Any
+
 import torch
 
 
@@ -15,7 +17,7 @@ class EnsembleModel(torch.nn.Module):
         super().__init__()
         self.members = self._module_container_cls(members)
 
-    def forward(self, x: torch.Tensor, *args, **kwargs) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, *args: Any, **kwargs: Any) -> torch.Tensor:
         """Calculates the forward pass through the ensemble.
 
         The input is passed through all individual members of the ensemble and their outputs are averaged.
