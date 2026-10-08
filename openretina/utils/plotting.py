@@ -199,8 +199,16 @@ def plot_stimulus_composition(
         2: ("Green", "UV"),
         3: ("Red", "Green", "Blue"),
     }
-    color_array = color_array_map[num_color_channels]
-    color_channel_names_array = color_channel_names_map[num_color_channels]
+    # Channels are not necessarily colours, so beyond three fall back to matplotlib's cycle.
+    fallback_colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+    color_array = color_array_map.get(
+        num_color_channels,
+        [fallback_colors[i % len(fallback_colors)] for i in range(num_color_channels)],
+    )
+    color_channel_names_array = color_channel_names_map.get(
+        num_color_channels,
+        tuple(f"Ch{i}" for i in range(num_color_channels)),
+    )
 
     stimulus_time = np.linspace(0, time_steps / FRAME_RATE_MODEL, time_steps)
     weighted_main_freqs = [0.0] * num_color_channels
@@ -355,7 +363,12 @@ def plot_vector_field_resp_iso(
     if normalize_response:
         Z = Z / Z.max() * 100
     gradient_grid = gradient_dict[:, 1:-1, 1:-1]
-    X, Y = np.meshgrid(x, x)
+    if gradient_dict.shape[1:] != (len(x), len(y)):
+        raise ValueError(
+            f"gradient_dict has grid shape {gradient_dict.shape[1:]}, but the axes are "
+            f"({len(x)}, {len(y)}). Expected (len(x), len(y))."
+        )
+    X, Y = np.meshgrid(x, y)
 
     # Define levels for isoresponse lines
     levels = np.linspace(Z.min(), Z.max(), n_lines)

@@ -171,10 +171,19 @@ class SafeLoaderWithTuple(yaml.SafeLoader):
     pass
 
 
-def check_server_responding(url: str) -> bool:
+def check_server_responding(url: str, timeout: float = 5.0) -> bool:
+    """Return whether `url` answers with 200, False on any network-level failure.
+
+    Malformed URLs (MissingSchema/InvalidURL) still raise, so a typo in a `skipif` URL does not
+    silently skip the guarded test.
+    """
     try:
-        response = requests.get(url)
-    except ConnectionError:
+        response = requests.get(url, timeout=timeout)
+    except (
+        requests.exceptions.ConnectionError,
+        requests.exceptions.Timeout,
+        requests.exceptions.TooManyRedirects,
+    ):
         return False
 
     return response.status_code == 200

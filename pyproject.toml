@@ -67,6 +67,9 @@ dev = [
 devmodels = ["neuralpredictors"]
 optuna = [ # for hyperparameter tuning
     "hydra-optuna-sweeper",
+    # optuna 2.10 + SQLAlchemy 2.0 breaks the RDBStorage schema; optuna<3 is required by the sweeper.
+    # uv resolves one version across extras, so this pins SQLAlchemy 1.4 for every install.
+    "sqlalchemy>=1.4,<2",
 ]
 
 [tool.setuptools]

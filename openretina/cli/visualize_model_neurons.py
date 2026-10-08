@@ -93,7 +93,8 @@ def _get_min_max_values_and_norm(num_channels: int) -> tuple[list[tuple], float 
         norm = float(STIMULUS_RANGE_CONSTRAINTS["norm"])
         return min_max_values, norm
     else:
-        return [(None, None)], None
+        # One (min, max) pair per channel: downstream regularizers index this list by channel.
+        return [(None, None)] * num_channels, None
 
 
 def visualize_model_neurons(

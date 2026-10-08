@@ -2,6 +2,7 @@ import bisect
 import collections
 import logging
 from collections import namedtuple
+from functools import cached_property
 from typing import Any, List, Literal, Optional, SupportsIndex, cast
 
 import numpy as np
@@ -121,7 +122,9 @@ def generate_movie_splits(
     clip_length: int,
 ) -> tuple[torch.Tensor, torch.Tensor, dict[str, torch.Tensor]]:
     """Split training movies into train/validation subsets and convert test movies to tensors."""
-    movie_train = torch.tensor(movie_train, dtype=torch.float)
+    # as_tensor avoids copying the (potentially multi-GB) movie: it is only read and sliced into new
+    # tensors below. The test movies are copied on purpose, as the test dataloaders retain them.
+    movie_train = torch.as_tensor(movie_train, dtype=torch.float)
     movie_test_dict = {n: torch.tensor(movie, dtype=torch.float) for n, movie in movie_test.items()}
 
     channels, _, px_y, px_x = movie_train.shape
@@ -426,10 +429,13 @@ class NeuronDataSplit:
 
         return responses_train, responses_val
 
-    @property
+    @cached_property
     def response_dict(self) -> dict:
         """
         Create and return a dictionary of neural responses for train, validation, and test datasets.
+
+        Cached, since callers index one key per access. The "test" entry is the cached
+        `response_dict_test` object rather than a copy of it.
 
         Structure:
             {
@@ -444,25 +450,19 @@ class NeuronDataSplit:
                 }
             }
         """
-        test_entries = {
-            name: {
-                "avg": torch.tensor(responses.T, dtype=torch.float),
-                "by_trial": torch.tensor(self.test_responses_by_trial[name], dtype=torch.float)
-                if name in self.test_responses_by_trial
-                else None,
-            }
-            for name, responses in self.neural_responses.test_dict.items()
-        }
         return {
             "train": torch.tensor(self.responses_train, dtype=torch.float),
             "validation": torch.tensor(self.responses_val, dtype=torch.float),
-            "test": test_entries,
+            "test": self.response_dict_test,
         }
 
-    @property
+    @cached_property
     def response_dict_test(self) -> dict[str, dict[str, torch.Tensor | None]]:
         """
         Torch representation of the averaged and per-trial test responses keyed by stimulus name.
+
+        Cached because callers index one stimulus per access inside a loop over stimuli, while
+        building it creates the tensors for all of them.
 
         Returns:
             {
