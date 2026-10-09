@@ -236,11 +236,15 @@ class SimpleCoreWrapper(Core):
         if layer >= len(self.features):
             raise ValueError(f"Requested layer {layer}, but only {len(self.features)} layers present.")
         conv_obj = self.features[layer].conv
+        if not hasattr(conv_obj, "plot_weights"):
+            raise NotImplementedError(f"Weight plotting is not implemented for {conv_obj.__class__.__name__}.")
         fig = conv_obj.plot_weights(in_channel, out_channel)  # type: ignore
         return fig
 
     def save_weight_visualizations(self, folder_path: str, file_format: str = "jpg", state_suffix: str = "") -> None:
         for i, layer in enumerate(self.features):
+            if not hasattr(layer.conv, "save_weight_visualizations"):
+                continue
             output_dir = os.path.join(folder_path, f"weights_layer_{i}")
             os.makedirs(output_dir, exist_ok=True)
             layer.conv.save_weight_visualizations(output_dir, file_format, state_suffix)  # type: ignore

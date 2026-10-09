@@ -248,8 +248,5 @@ def visualize_model_neurons(
             print(f"Plotted visualizations for {session_key}")
 
         # Visualize weights
-        for i, layer in enumerate(model.core.features):
-            output_dir = f"{save_folder}/weights_layer_{i}"
-            os.makedirs(output_dir, exist_ok=True)
-            layer.conv.save_weight_visualizations(output_dir, image_file_format)
-            print(f"Saved weight visualization at path {output_dir}")
+        model.core.save_weight_visualizations(save_folder, image_file_format)
+        print(f"Saved core weight visualizations at path {save_folder}")
