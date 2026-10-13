@@ -5,7 +5,7 @@ A shifter maps a behavioral variable -- here the pupil center (eye position) -- 
 correcting for eye movements. Ported from ``neuralpredictors.layers.shifters.mlp`` and
 adapted to open-retina's per-session (``n_neurons_dict``-keyed) multi-session
 convention, mirroring the multi-session readout.
-
+Permalink to neuralpredictors: https://github.com/sinzlab/neuralpredictors/blob/efdda679596517fad95d71f36d0385d7450dd207/neuralpredictors/layers/shifters/mlp.py
 Qiu et al. 2026 use an MLP with 3 fully-connected layers, 5 hidden features and
 ``tanh`` nonlinearities (hence the defaults below).
 """
