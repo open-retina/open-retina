@@ -9,7 +9,7 @@ attached via ``session_kwargs`` so they can reach the readout's ``grid_mean_pred
 - ``"raw"``: fluorescence untouched (default; used by fast smoke tests).
 - ``"subtract_min"``: subtract each neuron's train-derived minimum → non-negative, trainable interim
   target for the Poisson loss until CASCADE is wired in.
-- ``"cascade"``: CASCADE inferred spike rates (Rupprecht 2021) — not yet implemented (Open Question 1).
+- ``"cascade"``: CASCADE inferred spike rates (Rupprecht 2021) — not yet implemented.
 """
 
 import os
