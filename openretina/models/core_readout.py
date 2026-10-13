@@ -153,14 +153,14 @@ class BaseCoreReadout(LightningModule):
         if self.shifter is not None:
             regularization_loss_shifter = self.shifter.regularizer(session_id)  # type: ignore
             total_loss = total_loss + regularization_loss_shifter
-            self.log("val_regularization_loss_shifter", regularization_loss_shifter, logger=True)
+            self.log("val_regularization_loss_shifter", regularization_loss_shifter)
         evaluation_loss = self.evaluation_loss.forward(model_output, data_point.targets)
 
-        self.log("val_loss", loss, logger=True, prog_bar=True)
-        self.log("val_regularization_loss_core", regularization_loss_core, logger=True)
-        self.log("val_regularization_loss_readout", regularization_loss_readout, logger=True)
-        self.log("val_total_loss", total_loss, logger=True)
-        self.log("val_evaluation_loss", evaluation_loss, logger=True, prog_bar=True)
+        self.log("val_loss", loss, prog_bar=True)
+        self.log("val_regularization_loss_core", regularization_loss_core)
+        self.log("val_regularization_loss_readout", regularization_loss_readout)
+        self.log("val_total_loss", total_loss)
+        self.log("val_evaluation_loss", evaluation_loss, prog_bar=True)
 
         return loss
 
