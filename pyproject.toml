@@ -61,6 +61,10 @@ dev = [
     "mkdocs<2.0",
     "mkdocs-material[imaging]",
     "mkdocstrings[python]",
+    # pymdown-extensions 12.0 made `md` a required argument of `Highlight.__init__`, which
+    # mkdocstrings only handles from 1.0.7 on -- and that release requires Python >= 3.11.
+    # While we support 3.10, the newest installable mkdocstrings is 1.0.6, so cap pymdownx.
+    "pymdown-extensions<12",
     "mkdocs-glightbox",
     "mkdocs-jupyter",
 ]
