@@ -5,8 +5,4 @@ train_chunk_size: 50 # strictly < clip_length keeps random-shift augmentation
 clip_length: 300 # integral num_clips = train_time // clip_length
 allow_over_boundaries: false # confine chunks to trial boundaries
 release_movies: true
-# Evaluate each test condition by running the model once per repeat with that repeat's own behavior and
-# pupil trace, then averaging the predictions. The movie is identical across a condition's repeats but
-# the behavior is not, and the model is nonlinear in it. Set to false to average the inputs instead
-# (the pre-2026-10 behaviour), e.g. to reproduce an older run's reported correlations.
 per_repeat_test_behavior: true

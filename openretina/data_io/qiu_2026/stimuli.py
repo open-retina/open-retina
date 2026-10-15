@@ -207,11 +207,6 @@ def load_stimuli_for_session(
 
         behavior_by_repeat = np.stack(behaviors, axis=0)  # (R, n_behavior, T)
         _warn_on_video_deviation(session_path, condition, indices, videos, video_deviation_tolerance)
-
-        # Average the video over repeats, as every repeat is the same clip (the deviation checked above
-        # is storage noise, ~1-2% of a std). Averaging the behavior too reproduces exactly what stacking
-        # the full per-repeat input tensors and taking their mean used to produce, which keeps
-        # `per_repeat_test_behavior=false` a clean A/B against runs made before the per-repeat path.
         test_dict[condition] = _assemble_input_tensor(np.mean(videos, axis=0), behavior_by_repeat.mean(axis=0))
         test_behavior_by_repeat_dict[condition] = behavior_by_repeat.astype(np.float32)
 

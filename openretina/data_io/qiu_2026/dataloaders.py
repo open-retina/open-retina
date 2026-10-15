@@ -188,14 +188,6 @@ def qiu_2026_dataloaders(
             :class:`QiuRepeatDataPoint` batches of R repeats; train and validation are unaffected either
             way. Set to ``False`` to reproduce the repeat-averaged-input numbers.
 
-            Measured on the 10-session checkpoint, session ``dynamic28188-16-3``, over its 6 oracle
-            conditions (``qiu_legacy_scripts/qiu_ab_repeat_estimator.py``): **median per-neuron
-            correlation +0.012**, positive in all 6 conditions, 63-79% of reliable neurons improving.
-            Real and consistent, but small. For context the same run found that removing the shifter
-            entirely costs **-0.160** on averaged input -- so the shifter is *not* rendered inert by
-            averaging its input, and the gain here comes from the nonlinearity, not from rescuing the
-            shifter. Conditions with a single repeat are unaffected by construction, and this session
-            has 13 of those out of 95.
         release_movies: **Destructive.** Drop each session's entry from ``movies_dictionary`` as soon as its
             splits have been taken, so already-consumed source movies are freed while the loop is still
             running. The full dataset is ~28 GB of movies and the splits duplicate all of it, so without
