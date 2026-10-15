@@ -2,8 +2,7 @@
 
 Loads raw calcium fluorescence, applies the per-session ``neurons_fluor_good`` index mask, trims NaN
 padding, and assembles a continuous train trace plus per-``condition_hash`` test dictionaries (both the
-trial-averaged ``test_dict`` and the per-repeat ``test_by_trial_dict``). Masked cortex coordinates are
-attached via ``session_kwargs`` so they can reach the readout's ``grid_mean_predictor``.
+trial-averaged ``test_dict`` and the per-repeat ``test_by_trial_dict``).
 
 ``spike_inference`` controls the response transform:
 - ``"raw"``: fluorescence untouched (default; used by fast smoke tests).
@@ -61,14 +60,12 @@ def load_responses_for_session(
     good_idx: np.ndarray | None = None,
     *,
     spike_inference: SpikeInference = "raw",
-    coordinate_dims: int = 2,
     stimulus_type: str = "clip",
 ) -> ResponsesTrainTestSplit:
     """Build a :class:`ResponsesTrainTestSplit` for one qiu_2026 session.
 
-    ``good_idx`` is the ``neurons_fluor_good`` index array (applied to both responses and cortex
-    coordinates); ``None`` keeps all neurons. ``coordinate_dims`` selects the leading cortex-coordinate
-    columns stored as the readout ``source_grid`` (2 → X,Y). Only trials matching ``stimulus_type`` (see
+    ``good_idx`` is the ``neurons_fluor_good`` index array; ``None`` keeps all neurons. Only trials
+    matching ``stimulus_type`` (see
     :func:`~openretina.data_io.qiu_2026.trials.read_stimulus_type`) are included; some sessions' ``test``
     tier additionally contains non-clip functional-characterization trials with per-repeat frame-count
     jitter that would otherwise break the repeat-stacking below.
@@ -99,15 +96,7 @@ def load_responses_for_session(
         test_by_trial_dict[condition] = by_trial
         test_dict[condition] = by_trial.mean(axis=0).astype(np.float32)  # (N, T_cond)
 
-    cell_motor_coordinates = np.load(session_path / "meta" / "neurons" / "cell_motor_coordinates.npy").astype(
-        np.float32
-    )
-    if good_idx is not None:
-        cell_motor_coordinates = cell_motor_coordinates[good_idx]
-    source_grid = cell_motor_coordinates[:, :coordinate_dims]  # (N, coordinate_dims)
-
     session_kwargs = {
-        "cell_motor_coordinates": source_grid,
         "validation_clip_indices": validation_clip_indices(tiers, stimulus_types, stimulus_type),
     }
     return ResponsesTrainTestSplit(
@@ -124,7 +113,6 @@ def load_all_responses(
     *,
     apply_quality_mask: bool = True,
     spike_inference: SpikeInference = "raw",
-    coordinate_dims: int = 2,
     stimulus_type: str = "clip",
     sessions: list[str] | None = None,
 ) -> dict[str, ResponsesTrainTestSplit]:
@@ -141,7 +129,6 @@ def load_all_responses(
             path,
             good_idx=good_idx,
             spike_inference=spike_inference,
-            coordinate_dims=coordinate_dims,
             stimulus_type=stimulus_type,
         )
     return responses_all_sessions
