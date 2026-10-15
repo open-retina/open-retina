@@ -46,6 +46,10 @@ shifter:
   n_layers: 3
   gamma_shifter: 0.0
 
+# Repeats per test condition are evaluated in one batch (15-20 whole clips, several times a training
+# batch's frames), so the forward is chunked. Memory only: the averaged prediction is the same either way.
+test_repeat_chunk_size: 4
+
 # training
 learning_rate: 0.005
 optimizer: ${optimizer} # References the optimizer from defaults

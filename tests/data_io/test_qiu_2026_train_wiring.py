@@ -9,6 +9,7 @@ This mirrors the "full training epoch with non-NaN loss" success criterion on sy
 
 import hydra
 import numpy as np
+import pytest
 import torch
 
 from openretina.data_io.base import MoviesTrainTestSplit, ResponsesTrainTestSplit, compute_data_info
@@ -20,6 +21,7 @@ CLIP_LENGTH = 300
 NUM_TRAIN_CLIPS = 4  # 1 clip is held out via validation_clip_indices below; the rest must fill >= 1 batch
 HEIGHT, WIDTH = 36, 64
 N_CHANNELS = 3
+N_TEST_REPEATS = 3  # the real dataset has 15-20 repeats per test condition
 # The real config's batch_size=32 needs far more synthetic clips than is practical to generate in a fast
 # unit test; override it down to fit the tiny synthetic dataset above while keeping every other wiring
 # (target_, kwarg names, dataset_cls/extra_arrays hook) exactly as shipped.
@@ -30,10 +32,22 @@ def _make_synthetic_session() -> tuple[MoviesTrainTestSplit, ResponsesTrainTestS
     rng = np.random.default_rng(0)
     train_time = CLIP_LENGTH * NUM_TRAIN_CLIPS
 
+    # Per-repeat behavior/pupil for the one test condition, mirroring what the real loaders produce:
+    # the movie is identical on every repeat, the behavior and eye position are not.
+    behavior_by_repeat = rng.standard_normal((N_TEST_REPEATS, N_CHANNELS - 1, CLIP_LENGTH)).astype(np.float32)
+    pupil_by_repeat = rng.standard_normal((N_TEST_REPEATS, 2, CLIP_LENGTH)).astype(np.float32)
+
+    # Test movie channel 0 is the video; channels 1+ carry the across-repeat mean behavior, broadcast
+    # over every pixel, exactly as load_stimuli_for_session assembles it.
+    test_movie = np.empty((N_CHANNELS, CLIP_LENGTH, HEIGHT, WIDTH), dtype=np.float32)
+    test_movie[0] = rng.standard_normal((CLIP_LENGTH, HEIGHT, WIDTH)).astype(np.float32)
+    test_movie[1:] = behavior_by_repeat.mean(axis=0)[:, :, None, None]
+
     movies = MoviesTrainTestSplit(
         train=rng.standard_normal((N_CHANNELS, train_time, HEIGHT, WIDTH)).astype(np.float32),
-        test_dict={"cond1": rng.standard_normal((N_CHANNELS, CLIP_LENGTH, HEIGHT, WIDTH)).astype(np.float32)},
+        test_dict={"cond1": test_movie},
         stim_id="qiu_2026",
+        test_behavior_by_repeat_dict={"cond1": behavior_by_repeat},
     )
     responses = ResponsesTrainTestSplit(
         train=rng.random((N_NEURONS, train_time)).astype(np.float32),
@@ -43,7 +57,8 @@ def _make_synthetic_session() -> tuple[MoviesTrainTestSplit, ResponsesTrainTestS
     )
     pupil = {
         "train": rng.standard_normal((2, train_time)).astype(np.float32),
-        "test_dict": {"cond1": rng.standard_normal((2, CLIP_LENGTH)).astype(np.float32)},
+        "test_dict": {"cond1": pupil_by_repeat.mean(axis=0)},
+        "test_by_repeat_dict": {"cond1": pupil_by_repeat},
     }
     return movies, responses, pupil
 
@@ -236,3 +251,81 @@ def test_eval_config_path_builds_qiu_dataloaders() -> None:
 
     assert "train" in dataloaders
     assert set(dataloaders["train"].keys()) == {SESSION_KEY}
+
+
+def test_test_dataloader_yields_one_batch_holding_every_repeat() -> None:
+    """The shipped config evaluates a test condition as R repeats in the batch dimension."""
+    movies, responses, pupil = _make_synthetic_session()
+    behavior_by_repeat = movies.test_behavior_by_repeat_dict["cond1"]
+    pupil_by_repeat = pupil["test_by_repeat_dict"]["cond1"]
+
+    dataloaders = _build_dataloaders({SESSION_KEY: movies}, responses, pupil)
+
+    assert "cond1" in dataloaders, "each test condition gets its own top-level dataloader key"
+    batches = list(dataloaders["cond1"][SESSION_KEY])
+    assert len(batches) == 1, "the whole condition must be one batch, or the repeats cannot be averaged"
+    batch = batches[0]
+
+    assert batch.inputs.shape == (N_TEST_REPEATS, N_CHANNELS, CLIP_LENGTH, HEIGHT, WIDTH)
+    assert batch.targets.shape == (N_TEST_REPEATS, CLIP_LENGTH, N_NEURONS)
+    assert batch.pupil_center.shape == (N_TEST_REPEATS, 2, CLIP_LENGTH)
+    assert bool(torch.as_tensor(batch.reduce_over_batch).all()), "batch must be marked for reduction"
+
+    # Every repeat carries the same trial-averaged target...
+    assert torch.equal(batch.targets[0], batch.targets[-1])
+    # ...the same video...
+    assert torch.equal(batch.inputs[0, 0], batch.inputs[-1, 0])
+    # ...and its own behavior and pupil trace, spatially constant across the frame.
+    for repeat in range(N_TEST_REPEATS):
+        assert torch.allclose(batch.inputs[repeat, 1:, :, 0, 0], torch.as_tensor(behavior_by_repeat[repeat]), atol=1e-6)
+        assert torch.allclose(batch.pupil_center[repeat], torch.as_tensor(pupil_by_repeat[repeat]), atol=1e-6)
+    assert not torch.equal(batch.inputs[0, 1:], batch.inputs[-1, 1:]), "behavior must differ across repeats"
+
+
+def test_repeat_test_dataset_stores_the_video_once() -> None:
+    """The video is identical across repeats, so storing it per repeat would waste ~R x the test memory."""
+    movies, responses, pupil = _make_synthetic_session()
+
+    dataloaders = _build_dataloaders({SESSION_KEY: movies}, responses, pupil)
+    dataset = dataloaders["cond1"][SESSION_KEY].dataset
+
+    assert len(dataset) == N_TEST_REPEATS
+    assert dataset.video.shape == (1, CLIP_LENGTH, HEIGHT, WIDTH)
+    # The stored per-repeat arrays are traces, not movies: no spatial dimensions.
+    assert dataset.behavior_by_repeat.shape == (N_TEST_REPEATS, N_CHANNELS - 1, CLIP_LENGTH)
+    assert dataset.pupil_by_repeat.shape == (N_TEST_REPEATS, 2, CLIP_LENGTH)
+    # cli/eval.py reads both of these off the dataset object.
+    assert dataset.responses.shape == (CLIP_LENGTH, N_NEURONS)
+    assert hasattr(dataset, "test_responses_by_trial")
+
+
+def test_per_repeat_test_behavior_false_restores_the_averaged_input_path() -> None:
+    """The escape hatch must reproduce the old single-clip test batch exactly."""
+    movies, responses, pupil = _make_synthetic_session()
+
+    dataloaders = _build_dataloaders({SESSION_KEY: movies}, responses, pupil, per_repeat_test_behavior=False)
+    batches = list(dataloaders["cond1"][SESSION_KEY])
+
+    assert len(batches) == 1
+    batch = batches[0]
+    assert batch.inputs.shape == (1, N_CHANNELS, CLIP_LENGTH, HEIGHT, WIDTH)
+    assert batch.pupil_center.shape == (1, 2, CLIP_LENGTH)
+    assert not hasattr(batch, "reduce_over_batch"), "the averaged-input path must not mark its batches"
+    # Inputs are the repeat-averaged ones the loaders put in test_dict.
+    assert torch.allclose(batch.inputs[0], torch.as_tensor(movies.test_dict["cond1"]), atol=1e-6)
+    assert torch.allclose(
+        batch.pupil_center[0], torch.as_tensor(pupil["test_by_repeat_dict"]["cond1"]).mean(dim=0), atol=1e-6
+    )
+
+
+def test_per_repeat_test_behavior_without_per_repeat_arrays_is_an_error() -> None:
+    """Falling back silently would score the wrong estimator with no sign anything happened."""
+    movies, responses, pupil = _make_synthetic_session()
+    movies_without_repeats = MoviesTrainTestSplit(
+        train=movies.train,
+        test_dict=movies.test_dict,
+        stim_id=movies.stim_id,
+    )
+
+    with pytest.raises(ValueError, match="per_repeat_test_behavior"):
+        _build_dataloaders({SESSION_KEY: movies_without_repeats}, responses, pupil)
