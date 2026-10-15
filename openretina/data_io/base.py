@@ -23,6 +23,10 @@ class MoviesTrainTestSplit:
         stim_id: Optional identifier (e.g. "natural") to keep responses/movies aligned.
         random_sequences: Optional clip permutations (Höfling 2024 format).
         norm_mean / norm_std: Normalization statistics applied to both train and test movies.
+        test_behavior_by_repeat_dict: Optional per-repeat behavior channels for repeated test stimuli,
+            `{stimulus_name: (repeats, n_behavior_channels, test_time)}` (qiu_2026 format). `test_dict`
+            holds the across-repeat average; this keeps the individual repeats, which differ because the
+            animal behaves differently on each presentation of the same movie.
     """
 
     train: Float[np.ndarray, "channels train_time height width"]
@@ -34,6 +38,7 @@ class MoviesTrainTestSplit:
     random_sequences: Optional[np.ndarray] = None
     norm_mean: Optional[float] = None
     norm_std: Optional[float] = None
+    test_behavior_by_repeat_dict: dict = field(default_factory=lambda: {})
 
     def __post_init__(self, test: Float[np.ndarray, "channels test_time height width"] | None):
         if (len(self.test_dict) == 0) == (test is None):

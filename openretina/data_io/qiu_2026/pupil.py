@@ -7,7 +7,8 @@ per-session dict returned here is consumed by the qiu dataloader, which slices i
 
 Layout mirrors the response split: ``train`` is the continuous train+validation trace; ``test_dict`` holds
 one trace per ``condition_hash``, averaged over the condition's repeats to pair with the trial-averaged
-test responses.
+test responses, and ``test_by_repeat_dict`` keeps the individual repeats, which differ because the eye
+moves differently on every presentation of the same clip.
 """
 
 import os
@@ -36,7 +37,10 @@ from openretina.utils.file_utils import get_local_file_path
 def load_pupil_for_session(
     session_path: str | os.PathLike, *, stimulus_type: str = "clip"
 ) -> dict[str, np.ndarray | dict[str, np.ndarray]]:
-    """Return ``{"train": (2, T_total), "test_dict": {condition: (2, T_cond)}}`` for one session.
+    """Return the train trace plus both test layouts for one session.
+
+    ``{"train": (2, T_total), "test_dict": {condition: (2, T_cond)},
+    "test_by_repeat_dict": {condition: (repeats, 2, T_cond)}}``.
 
     Only trials matching ``stimulus_type`` (see
     :func:`~openretina.data_io.qiu_2026.trials.read_stimulus_type`) are included; some sessions' ``test``
@@ -64,14 +68,17 @@ def load_pupil_for_session(
     )  # (2, T_total)
 
     test_dict: dict[str, np.ndarray] = {}
+    test_by_repeat_dict: dict[str, np.ndarray] = {}
     for condition, indices in test_conditions(tiers, condition_hash, stimulus_types, stimulus_type).items():
         repeats = np.stack([load_trimmed(i) for i in indices], axis=0)  # (repeats, 2, T_cond)
-        # TODO(qiu_2026): pupil genuinely differs across repeats; averaging pairs it with the
-        # trial-averaged responses. Revisit whether per-repeat pupil is more appropriate.
-        # Tracked in qiu_2026_integration_plan.md (Open Questions).
+        # Eye position genuinely differs across repeats, so the average is not the trace the shifter
+        # saw on any one of them. Both are kept: `test_dict` is the average (used when the dataloader
+        # evaluates a condition as a single clip), `test_by_repeat_dict` keeps every repeat so the
+        # per-repeat path can shift each prediction with its own trace before averaging predictions.
+        test_by_repeat_dict[condition] = repeats.astype(np.float32)
         test_dict[condition] = repeats.mean(axis=0).astype(np.float32)
 
-    return {"train": train, "test_dict": test_dict}
+    return {"train": train, "test_dict": test_dict, "test_by_repeat_dict": test_by_repeat_dict}
 
 
 def load_all_pupil(
