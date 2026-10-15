@@ -106,10 +106,25 @@ def evaluate_model(cfg: DictConfig) -> float:
             model_responses_torch_array = []
             targets_array = []
             for data_point in dl:
-                model_resp_batch = model.forward(data_point[0].to(device), data_key=session)
+                # Datasets carrying a behavioral variable (qiu_2026) need it for the shifter; without it
+                # the shifter stays inert and the model scores as if it had none.
+                pupil_center = getattr(data_point, "pupil_center", None)
+                targets_batch = data_point[1]
+                model_resp_batch = model.forward(
+                    data_point[0].to(device),
+                    data_key=session,
+                    pupil_center=None if pupil_center is None else pupil_center.to(device),
+                )
+                # A batch whose batch dimension holds repeats of one stimulus contributes a single
+                # prediction: the average over repeats, paired with the (identical) trial-averaged
+                # target. Flattening it instead would lay the repeats end to end along time.
+                reduce_flag = getattr(data_point, "reduce_over_batch", None)
+                if reduce_flag is not None and bool(torch.as_tensor(reduce_flag).all()):
+                    model_resp_batch = model_resp_batch.mean(dim=0, keepdim=True)
+                    targets_batch = targets_batch[:1]
                 model_resp = model_resp_batch.flatten(0, 1)
                 model_responses_torch_array.append(model_resp)
-                targets_array.append(data_point[1].flatten(0, 1))
+                targets_array.append(targets_batch.flatten(0, 1))
             model_responses_torch = torch.concat(model_responses_torch_array)
             targets = torch.concat(targets_array).to(device)
             poisson_loss_session = poisson_loss(model_responses_torch.unsqueeze(0), targets.unsqueeze(0))
