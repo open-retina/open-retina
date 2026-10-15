@@ -1,0 +1,26 @@
+# Höfling 2024 low-res with the residual depthwise + causal temporal attention core.
+# Differences to hoefling_2024_core_readout_low_res.yaml:
+#   - model: residual_attention_core_readout
+#   - weight EMA callback
+#   - 300-frame training chunks with batch size 15. The attention needs long training context, and the chunk length
+#     must differ from clip_length (150): otherwise the sampler applies no random start shifts and the model never
+#     sees context across scene cuts.
+#   - up to 200 epochs (early stopping usually ends training at ~40-70 epochs)
+defaults:
+  - hoefling_2024_core_readout_low_res
+  - override model: residual_attention_core_readout
+  - override training_callbacks:
+      - early_stopping
+      - lr_monitor
+      - model_checkpoint
+      - ema
+  - _self_
+
+exp_name: hoefling_2024_core_readout_low_res_residual_attention
+
+dataloader:
+  batch_size: 15
+  train_chunk_size: 300
+
+trainer:
+  max_epochs: 200

@@ -26,7 +26,7 @@ Complete model architectures for retinal response prediction:
 
 Building blocks for constructing models:
 
-- [Core Modules](./modules/core.md) — Convolutional feature extractors (`SimpleCoreWrapper`, `ConvGRUCore`)
+- [Core Modules](./modules/core.md) — Convolutional feature extractors (`SimpleCoreWrapper`, `ConvGRUCore`, `ResidualAttentionCore`)
 - [Readout Modules](./modules/readout.md) — Spatial readouts (`PointGaussianReadout`, `GaussianMaskReadout`, multi-session wrappers)
 - [Layers](./modules/layers.md) — Convolutions, regularizers, scaling, GRU cells
 - [Loss Functions](./modules/losses.md) — Poisson, correlation, and MSE losses

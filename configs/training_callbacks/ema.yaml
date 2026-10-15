@@ -1,0 +1,4 @@
+ema:
+  _target_: openretina.callbacks.ema.EMACallback
+  decay: 0.999 # EMA weights are used for validation, early stopping, checkpoints and test
+  update_every_n_steps: 1
