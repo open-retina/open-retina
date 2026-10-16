@@ -132,6 +132,7 @@ nav:
           - Maheswaranathan et al., 2023: package_docs/datasets/maheswaranathan_2023.md
           - Goldin et al., 2022: package_docs/datasets/goldin_2022.md
           - Sridhar et al., 2025: package_docs/datasets/sridhar_2025.md
+          - Qiu et al., 2026: package_docs/datasets/qiu_2026.md
 
       - Tutorials:
           - OpenRetina Demo: notebooks/openretina_demo.ipynb
@@ -166,6 +167,7 @@ nav:
           - Goldin 2022: api_reference/data_io/goldin_2022.md
           - Maheswaranathan 2023: api_reference/data_io/maheswaranathan_2023.md
           - Sridhar 2025: api_reference/data_io/sridhar_2025.md
+          - Qiu 2026: api_reference/data_io/qiu_2026.md
           - Artificial Stimuli: api_reference/data_io/artificial_stimuli.md
           - Cyclers: api_reference/data_io/cyclers.md
       - In-silico:
