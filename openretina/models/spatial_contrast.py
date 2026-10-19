@@ -296,8 +296,8 @@ class SingleCellSpatialContrast(LightningModule):
         """Override implementation to allow parameter clamping at each training step"""
         optimizer.step(closure=optimizer_closure)
 
-        # To avoid negative model predictions, clamp the gain parameter in the nonlinearity
-        self.w.data.clamp_(min=0.0)
+        # To avoid negative model predictions, clamp the output gain of the nonlinearity
+        self.nl_a.data.clamp_(min=0.0)
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
