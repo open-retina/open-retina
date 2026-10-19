@@ -16,10 +16,26 @@ flip_sta: ???          # Whether the STA needs horizontal flipping (dataset-depe
 # --- STA file naming pattern ---
 sta_file_pattern: "cell_data_{retina_index}_WN_stas_cell_{cell_index}.npy"
 
+# --- STA lookup ---
+cell_id_key: cell_indices   # data_info["sessions_kwargs"][session] key with the per-neuron ids filling {cell_index}
+
 # --- Spatial/temporal filter settings ---
 temporal_crop_frames: 30    # Keep this many of the most recent STA frames
 sigma_contour: 3.0          # Gaussian RF is masked to this many standard deviations
-cut_first_n_frames: 0       # Frames cut by DummyCore (0 = no cutting)
+cut_first_n_frames: null    # Frames cut by DummyCore (null = no cutting)
+target_model_cut_frames: null  # Alternative to cut_first_n_frames: total frames to cut, temporal filter included
+color_squashing_weights: null  # e.g. [0.5, 0.5] to squash a 2-color stimulus to greyscale (required for >1 channel)
+
+# --- What is learned ---
+learn_contrast_weight: true    # false fixes w at 0: an LN model with the same filters and nonlinearity
+learn_filters: false           # true also trains the spatial Gaussians and the temporal filters
+temporal_filter_length: null   # with learn_filters: zero-pad the temporal filters to this length
+filter_learning_rate: null     # with learn_filters: learning rate of the filter parameters (null = learning_rate)
+sigma_floor: 1.0               # with learn_filters: minimum Gaussian width in pixels
+
+# --- Training ---
+init_offset_from_mean_activity: false  # true starts each neuron's a * softplus(c) at its mean activity
+scheduler_metric: correlation  # validation metric the LR schedule follows: correlation or poisson
 
 # --- Learnable parameter initial values ---
 w_init: 0.0     # Spatial contrast weight (0 = start as a pure LN model)

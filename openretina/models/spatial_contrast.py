@@ -7,16 +7,18 @@ per neuron are learned: the contrast weight (w) and three nonlinearity parameter
 
 Provides two variants:
 - SingleCellSpatialContrast: standalone LightningModule for one neuron at a time
-- SpatialContrastCoreReadout: multi-cell core-readout model using DummyCore + MultiSpatialContrastReadout
+- SpatialContrastCoreReadout: multi-cell core-readout model using DummyCore + MultiSpatialContrastReadout,
+  optionally learning the filters too (MultiLearnableFilterSpatialContrastReadout)
 
 Reference: Sridhar S, Vystrčilová M, Khani MH, Karamanlis D, Schreyer HM, Ramakrishna V,
 Krüppel S, Zapp SJ, Mietsch M, Ecker AS, Gollisch T (2025): Modeling spatial contrast
 sensitivity in responses of primate retinal ganglion cells to natural movies.
 """
 
+import json
 import logging
 from pathlib import Path
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Literal, Optional, Sequence, Union
 
 import torch
 import torch.nn as nn
@@ -32,6 +34,7 @@ from openretina.models.core_readout import BaseCoreReadout
 from openretina.modules.core.base_core import DummyCore
 from openretina.modules.losses import CorrelationLoss3d, PoissonLoss3d
 from openretina.modules.readout.spatial_contrast_model_readout import (
+    MultiLearnableFilterSpatialContrastReadout,
     MultiSpatialContrastReadout,
     SpatialContrastReadout,
 )
@@ -333,8 +336,11 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
     (w, a, b, c) are learned.
 
     Designed for Hydra config instantiation. The STA file pattern uses
-    ``{retina_index}`` and ``{cell_index}`` placeholders that are filled
-    from ``data_info["sessions_kwargs"]``.
+    ``{retina_index}`` and ``{cell_index}`` placeholders, filled with the session
+    key and with the per-neuron ids found in ``data_info["sessions_kwargs"][session][cell_id_key]``.
+
+    With ``learn_filters=True`` the filters loaded from the STAs only initialise the model: the spatial
+    Gaussians (centre, widths, orientation) and the temporal filters are trained along with w, a, b, c.
 
     Args:
         in_shape: (channels, time, height, width) of input stimulus.
@@ -345,7 +351,28 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
         flip_sta: Whether to flip STAs horizontally.
         temporal_crop_frames: Number of most-recent STA frames to keep.
         sigma_contour: Spatial filter mask contour in sigmas.
-        cut_first_n_frames: Frames cut by DummyCore (temporal alignment).
+        cut_first_n_frames: Frames cut by DummyCore (temporal alignment). None means 0.
+            Mutually exclusive with target_model_cut_frames.
+        target_model_cut_frames: If set, the DummyCore cut is derived so that, together with the
+            frames the temporal filter consumes, the model output is this many frames shorter than its
+            input. Keeps models with different filter lengths evaluated on the same frames.
+        color_squashing_weights: Weights to collapse a multi-channel stimulus to greyscale inside the core.
+            Required when the stimulus has more than one channel. Must match the weights the filters were
+            learned with, which is checked against ``export_info.json`` in ``sta_dir`` when present.
+        cell_id_key: Key in ``data_info["sessions_kwargs"][session]`` holding the per-neuron ids used in
+            the STA file names (e.g. "roi_ids" for filters written by export_lnp_filters_as_stas).
+        learn_contrast_weight: If False, w is fixed at 0, turning the model into an LN model with the same
+            filters and nonlinearity.
+        learn_filters: If True, the spatial and temporal filters are trained too.
+        temporal_filter_length: With learn_filters, left-pad the temporal filters with zeros to this
+            length, so the model can learn a longer filter than the STA has (e.g. from a single frame).
+        filter_learning_rate: Learning rate for the filter parameters. None uses learning_rate.
+        sigma_floor: With learn_filters, lower bound on the Gaussian widths in pixels.
+        init_offset_from_mean_activity: Initialise each neuron's offset c from its mean activity in
+            ``data_info["mean_activity_dict"]``, so that a * softplus(c) starts at the neuron's mean rate.
+        scheduler_metric: Validation metric the learning rate schedule follows: "correlation"
+            (val_evaluation_loss, as BaseCoreReadout) or "poisson" (val_loss, the training objective).
+            Use the same metric for the early stopping and checkpoint callbacks.
         w_init, a_init, b_init, c_init: Initial per-neuron parameter values.
         learning_rate: Learning rate for AdamW.
         neuron_chunk_size: Max neurons processed at once in the readout forward
@@ -353,7 +380,7 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
             on 8 GB GPUs.
         loss: Training loss module.
         evaluation_loss: Evaluation metric module.
-        data_info: Data metadata dict (must contain sessions_kwargs with cell_indices).
+        data_info: Data metadata dict (must contain sessions_kwargs with the cell ids).
     """
 
     def __init__(
@@ -365,7 +392,17 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
         flip_sta: bool = False,
         temporal_crop_frames: int | None = 30,
         sigma_contour: float = 3.0,
-        cut_first_n_frames: int = 0,
+        cut_first_n_frames: int | None = None,
+        target_model_cut_frames: int | None = None,
+        color_squashing_weights: Sequence[float] | None = None,
+        cell_id_key: str = "cell_indices",
+        learn_contrast_weight: bool = True,
+        learn_filters: bool = False,
+        temporal_filter_length: int | None = None,
+        filter_learning_rate: float | None = None,
+        sigma_floor: float = 1.0,
+        init_offset_from_mean_activity: bool = False,
+        scheduler_metric: Literal["correlation", "poisson"] = "correlation",
         w_init: float = 0.0,
         a_init: float = 4.0,
         b_init: float = 1.0,
@@ -376,10 +413,26 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
         evaluation_loss: nn.Module | None = None,
         data_info: dict[str, Any] | None = None,
     ):
-        in_shape = tuple(in_shape)
-        target_spatial_shape = (in_shape[-2], in_shape[-1])
+        # Note: argument names are not reassigned below, because Lightning saves the hyperparameters from the
+        # constructor's local variables, and a derived value would no longer reload.
+        stimulus_shape = tuple(in_shape)
+        target_spatial_shape = (stimulus_shape[-2], stimulus_shape[-1])
+
+        if stimulus_shape[0] > 1 and color_squashing_weights is None:
+            raise ValueError(
+                f"The spatial contrast model works on a single channel, but the stimulus has {stimulus_shape[0]}. "
+                "Set color_squashing_weights to collapse the channels to greyscale."
+            )
+        if color_squashing_weights is not None and len(color_squashing_weights) != stimulus_shape[0]:
+            raise ValueError(
+                f"Got {len(color_squashing_weights)} color_squashing_weights "
+                f"for a {stimulus_shape[0]}-channel stimulus."
+            )
+        if target_model_cut_frames is not None and cut_first_n_frames is not None:
+            raise ValueError("Set either cut_first_n_frames or target_model_cut_frames, not both.")
 
         local_sta_dir = get_local_file_path(Path(sta_dir).as_posix())
+        self._check_export_info(local_sta_dir, color_squashing_weights)
 
         # Extract cell indices from data_info
         if data_info is None:
@@ -388,21 +441,26 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
 
         spatial_filters_dict: dict[str, torch.Tensor] = {}
         temporal_filters_dict: dict[str, torch.Tensor] = {}
+        gaussian_params_dict: dict[str, torch.Tensor] = {}
 
         for session_key, n_neurons in n_neurons_dict.items():
             session_kw = sessions_kwargs.get(session_key, {})
-            cell_indices = session_kw.get("cell_indices")
-            if cell_indices is None:
+            cell_ids = session_kw.get(cell_id_key)
+            if cell_ids is None:
                 raise ValueError(
-                    f"cell_indices not found in data_info['sessions_kwargs']['{session_key}']. "
-                    "Ensure the dataloader provides cell_indices in session_kwargs."
+                    f"{cell_id_key} not found in data_info['sessions_kwargs']['{session_key}']. "
+                    f"Ensure the dataloader provides {cell_id_key} in session_kwargs, or set cell_id_key."
                 )
+            if len(cell_ids) != n_neurons:
+                raise ValueError(f"Session {session_key}: {len(cell_ids)} {cell_id_key} for {n_neurons} neurons.")
 
             spatial_list = []
             temporal_list = []
-            for cell_idx in cell_indices:
-                file_name = sta_file_pattern.format(retina_index=session_key, cell_index=cell_idx)
-                spatial_filter, temporal_filter, _ = load_sta_and_extract_filters(
+            gaussian_list = []
+            failed_fits = []
+            for cell_id in cell_ids:
+                file_name = sta_file_pattern.format(retina_index=session_key, cell_index=int(cell_id))
+                spatial_filter, temporal_filter, gaussian_params = load_sta_and_extract_filters(
                     sta_dir=local_sta_dir,
                     file_name=file_name,
                     flip_sta=flip_sta,
@@ -410,24 +468,76 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
                     temporal_crop_frames=temporal_crop_frames,
                     sigma_contour=sigma_contour,
                 )
+                if not gaussian_params["success"]:
+                    failed_fits.append(int(cell_id))
                 spatial_list.append(torch.from_numpy(spatial_filter))
                 temporal_list.append(torch.from_numpy(temporal_filter))
+                gaussian_list.append(
+                    [gaussian_params[k] for k in ("center_x", "center_y", "sigma_x", "sigma_y", "theta")]
+                )
+
+            if failed_fits:
+                LOGGER.warning(
+                    f"Session {session_key}: the Gaussian fit failed for {cell_id_key} {failed_fits}; "
+                    "their spatial filters fall back to the fit's initial guess."
+                )
+            filter_lengths = {len(t) for t in temporal_list}
+            if len(filter_lengths) > 1:
+                raise ValueError(
+                    f"Session {session_key}: temporal filters of different lengths {sorted(filter_lengths)}. "
+                    "Set temporal_crop_frames to crop them to a common length."
+                )
 
             spatial_filters_dict[session_key] = torch.stack(spatial_list)
             temporal_filters_dict[session_key] = torch.stack(temporal_list)
+            gaussian_params_dict[session_key] = torch.tensor(gaussian_list, dtype=torch.float32)
 
             LOGGER.info(
-                f"Session {session_key}: loaded {len(cell_indices)} STA filters "
+                f"Session {session_key}: loaded {len(cell_ids)} STA filters "
                 f"(spatial: {spatial_filters_dict[session_key].shape}, "
                 f"temporal: {temporal_filters_dict[session_key].shape})"
             )
 
-        core = DummyCore(cut_first_n_frames=cut_first_n_frames)
+        filter_lengths = {t.shape[-1] for t in temporal_filters_dict.values()}
+        if len(filter_lengths) > 1:
+            raise ValueError(f"Temporal filters differ in length across sessions: {sorted(filter_lengths)}.")
+        filter_length = filter_lengths.pop()
+
+        if temporal_filter_length is not None:
+            if temporal_filter_length < filter_length:
+                raise ValueError(
+                    f"{temporal_filter_length=} is shorter than the {filter_length}-frame temporal filters; "
+                    "use temporal_crop_frames to crop them."
+                )
+            # Zero-pad on the past side: the last entry multiplies the current frame
+            pad = temporal_filter_length - filter_length
+            temporal_filters_dict = {k: F.pad(v, (pad, 0)) for k, v in temporal_filters_dict.items()}
+            filter_length = temporal_filter_length
+
+        if target_model_cut_frames is not None:
+            core_cut_frames = target_model_cut_frames - (filter_length - 1)
+            if core_cut_frames < 0:
+                raise ValueError(
+                    f"{target_model_cut_frames=} is less than the {filter_length - 1} frames a "
+                    f"{filter_length}-frame temporal filter consumes."
+                )
+            LOGGER.info(
+                f"Cutting {core_cut_frames} frames in the core so the model cuts {target_model_cut_frames} in total."
+            )
+        else:
+            core_cut_frames = cut_first_n_frames if cut_first_n_frames is not None else 0
+
+        core = DummyCore(
+            cut_first_n_frames=core_cut_frames,
+            color_squashing_weights=None if color_squashing_weights is None else tuple(color_squashing_weights),
+        )
 
         mean_activity_dict = data_info.get("mean_activity_dict")
 
-        readout = MultiSpatialContrastReadout(
-            in_shape=in_shape,
+        # What the readout receives: greyscale, with the core's frames cut
+        readout_in_shape = (1, stimulus_shape[1] - core_cut_frames, *target_spatial_shape)
+        readout_kwargs: dict[str, Any] = dict(
+            in_shape=readout_in_shape,
             n_neurons_dict=n_neurons_dict,
             spatial_filters_dict=spatial_filters_dict,
             temporal_filters_dict=temporal_filters_dict,
@@ -437,7 +547,25 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
             c_init=c_init,
             mean_activity_dict=mean_activity_dict,
             neuron_chunk_size=neuron_chunk_size,
+            init_offset_from_mean_activity=init_offset_from_mean_activity,
         )
+        readout: MultiSpatialContrastReadout
+        if learn_filters:
+            readout = MultiLearnableFilterSpatialContrastReadout(
+                gaussian_params_dict=gaussian_params_dict,
+                sigma_contour=sigma_contour,
+                sigma_floor=sigma_floor,
+                **readout_kwargs,
+            )
+        else:
+            readout = MultiSpatialContrastReadout(**readout_kwargs)
+
+        if not learn_contrast_weight:
+            # Zero first: AdamW skips parameters without gradients (weight decay included), so w stays at 0
+            for session_readout in readout.values():
+                assert isinstance(session_readout, SpatialContrastReadout)
+                session_readout.w.data.zero_()
+                session_readout.w.requires_grad_(False)
 
         # Default to avg=True Poisson loss to match the single-cell SC model.
         # The BaseCoreReadout default (avg=False → loss.sum()) produces gradient
@@ -453,6 +581,78 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
             evaluation_loss=evaluation_loss,
             data_info=data_info,
         )
+        self.filter_learning_rate = filter_learning_rate
+        if scheduler_metric not in ("correlation", "poisson"):
+            raise ValueError(f"scheduler_metric must be 'correlation' or 'poisson', got {scheduler_metric!r}.")
+        self.scheduler_metric = scheduler_metric
+
+    @staticmethod
+    def _check_export_info(sta_dir: Union[Path, str], color_squashing_weights: Sequence[float] | None) -> None:
+        """Refuse filters that were learned on a differently squashed stimulus than this model will see."""
+        export_info_path = Path(sta_dir) / "export_info.json"
+        if not export_info_path.exists():
+            return
+        with open(export_info_path) as f:
+            export_info = json.load(f)
+        if "color_squashing_weights" not in export_info:
+            return
+        exported = export_info["color_squashing_weights"]
+        matches = (exported is None and color_squashing_weights is None) or (
+            exported is not None
+            and color_squashing_weights is not None
+            and len(exported) == len(color_squashing_weights)
+            and all(abs(a - b) < 1e-6 for a, b in zip(exported, color_squashing_weights))
+        )
+        if not matches:
+            raise ValueError(
+                f"The filters in {sta_dir} were learned with color_squashing_weights={exported}, but this model "
+                f"uses {color_squashing_weights}."
+            )
+
+    def configure_optimizers(self):
+        filter_parameters = [
+            p
+            for readout in self.readout.values()
+            if isinstance(readout, SpatialContrastReadout)
+            for p in readout.filter_parameters()
+        ]
+        if not filter_parameters and self.scheduler_metric == "correlation":
+            return super().configure_optimizers()
+
+        # The filter geometry gets no weight decay: decay would pull the Gaussian centres towards pixel (0, 0) and
+        # the widths and orientations towards fixed values, regardless of the data.
+        filter_ids = {id(p) for p in filter_parameters}
+        other_parameters = [p for p in self.parameters() if id(p) not in filter_ids]
+        filter_learning_rate = self.filter_learning_rate or self.learning_rate
+        parameter_groups = [{"params": other_parameters, "lr": self.learning_rate}]
+        if filter_parameters:
+            parameter_groups.append({"params": filter_parameters, "lr": filter_learning_rate, "weight_decay": 0.0})
+        optimizer = torch.optim.AdamW(parameter_groups)
+
+        # Same schedule as BaseCoreReadout.configure_optimizers, with a minimum learning rate per group. The
+        # Poisson loss sits on a small, data-dependent scale, so its plateau threshold is relative.
+        lr_decay_factor = 0.3
+        if self.scheduler_metric == "poisson":
+            monitor, mode, threshold, threshold_mode = "val_loss", "min", 1e-4, "rel"
+        else:
+            monitor, mode, threshold, threshold_mode = "val_evaluation_loss", "max", 0.0005, "abs"
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode=mode,
+            factor=lr_decay_factor,
+            patience=5,
+            threshold=threshold,
+            threshold_mode=threshold_mode,
+            min_lr=[group["lr"] * lr_decay_factor**3 for group in parameter_groups],
+        )
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler": scheduler,
+                "monitor": monitor,
+                "frequency": 1,
+            },
+        }
 
     def optimizer_step(
         self,
@@ -461,9 +661,9 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
         optimizer: Optimizer | LightningOptimizer,
         optimizer_closure: Callable[[], Any] | None = None,
     ) -> None:
-        """Clamp nl_a >= 0 after each step to avoid negative predictions."""
+        """After each step, keep nl_a >= 0 to avoid negative predictions (and learned RF centres on the stimulus)."""
         optimizer.step(closure=optimizer_closure)
 
         for readout in self.readout.values():
             assert isinstance(readout, SpatialContrastReadout)
-            readout.nl_a.data.clamp_(min=0.0)
+            readout.apply_constraints()
