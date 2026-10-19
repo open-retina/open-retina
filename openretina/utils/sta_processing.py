@@ -189,7 +189,9 @@ def extract_filters_from_sta(
 
     Returns:
         (spatial_filter, temporal_filter, gaussian_params) where gaussian_params is
-        the dictionary returned by fit_2d_gaussian.
+        the dictionary returned by fit_2d_gaussian, with "amplitude" made positive and two
+        extra keys: "signed_amplitude" (the fitted amplitude before taking its absolute value)
+        and "peak_frame" (the STA frame the Gaussian was fitted to).
     """
     num_frames, height, width = sta.shape
 
@@ -197,7 +199,8 @@ def extract_filters_from_sta(
     # contributes a constant baseline output without corrupting other neurons.
     if not np.all(np.isfinite(sta)):
         LOGGER.warning("STA contains NaN or Inf values — returning zero filters for this neuron.")
-        n_temporal = temporal_crop_frames if temporal_crop_frames is not None else num_frames
+        # Same length as the non-NaN path below, so filters of one session can still be stacked
+        n_temporal = min(temporal_crop_frames, num_frames) if temporal_crop_frames is not None else num_frames
         spatial_filter = np.zeros((height, width), dtype=np.float32)
         temporal_filter = np.zeros(n_temporal, dtype=np.float32)
         gaussian_params = {
@@ -207,6 +210,8 @@ def extract_filters_from_sta(
             "sigma_y": 1.0,
             "theta": 0.0,
             "amplitude": 0.0,
+            "signed_amplitude": 0.0,
+            "peak_frame": 0,
             "success": False,
         }
         return spatial_filter, temporal_filter, gaussian_params
@@ -219,7 +224,10 @@ def extract_filters_from_sta(
 
     gaussian_params = fit_2d_gaussian(spatial_frame)
 
-    # Flip polarity for OFF cells so spatial filter is always positive
+    # Flip polarity for OFF cells so spatial filter is always positive. The sign is kept separately so that callers
+    # can check it against the temporal filter, which is what carries the polarity from here on.
+    gaussian_params["signed_amplitude"] = gaussian_params["amplitude"]
+    gaussian_params["peak_frame"] = int(peak_temporal_idx)
     gaussian_params["amplitude"] = np.abs(gaussian_params["amplitude"])
 
     # Build the spatial filter as a masked 2D Gaussian
