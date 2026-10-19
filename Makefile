@@ -55,6 +55,7 @@ test-notebooks:  # ignore compute and disk space heavy notebooks
 		--ignore-glob='notebooks/new_datasets_guide*.ipynb' \
 		--ignore-glob='notebooks/qiu_2026_*.ipynb' \
 		--ignore-glob='notebooks/eval_hoefling_2024_lnp_grey.ipynb' \
+		--ignore-glob='notebooks/compare_hoefling_2024_sc_lnp_grey.ipynb' \
 		notebooks/
 
 # Fast tool runs without creating a full project environment - used in actions
