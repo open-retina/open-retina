@@ -5,8 +5,10 @@ A tiny greyscale LNP gets hand-set Gaussian filters (one ON, one OFF cell), is e
 """
 
 import json
+import shutil
 from pathlib import Path
 
+import lightning
 import numpy as np
 import pytest
 import torch
@@ -375,3 +377,28 @@ def test_scheduler_can_follow_the_poisson_loss(sta_dir: Path, learn_filters: boo
 def test_unknown_scheduler_metric_raises(sta_dir: Path) -> None:
     with pytest.raises(ValueError, match="scheduler_metric"):
         build_sc(sta_dir, scheduler_metric="mse")
+
+
+@pytest.mark.parametrize("learn_filters", [False, True])
+def test_checkpoint_loads_without_its_stas(sta_dir: Path, tmp_path: Path, learn_filters: bool) -> None:
+    """`load_from_checkpoint` restores the filters from the checkpoint, so the STAs need not exist any more."""
+    model = build_sc(sta_dir, learn_filters=learn_filters)
+    take_optimizer_step(model)  # move the parameters away from their STA-derived start
+    checkpoint = tmp_path / "model.ckpt"
+    torch.save(
+        {
+            "state_dict": model.state_dict(),
+            "hyper_parameters": dict(model.hparams),
+            "pytorch-lightning_version": lightning.__version__,
+        },
+        checkpoint,
+    )
+    shutil.rmtree(sta_dir)
+
+    loaded = SpatialContrastCoreReadout.load_from_checkpoint(checkpoint, weights_only=False)
+
+    assert loaded.state_dict().keys() == model.state_dict().keys()
+    assert all(torch.equal(value, model.state_dict()[key]) for key, value in loaded.state_dict().items())
+    x = torch.rand(2, *IN_SHAPE)
+    with torch.no_grad():
+        assert torch.equal(loaded(x, SESSION), model(x, SESSION))
