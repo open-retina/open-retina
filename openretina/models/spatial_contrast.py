@@ -18,7 +18,7 @@ sensitivity in responses of primate retinal ganglion cells to natural movies.
 import json
 import logging
 from pathlib import Path
-from typing import Any, Callable, Literal, Optional, Sequence, Union
+from typing import IO, Any, Callable, Literal, Optional, Sequence, Union
 
 import torch
 import torch.nn as nn
@@ -26,6 +26,7 @@ import torch.nn.functional as F
 from einops import rearrange
 from jaxtyping import Float, Int
 from lightning import LightningModule
+from lightning.fabric.utilities.cloud_io import _load as pl_load
 from lightning.pytorch.core.optimizer import LightningOptimizer
 from torch.optim import Optimizer
 
@@ -342,10 +343,13 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
     With ``learn_filters=True`` the filters loaded from the STAs only initialise the model: the spatial
     Gaussians (centre, widths, orientation) and the temporal filters are trained along with w, a, b, c.
 
+    The STAs are only needed for training: ``load_from_checkpoint`` takes the filters from the checkpoint, so a
+    trained model loads without its ``sta_dir``.
+
     Args:
         in_shape: (channels, time, height, width) of input stimulus.
         n_neurons_dict: Session key -> number of neurons.
-        sta_dir: Directory containing STA .npy files.
+        sta_dir: Directory containing STA .npy files. Not read when ``filters`` is given.
         sta_file_pattern: Filename pattern with {retina_index} and {cell_index}
             placeholders, e.g. "cell_data_{retina_index}_WN_stas_cell_{cell_index}.npy".
         flip_sta: Whether to flip STAs horizontally.
@@ -381,13 +385,17 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
         loss: Training loss module.
         evaluation_loss: Evaluation metric module.
         data_info: Data metadata dict (must contain sessions_kwargs with the cell ids).
+        filters: Per-session ``(spatial [N, H, W], temporal [N, T])`` filter buffers of a trained model, used
+            instead of reading the STAs in ``sta_dir``. For restoring a checkpoint, which ``load_from_checkpoint``
+            does: with ``learn_filters`` the learnable Gaussians are not derived from them, and take their values
+            from the checkpoint's state dict.
     """
 
     def __init__(
         self,
         in_shape: Int[tuple, "channels time height width"],
         n_neurons_dict: dict[str, int],
-        sta_dir: Union[Path, str],
+        sta_dir: Union[Path, str, None],
         sta_file_pattern: str = "cell_data_{retina_index}_WN_stas_cell_{cell_index}.npy",
         flip_sta: bool = False,
         temporal_crop_frames: int | None = 30,
@@ -412,6 +420,7 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
         loss: nn.Module | None = None,
         evaluation_loss: nn.Module | None = None,
         data_info: dict[str, Any] | None = None,
+        filters: dict[str, tuple[torch.Tensor, torch.Tensor]] | None = None,
     ):
         # Note: argument names are not reassigned below, because Lightning saves the hyperparameters from the
         # constructor's local variables, and a derived value would no longer reload.
@@ -431,72 +440,29 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
         if target_model_cut_frames is not None and cut_first_n_frames is not None:
             raise ValueError("Set either cut_first_n_frames or target_model_cut_frames, not both.")
 
-        local_sta_dir = get_local_file_path(Path(sta_dir).as_posix())
-        self._check_export_info(local_sta_dir, color_squashing_weights)
-
-        # Extract cell indices from data_info
         if data_info is None:
             raise ValueError("data_info is required for SpatialContrastCoreReadout")
-        sessions_kwargs = data_info.get("sessions_kwargs", {})
 
-        spatial_filters_dict: dict[str, torch.Tensor] = {}
-        temporal_filters_dict: dict[str, torch.Tensor] = {}
-        gaussian_params_dict: dict[str, torch.Tensor] = {}
-
-        for session_key, n_neurons in n_neurons_dict.items():
-            session_kw = sessions_kwargs.get(session_key, {})
-            cell_ids = session_kw.get(cell_id_key)
-            if cell_ids is None:
-                raise ValueError(
-                    f"{cell_id_key} not found in data_info['sessions_kwargs']['{session_key}']. "
-                    f"Ensure the dataloader provides {cell_id_key} in session_kwargs, or set cell_id_key."
-                )
-            if len(cell_ids) != n_neurons:
-                raise ValueError(f"Session {session_key}: {len(cell_ids)} {cell_id_key} for {n_neurons} neurons.")
-
-            spatial_list = []
-            temporal_list = []
-            gaussian_list = []
-            failed_fits = []
-            for cell_id in cell_ids:
-                file_name = sta_file_pattern.format(retina_index=session_key, cell_index=int(cell_id))
-                spatial_filter, temporal_filter, gaussian_params = load_sta_and_extract_filters(
-                    sta_dir=local_sta_dir,
-                    file_name=file_name,
-                    flip_sta=flip_sta,
-                    target_spatial_shape=target_spatial_shape,
-                    temporal_crop_frames=temporal_crop_frames,
-                    sigma_contour=sigma_contour,
-                )
-                if not gaussian_params["success"]:
-                    failed_fits.append(int(cell_id))
-                spatial_list.append(torch.from_numpy(spatial_filter))
-                temporal_list.append(torch.from_numpy(temporal_filter))
-                gaussian_list.append(
-                    [gaussian_params[k] for k in ("center_x", "center_y", "sigma_x", "sigma_y", "theta")]
-                )
-
-            if failed_fits:
-                LOGGER.warning(
-                    f"Session {session_key}: the Gaussian fit failed for {cell_id_key} {failed_fits}; "
-                    "their spatial filters fall back to the fit's initial guess."
-                )
-            filter_lengths = {len(t) for t in temporal_list}
-            if len(filter_lengths) > 1:
-                raise ValueError(
-                    f"Session {session_key}: temporal filters of different lengths {sorted(filter_lengths)}. "
-                    "Set temporal_crop_frames to crop them to a common length."
-                )
-
-            spatial_filters_dict[session_key] = torch.stack(spatial_list)
-            temporal_filters_dict[session_key] = torch.stack(temporal_list)
-            gaussian_params_dict[session_key] = torch.tensor(gaussian_list, dtype=torch.float32)
-
-            LOGGER.info(
-                f"Session {session_key}: loaded {len(cell_ids)} STA filters "
-                f"(spatial: {spatial_filters_dict[session_key].shape}, "
-                f"temporal: {temporal_filters_dict[session_key].shape})"
+        if filters is None:
+            if sta_dir is None:
+                raise ValueError("Set sta_dir, or pass the filters themselves.")
+            spatial_filters_dict, temporal_filters_dict, gaussian_params_dict = self._load_filters_from_stas(
+                sta_dir=sta_dir,
+                n_neurons_dict=n_neurons_dict,
+                sessions_kwargs=data_info.get("sessions_kwargs", {}),
+                sta_file_pattern=sta_file_pattern,
+                cell_id_key=cell_id_key,
+                flip_sta=flip_sta,
+                target_spatial_shape=target_spatial_shape,
+                temporal_crop_frames=temporal_crop_frames,
+                sigma_contour=sigma_contour,
+                color_squashing_weights=color_squashing_weights,
             )
+        else:
+            spatial_filters_dict = {key: filters[key][0] for key in n_neurons_dict}
+            temporal_filters_dict = {key: filters[key][1] for key in n_neurons_dict}
+            # The learnable Gaussians are not derived from the filters: restoring a checkpoint overwrites them
+            gaussian_params_dict = {key: torch.zeros(n, 5) for key, n in n_neurons_dict.items()}
 
         filter_lengths = {t.shape[-1] for t in temporal_filters_dict.values()}
         if len(filter_lengths) > 1:
@@ -585,6 +551,115 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
         if scheduler_metric not in ("correlation", "poisson"):
             raise ValueError(f"scheduler_metric must be 'correlation' or 'poisson', got {scheduler_metric!r}.")
         self.scheduler_metric = scheduler_metric
+
+    @classmethod
+    def load_from_checkpoint(
+        cls,
+        checkpoint_path: Union[str, Path, IO],
+        map_location: Any = None,
+        hparams_file: Union[str, Path, None] = None,
+        strict: bool | None = None,
+        weights_only: bool | None = None,
+        **kwargs: Any,
+    ) -> "SpatialContrastCoreReadout":
+        """Load a trained model with the filters stored in its checkpoint, so the STAs it was trained from (its
+        ``sta_dir``) need not exist. Arguments as ``LightningModule.load_from_checkpoint``."""
+        if "filters" not in kwargs:
+            state_dict = pl_load(checkpoint_path, map_location="cpu", weights_only=weights_only)["state_dict"]
+            if hasattr(checkpoint_path, "seek"):
+                checkpoint_path.seek(0)
+            prefix, suffix = "readout.", ".spatial_filters"
+            sessions = [key[len(prefix) : -len(suffix)] for key in state_dict if key.endswith(suffix)]
+            kwargs["filters"] = {
+                session: (state_dict[f"{prefix}{session}{suffix}"], state_dict[f"{prefix}{session}.temporal_filters"])
+                for session in sessions
+            }
+        return super().load_from_checkpoint(
+            checkpoint_path,
+            map_location=map_location,
+            hparams_file=hparams_file,
+            strict=strict,
+            weights_only=weights_only,
+            **kwargs,
+        )
+
+    @staticmethod
+    def _load_filters_from_stas(
+        sta_dir: Union[Path, str],
+        n_neurons_dict: dict[str, int],
+        sessions_kwargs: dict[str, Any],
+        sta_file_pattern: str,
+        cell_id_key: str,
+        flip_sta: bool,
+        target_spatial_shape: tuple[int, int],
+        temporal_crop_frames: int | None,
+        sigma_contour: float,
+        color_squashing_weights: Sequence[float] | None,
+    ) -> tuple[dict[str, torch.Tensor], dict[str, torch.Tensor], dict[str, torch.Tensor]]:
+        """Per-session spatial filters [N, H, W], temporal filters [N, T] and Gaussian fits [N, 5] from the STAs."""
+        local_sta_dir = get_local_file_path(Path(sta_dir).as_posix())
+        SpatialContrastCoreReadout._check_export_info(local_sta_dir, color_squashing_weights)
+
+        spatial_filters_dict: dict[str, torch.Tensor] = {}
+        temporal_filters_dict: dict[str, torch.Tensor] = {}
+        gaussian_params_dict: dict[str, torch.Tensor] = {}
+
+        for session_key, n_neurons in n_neurons_dict.items():
+            session_kw = sessions_kwargs.get(session_key, {})
+            cell_ids = session_kw.get(cell_id_key)
+            if cell_ids is None:
+                raise ValueError(
+                    f"{cell_id_key} not found in data_info['sessions_kwargs']['{session_key}']. "
+                    f"Ensure the dataloader provides {cell_id_key} in session_kwargs, or set cell_id_key."
+                )
+            if len(cell_ids) != n_neurons:
+                raise ValueError(f"Session {session_key}: {len(cell_ids)} {cell_id_key} for {n_neurons} neurons.")
+
+            spatial_list = []
+            temporal_list = []
+            gaussian_list = []
+            failed_fits = []
+            for cell_id in cell_ids:
+                file_name = sta_file_pattern.format(retina_index=session_key, cell_index=int(cell_id))
+                spatial_filter, temporal_filter, gaussian_params = load_sta_and_extract_filters(
+                    sta_dir=local_sta_dir,
+                    file_name=file_name,
+                    flip_sta=flip_sta,
+                    target_spatial_shape=target_spatial_shape,
+                    temporal_crop_frames=temporal_crop_frames,
+                    sigma_contour=sigma_contour,
+                )
+                if not gaussian_params["success"]:
+                    failed_fits.append(int(cell_id))
+                spatial_list.append(torch.from_numpy(spatial_filter))
+                temporal_list.append(torch.from_numpy(temporal_filter))
+                gaussian_list.append(
+                    [gaussian_params[k] for k in ("center_x", "center_y", "sigma_x", "sigma_y", "theta")]
+                )
+
+            if failed_fits:
+                LOGGER.warning(
+                    f"Session {session_key}: the Gaussian fit failed for {cell_id_key} {failed_fits}; "
+                    "their spatial filters fall back to the fit's initial guess."
+                )
+            filter_lengths = {len(t) for t in temporal_list}
+            if len(filter_lengths) > 1:
+                raise ValueError(
+                    f"Session {session_key}: temporal filters of different lengths {sorted(filter_lengths)}. "
+                    "Set temporal_crop_frames to crop them to a common length."
+                )
+
+            spatial_filters_dict[session_key] = torch.stack(spatial_list)
+            temporal_filters_dict[session_key] = torch.stack(temporal_list)
+            gaussian_params_dict[session_key] = torch.tensor(gaussian_list, dtype=torch.float32)
+
+            LOGGER.info(
+                f"Session {session_key}: loaded {len(cell_ids)} STA filters "
+                f"(spatial: {spatial_filters_dict[session_key].shape}, "
+                f"temporal: {temporal_filters_dict[session_key].shape})"
+            )
+
+        return spatial_filters_dict, temporal_filters_dict, gaussian_params_dict
 
     @staticmethod
     def _check_export_info(sta_dir: Union[Path, str], color_squashing_weights: Sequence[float] | None) -> None:
