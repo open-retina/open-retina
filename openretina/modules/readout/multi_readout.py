@@ -11,7 +11,7 @@ from openretina.modules.readout.base import ClonedReadout, Readout
 from openretina.modules.readout.factorized import FactorizedReadout
 from openretina.modules.readout.factorized_gaussian import GaussianMaskReadout
 from openretina.modules.readout.gaussian import PointGaussianReadout
-from openretina.modules.readout.linear_nonlinear_poison import LNPReadout
+from openretina.modules.readout.linear_nonlinear_poison import LNPReadout, SeparableLNPReadout
 
 
 class MultiReadoutBase(nn.ModuleDict):
@@ -330,6 +330,26 @@ class MultipleLNPReadout(MultiReadoutBase):
     """
 
     _base_readout_cls = LNPReadout
+
+    def __init__(
+        self,
+        in_shape: tuple[int, int, int, int],
+        n_neurons_dict: dict[str, int],
+        **kwargs,
+    ):
+        super().__init__(
+            in_shape=in_shape,
+            n_neurons_dict=n_neurons_dict,
+            **kwargs,
+        )
+
+
+class MultipleSeparableLNPReadout(MultiReadoutBase):
+    """Multiple space-time separable Linear Nonlinear Poisson readouts, one per session.
+    For use as an LNP Model use this readout with a DummyCore that passes the input through.
+    """
+
+    _base_readout_cls = SeparableLNPReadout
 
     def __init__(
         self,
