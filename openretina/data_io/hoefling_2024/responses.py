@@ -237,6 +237,7 @@ def upsample_traces(
     stim_id: int,
     target_fr: int = 30,
     norm_by_std: bool = True,
+    response_delay_frames: float = 0.0,
 ) -> np.ndarray:
     """
     Upsamples the traces based on the stimulus type.
@@ -247,6 +248,8 @@ def upsample_traces(
         tracestimes (list): List of trace times.
         stim_id (int): Stimulus ID.
         target_fr (int, optional): Target frame rate for upsampling. Default is 30.
+        response_delay_frames (float, optional): Pair each stimulus frame with the response this many frames earlier,
+            i.e. delay the responses relative to the stimulus. Default 0.
 
     Returns:
         numpy.ndarray: Upsampled responses.
@@ -274,7 +277,9 @@ def upsample_traces(
 
     upsampled_responses = np.zeros((traces.shape[0], len(upsampled_triggertimes)))
     for i in range(traces.shape[0]):
-        upsampled_responses[i] = np.interp(upsampled_triggertimes, tracestimes[i].ravel(), traces[i].ravel())
+        upsampled_responses[i] = np.interp(
+            upsampled_triggertimes - response_delay_frames / target_fr, tracestimes[i].ravel(), traces[i].ravel()
+        )
 
     if norm_by_std:
         upsampled_responses = upsampled_responses / np.std(
@@ -408,9 +413,29 @@ def make_final_responses(
     qi_logic: Literal["and", "or"] = "or",
     scale_traces: float = 1.0,
     norm_by_std: bool = True,
+    response_delay_frames: float = 0.0,
 ):
+    """
+    Upsample the responses of every session to the stimulus frame rate and split them into train and test.
+
+    Args:
+        response_delay_frames: Delay the responses by this many stimulus frames before splitting, so the response a
+            model predicts at frame t is the one recorded at frame t - response_delay_frames. Inferred spikes are not
+            causal: around a light step they start rising ~150-200 ms before the step, while the calcium signal they
+            are inferred from rises only after it. Without a delay, the response at frame t therefore partly depends
+            on later frames, which a causal model cannot see.
+        Remaining arguments are passed to `upsample_all_responses`.
+    """
     upsampled_data_dict = upsample_all_responses(
-        data_dict, response_type, trace_type, d_qi, chirp_qi, qi_logic, scale_traces, norm_by_std
+        data_dict,
+        response_type,
+        trace_type,
+        d_qi,
+        chirp_qi,
+        qi_logic,
+        scale_traces,
+        norm_by_std,
+        response_delay_frames=response_delay_frames,
     )
 
     responses_dictionary = {}
@@ -446,6 +471,7 @@ def upsample_all_responses(
     qi_logic: Literal["and", "or"] = "or",
     scale_traces: float = 1.0,
     norm_by_std: bool = True,
+    response_delay_frames: float = 0.0,
 ) -> dict:
     """
     Converts inferred spikes into final responses by upsampling the traces of all sessions of a given response_type.
@@ -507,6 +533,7 @@ def upsample_all_responses(
                 tracestimes=tracestimes,
                 stim_id=stim_id,
                 norm_by_std=norm_by_std,
+                response_delay_frames=response_delay_frames,
             )
             * scale_traces
         )
