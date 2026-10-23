@@ -1,16 +1,17 @@
 """Constants for the Qiu et al. 2026 (Franke lab) mouse dataset.
 
-The data ships in Sensorium FileTree trial format (one ``.npy`` per trial), NaN-padded
-to ``CLIP_LENGTH_FULL`` frames. Train/validation trials carry ``CLIP_LENGTH_CUT`` valid
-frames; test trials are internally uniform at either 300 or 450 valid frames.
+The data ships in Sensorium FileTree trial format (one ``.npy`` per trial), NaN-padded at the end to
+a length that is uniform within a session but differs between sessions (300, 450 or 960 frames: the
+longest trial that session holds). Every clip trial carries ``CLIP_LENGTH_CUT`` valid frames in
+every tier, so the loaders trim by counting valid frames rather than assuming a padded length.
 """
 
 # Frame rate of the stimulus / responses (Hz). Used as the model frame rate.
 FRAME_RATE_MODEL = 30
 
-# Per-trial temporal layout (frames @ 30 fps).
-CLIP_LENGTH_FULL = 450  # padded length every trial array is stored at
-CLIP_LENGTH_CUT = 300  # valid length of train/validation trials after removing NaN padding
+# Per-trial temporal layout (frames @ 30 fps). There is deliberately no constant for the padded
+# length: it is 300, 450 or 960 depending on the session (see the module docstring).
+CLIP_LENGTH_CUT = 300  # valid length of a clip trial, in every tier, after removing NaN padding
 
 # Single-channel video geometry (channels, height, width).
 VIDEO_SHAPE = (1, 36, 64)
