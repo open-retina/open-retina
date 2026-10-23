@@ -1,4 +1,5 @@
 from math import ceil, sqrt
+from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -150,8 +151,12 @@ class SeparableLNPReadout(Readout):
     Contrast readout expects from its temporal filters, so `spatiotemporal_filters()` can be saved as an STA as-is.
     The output is ``temporal_kernel_size - 1`` frames shorter than the input.
 
-    The temporal kernel starts as a delta on the current frame, so at initialization the model is the
-    lag-0 `LNPReadout`.
+    By default (``temporal_init="current_frame"``) the temporal kernel starts as a delta on the current frame, so at
+    initialization the model is the lag-0 `LNPReadout`. Natural movies change little from one frame to the next, so
+    they constrain the sum of neighbouring kernel weights much better than their difference: part of the delta
+    survives training as a large weight on the current frame with an opposite-sign weight on the frame before, which
+    does not change the predictions. ``temporal_init="uniform"`` starts every frame at ``1 / temporal_kernel_size``
+    (the same total gain) and leaves no such trace, but on hoefling_2024 it trained to a lower test correlation.
     """
 
     def __init__(
@@ -167,6 +172,7 @@ class SeparableLNPReadout(Readout):
         laplace_padding=None,
         nonlinearity: str = "exp",
         bias: bool = False,
+        temporal_init: Literal["current_frame", "uniform"] = "current_frame",
         **kwargs,
     ):
         super().__init__()
@@ -200,8 +206,13 @@ class SeparableLNPReadout(Readout):
 
         nn.init.xavier_normal_(self.spatial_kernel.weight.data)
         with torch.no_grad():
-            self.temporal_kernel.weight.zero_()
-            self.temporal_kernel.weight[:, :, -1] = 1.0
+            if temporal_init == "current_frame":
+                self.temporal_kernel.weight.zero_()
+                self.temporal_kernel.weight[:, :, -1] = 1.0
+            elif temporal_init == "uniform":
+                self.temporal_kernel.weight.fill_(1.0 / temporal_kernel_size)
+            else:
+                raise ValueError(f"Unknown {temporal_init=}, expected 'current_frame' or 'uniform'.")
 
         regularizer_config = (
             dict(padding=laplace_padding, kernel=self.kernel_size)

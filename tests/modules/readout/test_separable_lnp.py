@@ -58,6 +58,15 @@ def test_starts_as_the_lag_zero_lnp() -> None:
     assert torch.equal(filters[:, :, -1], readout.spatial_kernel.weight[:, :, 0].detach())
 
 
+def test_uniform_init_weighs_every_frame_equally() -> None:
+    readout = build_readout(temporal_init="uniform")
+    filters = readout.spatiotemporal_filters().detach()
+    spatial = readout.spatial_kernel.weight[:, :, 0].detach()
+
+    # Every frame gets 1 / T of the spatial filter, so the total gain matches the current-frame init
+    assert torch.allclose(filters, spatial[:, :, None].expand_as(filters) / TEMPORAL_KERNEL_SIZE)
+
+
 def test_regularizer_is_finite_and_differentiable() -> None:
     readout = build_readout(smooth_weight=1.0, smooth_weight_temporal=1.0, sparse_weight=1.0)
     regularization = readout.regularizer()
