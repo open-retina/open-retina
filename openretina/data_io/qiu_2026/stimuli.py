@@ -113,21 +113,6 @@ def _assemble_input_tensor(
     return np.concatenate([video_norm, beh], axis=0).astype(np.float32)
 
 
-def _build_input_tensor(
-    video: np.ndarray,  # (H, W, T) already trimmed to valid length
-    behavior: np.ndarray,  # (3, T) already trimmed to valid length
-    video_mean: float,
-    video_std: float,
-    behavior_mean: np.ndarray,  # (3,)
-    behavior_std: np.ndarray,  # (3,)
-    behavior_channels: tuple[int, ...],
-) -> np.ndarray:
-    """Normalize and assemble one trial into a ``(1 + n_behavior, T, H, W)`` float32 tensor."""
-    return _assemble_input_tensor(
-        _normalize_video(video, video_mean, video_std),
-        _normalize_behavior(behavior, behavior_mean, behavior_std, behavior_channels),
-    )
-
 
 def load_stimuli_for_session(
     session_path: str | os.PathLike,
