@@ -157,6 +157,13 @@ class SeparableLNPReadout(Readout):
     survives training as a large weight on the current frame with an opposite-sign weight on the frame before, which
     does not change the predictions. ``temporal_init="uniform"`` starts every frame at ``1 / temporal_kernel_size``
     (the same total gain) and leaves no such trace, but on hoefling_2024 it trained to a lower test correlation.
+    ``temporal_init="random"`` draws every tap from U(-a, a) with ``a = sqrt(3 / temporal_kernel_size)``, so the
+    kernel starts with the delta's expected squared norm of 1 but without a preferred frame.
+
+    With ``temporal_kernel_per_channel=True`` each input channel (e.g. green and UV) gets its own temporal kernel:
+    the filter is ``sum_c temporal[c, t] * spatial[c, h, w]``, rank 1 per channel rather than overall. The bias then
+    sits in ``output_bias`` instead of the temporal convolution, which carries one kernel per neuron and channel.
+    With a single channel both modes compute the same filter.
     """
 
     def __init__(
@@ -172,7 +179,8 @@ class SeparableLNPReadout(Readout):
         laplace_padding=None,
         nonlinearity: str = "exp",
         bias: bool = False,
-        temporal_init: Literal["current_frame", "uniform"] = "current_frame",
+        temporal_init: Literal["current_frame", "uniform", "random"] = "current_frame",
+        temporal_kernel_per_channel: bool = False,
         **kwargs,
     ):
         super().__init__()
@@ -194,15 +202,19 @@ class SeparableLNPReadout(Readout):
             bias=False,
             stride=1,
         )
-        # One temporal kernel per neuron: a grouped convolution over the neurons' spatial projections
+        self.temporal_kernel_per_channel = temporal_kernel_per_channel
+        # One temporal kernel per neuron (and channel): a grouped convolution over the spatial projections
+        n_temporal_kernels = self.n_neurons * (self.in_channels if temporal_kernel_per_channel else 1)
         self.temporal_kernel = nn.Conv3d(
-            in_channels=self.n_neurons,
-            out_channels=self.n_neurons,
+            in_channels=n_temporal_kernels,
+            out_channels=n_temporal_kernels,
             kernel_size=(temporal_kernel_size, 1, 1),
-            groups=self.n_neurons,
-            bias=bias,
+            groups=n_temporal_kernels,
+            bias=bias and not temporal_kernel_per_channel,
             stride=1,
         )
+        # Per channel, the bias is added once after summing the channels
+        self.output_bias = nn.Parameter(torch.zeros(self.n_neurons)) if bias and temporal_kernel_per_channel else None
 
         nn.init.xavier_normal_(self.spatial_kernel.weight.data)
         with torch.no_grad():
@@ -211,8 +223,11 @@ class SeparableLNPReadout(Readout):
                 self.temporal_kernel.weight[:, :, -1] = 1.0
             elif temporal_init == "uniform":
                 self.temporal_kernel.weight.fill_(1.0 / temporal_kernel_size)
+            elif temporal_init == "random":
+                bound = (3.0 / temporal_kernel_size) ** 0.5
+                self.temporal_kernel.weight.uniform_(-bound, bound)
             else:
-                raise ValueError(f"Unknown {temporal_init=}, expected 'current_frame' or 'uniform'.")
+                raise ValueError(f"Unknown {temporal_init=}, expected 'current_frame', 'uniform' or 'random'.")
 
         regularizer_config = (
             dict(padding=laplace_padding, kernel=self.kernel_size)
@@ -224,20 +239,38 @@ class SeparableLNPReadout(Readout):
         self.initialize(mean_activity)
 
     def forward(self, x: Float[torch.Tensor, "batch channels t h w"], data_key=None, **kwargs):
-        out = self.spatial_kernel(x)  # (batch, neurons, t, 1, 1)
-        out = self.temporal_kernel(out)  # (batch, neurons, t - temporal_kernel_size + 1, 1, 1)
+        if self.temporal_kernel_per_channel:
+            # Project each channel on its own spatial map, so each channel can be filtered in time separately
+            out = torch.einsum("bcthw,nchw->bnct", x, self.spatial_kernel.weight[:, :, 0])
+            out = rearrange(out, "batch neurons channels t -> batch (neurons channels) t 1 1")
+            out = self.temporal_kernel(out)
+            out = rearrange(
+                out, "batch (neurons channels) t 1 1 -> batch neurons channels t", channels=self.in_channels
+            )
+            out = out.sum(dim=2)
+            if self.output_bias is not None:
+                out = out + self.output_bias[None, :, None]
+            out = rearrange(out, "batch neurons t -> batch neurons t 1 1")
+        else:
+            out = self.spatial_kernel(x)  # (batch, neurons, t, 1, 1)
+            out = self.temporal_kernel(out)  # (batch, neurons, t - temporal_kernel_size + 1, 1, 1)
         out = self.nonlinearity(out)
         out = rearrange(out, "batch neurons t 1 1 -> batch t neurons")
         return out
 
-    def spatiotemporal_filters(self) -> Float[torch.Tensor, "neurons channels time height width"]:
-        """The rank-1 linear filter of each neuron, ``temporal[t] * spatial[c, h, w]``.
+    def temporal_kernels(self) -> Float[torch.Tensor, "neurons kernels time"]:
+        """The temporal kernels, one per neuron, or one per neuron and channel with ``temporal_kernel_per_channel``."""
+        return self.temporal_kernel.weight[:, 0, :, 0, 0].reshape(self.n_neurons, -1, self.temporal_kernel_size)
 
+    def spatiotemporal_filters(self) -> Float[torch.Tensor, "neurons channels time height width"]:
+        """The separable linear filter of each neuron, ``temporal[c, t] * spatial[c, h, w]``.
+
+        Without ``temporal_kernel_per_channel`` all channels share one temporal kernel, so the filter is rank 1.
         The product is free of the scale and sign ambiguity between the two factors.
         """
         spatial = self.spatial_kernel.weight[:, :, 0]  # (neurons, channels, h, w)
-        temporal = self.temporal_kernel.weight[:, 0, :, 0, 0]  # (neurons, t)
-        return torch.einsum("nt,nchw->ncthw", temporal, spatial)
+        temporal = self.temporal_kernels().expand(-1, self.in_channels, -1)  # (neurons, channels, t)
+        return torch.einsum("nct,nchw->ncthw", temporal, spatial)
 
     def weights_l1(self, average: bool = True):
         """L1 of the full spatiotemporal filter.
@@ -270,7 +303,7 @@ class SeparableLNPReadout(Readout):
         ax_readout, ax_features = axes
 
         spatial = self.spatial_kernel.weight.detach().cpu().numpy()[neuron_id, :, 0, :, :]
-        temporal = self.temporal_kernel.weight.detach().cpu().numpy()[neuron_id, 0, :, 0, 0]
+        temporal = self.temporal_kernels().detach().cpu().numpy()[neuron_id]  # (kernels, t)
         weight_abs_max = float(np.abs(spatial).max()) or 1.0
 
         ax_readout.imshow(
@@ -280,7 +313,11 @@ class SeparableLNPReadout(Readout):
             norm=Normalize(-weight_abs_max, weight_abs_max),
         )
         # Plot time relative to the current frame, which is the last kernel entry
-        ax_features.plot(np.arange(-len(temporal) + 1, 1), temporal, marker="o")
+        for channel, kernel in enumerate(temporal):
+            label = f"channel {channel}" if len(temporal) > 1 else None
+            ax_features.plot(np.arange(-len(kernel) + 1, 1), kernel, marker="o", label=label)
+        if len(temporal) > 1:
+            ax_features.legend()
         ax_features.axhline(0.0, color="black", linewidth=0.8)
 
         if add_titles:
@@ -291,6 +328,7 @@ class SeparableLNPReadout(Readout):
         return self.n_neurons
 
     def initialize(self, mean_activity: Float[torch.Tensor, " n_neurons"] | None = None) -> None:
-        if self.temporal_kernel.bias is not None and mean_activity is not None:
+        bias = self.output_bias if self.output_bias is not None else self.temporal_kernel.bias
+        if bias is not None and mean_activity is not None:
             with torch.no_grad():
-                self.temporal_kernel.bias.copy_(mean_activity)
+                bias.copy_(mean_activity)
