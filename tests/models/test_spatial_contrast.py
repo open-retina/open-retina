@@ -114,11 +114,11 @@ def n_frames(temporal_kernel: list[float] | None) -> int:
     return 1 if temporal_kernel is None else len(temporal_kernel)
 
 
-def build_sc(sta_dir: Path, **kwargs) -> SpatialContrastCoreReadout:
+def build_sc(sta_dir: Path | None, **kwargs) -> SpatialContrastCoreReadout:
     arguments = dict(
         in_shape=IN_SHAPE,
         n_neurons_dict={SESSION: len(ROI_IDS)},
-        sta_dir=str(sta_dir),
+        sta_dir=None if sta_dir is None else str(sta_dir),
         sta_file_pattern="{retina_index}_roi{cell_index}.npy",
         cell_id_key="roi_ids",
         temporal_crop_frames=None,
@@ -398,6 +398,66 @@ def test_checkpoint_loads_without_its_stas(sta_dir: Path, tmp_path: Path, learn_
     loaded = SpatialContrastCoreReadout.load_from_checkpoint(checkpoint, weights_only=False)
 
     assert loaded.state_dict().keys() == model.state_dict().keys()
+    assert all(torch.equal(value, model.state_dict()[key]) for key, value in loaded.state_dict().items())
+    x = torch.rand(2, *IN_SHAPE)
+    with torch.no_grad():
+        assert torch.equal(loaded(x, SESSION), model(x, SESSION))
+
+
+def build_random_sc(**kwargs) -> SpatialContrastCoreReadout:
+    arguments: dict = dict(filter_init="random", learn_filters=True, temporal_filter_length=5)
+    arguments.update(kwargs)
+    return build_sc(None, **arguments)
+
+
+def test_random_init_starts_every_neuron_at_the_centre() -> None:
+    readout = session_readout(build_random_sc(gaussian_init_sigma=1.5))
+    assert isinstance(readout, LearnableFilterSpatialContrastReadout)
+
+    sigma_x, sigma_y = readout.sigmas()
+    assert torch.allclose(readout.center_x, torch.full((len(ROI_IDS),), (WIDTH - 1) / 2))
+    assert torch.allclose(readout.center_y, torch.full((len(ROI_IDS),), (HEIGHT - 1) / 2))
+    assert torch.allclose(sigma_x, torch.tensor(1.5)) and torch.allclose(sigma_y, torch.tensor(1.5))
+    # The frozen buffer holds the same Gaussian the learnable parameters describe
+    spatial, _, _ = readout._filters()
+    assert torch.allclose(spatial, readout.spatial_filters, atol=1e-6)
+
+
+def test_random_init_draws_the_temporal_filters_from_the_seed() -> None:
+    torch.manual_seed(0)
+    first = session_readout(build_random_sc()).temporal_filters
+    torch.manual_seed(0)
+    second = session_readout(build_random_sc()).temporal_filters
+
+    assert first.shape == (len(ROI_IDS), 5)
+    assert torch.all(first.abs() <= (3.0 / 5) ** 0.5)
+    assert not torch.equal(first[0], first[1])
+    assert torch.equal(first, second)
+
+
+@pytest.mark.parametrize(
+    "kwargs", [dict(learn_filters=False), dict(temporal_filter_length=None)], ids=["frozen", "no_length"]
+)
+def test_random_init_needs_learned_filters_of_a_set_length(kwargs: dict) -> None:
+    with pytest.raises(ValueError, match="filter_init='random'"):
+        build_random_sc(**kwargs)
+
+
+def test_random_init_round_trips_through_a_checkpoint(tmp_path: Path) -> None:
+    model = build_random_sc()
+    take_optimizer_step(model)
+    checkpoint = tmp_path / "model.ckpt"
+    torch.save(
+        {
+            "state_dict": model.state_dict(),
+            "hyper_parameters": dict(model.hparams),
+            "pytorch-lightning_version": lightning.__version__,
+        },
+        checkpoint,
+    )
+
+    loaded = SpatialContrastCoreReadout.load_from_checkpoint(checkpoint, weights_only=False)
+
     assert all(torch.equal(value, model.state_dict()[key]) for key, value in loaded.state_dict().items())
     x = torch.rand(2, *IN_SHAPE)
     with torch.no_grad():
