@@ -5,6 +5,12 @@
 #
 # lr_scheduler drives UnifiedCoreReadout models (the LNPs); selection_metric drives the Spatial Contrast model,
 # which builds its own scheduler with the same settings.
+#
+# For the first selection_warmup_epochs epochs neither early stopping (trainer.min_epochs) nor the learning-rate
+# schedule acts, so a transient at the start of training (e.g. a validation loss that first rises while a strong
+# regularizer reshapes randomly initialised filters) can neither stop the run nor cut the learning rate. Runs whose
+# config lacks selection_warmup_epochs had no warm-up (selection_warmup_epochs=0).
+selection_warmup_epochs: 30
 selection_metric: correlation
 
 training_callbacks:
@@ -17,7 +23,12 @@ training_callbacks:
     mode: max
     filename: "{epoch:02d}_{val_evaluation_loss:.3f}_{val_loss:.6f}"
 
+trainer:
+  min_epochs: ${selection_warmup_epochs}
+
 lr_scheduler:
+  _target_: openretina.utils.optimizer_utils.WarmupReduceLROnPlateau
+  warmup_epochs: ${selection_warmup_epochs}
   monitor: val_evaluation_loss
   mode: max
   threshold: 0.0005
