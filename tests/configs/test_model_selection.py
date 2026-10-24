@@ -35,7 +35,9 @@ def test_selection_sets_every_monitor(config_name: str, selection: str | None) -
         assert cfg.model.scheduler_metric == metric
     # Both criteria wait out the same warm-up before stopping early or cutting the learning rate
     assert cfg.lr_scheduler._target_ == "openretina.utils.optimizer_utils.WarmupReduceLROnPlateau"
-    assert cfg.lr_scheduler.warmup_epochs == cfg.trainer.min_epochs == cfg.selection_warmup_epochs == 30
+    assert cfg.lr_scheduler.warmup_epochs == cfg.selection_warmup_epochs == 30
+    assert callbacks.early_stopping._target_ == "openretina.callbacks.warmup_early_stopping.WarmupEarlyStopping"
+    assert callbacks.early_stopping.warmup_epochs == 30
     if "scheduler_warmup_epochs" in cfg.model:
         assert cfg.model.scheduler_warmup_epochs == 30
 
