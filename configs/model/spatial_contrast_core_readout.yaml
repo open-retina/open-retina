@@ -38,6 +38,7 @@ gaussian_init_sigma: 1.5       # with filter_init=random: initial Gaussian width
 # --- Training ---
 init_offset_from_mean_activity: false  # true starts each neuron's a * softplus(c) at its mean activity
 scheduler_metric: correlation  # validation metric the LR schedule follows: correlation or poisson
+scheduler_warmup_epochs: 0     # epochs at the start during which the LR schedule ignores the metric
 
 # --- Learnable parameter initial values ---
 w_init: 0.0     # Spatial contrast weight (0 = start as a pure LN model)

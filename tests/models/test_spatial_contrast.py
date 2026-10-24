@@ -374,6 +374,20 @@ def test_scheduler_can_follow_the_poisson_loss(sta_dir: Path, learn_filters: boo
     assert len(configuration["optimizer"].param_groups) == (2 if learn_filters else 1)
 
 
+def test_scheduler_waits_out_the_warm_up(sta_dir: Path) -> None:
+    model = build_sc(sta_dir, learn_filters=True, scheduler_metric="poisson", scheduler_warmup_epochs=3)
+    configuration = model.configure_optimizers()
+    optimizer, scheduler = configuration["optimizer"], configuration["lr_scheduler"]["scheduler"]
+    learning_rates = [group["lr"] for group in optimizer.param_groups]
+
+    assert scheduler.warmup_epochs == 3
+    for loss in range(20):  # a rising loss: past the warm-up and the patience, the learning rates must drop
+        scheduler.step(float(loss))
+        if loss < 3 + 5:
+            assert [group["lr"] for group in optimizer.param_groups] == learning_rates
+    assert all(group["lr"] < lr for group, lr in zip(optimizer.param_groups, learning_rates))
+
+
 def test_unknown_scheduler_metric_raises(sta_dir: Path) -> None:
     with pytest.raises(ValueError, match="scheduler_metric"):
         build_sc(sta_dir, scheduler_metric="mse")

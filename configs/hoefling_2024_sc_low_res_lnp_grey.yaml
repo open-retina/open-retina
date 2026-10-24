@@ -61,6 +61,7 @@ model:
   filter_learning_rate: 1e-3
   # Set by the model_selection group, together with the early stopping and checkpoint callbacks
   scheduler_metric: ${selection_metric}
+  scheduler_warmup_epochs: ${selection_warmup_epochs}
 
 paths:
   sta_dir: null # Directory written by export_lnp_filters_as_stas; required unless model.filter_init=random

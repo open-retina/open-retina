@@ -44,7 +44,9 @@ model:
     temporal_kernel_per_channel: true
     temporal_init: random
     smooth_weight: 3e4 # spatial smoothness; the shipped default of 1.0 is numerically inert
-    smooth_weight_temporal: 0.0
+    # Temporal smoothness: without it the random-init kernels keep their starting noise. 1e3 was the smallest weight of
+    # a pilot (3e2-1e4, selected on validation correlation) that smoothed them, at -0.002 validation correlation
+    smooth_weight_temporal: 1e3
 
 data_io:
   data_info:

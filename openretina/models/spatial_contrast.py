@@ -41,6 +41,7 @@ from openretina.modules.readout.spatial_contrast_model_readout import (
     gaussian_2d_torch,
 )
 from openretina.utils.file_utils import get_local_file_path
+from openretina.utils.optimizer_utils import WarmupReduceLROnPlateau
 from openretina.utils.sta_processing import load_sta_and_extract_filters
 
 LOGGER = logging.getLogger(__name__)
@@ -386,6 +387,8 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
         scheduler_metric: Validation metric the learning rate schedule follows: "correlation"
             (val_evaluation_loss, as BaseCoreReadout) or "poisson" (val_loss, the training objective).
             Use the same metric for the early stopping and checkpoint callbacks.
+        scheduler_warmup_epochs: Epochs at the start during which the learning rate schedule ignores the metric (see
+            ``WarmupReduceLROnPlateau``). Pair it with ``trainer.min_epochs`` so early stopping waits as well.
         w_init, a_init, b_init, c_init: Initial per-neuron parameter values.
         learning_rate: Learning rate for AdamW.
         neuron_chunk_size: Max neurons processed at once in the readout forward
@@ -422,6 +425,7 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
         gaussian_init_sigma: float = 1.5,
         init_offset_from_mean_activity: bool = False,
         scheduler_metric: Literal["correlation", "poisson"] = "correlation",
+        scheduler_warmup_epochs: int = 0,
         w_init: float = 0.0,
         a_init: float = 4.0,
         b_init: float = 1.0,
@@ -576,6 +580,7 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
         if scheduler_metric not in ("correlation", "poisson"):
             raise ValueError(f"scheduler_metric must be 'correlation' or 'poisson', got {scheduler_metric!r}.")
         self.scheduler_metric = scheduler_metric
+        self.scheduler_warmup_epochs = scheduler_warmup_epochs
 
     @classmethod
     def load_from_checkpoint(
@@ -766,7 +771,7 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
             monitor, mode, threshold, threshold_mode = "val_loss", "min", 1e-4, "rel"
         else:
             monitor, mode, threshold, threshold_mode = "val_evaluation_loss", "max", 0.0005, "abs"
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        scheduler = WarmupReduceLROnPlateau(
             optimizer,
             mode=mode,
             factor=lr_decay_factor,
@@ -774,6 +779,7 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
             threshold=threshold,
             threshold_mode=threshold_mode,
             min_lr=[group["lr"] * lr_decay_factor**3 for group in parameter_groups],
+            warmup_epochs=self.scheduler_warmup_epochs,
         )
         return {
             "optimizer": optimizer,
