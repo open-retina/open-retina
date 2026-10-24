@@ -33,6 +33,11 @@ def test_selection_sets_every_monitor(config_name: str, selection: str | None) -
     assert cfg.selection_metric == metric
     if "scheduler_metric" in cfg.model:
         assert cfg.model.scheduler_metric == metric
+    # Both criteria wait out the same warm-up before stopping early or cutting the learning rate
+    assert cfg.lr_scheduler._target_ == "openretina.utils.optimizer_utils.WarmupReduceLROnPlateau"
+    assert cfg.lr_scheduler.warmup_epochs == cfg.trainer.min_epochs == cfg.selection_warmup_epochs == 30
+    if "scheduler_warmup_epochs" in cfg.model:
+        assert cfg.model.scheduler_warmup_epochs == 30
 
 
 def test_colour_lnp_has_a_temporal_kernel_per_channel() -> None:
@@ -42,4 +47,4 @@ def test_colour_lnp_has_a_temporal_kernel_per_channel() -> None:
     assert cfg.model.core.get("color_squashing_weights") is None
     assert cfg.model.core.cut_first_n_frames + cfg.model.readout.temporal_kernel_size - 1 == 30
     assert cfg.model.readout.temporal_kernel_per_channel
-    assert cfg.model.readout.smooth_weight_temporal == 0.0
+    assert cfg.model.readout.smooth_weight_temporal == 1e3
