@@ -20,6 +20,8 @@ defaults:
       - csv
   - trainer: default_deterministic
   - hydra: default
+  # Runs before 2026-10-23 selected on validation correlation; set model_selection=val_correlation to reproduce them
+  - model_selection: val_loss
   - _self_ # values in this config will overwrite the defaults
 
 exp_name: hoefling_2024_core_readout_low_res_filtered_lnp_grey_separable

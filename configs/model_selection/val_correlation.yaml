@@ -1,0 +1,24 @@
+# @package _global_
+# Select the checkpoint, stop early and decay the learning rate on the validation correlation (val_evaluation_loss),
+# the defaults of BaseCoreReadout and of the LNP configs. Correlation is also the reported goodness of fit, so this
+# selects on the reported metric, measured on the validation set. Compare with model_selection=val_loss.
+#
+# lr_scheduler drives UnifiedCoreReadout models (the LNPs); selection_metric drives the Spatial Contrast model,
+# which builds its own scheduler with the same settings.
+selection_metric: correlation
+
+training_callbacks:
+  early_stopping:
+    monitor: val_evaluation_loss
+    mode: max
+    min_delta: 1.0e-4
+  model_checkpoint:
+    monitor: val_evaluation_loss
+    mode: max
+    filename: "{epoch:02d}_{val_evaluation_loss:.3f}_{val_loss:.6f}"
+
+lr_scheduler:
+  monitor: val_evaluation_loss
+  mode: max
+  threshold: 0.0005
+  threshold_mode: abs

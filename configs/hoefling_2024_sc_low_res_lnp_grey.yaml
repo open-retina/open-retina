@@ -9,6 +9,9 @@
 #   model.learn_contrast_weight=false   LN baseline: w fixed at 0, same filters and nonlinearity
 #   model.learn_filters=true            also learn the spatial Gaussians and temporal filters
 #   model.temporal_filter_length=10     with learn_filters: learn 10-frame filters from 1-frame STAs
+#   model.filter_init=random            no STAs: start from a centred Gaussian and a random temporal filter
+#                                       (needs learn_filters=true and temporal_filter_length; paths.sta_dir unused)
+#   model_selection=val_correlation     select, stop and schedule on validation correlation instead of Poisson loss
 defaults:
   - data_io: hoefling_2024
   - quality_checks: hoefling_2024
@@ -25,6 +28,7 @@ defaults:
       - csv
   - trainer: default_deterministic
   - hydra: default
+  - model_selection: val_loss
   - _self_ # values in this config will overwrite the defaults
 
 exp_name: hoefling_2024_sc_low_res_lnp_grey
@@ -55,22 +59,11 @@ model:
   init_offset_from_mean_activity: true
   # Only used with learn_filters=true: at the nonlinearity's rate (0.01) the temporal filters get noisy early on
   filter_learning_rate: 1e-3
-  # With 4 (or, with learned filters, ~20) parameters per neuron, overfitting is not the risk; stopping before the
-  # nonlinearity is calibrated is. So select and schedule on the training objective, the validation Poisson loss.
-  scheduler_metric: poisson
-
-training_callbacks:
-  early_stopping:
-    monitor: val_loss
-    mode: min
-    min_delta: 0.0
-  model_checkpoint:
-    monitor: val_loss
-    mode: min
-    filename: "{epoch:02d}_{val_loss:.6f}_{val_evaluation_loss:.3f}"
+  # Set by the model_selection group, together with the early stopping and checkpoint callbacks
+  scheduler_metric: ${selection_metric}
 
 paths:
-  sta_dir: ??? # Directory written by export_lnp_filters_as_stas
+  sta_dir: null # Directory written by export_lnp_filters_as_stas; required unless model.filter_init=random
   load_model_path: null
   cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Remote files are downloaded to this location
   data_dir: ${paths.cache_dir}/data/ # Folder where local files are read from.
