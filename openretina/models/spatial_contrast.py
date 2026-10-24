@@ -38,6 +38,7 @@ from openretina.modules.readout.spatial_contrast_model_readout import (
     MultiLearnableFilterSpatialContrastReadout,
     MultiSpatialContrastReadout,
     SpatialContrastReadout,
+    gaussian_2d_torch,
 )
 from openretina.utils.file_utils import get_local_file_path
 from openretina.utils.sta_processing import load_sta_and_extract_filters
@@ -346,10 +347,15 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
     The STAs are only needed for training: ``load_from_checkpoint`` takes the filters from the checkpoint, so a
     trained model loads without its ``sta_dir``.
 
+    With ``filter_init="random"`` no STAs are read at all: every neuron starts with the same isotropic Gaussian of
+    width ``gaussian_init_sigma`` at the centre of the stimulus, and a temporal filter drawn from U(-a, a) with
+    ``a = sqrt(3 / temporal_filter_length)``. This needs ``learn_filters`` and ``temporal_filter_length``.
+
     Args:
         in_shape: (channels, time, height, width) of input stimulus.
         n_neurons_dict: Session key -> number of neurons.
-        sta_dir: Directory containing STA .npy files. Not read when ``filters`` is given.
+        sta_dir: Directory containing STA .npy files. Not read when ``filters`` is given or with
+            ``filter_init="random"``.
         sta_file_pattern: Filename pattern with {retina_index} and {cell_index}
             placeholders, e.g. "cell_data_{retina_index}_WN_stas_cell_{cell_index}.npy".
         flip_sta: Whether to flip STAs horizontally.
@@ -372,6 +378,9 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
             length, so the model can learn a longer filter than the STA has (e.g. from a single frame).
         filter_learning_rate: Learning rate for the filter parameters. None uses learning_rate.
         sigma_floor: With learn_filters, lower bound on the Gaussian widths in pixels.
+        filter_init: Where the filters start: "sta" (fitted to the STAs in ``sta_dir``) or "random" (a centred
+            Gaussian and a random temporal filter, see above).
+        gaussian_init_sigma: With ``filter_init="random"``, the width of the initial Gaussians in pixels.
         init_offset_from_mean_activity: Initialise each neuron's offset c from its mean activity in
             ``data_info["mean_activity_dict"]``, so that a * softplus(c) starts at the neuron's mean rate.
         scheduler_metric: Validation metric the learning rate schedule follows: "correlation"
@@ -409,6 +418,8 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
         temporal_filter_length: int | None = None,
         filter_learning_rate: float | None = None,
         sigma_floor: float = 1.0,
+        filter_init: Literal["sta", "random"] = "sta",
+        gaussian_init_sigma: float = 1.5,
         init_offset_from_mean_activity: bool = False,
         scheduler_metric: Literal["correlation", "poisson"] = "correlation",
         w_init: float = 0.0,
@@ -443,7 +454,21 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
         if data_info is None:
             raise ValueError("data_info is required for SpatialContrastCoreReadout")
 
-        if filters is None:
+        if filter_init not in ("sta", "random"):
+            raise ValueError(f"filter_init must be 'sta' or 'random', got {filter_init!r}.")
+        if filter_init == "random" and (not learn_filters or temporal_filter_length is None):
+            raise ValueError("filter_init='random' needs learn_filters=True and a temporal_filter_length.")
+
+        if filters is None and filter_init == "random":
+            assert temporal_filter_length is not None
+            spatial_filters_dict, temporal_filters_dict, gaussian_params_dict = self._random_filters(
+                n_neurons_dict=n_neurons_dict,
+                spatial_shape=target_spatial_shape,
+                temporal_filter_length=temporal_filter_length,
+                sigma=gaussian_init_sigma,
+                sigma_contour=sigma_contour,
+            )
+        elif filters is None:
             if sta_dir is None:
                 raise ValueError("Set sta_dir, or pass the filters themselves.")
             spatial_filters_dict, temporal_filters_dict, gaussian_params_dict = self._load_filters_from_stas(
@@ -582,6 +607,36 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
             weights_only=weights_only,
             **kwargs,
         )
+
+    @staticmethod
+    def _random_filters(
+        n_neurons_dict: dict[str, int],
+        spatial_shape: tuple[int, int],
+        temporal_filter_length: int,
+        sigma: float,
+        sigma_contour: float,
+    ) -> tuple[dict[str, torch.Tensor], dict[str, torch.Tensor], dict[str, torch.Tensor]]:
+        """Per-session filters for ``filter_init="random"``, in the layout `_load_filters_from_stas` returns.
+
+        The temporal filters come from torch's global RNG, which Lightning seeds with the run's seed.
+        """
+        height, width = spatial_shape
+        y_grid, x_grid = torch.meshgrid(
+            torch.arange(height, dtype=torch.float32), torch.arange(width, dtype=torch.float32), indexing="ij"
+        )
+        bound = (3.0 / temporal_filter_length) ** 0.5
+
+        spatial_filters_dict: dict[str, torch.Tensor] = {}
+        temporal_filters_dict: dict[str, torch.Tensor] = {}
+        gaussian_params_dict: dict[str, torch.Tensor] = {}
+        for session_key, n_neurons in n_neurons_dict.items():
+            gaussian_params = torch.tensor([(width - 1) / 2, (height - 1) / 2, sigma, sigma, 0.0]).repeat(n_neurons, 1)
+            gaussian, normalized_distance = gaussian_2d_torch(x_grid, y_grid, *gaussian_params.unbind(dim=1))
+            spatial = gaussian * (normalized_distance <= sigma_contour)
+            spatial_filters_dict[session_key] = spatial / spatial.flatten(start_dim=1).norm(dim=1)[:, None, None]
+            temporal_filters_dict[session_key] = torch.empty(n_neurons, temporal_filter_length).uniform_(-bound, bound)
+            gaussian_params_dict[session_key] = gaussian_params
+        return spatial_filters_dict, temporal_filters_dict, gaussian_params_dict
 
     @staticmethod
     def _load_filters_from_stas(
