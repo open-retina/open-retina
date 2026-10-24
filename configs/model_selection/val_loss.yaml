@@ -1,0 +1,25 @@
+# @package _global_
+# Select the checkpoint, stop early and decay the learning rate on the validation Poisson loss (val_loss), the
+# training objective without its regularizers. The correlation then stays an independent measure of fit.
+# Compare with model_selection=val_correlation.
+#
+# The Poisson loss sits on a small, data-dependent scale, so the plateau threshold is relative and early stopping
+# takes any improvement. lr_scheduler drives UnifiedCoreReadout models (the LNPs); selection_metric drives the
+# Spatial Contrast model, which builds its own scheduler with the same settings.
+selection_metric: poisson
+
+training_callbacks:
+  early_stopping:
+    monitor: val_loss
+    mode: min
+    min_delta: 0.0
+  model_checkpoint:
+    monitor: val_loss
+    mode: min
+    filename: "{epoch:02d}_{val_loss:.6f}_{val_evaluation_loss:.3f}"
+
+lr_scheduler:
+  monitor: val_loss
+  mode: min
+  threshold: 1.0e-4
+  threshold_mode: rel
