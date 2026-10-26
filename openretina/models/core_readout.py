@@ -112,12 +112,16 @@ class BaseCoreReadout(LightningModule):
         output_readout = self.readout(output_core, data_key=data_key)
         return output_readout
 
+    def readout_regularization(self, session_id: str, model_output: torch.Tensor) -> torch.Tensor:
+        """The readout's penalty for a batch of ``model_output``, on the scale of the training loss."""
+        return self.readout.regularizer(session_id)  # type: ignore
+
     def training_step(self, batch: tuple[str, DataPoint], batch_idx: int) -> torch.Tensor:
         session_id, data_point = batch
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets)
         regularization_loss_core = self.core.regularizer()
-        regularization_loss_readout = self.readout.regularizer(session_id)  # type: ignore
+        regularization_loss_readout = self.readout_regularization(session_id, model_output)
         total_loss = loss + regularization_loss_core + regularization_loss_readout
         evaluation_loss = self.evaluation_loss.forward(model_output, data_point.targets)
 
@@ -134,7 +138,7 @@ class BaseCoreReadout(LightningModule):
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
         regularization_loss_core = self.core.regularizer()
-        regularization_loss_readout = self.readout.regularizer(session_id)  # type: ignore
+        regularization_loss_readout = self.readout_regularization(session_id, model_output)
         total_loss = loss + regularization_loss_core + regularization_loss_readout
         evaluation_loss = self.evaluation_loss.forward(model_output, data_point.targets)
 

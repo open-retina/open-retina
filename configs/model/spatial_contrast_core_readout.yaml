@@ -34,6 +34,7 @@ filter_learning_rate: null     # with learn_filters: learning rate of the filter
 sigma_floor: 1.0               # with learn_filters: minimum Gaussian width in pixels
 filter_init: sta               # sta: fit the filters to the STAs; random: centred Gaussian + random temporal filter
 gaussian_init_sigma: 1.5       # with filter_init=random: initial Gaussian width in pixels
+smooth_weight_temporal: 0.0    # with learn_filters: temporal smoothness weight, on the scale of the LNP readouts' weight
 
 # --- Training ---
 init_offset_from_mean_activity: false  # true starts each neuron's a * softplus(c) at its mean activity
