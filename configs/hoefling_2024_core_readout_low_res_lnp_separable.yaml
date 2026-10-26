@@ -6,7 +6,7 @@
 # sum_c temporal[c, t] * spatial[c, h, w]: rank 1 per channel.
 #
 # Regularised like the lag-30 greyscale LNP (hoefling_2024_core_readout_low_res_lnp_grey_separable.yaml with
-# temporal_kernel_size=31, cut_first_n_frames=0): spatial smoothness 3e4, no temporal smoothness, the default L1.
+# temporal_kernel_size=31, cut_first_n_frames=0): spatial smoothness 3e4, temporal smoothness 1e3, the default L1.
 defaults:
   - data_io: hoefling_2024
   - quality_checks: hoefling_2024
