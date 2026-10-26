@@ -458,3 +458,138 @@ def export_lnp_filters_as_stas(
         f"{int((~manifest['polarity_consistent']).sum())} with inconsistent polarity."
     )
     return manifest
+
+
+def export_mean_sc_filters_as_stas(
+    models: list[Any],
+    output_dir: Union[Path, str],
+    file_pattern: str = "{session}_roi{roi_id}.npy",
+    source: str | None = None,
+) -> pd.DataFrame:
+    """
+    Save the filters of several Spatial Contrast models with learned filters, averaged per neuron, as STA files.
+
+    Meant for models that differ only in their seed. Per neuron, the spatial filter is the mean of the models'
+    Gaussians, each without its mask and with unit peak, and the temporal filter the mean of their unit-norm temporal
+    filters, each multiplied by the sign of the model's input gain ``nl_b`` so that a polarity flipped through the
+    nonlinearity does not cancel out. The two are saved as a rank-1 ``(time, height, width)`` STA in the layout of
+    `export_lnp_filters_as_stas`, which `SpatialContrastCoreReadout` reads back as frozen filters: a Gaussian fitted to
+    the mean spatial filter and masked at its own ``sigma_contour``, and the mean temporal filter.
+
+    Alongside the filters this writes ``manifest.csv`` (one row per neuron, with how much the models agree and how the
+    SC model's filter extraction sees the averaged filter) and ``export_info.json``.
+
+    Args:
+        models: Trained ``SpatialContrastCoreReadout`` models with ``learn_filters=True``, on the same sessions and
+            neurons.
+        output_dir: Directory to write the filters, manifest and export info to. Created if missing.
+        file_pattern: Filename pattern with ``{session}`` and ``{roi_id}`` placeholders.
+        source: Optional free-text description of where the models came from.
+
+    Returns:
+        The manifest as a DataFrame.
+    """
+    from openretina.modules.readout.spatial_contrast_model_readout import (
+        LearnableFilterSpatialContrastReadout,
+        gaussian_2d_torch,
+    )
+
+    if not models:
+        raise ValueError("No models to average.")
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    sessions = list(models[0].readout.keys())
+    squashing = [model.hparams.get("color_squashing_weights") for model in models]
+    if any(list(s or []) != list(squashing[0] or []) for s in squashing):
+        raise ValueError("The models squash the colour channels differently.")
+    sessions_kwargs = models[0].data_info.get("sessions_kwargs", {})
+
+    rows: list[dict[str, Any]] = []
+    n_frames: int | None = None
+    for session in sessions:
+        roi_ids = sessions_kwargs.get(session, {}).get("roi_ids")
+        if roi_ids is None:
+            raise ValueError(f"Session {session}: data_info['sessions_kwargs'] has no 'roi_ids' to name files by.")
+        spatial_maps, temporal_filters, centres = [], [], []
+        for model in models:
+            readout = model.readout[session]
+            if not isinstance(readout, LearnableFilterSpatialContrastReadout):
+                raise ValueError(f"Session {session}: the readout does not learn its filters.")
+            if not np.array_equal(model.data_info["sessions_kwargs"][session]["roi_ids"], roi_ids):
+                raise ValueError(f"Session {session}: the models were trained on different neurons.")
+            with torch.no_grad():
+                sigma_x, sigma_y = readout.sigmas()
+                gaussian, _ = gaussian_2d_torch(
+                    readout.x_grid, readout.y_grid, readout.center_x, readout.center_y, sigma_x, sigma_y, readout.theta
+                )
+                _, temporal, _ = readout._filters()  # unit norm, zero for neurons without a filter
+                gain_sign = torch.sign(readout.nl_b)
+                gain_sign[gain_sign == 0] = 1.0
+            spatial_maps.append(gaussian.cpu().numpy())
+            temporal_filters.append((temporal * gain_sign[:, None]).cpu().numpy())
+            centres.append(torch.stack([readout.center_x, readout.center_y], dim=1).detach().cpu().numpy())
+        spatial_stack, temporal_stack, centre_stack = map(np.stack, (spatial_maps, temporal_filters, centres))
+        n_frames = temporal_stack.shape[-1]
+        if len(roi_ids) != spatial_stack.shape[1]:
+            raise ValueError(f"Session {session}: {len(roi_ids)} roi_ids for {spatial_stack.shape[1]} neurons.")
+
+        for neuron_idx, roi_id in enumerate(int(r) for r in roi_ids):
+            neuron_temporal = temporal_stack[:, neuron_idx]  # (models, time)
+            active = np.linalg.norm(neuron_temporal, axis=1) > 0
+            if active.any():
+                spatial_mean = spatial_stack[active, neuron_idx].mean(axis=0)
+                temporal_mean = neuron_temporal[active].mean(axis=0)
+            else:
+                spatial_mean = np.zeros(spatial_stack.shape[2:])
+                temporal_mean = np.zeros(n_frames)
+            sta = (temporal_mean[:, None, None] * spatial_mean[None]).astype(np.float32)
+            file_name = file_pattern.format(session=session, roi_id=roi_id)
+            np.save(output_dir / file_name, sta)
+
+            cosines = neuron_temporal[active] @ neuron_temporal[active].T
+            n_active = int(active.sum())
+            pairwise = cosines[np.triu_indices(n_active, k=1)] if n_active > 1 else np.array([np.nan])
+            centre = centre_stack[active, neuron_idx]
+            _, extracted_temporal, gaussian_params = extract_filters_from_sta(sta)
+            polarity = float(np.sign(gaussian_params["signed_amplitude"]))
+            rows.append(
+                {
+                    "session": session,
+                    "neuron_idx": neuron_idx,
+                    "roi_id": roi_id,
+                    "file": file_name,
+                    "n_models": n_active,
+                    "temporal_cosine_between_models": float(np.mean(pairwise)),
+                    "centre_spread_px": float(np.sqrt(((centre - centre.mean(axis=0)) ** 2).sum(axis=1).mean()))
+                    if n_active
+                    else np.nan,
+                    "fit_success": bool(gaussian_params["success"]),
+                    "center_x": float(gaussian_params["center_x"]),
+                    "center_y": float(gaussian_params["center_y"]),
+                    "sigma_x": float(gaussian_params["sigma_x"]),
+                    "sigma_y": float(gaussian_params["sigma_y"]),
+                    "polarity_consistent": polarity != 0
+                    and float(np.sign(extracted_temporal[gaussian_params["peak_frame"]])) == polarity,
+                }
+            )
+
+    manifest = pd.DataFrame(rows)
+    manifest.to_csv(output_dir / "manifest.csv", index=False)
+    export_info = {
+        "source": source,
+        "color_squashing_weights": None if squashing[0] is None else list(squashing[0]),
+        "n_frames": n_frames,
+        "file_pattern": file_pattern,
+        "n_models": len(models),
+        "n_sessions": len(sessions),
+        "n_neurons": len(manifest),
+    }
+    with open(output_dir / "export_info.json", "w") as f:
+        json.dump(export_info, f, indent=2)
+
+    LOGGER.info(
+        f"Exported the mean filters of {len(models)} models for {len(manifest)} neurons to {output_dir}: "
+        f"{int(manifest['fit_success'].sum())} Gaussian fits succeeded."
+    )
+    return manifest
