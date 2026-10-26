@@ -382,13 +382,18 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
         filter_init: Where the filters start: "sta" (fitted to the STAs in ``sta_dir``) or "random" (a centred
             Gaussian and a random temporal filter, see above).
         gaussian_init_sigma: With ``filter_init="random"``, the width of the initial Gaussians in pixels.
+        smooth_weight_temporal: With learn_filters, weight of the temporal smoothness penalty on the unit-norm
+            temporal filters (see LearnableFilterSpatialContrastReadout). It is the weight the LNP readouts use,
+            relative to a Poisson loss summed over the batch: this model trains on the mean, so the penalty is
+            divided by the number of loss elements in each batch, and a weight has the same relative strength as
+            in an LNP.
         init_offset_from_mean_activity: Initialise each neuron's offset c from its mean activity in
             ``data_info["mean_activity_dict"]``, so that a * softplus(c) starts at the neuron's mean rate.
         scheduler_metric: Validation metric the learning rate schedule follows: "correlation"
             (val_evaluation_loss, as BaseCoreReadout) or "poisson" (val_loss, the training objective).
             Use the same metric for the early stopping and checkpoint callbacks.
         scheduler_warmup_epochs: Epochs at the start during which the learning rate schedule ignores the metric (see
-            ``WarmupReduceLROnPlateau``). Pair it with ``trainer.min_epochs`` so early stopping waits as well.
+            ``WarmupReduceLROnPlateau``). Pair it with ``WarmupEarlyStopping`` so early stopping waits as well.
         w_init, a_init, b_init, c_init: Initial per-neuron parameter values.
         learning_rate: Learning rate for AdamW.
         neuron_chunk_size: Max neurons processed at once in the readout forward
@@ -423,6 +428,7 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
         sigma_floor: float = 1.0,
         filter_init: Literal["sta", "random"] = "sta",
         gaussian_init_sigma: float = 1.5,
+        smooth_weight_temporal: float = 0.0,
         init_offset_from_mean_activity: bool = False,
         scheduler_metric: Literal["correlation", "poisson"] = "correlation",
         scheduler_warmup_epochs: int = 0,
@@ -462,6 +468,8 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
             raise ValueError(f"filter_init must be 'sta' or 'random', got {filter_init!r}.")
         if filter_init == "random" and (not learn_filters or temporal_filter_length is None):
             raise ValueError("filter_init='random' needs learn_filters=True and a temporal_filter_length.")
+        if smooth_weight_temporal and not learn_filters:
+            raise ValueError("smooth_weight_temporal needs learn_filters=True: frozen filters cannot be smoothed.")
 
         if filters is None and filter_init == "random":
             assert temporal_filter_length is not None
@@ -550,6 +558,7 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
                 gaussian_params_dict=gaussian_params_dict,
                 sigma_contour=sigma_contour,
                 sigma_floor=sigma_floor,
+                smooth_weight_temporal=smooth_weight_temporal,
                 **readout_kwargs,
             )
         else:
@@ -581,6 +590,11 @@ class SpatialContrastCoreReadout(BaseCoreReadout):
             raise ValueError(f"scheduler_metric must be 'correlation' or 'poisson', got {scheduler_metric!r}.")
         self.scheduler_metric = scheduler_metric
         self.scheduler_warmup_epochs = scheduler_warmup_epochs
+
+    def readout_regularization(self, session_id: str, model_output: torch.Tensor) -> torch.Tensor:
+        # The readout weighs its penalty against a loss summed over the batch, as the LNP readouts do; the training
+        # loss here is the mean over the same elements
+        return super().readout_regularization(session_id, model_output) / model_output.numel()
 
     @classmethod
     def load_from_checkpoint(

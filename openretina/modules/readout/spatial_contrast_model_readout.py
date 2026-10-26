@@ -22,6 +22,7 @@ import torch.nn.functional as F
 from einops import einsum, rearrange
 from jaxtyping import Float, Int
 
+from openretina.modules.layers.regularizers import TimeLaplaceL23dnorm
 from openretina.modules.readout.base import Readout
 from openretina.modules.readout.multi_readout import MultiReadoutBase
 
@@ -283,6 +284,10 @@ class LearnableFilterSpatialContrastReadout(SpatialContrastReadout):
         sigma_contour: The spatial filter is masked to this many standard deviations.
         sigma_floor: Lower bound on both widths, in pixels. Must keep the mask wider than one pixel: once it covers
             only the centre pixel, the filter's parameters get no gradient and can never recover.
+        smooth_weight_temporal: Weight of the temporal smoothness penalty, the normalised Laplacian of the LNP
+            readouts (``TimeLaplaceL23dnorm``) taken on the unit-norm temporal filters, so that every neuron counts
+            the same whatever the norm of its stored weights. As in the LNP readouts, the weight is relative to a
+            Poisson loss summed over the batch.
         Remaining arguments: see SpatialContrastReadout. The frozen ``spatial_filters`` and ``temporal_filters``
             are kept as buffers, as a record of the initialization.
     """
@@ -300,6 +305,7 @@ class LearnableFilterSpatialContrastReadout(SpatialContrastReadout):
         gaussian_params: Float[torch.Tensor, "neurons 5"],
         sigma_contour: float,
         sigma_floor: float = 1.0,
+        smooth_weight_temporal: float = 0.0,
         **kwargs: Any,
     ):
         super().__init__(
@@ -341,6 +347,10 @@ class LearnableFilterSpatialContrastReadout(SpatialContrastReadout):
         # ill-conditioned, so they stay switched off instead of feeding huge gradients into the global clipping.
         self.register_buffer("active", (temporal_filters.abs().sum(dim=-1) > 0).to(torch.float32))
 
+        self.smooth_weight_temporal = smooth_weight_temporal
+        # Not persistent, so checkpoints from before the penalty existed still load
+        self._temporal_smooth_reg_fn = TimeLaplaceL23dnorm(persistent_buffer=False)
+
     def sigmas(self) -> tuple[Float[torch.Tensor, " neurons"], Float[torch.Tensor, " neurons"]]:
         return F.softplus(self.sigma_x_raw) + self.sigma_floor, F.softplus(self.sigma_y_raw) + self.sigma_floor
 
@@ -362,6 +372,12 @@ class LearnableFilterSpatialContrastReadout(SpatialContrastReadout):
 
         temporal = F.normalize(self.temporal_weight, dim=-1, eps=1e-8) * self.active[:, None]
         return spatial, temporal, spatial.sum(dim=(-2, -1))
+
+    def regularizer(self, reduction: Literal["sum", "mean", None] = "sum") -> torch.Tensor:
+        if self.smooth_weight_temporal == 0:
+            return torch.tensor(0.0, device=self.w.device)
+        _, temporal, _ = self._filters()
+        return self.smooth_weight_temporal * self._temporal_smooth_reg_fn(temporal[:, None, :, None, None])
 
     def filter_parameters(self) -> list[nn.Parameter]:
         return [self.center_x, self.center_y, self.sigma_x_raw, self.sigma_y_raw, self.theta, self.temporal_weight]
@@ -453,6 +469,7 @@ class MultiLearnableFilterSpatialContrastReadout(MultiSpatialContrastReadout):
             sigma_y, theta).
         sigma_contour: Spatial filter mask contour in sigmas.
         sigma_floor: Lower bound on the Gaussian widths, in pixels.
+        smooth_weight_temporal: Weight of the temporal smoothness penalty, see LearnableFilterSpatialContrastReadout.
         Remaining arguments: see MultiSpatialContrastReadout.
     """
 
@@ -468,6 +485,7 @@ class MultiLearnableFilterSpatialContrastReadout(MultiSpatialContrastReadout):
         gaussian_params_dict: dict[str, Float[torch.Tensor, "neurons 5"]],
         sigma_contour: float,
         sigma_floor: float = 1.0,
+        smooth_weight_temporal: float = 0.0,
         **kwargs: Any,
     ):
         super().__init__(
@@ -478,5 +496,6 @@ class MultiLearnableFilterSpatialContrastReadout(MultiSpatialContrastReadout):
             session_readout_kwargs={key: {"gaussian_params": params} for key, params in gaussian_params_dict.items()},
             sigma_contour=sigma_contour,
             sigma_floor=sigma_floor,
+            smooth_weight_temporal=smooth_weight_temporal,
             **kwargs,
         )
