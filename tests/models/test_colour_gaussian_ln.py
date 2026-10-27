@@ -313,3 +313,37 @@ def test_checkpoint_round_trip(tmp_path: Path) -> None:
 def test_bad_frame_cuts_raise(kwargs: dict) -> None:
     with pytest.raises(ValueError, match="cut"):
         build_model(**kwargs)
+
+
+def test_squashed_model_is_the_greyscale_ln_model_from_the_same_seed() -> None:
+    """With colour squashing, the model starts from the same random filters as SpatialContrastCoreReadout's LN model
+    with the same seed, and computes the same predictions."""
+    from openretina.models.spatial_contrast import SpatialContrastCoreReadout
+
+    common: dict = dict(
+        in_shape=IN_SHAPE,
+        n_neurons_dict={SESSION: N_NEURONS},
+        temporal_filter_length=T_FILTER,
+        target_model_cut_frames=30,
+        color_squashing_weights=[0.5, 0.5],
+        sigma_contour=SIGMA_CONTOUR,
+        gaussian_init_sigma=2.0,
+        smooth_weight_temporal=10.0,
+        a_init=1.0,
+        init_offset_from_mean_activity=True,
+        data_info=data_info(),
+    )
+    torch.manual_seed(3)
+    grey = ColourGaussianLNCoreReadout(**common)
+    torch.manual_seed(3)
+    ln = SpatialContrastCoreReadout(
+        sta_dir=None, filter_init="random", learn_filters=True, learn_contrast_weight=False, **common
+    )
+    readout = grey.readout[SESSION]
+    assert isinstance(readout, ColourGaussianLNReadout)
+    assert readout.temporal_weight.shape == (N_NEURONS, 1, T_FILTER)
+
+    x = torch.rand(3, *IN_SHAPE)
+    with torch.no_grad():
+        assert torch.allclose(grey(x, SESSION), ln(x, SESSION), atol=1e-6)
+        assert torch.allclose(grey.readout.regularizer(SESSION), ln.readout.regularizer(SESSION))

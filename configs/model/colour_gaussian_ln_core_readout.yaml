@@ -15,6 +15,7 @@ n_neurons_dict: ???    # Set dynamically at runtime via data_info
 temporal_filter_length: 31     # frames; the last one weighs the current frame
 cut_first_n_frames: null       # Frames cut by DummyCore (null = no cutting)
 target_model_cut_frames: null  # Alternative to cut_first_n_frames: total frames to cut, temporal filter included
+color_squashing_weights: null  # e.g. [0.5, 0.5]: squash to greyscale first, i.e. the greyscale LN model
 sigma_contour: 1.5             # each Gaussian is masked to this many of its current standard deviations
 sigma_floor: 1.0               # minimum Gaussian width in pixels
 gaussian_init_sigma: 1.5       # initial Gaussian width in pixels; every Gaussian starts at the frame centre

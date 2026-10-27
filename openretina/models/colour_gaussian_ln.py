@@ -6,10 +6,15 @@ ColourGaussianLNCoreReadout is the colour counterpart of the LN model trained wi
 to greyscale, every neuron gets an independent Gaussian spatial filter and temporal filter for each channel (see
 ColourGaussianLNReadout). The optimiser, learning-rate schedule and loss are those of SpatialContrastCoreReadout, so
 that the two models differ only in their filters.
+
+With ``color_squashing_weights`` the core squashes the stimulus to greyscale first, and the model is the greyscale LN
+model itself. It then computes the same function as SpatialContrastCoreReadout with the contrast weight fixed at 0,
+but projects the stimulus onto the spatial filters before filtering in time, which on a 72x64 stimulus is far cheaper
+than filtering every pixel.
 """
 
 import logging
-from typing import Any, Callable, Literal
+from typing import Any, Callable, Literal, Sequence
 
 import torch
 import torch.nn as nn
@@ -34,6 +39,8 @@ class ColourGaussianLNCoreReadout(BaseCoreReadout):
 
     Args:
         in_shape: (channels, time, height, width) of the stimulus. Every channel gets its own filters.
+        color_squashing_weights: If set, the core collapses the channels to greyscale with these weights, and the
+            readout gets one set of filters per neuron (see the module docstring).
         n_neurons_dict: Number of neurons per session.
         temporal_filter_length: Number of frames of the temporal filters.
         cut_first_n_frames: Frames the core cuts. Set this or ``target_model_cut_frames``.
@@ -64,6 +71,7 @@ class ColourGaussianLNCoreReadout(BaseCoreReadout):
         temporal_filter_length: int = 31,
         cut_first_n_frames: int | None = None,
         target_model_cut_frames: int | None = None,
+        color_squashing_weights: Sequence[float] | None = None,
         sigma_contour: float = 1.5,
         sigma_floor: float = 1.0,
         gaussian_init_sigma: float = 1.5,
@@ -87,6 +95,11 @@ class ColourGaussianLNCoreReadout(BaseCoreReadout):
             raise ValueError("data_info is required for ColourGaussianLNCoreReadout")
         if scheduler_metric not in ("correlation", "poisson"):
             raise ValueError(f"scheduler_metric must be 'correlation' or 'poisson', got {scheduler_metric!r}.")
+        if color_squashing_weights is not None and len(color_squashing_weights) != stimulus_shape[0]:
+            raise ValueError(
+                f"Got {len(color_squashing_weights)} color_squashing_weights "
+                f"for a {stimulus_shape[0]}-channel stimulus."
+            )
 
         if target_model_cut_frames is not None:
             core_cut_frames = target_model_cut_frames - (temporal_filter_length - 1)
@@ -101,9 +114,13 @@ class ColourGaussianLNCoreReadout(BaseCoreReadout):
         else:
             core_cut_frames = cut_first_n_frames if cut_first_n_frames is not None else 0
 
-        core = DummyCore(cut_first_n_frames=core_cut_frames)
+        core = DummyCore(
+            cut_first_n_frames=core_cut_frames,
+            color_squashing_weights=None if color_squashing_weights is None else tuple(color_squashing_weights),
+        )
+        readout_channels = stimulus_shape[0] if color_squashing_weights is None else 1
         readout = MultiColourGaussianLNReadout(
-            in_shape=(stimulus_shape[0], stimulus_shape[1] - core_cut_frames, *stimulus_shape[2:]),
+            in_shape=(readout_channels, stimulus_shape[1] - core_cut_frames, *stimulus_shape[2:]),
             n_neurons_dict=n_neurons_dict,
             temporal_filter_length=temporal_filter_length,
             sigma_contour=sigma_contour,
