@@ -19,6 +19,28 @@ from omegaconf import DictConfig
 LOGGER = logging.getLogger(__name__)
 
 
+class WarmupReduceLROnPlateau(torch.optim.lr_scheduler.ReduceLROnPlateau):
+    """ReduceLROnPlateau that ignores the monitored metric for its first ``warmup_epochs`` steps.
+
+    During the warm-up the learning rate stays put, and the metric is not recorded either, so the plateau test starts
+    from the first value after it. This keeps an early transient, such as a validation loss that first rises while a
+    strong regularizer reshapes randomly initialised filters, from cutting the learning rate.
+    """
+
+    def __init__(self, optimizer: torch.optim.Optimizer, *args: Any, warmup_epochs: int = 0, **kwargs: Any):
+        super().__init__(optimizer, *args, **kwargs)
+        if warmup_epochs < 0:
+            raise ValueError(f"warmup_epochs must be >= 0, got {warmup_epochs}.")
+        self.warmup_epochs = warmup_epochs
+        self.warmup_steps_taken = 0
+
+    def step(self, metrics: Any, epoch: int | None = None) -> None:  # type: ignore[override]
+        if self.warmup_steps_taken < self.warmup_epochs:
+            self.warmup_steps_taken += 1
+            return
+        super().step(metrics, epoch)
+
+
 def instantiate_optimizer(
     optimizer_config: DictConfig | None,
     model_parameters: Any,

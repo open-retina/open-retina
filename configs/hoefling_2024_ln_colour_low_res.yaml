@@ -1,0 +1,69 @@
+# Multi-cell colour LN model on hoefling_2024: one learnable Gaussian and one temporal filter per channel (green, UV).
+#
+# The colour counterpart of the lag-30 LN model trained with hoefling_2024_sc_low_res_lnp_grey and
+#   model.learn_contrast_weight=false model.learn_filters=true model.filter_init=random
+#   model.temporal_filter_length=31 model.sigma_contour=1.5 model.smooth_weight_temporal=1e3
+#   model.filter_learning_rate=1e-2
+# with the same data, nonlinearity initialisation, learning rates and model selection.
+defaults:
+  - data_io: hoefling_2024
+  - quality_checks: hoefling_2024
+  - dataloader: hoefling_2024
+  - model: colour_gaussian_ln_core_readout
+  - optimizer: adamw
+  - lr_scheduler: reduce_lr_on_plateau
+  - training_callbacks:
+      - early_stopping
+      - lr_monitor
+      - model_checkpoint
+  - logger:
+      - tensorboard
+      - csv
+  - trainer: default_deterministic
+  - hydra: default
+  - model_selection: val_loss
+  - _self_ # values in this config will overwrite the defaults
+
+exp_name: hoefling_2024_ln_colour_low_res
+seed: 42
+check_stimuli_responses_match: false
+
+dataloader:
+  batch_size: 128
+
+model:
+  in_shape: [2, 150, 18, 16] # green + UV, each with its own filters
+  temporal_filter_length: 31
+  # Cut 30 frames in total, as the LNPs, the Spatial Contrast models and the CNN core-readout do
+  target_model_cut_frames: 30
+  sigma_contour: 1.5
+  gaussian_init_sigma: 1.5
+  smooth_weight_temporal: 1e3
+  a_init: 1.0
+  b_init: 1.0
+  init_offset_from_mean_activity: true
+  learning_rate: 0.01
+  filter_learning_rate: 1e-2
+  # Set by the model_selection group, together with the early stopping and checkpoint callbacks
+  scheduler_metric: ${selection_metric}
+  scheduler_warmup_epochs: ${selection_warmup_epochs}
+
+paths:
+  load_model_path: null
+  cache_dir: ${oc.env:OPENRETINA_CACHE_DIRECTORY} # Remote files are downloaded to this location
+  data_dir: ${paths.cache_dir}/data/ # Folder where local files are read from.
+  log_dir: "." # Used as parent for output_dir. Will store train logs.
+  output_dir: ${hydra:runtime.output_dir} # Modify subpaths in the "hydra/default.yaml" config
+  movies_path: "https://huggingface.co/datasets/open-retina/open-retina/blob/main/euler_lab/hoefling_2024/stimuli/rgc_natstim_18x16_joint_normalized_2024-01-11.zip"
+  responses_path: "https://huggingface.co/datasets/open-retina/open-retina/resolve/main/euler_lab/hoefling_2024/responses/rgc_natstim_2024-08-14.zip"
+
+matmul_precision:
+  _target_: torch.set_float32_matmul_precision
+  precision: highest
+
+trainer:
+  max_epochs: 600
+  accumulate_grad_batches: 1
+  gradient_clip_val: 1
+
+only_train_readout: false

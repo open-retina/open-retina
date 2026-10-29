@@ -34,6 +34,14 @@ _MODEL_NAME_TO_REMOTE_LOCATION = {
     "sridhar_2025": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/sridhar_2025.ckpt",
     "goldin_2022_axolotl": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/goldin_2022_axolotl.ckpt",
     "goldin_2022_mouse": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/goldin_2022_mouse.ckpt",
+    # Linear-nonlinear-Poisson readouts on a DummyCore, with the readout smoothness weight raised
+    # to 3e4; at the shipped default of 1.0 the penalty is ~2e-4 of the Poisson term and inert.
+    # The greyscale variant averages the green and UV channels inside the core, so it still expects
+    # a 2-channel stimulus but carries half the readout weights (288 vs 576 per neuron).
+    "hoefling_2024_lnp_low_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-08-25/hoefling_2024_lnp_low_res.ckpt",
+    "hoefling_2024_lnp_low_res_grey_scale": (
+        f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-08-25/hoefling_2024_lnp_low_res_grey_scale.ckpt"
+    ),
     # legacy model used in the first bioarxiv version of the paper
     "hoefling_2024_base_low_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/hoefling_2024_base_low_res.ckpt",
 }
@@ -104,12 +112,16 @@ class BaseCoreReadout(LightningModule):
         output_readout = self.readout(output_core, data_key=data_key)
         return output_readout
 
+    def readout_regularization(self, session_id: str, model_output: torch.Tensor) -> torch.Tensor:
+        """The readout's penalty for a batch of ``model_output``, on the scale of the training loss."""
+        return self.readout.regularizer(session_id)  # type: ignore
+
     def training_step(self, batch: tuple[str, DataPoint], batch_idx: int) -> torch.Tensor:
         session_id, data_point = batch
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets)
         regularization_loss_core = self.core.regularizer()
-        regularization_loss_readout = self.readout.regularizer(session_id)  # type: ignore
+        regularization_loss_readout = self.readout_regularization(session_id, model_output)
         total_loss = loss + regularization_loss_core + regularization_loss_readout
         evaluation_loss = self.evaluation_loss.forward(model_output, data_point.targets)
 
@@ -126,7 +138,7 @@ class BaseCoreReadout(LightningModule):
         model_output = self.forward(data_point.inputs, session_id)
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
         regularization_loss_core = self.core.regularizer()
-        regularization_loss_readout = self.readout.regularizer(session_id)  # type: ignore
+        regularization_loss_readout = self.readout_regularization(session_id, model_output)
         total_loss = loss + regularization_loss_core + regularization_loss_readout
         evaluation_loss = self.evaluation_loss.forward(model_output, data_point.targets)
 
@@ -343,6 +355,9 @@ class UnifiedCoreReadout(BaseCoreReadout):
         if "in_shape" not in readout:
             in_shape_readout = self.compute_readout_input_shape(in_shape, core_module)
             readout["in_shape"] = (in_shape_readout[0],) + tuple(in_shape_readout[1:])
+            # Log it: the readout channel count is derived from the core, so this is the only
+            # place a stimulus transform inside the core (e.g. color squashing) becomes visible.
+            LOGGER.info(f"Readout input shape derived from the core: {in_shape_readout=}")
 
         # Extract mean_activity_dict from data_info if available
         mean_activity_dict = None if data_info is None else data_info.get("mean_activity_dict")

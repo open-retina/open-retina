@@ -1,0 +1,35 @@
+# @package _global_
+# Select the checkpoint, stop early and decay the learning rate on the validation Poisson loss (val_loss), the
+# training objective without its regularizers. The correlation then stays an independent measure of fit.
+# Compare with model_selection=val_correlation.
+#
+# The Poisson loss sits on a small, data-dependent scale, so the plateau threshold is relative and early stopping
+# takes any improvement. lr_scheduler drives UnifiedCoreReadout models (the LNPs); selection_metric drives the
+# Spatial Contrast model, which builds its own scheduler with the same settings.
+#
+# For the first selection_warmup_epochs epochs neither early stopping nor the learning-rate schedule looks at the
+# metric, so a transient at the start of training (e.g. a validation loss that first rises while a strong
+# regularizer reshapes randomly initialised filters) can neither stop the run nor cut the learning rate. Runs whose
+# config lacks selection_warmup_epochs had no warm-up (selection_warmup_epochs=0).
+selection_warmup_epochs: 30
+selection_metric: poisson
+
+training_callbacks:
+  early_stopping:
+    _target_: openretina.callbacks.warmup_early_stopping.WarmupEarlyStopping
+    warmup_epochs: ${selection_warmup_epochs}
+    monitor: val_loss
+    mode: min
+    min_delta: 0.0
+  model_checkpoint:
+    monitor: val_loss
+    mode: min
+    filename: "{epoch:02d}_{val_loss:.6f}_{val_evaluation_loss:.3f}"
+
+lr_scheduler:
+  _target_: openretina.utils.optimizer_utils.WarmupReduceLROnPlateau
+  warmup_epochs: ${selection_warmup_epochs}
+  monitor: val_loss
+  mode: min
+  threshold: 1.0e-4
+  threshold_mode: rel
