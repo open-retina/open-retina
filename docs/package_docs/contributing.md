@@ -48,9 +48,18 @@ We appreciate the following types of contributions:
    - `ruff` for linting and formatting
    - `mypy` for type checking
    - `pytest` for testing
+   - `pre-commit` for notebook commit hooks
    - `jupyterlab` for notebook development
 
-2. **For model development**, also install:
+2. **Install notebook commit hooks once per clone**:
+   ```bash
+   uv run pre-commit install
+   # With the pip environment activated instead:
+   # pre-commit install
+   ```
+   `make install-dev` performs both the uv installation and hook setup.
+
+3. **For model development**, also install:
    ```bash
    uv sync --extra devmodels
    # or:
@@ -102,6 +111,51 @@ Before submitting any changes, please follow this workflow:
    - Any breaking changes highlighted
 
 ## Guidelines for Specific Contributions
+
+### Notebooks
+
+Keep maintained tutorials and examples in Git, with saved outputs, execution counts,
+and widget state cleared. Each notebook must be at most 1 MiB after cleaning.
+Store large generated figures, videos, datasets, and executed reports outside Git
+and link to them when needed. The size limit also catches large attachments or data
+embedded in notebook source that output stripping cannot remove.
+
+The pre-commit hooks run when you commit. If `nbstripout` changes a notebook, the
+commit stops so you can review the cleanup, stage the file again, and retry.
+**The hook also clears outputs in your local notebook file.** Save any results you
+need separately before committing. Code and Markdown cells are retained.
+
+To clean and check all tracked notebooks manually:
+
+```bash
+make check-notebooks
+# With a pip environment instead:
+# pre-commit run --all-files
+```
+
+A run that changes files reports failure; review the changes and rerun to confirm
+that all checks pass. These checks do not execute notebooks or download datasets.
+They cover all tracked notebooks, including those excluded from execution tests.
+
+The `Notebook hygiene` GitHub Actions workflow runs the same hooks on pull requests
+and pushes to `main`. CI fails if a notebook needs cleaning or exceeds the size
+limit; it does not commit fixes back to the branch. Contributors who skipped the
+local hooks can run the command above to fix their files.
+
+#### Maintainer setup on GitHub
+
+After this workflow is published, configure branch protection or a ruleset for
+`main` to require pull requests and the `notebook-hygiene` status check, without
+routine bypasses. The workflow file alone does not make the check mandatory.
+
+Use squash merging to bring only the final cleaned notebook state into `main`.
+If using merge commits or rebase merging, remove oversized notebook versions from
+the PR's individual commits first: a later cleanup commit does not remove the
+earlier large version from history. CI checks the current files, not every commit.
+
+CI runs after upload, so it cannot prevent a large file from reaching a feature
+branch. Squash merging does not erase objects already uploaded to other branches
+or retained GitHub references, and these checks do not shrink existing Git history.
 
 ### Adding New Models
 

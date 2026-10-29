@@ -3,6 +3,10 @@ install:
 
 install-dev:
 	uv sync --extra dev
+	uv run pre-commit install
+
+check-notebooks:
+	uv run pre-commit run --all-files
 
 test-types:
 	uv run mypy openretina/ tests/

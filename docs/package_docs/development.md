@@ -58,8 +58,21 @@ This installs:
 - `ruff` - For linting and formatting
 - `mypy` - For type checking
 - `pytest` - For running tests
+- `pre-commit` - For notebook commit hooks
 - `jupyterlab` - For notebook development
 - Various type stubs for better type checking
+
+Install the notebook commit hooks once per clone:
+
+```bash
+uv run pre-commit install
+# With the pip environment activated instead:
+# pre-commit install
+```
+
+Alternatively, `make install-dev` installs the uv development environment and the
+hooks together. The hooks clear outputs in local notebook files and enforce a
+1 MiB limit. See [Notebooks](./contributing.md#notebooks) for the commit workflow.
 
 ### 4. Install Additional Dependencies for Model Development
 
