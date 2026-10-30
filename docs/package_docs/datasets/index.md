@@ -1,6 +1,6 @@
 # Datasets
 
-OpenRetina currently provides loaders for six published retinal datasets. The [Data I/O guide](../data_io.md) explains the common interfaces and how to integrate additional datasets.
+OpenRetina currently provides loaders for the following published retinal datasets. The [Data I/O guide](../data_io.md) explains the common interfaces and how to integrate additional datasets.
 
 - [Höfling et al., 2024](../../api_reference/data_io/hoefling_2024.md) — mouse retinal responses to natural stimuli.
 - [Karamanlis et al., 2024](../../api_reference/data_io/karamanlis_2024.md) — mouse and marmoset retinal responses to natural scenes.
