@@ -23,6 +23,10 @@ class MoviesTrainTestSplit:
         stim_id: Optional identifier (e.g. "natural") to keep responses/movies aligned.
         random_sequences: Optional clip permutations (Höfling 2024 format).
         norm_mean / norm_std: Normalization statistics applied to both train and test movies.
+        test_behavior_by_repeat_dict: Optional per-repeat behavior channels for repeated test stimuli,
+            `{stimulus_name: (repeats, n_behavior_channels, test_time)}` (qiu_2026 format). `test_dict`
+            holds the across-repeat average; this keeps the individual repeats, which differ because the
+            animal behaves differently on each presentation of the same movie.
     """
 
     train: Float[np.ndarray, "channels train_time height width"]
@@ -34,6 +38,7 @@ class MoviesTrainTestSplit:
     random_sequences: Optional[np.ndarray] = None
     norm_mean: Optional[float] = None
     norm_std: Optional[float] = None
+    test_behavior_by_repeat_dict: dict = field(default_factory=lambda: {})
 
     def __post_init__(self, test: Float[np.ndarray, "channels test_time height width"] | None):
         if (len(self.test_dict) == 0) == (test is None):
@@ -308,14 +313,19 @@ def compute_data_info(
 
         if len(norm_means) > 0:
             if not np.allclose(norm_means, norm_means[0], atol=1, rtol=0):
-                raise ValueError(f"Normalization means are not consistent across stimuli: {norm_means}")
+                # Some datasets (e.g. qiu_2026) intentionally normalize each session with its own
+                # statistics rather than a single shared scalar; stim_mean/stim_std are only consumed by
+                # the (optional) vector-field-analysis interpretability tool, not by training/eval, so we
+                # warn and fall back to the first session's value rather than hard-failing every
+                # multi-session run of such datasets.
+                warnings.warn(f"Normalization means are not consistent across stimuli: {norm_means}", stacklevel=2)
             stim_mean = norm_means[0]
         else:
             stim_mean = 0.0
             warnings.warn(f"No stimulus mean set, setting {stim_mean=}")
         if len(norm_stds) > 0:
             if not np.allclose(norm_stds, norm_stds[0], atol=1, rtol=0):
-                raise ValueError(f"Normalization stds are not consistent across stimuli: {norm_stds}")
+                warnings.warn(f"Normalization stds are not consistent across stimuli: {norm_stds}", stacklevel=2)
             stim_std = norm_stds[0]
         else:
             stim_std = 1.0

@@ -67,11 +67,22 @@ def evaluate_model(cfg: DictConfig) -> float:
         for session, neuron_data in neuron_data_dict.items():
             neuron_data.check_matching_stimulus(movies_dict[session])
 
-    dataloaders = hydra.utils.instantiate(
-        cfg.dataloader,
-        neuron_data_dictionary=neuron_data_dict,
-        movies_dictionary=movies_dict,
-    )
+    dataloader_kwargs = {
+        "neuron_data_dictionary": neuron_data_dict,
+        "movies_dictionary": movies_dict,
+    }
+
+    # Some datasets (e.g. qiu_2026) additionally carry a per-session behavioral trace consumed by a
+    # shifter; their data_io config exposes it as an extra "pupil" target so it can be loaded and
+    # threaded through here. Absent for all other datasets, so this is a no-op elsewhere.
+    if "pupil" in cfg.data_io:
+        dataloader_kwargs["pupil_dictionary"] = hydra.utils.call(cfg.data_io.pupil)
+
+    # `_partial_` then a plain call, so builders configured with `release_movies` can actually free each
+    # session's source movie as they go -- see the comment in cli/train.py for why instantiate(**kwargs)
+    # defeats that. `movies_dict` is not read after this point.
+    build_dataloaders = hydra.utils.instantiate(cfg.dataloader, _partial_=True)
+    dataloaders = build_dataloaders(**dataloader_kwargs)
 
     if cfg.seed is not None:
         lightning.pytorch.seed_everything(cfg.seed)
@@ -95,10 +106,25 @@ def evaluate_model(cfg: DictConfig) -> float:
             model_responses_torch_array = []
             targets_array = []
             for data_point in dl:
-                model_resp_batch = model.forward(data_point[0].to(device), data_key=session)
+                # Datasets carrying a behavioral variable (qiu_2026) need it for the shifter; without it
+                # the shifter stays inert and the model scores as if it had none.
+                pupil_center = getattr(data_point, "pupil_center", None)
+                targets_batch = data_point[1]
+                model_resp_batch = model.forward(
+                    data_point[0].to(device),
+                    data_key=session,
+                    pupil_center=None if pupil_center is None else pupil_center.to(device),
+                )
+                # A batch whose batch dimension holds repeats of one stimulus contributes a single
+                # prediction: the average over repeats, paired with the (identical) trial-averaged
+                # target. Flattening it instead would lay the repeats end to end along time.
+                reduce_flag = getattr(data_point, "reduce_over_batch", None)
+                if reduce_flag is not None and bool(torch.as_tensor(reduce_flag).all()):
+                    model_resp_batch = model_resp_batch.mean(dim=0, keepdim=True)
+                    targets_batch = targets_batch[:1]
                 model_resp = model_resp_batch.flatten(0, 1)
                 model_responses_torch_array.append(model_resp)
-                targets_array.append(data_point[1].flatten(0, 1))
+                targets_array.append(targets_batch.flatten(0, 1))
             model_responses_torch = torch.concat(model_responses_torch_array)
             targets = torch.concat(targets_array).to(device)
             poisson_loss_session = poisson_loss(model_responses_torch.unsqueeze(0), targets.unsqueeze(0))
