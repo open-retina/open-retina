@@ -145,10 +145,11 @@ def test_load_pupil_keeps_every_repeat(session: Path) -> None:
 
 
 def test_small_video_deviation_between_repeats_is_tolerated(session: Path) -> None:
-    """Real repeats are not bit-identical: on dynamic28188-16-3 they differ by ~0.01-0.02 video std.
+    """Real repeats are not all bit-identical: on dynamic28188-16-3 they differ by up to ~0.05 video std.
 
-    An exact-equality check would therefore reject every real session. Only a deviation large enough
-    to mean "a different clip" should be reported.
+    Each clip ships in two renderings that differ by a small temporal blur, so an exact-equality check
+    would reject every real session. Only a deviation large enough to mean "a different clip" should be
+    reported.
     """
     last = N_TRAIN_TRIALS + N_REPEATS - 1
     video = np.load(session / "data" / "videos" / f"{last}.npy")
