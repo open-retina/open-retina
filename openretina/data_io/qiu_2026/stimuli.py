@@ -58,10 +58,23 @@ def _warn_on_video_deviation(
 
     A ``condition_hash`` is supposed to identify one stimulus, and the test path leans on that: the
     repeats' videos are averaged into one test input and their responses into one trial-averaged target.
-    The shipped repeats are *not* bit-identical, though -- on ``dynamic28188-16-3`` the worst pair within
-    a condition differs by a mean of ~0.01-0.02 (in units of the video std, which is what these arrays
-    are scaled to), while two genuinely different clips differ by ~1.1. The default tolerance sits in
-    that gap, so this stays quiet on sound data and fires if a condition ever mixes two stimuli.
+    Not all shipped repeats are bit-identical, though. Each clip exists in exactly *two* renderings, and
+    one is an exactly blurred copy of the other along time:
+    ``smooth[t] = (2*sharp[t-1] + 25*sharp[t] + 2*sharp[t+1]) / 29``, which holds to half a float32 ulp
+    with the same kernel for every condition -- one rendering averages each 30 fps output frame over one
+    frame period, the other over 29/25 = 1.16 of one. Nothing else differs: no time shift, no spatial
+    shift, no intensity rescale, so the two agree to a power ratio of 1e-5 below 1 Hz and diverge only
+    towards Nyquist. Both renderings recur byte-identically across sessions, so this is an artifact of the
+    FileTree re-deriving each trial's video at ``target_fps`` from the presented frame sequence, not
+    anything animal- or session-specific.
+
+    On ``dynamic28188-16-3`` half the clip conditions are bit-identical and the rest differ by a mean of
+    0.001-0.05 (in units of the video std, which is what these arrays are scaled to), while two genuinely
+    different clips differ by ~1.3. The default tolerance sits in that gap, so this stays quiet on sound
+    data and fires if a condition ever mixes two stimuli. The gap is narrower for the non-clip ``test``
+    trials (monet2/trippy): they carry far more high temporal frequency, so the same blur difference costs
+    ~0.12 there. ``load_stimuli_for_session`` filters them out before this check, but a caller passing
+    ``stimulus_type="other"`` would need a larger tolerance.
     """
     if len(videos) < 2 or tolerance <= 0.0:
         return
@@ -127,12 +140,13 @@ def load_stimuli_for_session(
     length) in file-index order. ``test_dict`` holds one clip per ``condition_hash``, averaged over the
     condition's repeats in both the video and the behavior channels.
 
-    Averaging the video is near enough to a no-op: the repeats are the same clip, differing only by
-    storage noise (see :func:`_warn_on_video_deviation`). Averaging the *behavior* is not — the animal
-    behaves differently on every repeat, and the model is nonlinear in those channels. So
-    ``test_behavior_by_repeat_dict`` additionally keeps each repeat's behavior as
-    ``(repeats, n_behavior, T)``, letting the dataloader feed them through the model one at a time and
-    average the *predictions* instead (see ``qiu_2026_dataloaders``).
+    Averaging the video is near enough to a no-op: the repeats are the same clip, differing at most in
+    which of the pipeline's two temporal-resampling renderings of it they got (see
+    :func:`_warn_on_video_deviation`). Averaging the *behavior* is not — the animal behaves differently on
+    every repeat, and the model is nonlinear in those channels. So ``test_behavior_by_repeat_dict``
+    additionally keeps each repeat's behavior as ``(repeats, n_behavior, T)``, letting the dataloader feed
+    them through the model one at a time and average the *predictions* instead (see
+    ``qiu_2026_dataloaders``).
 
     Only trials matching ``stimulus_type`` (see
     :func:`~openretina.data_io.qiu_2026.trials.read_stimulus_type`) are included; some sessions' ``test``
@@ -141,7 +155,8 @@ def load_stimuli_for_session(
 
     Args:
         video_deviation_tolerance: Warn when a condition's repeats differ by more than this mean
-            absolute deviation, in units of the video std. See :func:`_warn_on_video_deviation`.
+            absolute deviation, in units of the video std. The default is calibrated for
+            ``stimulus_type="clip"``. See :func:`_warn_on_video_deviation`.
     """
     session_path = resolve_session_path(session_path)
     tiers = read_tiers(session_path)
