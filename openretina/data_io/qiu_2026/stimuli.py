@@ -126,7 +126,6 @@ def _assemble_input_tensor(
     return np.concatenate([video_norm, beh], axis=0).astype(np.float32)
 
 
-
 def load_stimuli_for_session(
     session_path: str | os.PathLike,
     *,

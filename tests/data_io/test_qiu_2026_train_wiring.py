@@ -146,7 +146,6 @@ def test_shipped_config_releases_source_movies_during_construction() -> None:
     assert torch.isfinite(train_batch.inputs).all()
 
 
-
 def test_release_movies_does_not_change_the_batches() -> None:
     movies, responses, pupil = _make_synthetic_session()
     kept = _build_dataloaders({SESSION_KEY: movies}, responses, pupil, release_movies=False)

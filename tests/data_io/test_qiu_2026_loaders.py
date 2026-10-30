@@ -16,8 +16,12 @@ import pytest
 from openretina.data_io.qiu_2026 import constants as C
 from openretina.data_io.qiu_2026.pupil import load_pupil_for_session
 from openretina.data_io.qiu_2026.stimuli import (
-    _assemble_input_tensor, _normalize_behavior, _normalize_video, load_stimuli_for_session
+    _assemble_input_tensor,
+    _normalize_behavior,
+    _normalize_video,
+    load_stimuli_for_session,
 )
+
 HEIGHT, WIDTH = 4, 6
 CLIP_LENGTH = 10  # valid frames per trial
 PAD = 3  # trailing NaN-padded frames, as the real FileTree ships
@@ -123,8 +127,8 @@ def test_test_dict_matches_the_repeat_averaged_input_recipe(session: Path) -> No
         behavior = np.load(session / "data" / "behavior" / f"{i}.npy")[:, :CLIP_LENGTH]
         repeats.append(
             _assemble_input_tensor(
-            _normalize_video(video, video_mean, video_std),
-            _normalize_behavior(behavior, behavior_mean, behavior_std, C.BEHAVIOR_CHANNELS),
+                _normalize_video(video, video_mean, video_std),
+                _normalize_behavior(behavior, behavior_mean, behavior_std, C.BEHAVIOR_CHANNELS),
             )
         )
     assert np.allclose(movies.test_dict["cond1"], np.stack(repeats).mean(axis=0), atol=1e-6)
