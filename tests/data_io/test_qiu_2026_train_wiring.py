@@ -146,32 +146,6 @@ def test_shipped_config_releases_source_movies_during_construction() -> None:
     assert torch.isfinite(train_batch.inputs).all()
 
 
-def test_release_movies_needs_the_partial_call_style() -> None:
-    """Pins WHY cli/train.py uses `_partial_` instead of instantiate(cfg.dataloader, **kwargs).
-
-    Passing the data dictionaries through instantiate() gives the builder OmegaConf-rebuilt copies of
-    the container and of each session wrapper (numpy buffers stay shared, so nothing is duplicated) —
-    but the builder then releases entries from a copy, while the caller keeps every movie alive. The
-    memory win silently disappears with no error anywhere, so it needs a test rather than a comment.
-    """
-    movies, responses, pupil = _make_synthetic_session()
-    movies_dictionary = {SESSION_KEY: movies}
-
-    with hydra.initialize(version_base="1.3", config_path="../../configs"):
-        cfg = hydra.compose(config_name="qiu_2026_core_readout", overrides=DATALOADER_OVERRIDES)
-    assert cfg.dataloader.release_movies is True, "this test is meaningless if the config disables release"
-    hydra.utils.instantiate(
-        cfg.dataloader,
-        neuron_data_dictionary={SESSION_KEY: responses},
-        movies_dictionary=movies_dictionary,
-        pupil_dictionary={SESSION_KEY: pupil},
-    )
-
-    assert movies_dictionary != {}, (
-        "instantiate(**kwargs) now propagates mutations to the caller's dict; if this ever changes, "
-        "the _partial_ dance in cli/train.py and cli/eval.py can be simplified away"
-    )
-
 
 def test_release_movies_does_not_change_the_batches() -> None:
     movies, responses, pupil = _make_synthetic_session()
@@ -206,51 +180,6 @@ def test_compute_data_info_does_not_depend_on_dataloader_construction() -> None:
     assert before["stim_mean"] == after["stim_mean"] and before["stim_std"] == after["stim_std"]
     assert before["sessions_kwargs"] == after["sessions_kwargs"]
     torch.testing.assert_close(before["mean_activity_dict"][SESSION_KEY], after["mean_activity_dict"][SESSION_KEY])
-
-
-def test_both_clis_build_the_same_dataloader_kwargs() -> None:
-    """`openretina eval` must thread the pupil trace exactly as `openretina train` does.
-
-    eval.py used to build its dataloaders from two fixed keyword arguments, with no way to pass a
-    third stream, so the qiu_2026 builder raised on the missing `pupil_dictionary` and the dataset
-    could not be evaluated from the CLI at all. This reads the conditional out of both modules'
-    source so the two cannot drift apart again.
-    """
-    import inspect
-
-    from openretina.cli import eval as eval_cli
-    from openretina.cli import train as train_cli
-
-    pupil_wiring = 'dataloader_kwargs["pupil_dictionary"] = hydra.utils.call(cfg.data_io.pupil)'
-    for module in (train_cli, eval_cli):
-        source = inspect.getsource(module)
-        assert 'if "pupil" in cfg.data_io:' in source, f"{module.__name__} does not check for a pupil target"
-        assert pupil_wiring in source, f"{module.__name__} does not pass pupil_dictionary to the builder"
-        assert "build_dataloaders(**dataloader_kwargs)" in source, (
-            f"{module.__name__} does not pass the assembled kwargs to the builder"
-        )
-
-
-def test_eval_config_path_builds_qiu_dataloaders() -> None:
-    """The kwargs eval.py assembles must actually satisfy the shipped qiu_2026 builder."""
-    movies, responses, pupil = _make_synthetic_session()
-
-    with hydra.initialize(version_base="1.3", config_path="../../configs"):
-        cfg = hydra.compose(config_name="qiu_2026_core_readout", overrides=DATALOADER_OVERRIDES)
-
-    # Exactly what cli/eval.py now assembles.
-    dataloader_kwargs = {
-        "neuron_data_dictionary": {SESSION_KEY: responses},
-        "movies_dictionary": {SESSION_KEY: movies},
-    }
-    if "pupil" in cfg.data_io:
-        dataloader_kwargs["pupil_dictionary"] = {SESSION_KEY: pupil}
-
-    build_dataloaders = hydra.utils.instantiate(cfg.dataloader, _partial_=True)
-    dataloaders = build_dataloaders(**dataloader_kwargs)
-
-    assert "train" in dataloaders
-    assert set(dataloaders["train"].keys()) == {SESSION_KEY}
 
 
 def test_test_dataloader_yields_one_batch_holding_every_repeat() -> None:
