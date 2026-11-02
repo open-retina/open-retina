@@ -2,6 +2,8 @@
 
 import logging
 import os
+import re
+from pathlib import Path
 
 import hydra
 import lightning.pytorch
@@ -9,13 +11,13 @@ import numpy as np
 import pandas
 import torch
 from einops import rearrange
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 from tqdm.auto import tqdm
 
 from openretina.data_io.base import DatasetStatistics
 from openretina.eval.metrics import MSE_numpy, correlation_numpy, explainable_vs_total_var, feve
 from openretina.eval.oracles import oracle_corr_jackknife
-from openretina.models.core_readout import load_core_readout_model
+from openretina.models.core_readout import BaseCoreReadout, load_core_readout_model
 from openretina.modules.losses import PoissonLoss3d
 from openretina.utils.eval_utils import EvaluationSummary, align_responses_to_model_output
 from openretina.utils.frame_fingerprints import compute_dataloader_statistics
@@ -35,9 +37,30 @@ def main(cfg: DictConfig) -> float | None:
     return score
 
 
+def _tagged_output_path(path: str, data_split: str) -> str:
+    """Insert a filesystem-safe form of ``data_split`` before the suffix of ``path``.
+
+    Used when several splits are evaluated in one run, so each writes its own file:
+    ``eval/per_neuron.csv`` + split ``Oup5uAZxF2G7zEJkT+ui`` -> ``eval/per_neuron_Oup5uAZxF2G7zEJkT_ui.csv``.
+    Split names are not always path-safe -- qiu_2026 keys its test splits by DataJoint ``condition_hash``,
+    which is base64 and so can contain ``/`` and ``+``.
+    """
+    safe = re.sub(r"[^0-9A-Za-z._-]", "_", data_split)
+    p = Path(path)
+    return str(p.with_name(f"{p.stem}_{safe}{p.suffix}"))
+
+
 def evaluate_model(cfg: DictConfig) -> float:
     """Run the full evaluation pipeline: load a trained model, compute per-neuron metrics
     (correlation, FEVe, Poisson loss, oracle), and return the mean correlation.
+
+    ``evaluation.data_split`` may be a single split name or a list of them. Loading the stimuli,
+    responses and dataloaders costs far more than evaluating one split against them (~10 min vs ~5 min
+    for the ten qiu_2026 sessions), and none of it depends on which split is scored, so a list is
+    evaluated in one pass over the data rather than one process per split. Each split still gets its
+    own report, DataFrame and summary; with a list, ``model_results_path``/``summary_results_path`` are
+    suffixed per split so they do not overwrite each other. The returned score is that split's mean
+    correlation, or the mean over splits for a list.
     """
     log.info("Logging full config:")
     log.info(OmegaConf.to_yaml(cfg))
@@ -87,19 +110,141 @@ def evaluate_model(cfg: DictConfig) -> float:
     if cfg.seed is not None:
         lightning.pytorch.seed_everything(cfg.seed)
 
-    # Note: data_split can be either "train", "validation", or "test", or, if we have multiple test stimuli,
-    # the name of the test stimulus (as it appears in the dataloaders)
-    data_split = cfg.evaluation.get("data_split", "test")
-    if data_split not in dataloaders:
-        raise ValueError(f"Dataloader '{data_split}' not found. Available keys: {sorted(dataloaders.keys())}")
+    # Note: a data split can be either "train", "validation", or "test", or, if we have multiple test
+    # stimuli, the name of the test stimulus (as it appears in the dataloaders)
+    requested_split = cfg.evaluation.get("data_split", "test")
+    # A bare string keeps the historical single-split behaviour, including unsuffixed output paths.
+    single_split = isinstance(requested_split, str)
+    if single_split:
+        data_splits = [requested_split]
+    elif isinstance(requested_split, (list, tuple, ListConfig)):
+        data_splits = [str(s) for s in requested_split]
+    else:
+        # Anything else (notably `data_split=null`, which the config makes easy to reach) would
+        # otherwise fail as a bare TypeError on iteration, minutes after the data was loaded.
+        raise ValueError(
+            f"evaluation.data_split must be a split name or a list of split names, got {requested_split!r}."
+        )
+    if len(data_splits) == 0:
+        raise ValueError("evaluation.data_split is an empty list; give at least one split name.")
 
+    # Validate every split up front: the data is already loaded by this point, but the per-split work
+    # below is minutes long, so a typo in the last of six splits should not surface six passes in.
+    missing = [s for s in data_splits if s not in dataloaders]
+    if missing:
+        raise ValueError(f"Dataloader(s) {missing} not found. Available keys: {sorted(dataloaders.keys())}")
+
+    # Two splits whose names differ only where the tag sanitises -- base64 `condition_hash` keys make
+    # '+' and '/' both become '_' -- would write to one filename, the second silently overwriting the
+    # first and the run reporting six conditions but leaving five files. Refuse instead: the splits
+    # can still be evaluated in separate runs, which is cheaper than a result that is quietly wrong.
+    if not single_split:
+        by_tag: dict[str, list[str]] = {}
+        for s in data_splits:
+            by_tag.setdefault(_tagged_output_path("x.csv", s), []).append(s)
+        collisions = [group for group in by_tag.values() if len(group) > 1]
+        if collisions:
+            raise ValueError(
+                f"These split names would write to the same output file once made path-safe: {collisions}. "
+                "Evaluate them in separate runs, or give model_results_path/summary_results_path per run."
+            )
+
+    # Dataset statistics describe the dataloaders as a whole, not the split under evaluation, so they
+    # are computed once and shared. They are also the single most expensive option here -- they walk
+    # every dataloader including train -- which is exactly why this must not sit inside the loop.
+    if cfg.evaluation.get("compute_dataset_statistics", False):
+        dataset_stats = compute_dataloader_statistics(dataloaders)
+    else:
+        dataset_stats = DatasetStatistics.empty()
+
+    scores = []
+    for data_split in data_splits:
+        df, summary = evaluate_split(
+            cfg=cfg,
+            model=model,
+            dataloaders=dataloaders,
+            neuron_data_dict=neuron_data_dict,
+            data_split=data_split,
+            device=device,
+            dataset_stats=dataset_stats,
+        )
+
+        summary.print_report()
+
+        # Save per-neuron results
+        results_path = cfg.evaluation.get("model_results_path")
+        if results_path is not None:
+            results_path = results_path if single_split else _tagged_output_path(results_path, data_split)
+            df.to_csv(results_path)
+            log.info(f"Per-neuron results saved to {results_path}")
+
+        # Save summary results
+        summary_path = cfg.evaluation.get("summary_results_path")
+        if summary_path is not None:
+            summary_path = summary_path if single_split else _tagged_output_path(summary_path, data_split)
+            summary.save_json(summary_path)
+            log.info(f"Summary results saved to {summary_path}")
+
+        scores.append(summary.corr_to_avg_mean)
+
+    # A split whose neurons all fall below var_ratio_cutoff scores nan, which is routine on a strict
+    # cutoff. Averaging it in with `mean` would turn the whole run's score nan and hide what the other
+    # splits found, so the aggregate skips the nans and says which splits it skipped.
+    empty_splits = [s for s, score in zip(data_splits, scores, strict=True) if np.isnan(score)]
+    if empty_splits:
+        log.warning(
+            f"No neurons passed var_ratio_cutoff for split(s) {empty_splits}; they score nan and are "
+            f"left out of the mean over splits."
+        )
+
+    if not single_split:
+        _print_across_split_report(data_splits, scores)
+
+    # Return average correlation computed on filtered neurons, averaged over splits if there were several
+    return _mean_over_splits(scores)
+
+
+def _mean_over_splits(scores: list[float]) -> float:
+    """Mean of the per-split scores, ignoring splits that scored nan (nan only if every split did)."""
+    if all(np.isnan(score) for score in scores):
+        return float("nan")
+    return float(np.nanmean(scores))
+
+
+def _print_across_split_report(data_splits: list[str], scores: list[float]) -> None:
+    """Print one line per split plus their mean, after the individual reports."""
+    print("=" * 80)
+    print(f"Mean correlation across {len(data_splits)} evaluated splits")
+    print("=" * 80)
+    width = max(len(s) for s in data_splits)
+    for data_split, score in zip(data_splits, scores, strict=True):
+        print(f"  {data_split:{width}s} : {score:.3f}")
+    print("-" * 80)
+    print(f"  {'mean':{width}s} : {_mean_over_splits(scores):.3f}")
+    print("=" * 80)
+
+
+def evaluate_split(
+    cfg: DictConfig,
+    model: BaseCoreReadout,
+    dataloaders: dict,
+    neuron_data_dict: dict,
+    data_split: str,
+    device: str,
+    dataset_stats: DatasetStatistics,
+) -> tuple[pandas.DataFrame, EvaluationSummary]:
+    """Score one already-built split: per-neuron metrics plus the summary over them.
+
+    Split out of :func:`evaluate_model` so that several splits can share one load of the data; it
+    neither loads nor writes anything, and holds no state between calls.
+    """
     dataloader_dict = dataloaders[data_split]
     results = []  # List of dictionaries, one per neuron
     poisson_loss = PoissonLoss3d(per_neuron=True)
     lag = -1
     n_trials_per_session = []  # Track number of trials/repeats per session
 
-    for session, dl in tqdm(dataloader_dict.items(), desc="Evaluating sessions", unit="session"):
+    for session, dl in tqdm(dataloader_dict.items(), desc=f"Evaluating sessions ({data_split})", unit="session"):
         dataset = dl.dataset
 
         with torch.no_grad():
@@ -273,12 +418,6 @@ def evaluate_model(cfg: DictConfig) -> float:
         df_filtered = df[df["var_ratio"].notna() & (df["var_ratio"] >= var_ratio_cutoff)].copy()
         filtering_applied = True
 
-    # Compute dataset statistics by iterating over the actual dataloaders (if enabled)
-    if cfg.evaluation.get("compute_dataset_statistics", False):
-        dataset_stats = compute_dataloader_statistics(dataloaders)
-    else:
-        dataset_stats = DatasetStatistics.empty()
-
     # Extract metadata from config
     model_tag = cfg.evaluation.get("model_tag", cfg.evaluation.model_path)
     exp_name = cfg.get("exp_name", "unknown")
@@ -304,21 +443,7 @@ def evaluate_model(cfg: DictConfig) -> float:
         dataset_stats=dataset_stats,
     )
 
-    # Print formatted report
-    summary.print_report()
-
-    # Save per-neuron results
-    if cfg.evaluation.get("model_results_path") is not None:
-        df.to_csv(cfg.evaluation.model_results_path)
-        log.info(f"Per-neuron results saved to {cfg.evaluation.model_results_path}")
-
-    # Save summary results
-    if cfg.evaluation.get("summary_results_path") is not None:
-        summary.save_json(cfg.evaluation.summary_results_path)
-        log.info(f"Summary results saved to {cfg.evaluation.summary_results_path}")
-
-    # Return average correlation computed on filtered neurons
-    return summary.corr_to_avg_mean
+    return df, summary
 
 
 if __name__ == "__main__":
