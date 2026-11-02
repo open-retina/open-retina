@@ -16,12 +16,13 @@ class EMACallback(Callback):
     """Keeps an exponential moving average of the model weights and uses it for validation, checkpoints and test.
 
     The EMA weights are swapped in at the start of every validation epoch during ``fit`` and left in place through
-    validation, so ``val_evaluation_loss``, ``EarlyStopping`` and ``ModelCheckpoint`` all see the EMA model, and the
-    saved checkpoints contain EMA weights (``trainer.test(ckpt_path="best")`` therefore tests EMA weights). The raw
-    training weights are restored before training continues and saved separately for checkpoint resume. After
-    training, the EMA weights stay in the live module.
+    validation, so ``val_evaluation_loss``, ``EarlyStopping`` and ``ModelCheckpoint`` all see the EMA model. Full
+    checkpoints also receive EMA weights when saved outside validation (``trainer.test(ckpt_path="best")`` therefore
+    tests EMA weights). The raw training weights are restored before training continues and saved separately for
+    checkpoint resume. After training, the EMA weights stay in the live module.
 
     All floating-point entries of the state dict are averaged, including BatchNorm running statistics.
+    Use ``save_weights_only=False``: Lightning skips callback save hooks for weights-only checkpoints.
 
     Args:
         decay: target decay of the average. The effective decay ramps up as ``min(decay, (1 + n) / (10 + n))`` with
@@ -103,6 +104,15 @@ class EMACallback(Callback):
         self._restore_raw(pl_module)
         self._swap_in_ema(pl_module)
         # Retain raw weights so checkpoints saved after fit can also resume training.
+
+    def on_save_checkpoint(self, trainer: Trainer, pl_module: LightningModule, checkpoint: dict[str, Any]) -> None:
+        if not self._shadow or trainer.state.fn != "fit":
+            return
+        # Lightning has already collected both model and callback state. Update only the checkpoint so a
+        # step-based save cannot change the live training weights or leave a stale backup for the next batch.
+        raw = self._backup or {n: p for n, p in checkpoint["state_dict"].items() if torch.is_floating_point(p)}
+        checkpoint["callbacks"][self.state_key]["backup"] = {n: p.detach().clone() for n, p in raw.items()}
+        checkpoint["state_dict"].update(self._shadow)
 
     def state_dict(self) -> dict[str, Any]:
         return {

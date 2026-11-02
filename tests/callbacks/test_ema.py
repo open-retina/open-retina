@@ -139,8 +139,8 @@ def test_raw_weights_restored_after_mid_epoch_validation() -> None:
     assert len(module.val_weights) == 6
 
 
-@pytest.mark.parametrize("save_after_fit", [False, True])
-def test_checkpoint_resume_matches_uninterrupted_training(tmp_path, save_after_fit) -> None:
+@pytest.mark.parametrize("checkpoint_mode", ["validation", "after_fit", "train_step", "train_epoch"])
+def test_checkpoint_resume_matches_uninterrupted_training(tmp_path, checkpoint_mode) -> None:
     class _MomentumModule(_TinyModule):
         def configure_optimizers(self):
             return torch.optim.SGD(self.parameters(), lr=0.01, momentum=0.9)
@@ -148,16 +148,23 @@ def test_checkpoint_resume_matches_uninterrupted_training(tmp_path, save_after_f
     torch.manual_seed(0)
     reference = _MomentumModule()
     reference_ema = EMACallback(decay=0.999)
-    reference_trainer = _trainer([reference_ema])
+    validation_enabled = checkpoint_mode in {"validation", "after_fit"}
+    trainer_kwargs = {"limit_val_batches": 1.0 if validation_enabled else 0}
+    reference_trainer = _trainer([reference_ema], **trainer_kwargs)
     reference_trainer.fit(reference, _loader(), _loader())
 
     torch.manual_seed(0)
     module = _MomentumModule()
     ema = EMACallback(decay=0.999)
-    checkpoint = lightning.pytorch.callbacks.ModelCheckpoint(dirpath=tmp_path, monitor="val_loss", save_last=True)
-    trainer = _trainer([ema, checkpoint], max_epochs=1, enable_checkpointing=True)
+    checkpoint = lightning.pytorch.callbacks.ModelCheckpoint(
+        dirpath=tmp_path,
+        monitor="val_loss" if validation_enabled else None,
+        save_last=True,
+        every_n_train_steps=1 if checkpoint_mode == "train_step" else None,
+    )
+    trainer = _trainer([ema, checkpoint], max_epochs=1, enable_checkpointing=True, **trainer_kwargs)
     trainer.fit(module, _loader(), _loader())
-    if save_after_fit:
+    if checkpoint_mode == "after_fit":
         checkpoint_path = str(tmp_path / "after_fit.ckpt")
         trainer.save_checkpoint(checkpoint_path)
     else:
@@ -169,12 +176,12 @@ def test_checkpoint_resume_matches_uninterrupted_training(tmp_path, save_after_f
     assert not torch.equal(saved_ema["backup"]["layer.weight"], saved_ema["shadow"]["layer.weight"])
 
     # Standalone evaluation must keep the checkpoint's EMA weights, even when raw weights were also saved.
-    trainer.validate(module, _loader(), ckpt_path=checkpoint_path, weights_only=False, verbose=False)
+    _trainer([EMACallback()]).validate(module, _loader(), ckpt_path=checkpoint_path, weights_only=False, verbose=False)
     torch.testing.assert_close(module.val_weights[-1], saved_ema["shadow"]["layer.weight"])
 
     resumed = _MomentumModule()
     resumed_ema = EMACallback(decay=0.999)
-    resumed_trainer = _trainer([resumed_ema])
+    resumed_trainer = _trainer([resumed_ema], **trainer_kwargs)
     resumed_trainer.fit(resumed, _loader(), _loader(), ckpt_path=checkpoint_path, weights_only=False)
     assert resumed_ema._n_updates == reference_ema._n_updates
     for name, expected in reference.state_dict().items():
