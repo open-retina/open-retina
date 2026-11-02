@@ -1,10 +1,8 @@
 """Exponential moving average (EMA) of model weights.
 
-  Inspired by the weight EMA with decay 0.999 of the training recipe of DwiseNeuro, the Sensorium 2023 winning solution:
-  https://github.com/lRomul/sensorium
+Inspired by the weight EMA with decay 0.999 of the training recipe of DwiseNeuro, the Sensorium 2023 winning solution:
+https://github.com/lRomul/sensorium
 """
-
-from __future__ import annotations
 
 from typing import Any
 
@@ -20,8 +18,8 @@ class EMACallback(Callback):
     The EMA weights are swapped in at the start of every validation epoch during ``fit`` and left in place through
     validation, so ``val_evaluation_loss``, ``EarlyStopping`` and ``ModelCheckpoint`` all see the EMA model, and the
     saved checkpoints contain EMA weights (``trainer.test(ckpt_path="best")`` therefore tests EMA weights). The raw
-    training weights are restored at the start of the next training epoch. After training, the EMA weights stay in
-    the live module.
+    training weights are restored before training continues and saved separately for checkpoint resume. After
+    training, the EMA weights stay in the live module.
 
     All floating-point entries of the state dict are averaged, including BatchNorm running statistics.
 
@@ -53,8 +51,18 @@ class EMACallback(Callback):
         return min(self.decay, (1.0 + self._n_updates) / (10.0 + self._n_updates))
 
     def on_train_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
+        params = self._ema_params(pl_module)
         if not self._shadow:  # keep a shadow restored from a checkpoint
-            self._shadow = {n: p.detach().clone() for n, p in self._ema_params(pl_module).items()}
+            self._shadow = {n: p.detach().clone() for n, p in params.items()}
+        else:
+            # Callback state is loaded on CPU, independently of the model's device and precision.
+            self._shadow = {n: p.to(params[n]) if n in params else p for n, p in self._shadow.items()}
+        self._restore_raw(pl_module)
+
+    def on_train_batch_start(self, trainer: Trainer, pl_module: LightningModule, batch, batch_idx: int) -> None:
+        # Validation can run several times per epoch. Keep EMA weights until checkpoint callbacks have run,
+        # then restore the optimizer's weights before the next training step.
+        self._restore_raw(pl_module)
 
     def on_train_batch_end(self, trainer: Trainer, pl_module: LightningModule, outputs, batch, batch_idx: int) -> None:
         self._step += 1
@@ -71,7 +79,7 @@ class EMACallback(Callback):
                     shadow.mul_(d).add_(param.detach(), alpha=1.0 - d)
 
     def _swap_in_ema(self, pl_module: LightningModule) -> None:
-        if not self._shadow:
+        if not self._shadow or self._backup:
             return
         self._backup = {n: p.detach().clone() for n, p in self._ema_params(pl_module).items()}
         pl_module.load_state_dict(self._shadow, strict=False)
@@ -94,13 +102,20 @@ class EMACallback(Callback):
     def on_train_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         self._restore_raw(pl_module)
         self._swap_in_ema(pl_module)
-        self._backup = {}
+        # Retain raw weights so checkpoints saved after fit can also resume training.
 
     def state_dict(self) -> dict[str, Any]:
-        return {"decay": self.decay, "step": self._step, "n_updates": self._n_updates, "shadow": self._shadow}
+        return {
+            "decay": self.decay,
+            "step": self._step,
+            "n_updates": self._n_updates,
+            "shadow": self._shadow,
+            "backup": self._backup,
+        }
 
     def load_state_dict(self, state_dict: dict[str, Any]) -> None:
         self.decay = state_dict.get("decay", self.decay)
         self._step = state_dict.get("step", 0)
         self._n_updates = state_dict.get("n_updates", self._step // self.update_every_n_steps)
         self._shadow = state_dict.get("shadow", {})
+        self._backup = state_dict.get("backup", {})

@@ -28,8 +28,6 @@ Regularisation: the stem keeps the stock regularisers (spatial Laplace, temporal
 so the stock ``gamma_*`` settings keep their meaning. Blocks and attention are regularised only by weight decay.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 import torch

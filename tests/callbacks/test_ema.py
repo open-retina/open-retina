@@ -38,8 +38,8 @@ def _loader() -> DataLoader:
     return DataLoader(TensorDataset(x, y), batch_size=8)
 
 
-def _trainer(callbacks) -> lightning.Trainer:
-    return lightning.Trainer(
+def _trainer(callbacks, **overrides) -> lightning.Trainer:
+    kwargs = dict(
         max_epochs=3,
         callbacks=callbacks,
         logger=False,
@@ -49,6 +49,8 @@ def _trainer(callbacks) -> lightning.Trainer:
         num_sanity_val_steps=0,
         accelerator="cpu",
     )
+    kwargs.update(overrides)
+    return lightning.Trainer(**kwargs)
 
 
 def test_invalid_arguments() -> None:
@@ -107,3 +109,101 @@ def test_raw_weights_restored_for_training() -> None:
     _trainer([ema, check]).fit(module, train_dataloaders=_loader(), val_dataloaders=_loader())
     # with a slow average the raw training weights differ from the EMA weights
     assert len(check.diffs) == 2 and all(d > 0 for d in check.diffs)
+
+
+def test_raw_weights_restored_after_mid_epoch_validation() -> None:
+    torch.manual_seed(0)
+    module = _TinyModule()
+    ema = EMACallback(decay=0.999)
+
+    class _Check(lightning.Callback):
+        def __init__(self):
+            self.previous_weights = None
+            self.n_checks = 0
+
+        def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
+            if self.previous_weights is not None:
+                for name, value in pl_module.state_dict().items():
+                    torch.testing.assert_close(value, self.previous_weights[name], rtol=0, atol=0)
+                self.n_checks += 1
+
+        def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+            self.previous_weights = {n: p.detach().clone() for n, p in pl_module.state_dict().items()}
+
+        def on_validation_epoch_start(self, trainer, pl_module):
+            torch.testing.assert_close(pl_module.layer.weight, ema._shadow["layer.weight"], rtol=0, atol=0)
+
+    check = _Check()
+    _trainer([ema, check], val_check_interval=0.5).fit(module, _loader(), _loader())
+    assert check.n_checks == 23
+    assert len(module.val_weights) == 6
+
+
+@pytest.mark.parametrize("save_after_fit", [False, True])
+def test_checkpoint_resume_matches_uninterrupted_training(tmp_path, save_after_fit) -> None:
+    class _MomentumModule(_TinyModule):
+        def configure_optimizers(self):
+            return torch.optim.SGD(self.parameters(), lr=0.01, momentum=0.9)
+
+    torch.manual_seed(0)
+    reference = _MomentumModule()
+    reference_ema = EMACallback(decay=0.999)
+    reference_trainer = _trainer([reference_ema])
+    reference_trainer.fit(reference, _loader(), _loader())
+
+    torch.manual_seed(0)
+    module = _MomentumModule()
+    ema = EMACallback(decay=0.999)
+    checkpoint = lightning.pytorch.callbacks.ModelCheckpoint(dirpath=tmp_path, monitor="val_loss", save_last=True)
+    trainer = _trainer([ema, checkpoint], max_epochs=1, enable_checkpointing=True)
+    trainer.fit(module, _loader(), _loader())
+    if save_after_fit:
+        checkpoint_path = str(tmp_path / "after_fit.ckpt")
+        trainer.save_checkpoint(checkpoint_path)
+    else:
+        checkpoint_path = checkpoint.last_model_path
+
+    saved = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    saved_ema = saved["callbacks"][ema.state_key]
+    torch.testing.assert_close(saved["state_dict"]["layer.weight"], saved_ema["shadow"]["layer.weight"])
+    assert not torch.equal(saved_ema["backup"]["layer.weight"], saved_ema["shadow"]["layer.weight"])
+
+    # Standalone evaluation must keep the checkpoint's EMA weights, even when raw weights were also saved.
+    trainer.validate(module, _loader(), ckpt_path=checkpoint_path, weights_only=False, verbose=False)
+    torch.testing.assert_close(module.val_weights[-1], saved_ema["shadow"]["layer.weight"])
+
+    resumed = _MomentumModule()
+    resumed_ema = EMACallback(decay=0.999)
+    resumed_trainer = _trainer([resumed_ema])
+    resumed_trainer.fit(resumed, _loader(), _loader(), ckpt_path=checkpoint_path, weights_only=False)
+    assert resumed_ema._n_updates == reference_ema._n_updates
+    for name, expected in reference.state_dict().items():
+        torch.testing.assert_close(resumed.state_dict()[name], expected, rtol=0, atol=0)
+    for name, expected in reference_ema._backup.items():
+        torch.testing.assert_close(resumed_ema._backup[name], expected, rtol=0, atol=0)
+    reference_state = reference_trainer.optimizers[0].state_dict()["state"]
+    resumed_state = resumed_trainer.optimizers[0].state_dict()["state"]
+    for param_id, state in reference_state.items():
+        torch.testing.assert_close(resumed_state[param_id]["momentum_buffer"], state["momentum_buffer"], rtol=0, atol=0)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda", "mps"])
+def test_restored_shadow_matches_model_device_and_dtype(device) -> None:
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("CUDA unavailable")
+    if device == "mps" and not torch.backends.mps.is_available():
+        pytest.skip("MPS unavailable")
+
+    module = _TinyModule().to(device=device)
+    ema = EMACallback(decay=0.9)
+    # Simulate CPU callback tensors restored from a checkpoint with a different model precision.
+    shadow = {n: torch.zeros_like(p, device="cpu", dtype=torch.float64) for n, p in ema._ema_params(module).items()}
+    ema.load_state_dict({"shadow": shadow, "n_updates": 10})
+    ema.on_train_start(None, module)
+    ema.on_train_batch_end(None, module, None, None, 0)
+
+    for name, param in ema._ema_params(module).items():
+        actual = ema._shadow[name]
+        assert actual.device == param.device
+        assert actual.dtype == param.dtype
+        torch.testing.assert_close(actual, param * (1 - ema.effective_decay()))
