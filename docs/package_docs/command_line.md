@@ -59,6 +59,27 @@ openretina eval --config-path configs --config-name karamanlis_2024_core_readout
   evaluation.data_split=validation
 ```
 
+`data_split` also accepts a list, which is evaluated in a single pass over the data instead of one
+process per split:
+
+```bash
+openretina eval --config-path configs --config-name karamanlis_2024_core_readout \
+  +evaluation=default \
+  evaluation.model_path=karamanlis_2024_mouse \
+  "evaluation.data_split=[validation,test]"
+```
+
+Prefer this whenever you want several splits from one checkpoint. Loading the stimuli, responses and
+dataloaders costs far more than scoring one split against them, and none of it depends on which split
+is scored — on the ten `qiu_2026` sessions, six conditions run as six processes take ~2h15m against
+roughly 40 minutes shared. Dataset statistics are computed once for the same reason.
+
+Each split still prints its own report, followed by a table of the per-split mean correlations. With a
+list, `model_results_path` and `summary_results_path` are suffixed per split
+(`per_neuron.csv` → `per_neuron_validation.csv`) so the splits do not overwrite each other; a bare
+string writes to the path exactly as given. Split names that are not filesystem-safe — `qiu_2026`
+keys its test splits by a base64 `condition_hash` — are sanitised for the suffix only.
+
 For split semantics and multi-test dataloader behavior, see [Data IO flow and multi-test support](./data_io_flow.md).
 
 ## Visualize model neurons
