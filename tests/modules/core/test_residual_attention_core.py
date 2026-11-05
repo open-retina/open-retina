@@ -25,7 +25,6 @@ def _core(**kwargs) -> ResidualAttentionCore:
         gamma_input=0.0,
         gamma_temporal=40.0,
         gamma_in_sparse=0.0,
-        cut_first_n_frames=0,
         input_padding=0,
         attn_window=16,
     )

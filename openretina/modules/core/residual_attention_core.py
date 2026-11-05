@@ -116,8 +116,8 @@ class CausalTemporalAttention(nn.Module):
     Tokens are the C-dimensional feature vectors at each (position, frame). Frame t attends to frames
     t - window + 1 .. t (causal sliding window). Positions are encoded only by a learned per-head bias for each lag
     (relative positions, no absolute positions), so training and test sequences may differ in length. Weights are
-    shared across spatial positions. Both residual branches (attention and MLP) are gated by LayerScale
-    , initialised at ``ls_init``. 
+    shared across spatial positions. Both residual branches (attention and MLP) are gated by LayerScale,
+    initialised at ``ls_init``.
     """
 
     def __init__(
@@ -193,7 +193,8 @@ class ResidualAttentionCore(Core):
         attn_dropout: dropout on the attention weights during training.
         n_neurons_dict: passed by ``UnifiedCoreReadout``; unused.
         **stem_kwargs: further keyword arguments for the stem ``SimpleCoreWrapper`` (e.g. ``convolution_type``,
-            ``cut_first_n_frames``, ``input_padding``, ``dropout_rate``).
+            ``cut_first_n_frames``, ``input_padding``, ``dropout_rate``). ``cut_first_n_frames`` defaults to 0,
+            since the valid temporal convolutions already crop the input.
     """
 
     def __init__(
@@ -225,6 +226,7 @@ class ResidualAttentionCore(Core):
                 f"{self.__class__.__name__} expects channels=(input channels, stem width), i.e. hidden_channels "
                 f"with a single entry; got {channels=}"
             )
+        stem_kwargs.setdefault("cut_first_n_frames", 0)
         self.stem = SimpleCoreWrapper(
             channels=channels,
             temporal_kernel_sizes=tuple(temporal_kernel_sizes)[:1],
