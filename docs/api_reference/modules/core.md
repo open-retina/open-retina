@@ -37,3 +37,23 @@ A recurrent core using convolutional GRU cells for temporal processing.
             - __init__
             - forward
             - regularizer
+
+## ResidualAttentionCore
+
+The stock first layer followed by inverted residual depthwise blocks and causal temporal self-attention
+(per spatial position, sliding window, learned per-lag bias). The residual blocks follow the DwiseNeuro core of the
+[Sensorium 2023 winning solution](https://github.com/lRomul/sensorium). Train it with
+`configs/hoefling_2024_core_readout_low_res_residual_attention.yaml`, which uses long training chunks and weight EMA
+(`openretina.callbacks.ema.EMACallback`).
+
+::: openretina.modules.core.residual_attention_core.ResidualAttentionCore
+    options:
+        show_root_heading: true
+        members:
+            - __init__
+            - forward
+            - regularizer
+
+::: openretina.modules.core.residual_attention_core.CausalTemporalAttention
+    options:
+        show_root_heading: true
