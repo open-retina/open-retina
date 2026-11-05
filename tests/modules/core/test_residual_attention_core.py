@@ -1,4 +1,5 @@
 import os
+from typing import Any
 
 import hydra
 import pytest
@@ -17,8 +18,8 @@ from openretina.utils.debug_model import is_model_causal
 CONFIG_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "configs")
 
 
-def _core(**kwargs) -> ResidualAttentionCore:
-    params = dict(
+def _core(**kwargs: Any) -> ResidualAttentionCore:
+    params: dict[str, Any] = dict(
         channels=(2, 8),
         temporal_kernel_sizes=(21,),
         spatial_kernel_sizes=(11,),
@@ -82,15 +83,22 @@ def test_attention_window_limits_context() -> None:
     assert changed.nonzero().flatten().tolist() == [3, 4, 5, 6, 7]
 
 
-def test_fast_depthwise_convs_match_conv3d() -> None:
+@pytest.mark.parametrize(
+    "conv_class,kernel_size,padding",
+    [
+        (DepthwiseSpatialConv3d, (1, 3, 3), (0, 1, 1)),
+        (DepthwiseTemporalConv3d, (4, 1, 1), (0, 0, 0)),
+    ],
+)
+def test_fast_depthwise_convs_match_conv3d(
+    conv_class: type[nn.Conv3d], kernel_size: tuple[int, int, int], padding: tuple[int, int, int]
+) -> None:
     torch.manual_seed(0)
     x = torch.randn(2, 6, 9, 7, 5)
-    spatial = DepthwiseSpatialConv3d(6, 6, kernel_size=(1, 3, 3), padding=(0, 1, 1), groups=6, bias=True)
-    temporal = DepthwiseTemporalConv3d(6, 6, kernel_size=(4, 1, 1), groups=6, bias=True)
-    for fast in (spatial, temporal):
-        reference = nn.Conv3d(6, 6, fast.kernel_size, padding=fast.padding, groups=6, bias=True)
-        reference.load_state_dict(fast.state_dict())
-        assert torch.allclose(fast(x), reference(x), atol=1e-5)
+    fast = conv_class(6, 6, kernel_size=kernel_size, padding=padding, groups=6, bias=True)
+    reference = nn.Conv3d(6, 6, kernel_size=kernel_size, padding=padding, groups=6, bias=True)
+    reference.load_state_dict(fast.state_dict())
+    assert torch.allclose(fast(x), reference(x), atol=1e-5)
 
 
 def test_regularizer_and_backward() -> None:

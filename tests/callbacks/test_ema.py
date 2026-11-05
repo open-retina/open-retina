@@ -206,8 +206,9 @@ def test_restored_shadow_matches_model_device_and_dtype(device) -> None:
     # Simulate CPU callback tensors restored from a checkpoint with a different model precision.
     shadow = {n: torch.zeros_like(p, device="cpu", dtype=torch.float64) for n, p in ema._ema_params(module).items()}
     ema.load_state_dict({"shadow": shadow, "n_updates": 10})
-    ema.on_train_start(None, module)
-    ema.on_train_batch_end(None, module, None, None, 0)
+    trainer = _trainer([ema])
+    ema.on_train_start(trainer, module)
+    ema.on_train_batch_end(trainer, module, None, None, 0)
 
     for name, param in ema._ema_params(module).items():
         actual = ema._shadow[name]
