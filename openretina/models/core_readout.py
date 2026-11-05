@@ -7,6 +7,7 @@ from typing import Any, Iterable, Optional
 import hydra.utils
 import torch
 import torch.nn as nn
+from einops import rearrange
 from jaxtyping import Float, Int
 from lightning import LightningModule
 from lightning.pytorch.utilities import grad_norm
@@ -57,6 +58,8 @@ class BaseCoreReadout(LightningModule):
         loss: nn.Module | None = None,
         evaluation_loss: nn.Module | None = None,
         data_info: dict[str, Any] | None = None,
+        shifter: nn.Module | None = None,
+        test_repeat_chunk_size: int = 4,
     ):
         """
         Initializes a BaseCoreReadout module.
@@ -71,11 +74,21 @@ class BaseCoreReadout(LightningModule):
                 Defaults to CorrelationLoss3d (avg=True) if None.
             data_info (dict[str, Any], optional): Dictionary containing data-specific metadata, such as input_shape,
                 session neuron counts, etc. If None, defaults to empty dict.
+            shifter (nn.Module, optional): Multi-session shifter mapping a behavioral variable (e.g. pupil
+                position) to a readout-grid shift, keyed by session like the readout. If None, no shift is
+                applied, matching pre-shifter behavior exactly.
+            test_repeat_chunk_size (int): How many repeats to push through the core at once when a test
+                batch is marked `reduce_over_batch` (see `test_step`). Purely a memory knob -- the
+                averaged prediction is identical for any value -- but a full repeat batch is several
+                times a training batch's frame count, so chunking keeps peak activations bounded. Values
+                <= 0 mean no chunking. Ignored for batches that are not marked.
         """
         super().__init__()
 
         self.core = core
         self.readout = readout
+        self.shifter = shifter
+        self.test_repeat_chunk_size = test_repeat_chunk_size
         self.learning_rate = learning_rate
         self.loss = loss if loss is not None else PoissonLoss3d()
         self.evaluation_loss = (
@@ -99,18 +112,33 @@ class BaseCoreReadout(LightningModule):
         readout_norms = grad_norm(self.readout, norm_type=2)
         self.log_dict(readout_norms, on_step=False, on_epoch=True)
 
-    def forward(self, x: Float[torch.Tensor, "batch channels t h w"], data_key: str | None = None) -> torch.Tensor:
+    def forward(
+        self,
+        x: Float[torch.Tensor, "batch channels t h w"],
+        data_key: str | None = None,
+        pupil_center: Float[torch.Tensor, "batch two t"] | None = None,
+    ) -> torch.Tensor:
         output_core = self.core(x)
-        output_readout = self.readout(output_core, data_key=data_key)
+        readout_kwargs: dict[str, Any] = {}
+        if self.shifter is not None and pupil_center is not None and data_key is not None:
+            model_cut_frames = x.size(2) - output_core.size(2)
+            pupil_aligned = rearrange(pupil_center[:, :, model_cut_frames:], "batch two t -> (batch t) two")
+            readout_kwargs["shift"] = self.shifter(pupil_aligned, data_key)
+        output_readout = self.readout(output_core, data_key=data_key, **readout_kwargs)
         return output_readout
 
     def training_step(self, batch: tuple[str, DataPoint], batch_idx: int) -> torch.Tensor:
         session_id, data_point = batch
-        model_output = self.forward(data_point.inputs, session_id)
+        pupil_center = getattr(data_point, "pupil_center", None)
+        model_output = self.forward(data_point.inputs, session_id, pupil_center=pupil_center)
         loss = self.loss.forward(model_output, data_point.targets)
         regularization_loss_core = self.core.regularizer()
         regularization_loss_readout = self.readout.regularizer(session_id)  # type: ignore
         total_loss = loss + regularization_loss_core + regularization_loss_readout
+        if self.shifter is not None:
+            regularization_loss_shifter = self.shifter.regularizer(session_id)  # type: ignore
+            total_loss = total_loss + regularization_loss_shifter
+            self.log("regularization_loss_shifter", regularization_loss_shifter, on_step=False, on_epoch=True)
         evaluation_loss = self.evaluation_loss.forward(model_output, data_point.targets)
 
         self.log("regularization_loss_core", regularization_loss_core, on_step=False, on_epoch=True)
@@ -123,26 +151,69 @@ class BaseCoreReadout(LightningModule):
 
     def validation_step(self, batch: tuple[str, DataPoint], batch_idx: int) -> torch.Tensor:
         session_id, data_point = batch
-        model_output = self.forward(data_point.inputs, session_id)
+        pupil_center = getattr(data_point, "pupil_center", None)
+        model_output = self.forward(data_point.inputs, session_id, pupil_center=pupil_center)
         loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
         regularization_loss_core = self.core.regularizer()
         regularization_loss_readout = self.readout.regularizer(session_id)  # type: ignore
         total_loss = loss + regularization_loss_core + regularization_loss_readout
+        if self.shifter is not None:
+            regularization_loss_shifter = self.shifter.regularizer(session_id)  # type: ignore
+            total_loss = total_loss + regularization_loss_shifter
+            self.log("val_regularization_loss_shifter", regularization_loss_shifter)
         evaluation_loss = self.evaluation_loss.forward(model_output, data_point.targets)
 
-        self.log("val_loss", loss, logger=True, prog_bar=True)
-        self.log("val_regularization_loss_core", regularization_loss_core, logger=True)
-        self.log("val_regularization_loss_readout", regularization_loss_readout, logger=True)
-        self.log("val_total_loss", total_loss, logger=True)
-        self.log("val_evaluation_loss", evaluation_loss, logger=True, prog_bar=True)
+        self.log("val_loss", loss, prog_bar=True)
+        self.log("val_regularization_loss_core", regularization_loss_core)
+        self.log("val_regularization_loss_readout", regularization_loss_readout)
+        self.log("val_total_loss", total_loss)
+        self.log("val_evaluation_loss", evaluation_loss, prog_bar=True)
 
         return loss
 
+    def _forward_in_chunks(
+        self,
+        inputs: torch.Tensor,
+        data_key: str,
+        pupil_center: torch.Tensor | None,
+        chunk_size: int,
+    ) -> torch.Tensor:
+        """Forward a batch in slices along dim 0 and concatenate, to bound peak activation memory."""
+        if chunk_size <= 0 or chunk_size >= inputs.size(0):
+            return self.forward(inputs, data_key, pupil_center=pupil_center)
+        outputs = [
+            self.forward(
+                inputs[start : start + chunk_size],
+                data_key,
+                pupil_center=None if pupil_center is None else pupil_center[start : start + chunk_size],
+            )
+            for start in range(0, inputs.size(0), chunk_size)
+        ]
+        return torch.cat(outputs, dim=0)
+
     def test_step(self, batch: tuple[str, DataPoint], batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
         session_id, data_point = batch
-        model_output = self.forward(data_point.inputs, session_id)
-        loss = self.loss.forward(model_output, data_point.targets) / sum(model_output.shape)
-        evaluation_loss = self.evaluation_loss.forward(model_output, data_point.targets)
+        pupil_center = getattr(data_point, "pupil_center", None)
+        targets = data_point.targets
+
+        # Datasets whose batch dimension holds repeats of one stimulus (qiu_2026 test conditions) mark
+        # their batches: the model runs once per repeat, with that repeat's own behavior, and the
+        # predictions are averaged here. This has to happen before the losses, which correlate per batch
+        # item and then average -- mean_r corr(f(v, b_r), r_avg) is not corr(mean_r f(v, b_r), r_avg).
+        reduce_flag = getattr(data_point, "reduce_over_batch", None)
+        reduce_over_repeats = reduce_flag is not None and bool(torch.as_tensor(reduce_flag).all())
+
+        if reduce_over_repeats:
+            model_output = self._forward_in_chunks(
+                data_point.inputs, session_id, pupil_center, self.test_repeat_chunk_size
+            ).mean(dim=0, keepdim=True)
+            # Every repeat carries the same trial-averaged target; keep one to match the reduced output.
+            targets = targets[:1]
+        else:
+            model_output = self.forward(data_point.inputs, session_id, pupil_center=pupil_center)
+
+        loss = self.loss.forward(model_output, targets) / sum(model_output.shape)
+        evaluation_loss = self.evaluation_loss.forward(model_output, targets)
 
         # Add metric and performances to data_info for downstream tasks
         if "pretrained_performance_metric" not in self.data_info:
@@ -157,7 +228,7 @@ class BaseCoreReadout(LightningModule):
             self.data_info["pretrained_performance"][session_id] = evaluation_loss.detach().cpu()
 
         # Also add cut frames if not present
-        model_cut_frames = data_point.targets.size(1) - model_output.size(1)
+        model_cut_frames = targets.size(1) - model_output.size(1)
         if "model_cut_frames" not in self.data_info:
             self.data_info["model_cut_frames"] = model_cut_frames
         elif self.data_info["model_cut_frames"] != model_cut_frames:
@@ -298,6 +369,8 @@ class UnifiedCoreReadout(BaseCoreReadout):
         data_info: dict[str, Any] | None = None,
         optimizer: DictConfig | None = None,
         lr_scheduler: DictConfig | None = None,
+        shifter: DictConfig | None = None,
+        test_repeat_chunk_size: int = 4,
     ):
         """
         Initializes a UnifiedCoreReadout for multi-session configurable neural modeling via Hydra configs.
@@ -325,6 +398,13 @@ class UnifiedCoreReadout(BaseCoreReadout):
                 Hydra config for optimizer instantiation. If None, defaults to AdamW.
             lr_scheduler (DictConfig, optional):
                 Hydra config for learning rate scheduler. If None, defaults to ReduceLROnPlateau.
+            shifter (DictConfig, optional):
+                Hydra config for a multi-session shifter module (keyed by session like the readout),
+                mapping a behavioral variable (e.g. pupil position) to a readout-grid shift. If None,
+                no shifter is built and the model behaves exactly as without one.
+            test_repeat_chunk_size (int, optional):
+                Memory knob for test batches whose batch dimension holds repeats of one stimulus; see
+                BaseCoreReadout. Does not change the result.
         """
         # Make sure in_shape and hidden_channels are a tuple
         # (with hydra configs they can be a `omegaconf.listconfig.ListConfig`).
@@ -353,6 +433,10 @@ class UnifiedCoreReadout(BaseCoreReadout):
             mean_activity_dict=mean_activity_dict,
         )
 
+        shifter_module = None
+        if shifter is not None:
+            shifter_module = hydra.utils.instantiate(shifter, n_neurons_dict=n_neurons_dict)
+
         if loss is not None and isinstance(loss, DictConfig):
             loss_module = hydra.utils.instantiate(loss)
         else:
@@ -374,6 +458,8 @@ class UnifiedCoreReadout(BaseCoreReadout):
             loss=loss_module,
             evaluation_loss=evaluation_loss_module,
             data_info=data_info,
+            shifter=shifter_module,
+            test_repeat_chunk_size=test_repeat_chunk_size,
         )
 
     def configure_optimizers(self):
