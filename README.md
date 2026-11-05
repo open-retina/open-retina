@@ -62,11 +62,25 @@ responses = model.forward(torch.rand(model.stimulus_shape(time_steps=50)))
 
 ## Contributing
 
+Install the development dependencies and notebook commit hooks once per clone:
+
+```bash
+make install-dev
+```
+
+The hooks clear saved notebook outputs and widget state, and reject notebooks larger
+than 1 MiB after cleaning. They modify your local notebook files; after a cleanup,
+review the changes, stage the files again, and retry the commit. See the
+[notebook contribution guide](docs/package_docs/contributing.md#notebooks) for details.
+
 Before raising a PR please run:
 
 ```bash
 # Fix formatting of python files
 make fix-formatting
+
+# Clean notebooks and check their sizes
+make check-notebooks
 
 # Run type checks and unit tests
 make test-all
