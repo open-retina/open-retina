@@ -44,29 +44,56 @@ class DepthwiseSpatialConv3d(nn.Conv3d):
     """
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # Folding frames into the batch requires the temporal axis to pass through unchanged.
+        if (
+            x.ndim != 5
+            or self.kernel_size[0] != 1
+            or self.stride[0] != 1
+            or self.dilation[0] != 1
+            or self.padding_mode != "zeros"
+            or isinstance(self.padding, str)
+            or self.padding[0] != 0
+        ):
+            return super().forward(x)
         b, c, t, h, w = x.shape
         y = nn.functional.conv2d(
             x.transpose(1, 2).reshape(b * t, c, h, w),
             self.weight[:, :, 0],
             self.bias,
+            stride=self.stride[1:],
             padding=self.padding[1:],
+            dilation=self.dilation[1:],
             groups=self.groups,
         )
         return y.reshape(b, t, y.shape[1], y.shape[2], y.shape[3]).transpose(1, 2)
 
 
 class DepthwiseTemporalConv3d(nn.Conv3d):
-    """(k, 1, 1) depthwise ``Conv3d`` (valid, causal) computed as a per-pixel depthwise ``Conv1d`` along time.
+    """(k, 1, 1) depthwise ``Conv3d`` computed as a per-pixel depthwise ``Conv1d`` along time.
 
     Same parameters and state dict as ``nn.Conv3d`` and identical outputs.
     """
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # Folding pixels into the batch requires both spatial axes to pass through unchanged.
+        if (
+            x.ndim != 5
+            or self.kernel_size[1:] != (1, 1)
+            or self.stride[1:] != (1, 1)
+            or self.dilation[1:] != (1, 1)
+            or self.padding_mode != "zeros"
+            or isinstance(self.padding, str)
+            or self.padding[1:] != (0, 0)
+        ):
+            return super().forward(x)
         b, c, t, h, w = x.shape
         y = nn.functional.conv1d(
             x.permute(0, 3, 4, 1, 2).reshape(b * h * w, c, t),
             self.weight[:, :, :, 0, 0],
             self.bias,
+            stride=self.stride[0],
+            padding=self.padding[0],
+            dilation=self.dilation[0],
             groups=self.groups,
         )
         return y.reshape(b, h, w, y.shape[1], y.shape[2]).permute(0, 3, 4, 1, 2)
@@ -80,6 +107,8 @@ class InvertedResidualBlock3d(nn.Module):
 
     def __init__(self, channels: int, expansion: int = 4, spatial_kernel: int = 5, temporal_kernel: int = 6):
         super().__init__()
+        if spatial_kernel < 1 or spatial_kernel % 2 == 0:
+            raise ValueError(f"{spatial_kernel=} must be a positive odd integer")
         hidden = channels * expansion
         self.temporal_crop = temporal_kernel - 1
         self.expand = nn.Sequential(
@@ -183,7 +212,7 @@ class ResidualAttentionCore(Core):
         gamma_input, gamma_temporal, gamma_in_sparse, gamma_hidden: stem regularisation, as in ``SimpleCoreWrapper``.
         n_blocks: number of inverted residual blocks.
         block_expansion: channel expansion factor inside the blocks.
-        block_spatial_kernel: depthwise spatial kernel size, an int or one value per block.
+        block_spatial_kernel: positive odd depthwise spatial kernel size, shared or one value per block.
         block_temporal_kernel: depthwise temporal kernel size, an int or one value per block.
         attn_blocks: number of causal temporal attention blocks after the residual blocks (0 disables attention).
         attn_heads: attention heads; must divide the stem width.

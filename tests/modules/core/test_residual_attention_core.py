@@ -55,6 +55,12 @@ def test_invalid_arguments() -> None:
         _core(attn_heads=3)
 
 
+@pytest.mark.parametrize("kernel", [4, 0, [5, -1]])
+def test_invalid_block_spatial_kernel(kernel: int | list[int]) -> None:
+    with pytest.raises(ValueError, match="spatial_kernel.*positive odd"):
+        _core(block_spatial_kernel=kernel)
+
+
 @pytest.mark.parametrize("attn_blocks", [0, 1])
 def test_core_is_causal(attn_blocks: int) -> None:
     torch.manual_seed(0)
@@ -84,21 +90,28 @@ def test_attention_window_limits_context() -> None:
 
 
 @pytest.mark.parametrize(
-    "conv_class,kernel_size,padding",
+    "conv_class,kernel_size,options",
     [
-        (DepthwiseSpatialConv3d, (1, 3, 3), (0, 1, 1)),
-        (DepthwiseTemporalConv3d, (4, 1, 1), (0, 0, 0)),
+        (DepthwiseSpatialConv3d, (1, 3, 3), {"padding": (0, 1, 1)}),
+        (DepthwiseTemporalConv3d, (4, 1, 1), {}),
+        (DepthwiseTemporalConv3d, (2, 1, 1), {"stride": (2, 1, 1)}),
+        (DepthwiseTemporalConv3d, (3, 1, 1), {"padding": (2, 0, 0), "dilation": (2, 1, 1)}),
+        (DepthwiseSpatialConv3d, (1, 3, 3), {"stride": (1, 2, 1), "dilation": (1, 1, 2)}),
+        (DepthwiseSpatialConv3d, (1, 3, 3), {"stride": (2, 1, 1)}),
+        (DepthwiseTemporalConv3d, (3, 1, 1), {"padding": (0, 1, 0)}),
+        (DepthwiseSpatialConv3d, (1, 3, 3), {"padding": "same", "padding_mode": "reflect"}),
+        (DepthwiseTemporalConv3d, (3, 3, 1), {}),
     ],
 )
 def test_fast_depthwise_convs_match_conv3d(
-    conv_class: type[nn.Conv3d], kernel_size: tuple[int, int, int], padding: tuple[int, int, int]
+    conv_class: type[nn.Conv3d], kernel_size: tuple[int, int, int], options: dict[str, Any]
 ) -> None:
     torch.manual_seed(0)
     x = torch.randn(2, 6, 9, 7, 5)
-    fast = conv_class(6, 6, kernel_size=kernel_size, padding=padding, groups=6, bias=True)
-    reference = nn.Conv3d(6, 6, kernel_size=kernel_size, padding=padding, groups=6, bias=True)
+    fast = conv_class(6, 6, kernel_size=kernel_size, groups=6, **options)
+    reference = nn.Conv3d(6, 6, kernel_size=kernel_size, groups=6, **options)
     reference.load_state_dict(fast.state_dict())
-    assert torch.allclose(fast(x), reference(x), atol=1e-5)
+    torch.testing.assert_close(fast(x), reference(x), atol=1e-5, rtol=1e-5)
 
 
 def test_regularizer_and_backward() -> None:
