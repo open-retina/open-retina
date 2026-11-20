@@ -105,6 +105,16 @@ class BaseCoreReadout(LightningModule):
         for lg in self.trainer.loggers:
             lg.log_hyperparams({k: v for k, v in self.hparams.items() if k not in {"data_info", "n_neurons_dict"}})
 
+    def on_load_checkpoint(self, checkpoint: dict[str, Any]) -> None:
+        # The original EMA callback saved averaged weights in state_dict and raw floating-point tensors in backup.
+        callbacks = checkpoint.get("callbacks", {})
+        legacy = callbacks.get("EMACallback")
+        if legacy and legacy.get("backup") and "current_model_state" not in checkpoint:
+            checkpoint["current_model_state"] = {**checkpoint["state_dict"], **legacy["backup"]}
+            checkpoint["averaging_state"] = {"n_averaged": torch.tensor(legacy["n_updates"])}
+            callbacks["EMAWeightAveraging"] = {"latest_update_step": checkpoint["global_step"]}
+            del callbacks["EMACallback"]
+
     def on_train_epoch_end(self):
         # Compute the 2-norm for each layer at the end of the epoch
         core_norms = grad_norm(self.core, norm_type=2)
@@ -581,6 +591,7 @@ class ExampleCoreReadout(BaseCoreReadout):
 
     def on_load_checkpoint(self, checkpoint) -> None:
         """To support legacy models that use `bias_param` instead of `bias` in their readout layers."""
+        super().on_load_checkpoint(checkpoint)
         state_dict = checkpoint["state_dict"]
 
         readout_bias_keys = [k for k in state_dict.keys() if k.startswith("readout.") and k.endswith(".bias_param")]

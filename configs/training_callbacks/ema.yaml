@@ -1,0 +1,4 @@
+ema:
+  _target_: lightning.pytorch.callbacks.EMAWeightAveraging
+  decay: 0.999 # EMA weights are used for validation, early stopping, checkpoints and test
+  update_every_n_steps: 1
