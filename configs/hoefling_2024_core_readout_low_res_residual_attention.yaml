@@ -20,6 +20,8 @@ exp_name: hoefling_2024_core_readout_low_res_residual_attention
 
 dataloader:
   batch_size: 15
+  # Validation starts fresh on each 150-frame clip. The 30-frame crop leaves 120 attention positions,
+  # so lags 120–255 are trained but never used for checkpoint selection. Test uses the full movie.
   train_chunk_size: 300
 
 trainer:

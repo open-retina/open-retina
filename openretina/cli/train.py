@@ -134,7 +134,7 @@ def train_model(cfg: DictConfig) -> float | None:
 
     # The best checkpoint already contains EMA weights. A live averaging callback restores the raw
     # training weights when this same Trainer loads the checkpoint for testing.
-    trainer.callbacks = [callback for callback in trainer.callbacks if not isinstance(callback, EMAWeightAveraging)]
+    trainer.callbacks = [cb for cb in trainer.callbacks if not isinstance(cb, EMAWeightAveraging)]  # type: ignore[attr-defined]
 
     ### Testing
     log.info("Starting testing!")
