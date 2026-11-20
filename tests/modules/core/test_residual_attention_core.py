@@ -89,6 +89,28 @@ def test_attention_window_limits_context() -> None:
     assert changed.nonzero().flatten().tolist() == [3, 4, 5, 6, 7]
 
 
+@pytest.mark.parametrize("window", [1, 5, 13, 50])
+def test_blockwise_attention_matches_dense_outputs_and_gradients(window: int) -> None:
+    torch.manual_seed(0)
+    attn = CausalTemporalAttention(channels=8, heads=2, window=window).double()
+    nn.init.normal_(attn.lag_bias)
+    t = 37
+    q, k, v = (torch.randn(2, 2, t, 4, dtype=torch.float64, requires_grad=True) for _ in range(3))
+    actual = attn._attend(q, k, v, block_size=8)
+
+    frames = torch.arange(t)
+    lag = frames[:, None] - frames[None, :]
+    bias = attn.lag_bias[:, lag.clamp(0, window - 1)].masked_fill((lag < 0) | (lag >= window), -torch.inf)
+    expected = nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=bias.unsqueeze(0))
+    torch.testing.assert_close(actual, expected, rtol=1e-12, atol=1e-12)
+
+    upstream = torch.randn_like(expected)
+    inputs = (q, k, v, attn.lag_bias)
+    actual_grads = torch.autograd.grad(actual, inputs, upstream)
+    expected_grads = torch.autograd.grad(expected, inputs, upstream)
+    torch.testing.assert_close(actual_grads, expected_grads, rtol=1e-12, atol=1e-12)
+
+
 @pytest.mark.parametrize(
     "conv_class,kernel_size,options",
     [

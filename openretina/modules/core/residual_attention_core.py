@@ -174,26 +174,38 @@ class CausalTemporalAttention(nn.Module):
         self.ls2 = nn.Parameter(ls_init * torch.ones(channels))
         self.lag_bias = nn.Parameter(torch.zeros(heads, window))
 
-    def attn_bias(self, t: int, device: torch.device, dtype: torch.dtype) -> torch.Tensor:
-        """Additive attention mask of shape (1, heads, t, t): learned lag bias inside the window, -inf elsewhere."""
-        idx = torch.arange(t, device=device)
-        lag = idx[:, None] - idx[None, :]  # query i, key j: lag = i - j
+    def attn_bias(self, t: int, device: torch.device, dtype: torch.dtype, *, history: int = 0) -> torch.Tensor:
+        """Bias for t queries and their keys, including history keys preceding the first query."""
+        keys = torch.arange(history + t, device=device)
+        lag = keys[history:, None] - keys[None, :]
         allowed = (lag >= 0) & (lag < self.window)
         bias = self.lag_bias[:, lag.clamp(0, self.window - 1)]
         return bias.masked_fill(~allowed, float("-inf")).to(dtype).unsqueeze(0)
+
+    def _attend(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, block_size: int = 512) -> torch.Tensor:
+        """Attend to the reachable keys for each query block. Typical training clips fit in one block."""
+        outputs = []
+        for index, queries in enumerate(q.split(block_size, dim=2)):
+            start = index * block_size
+            end = start + queries.size(2)
+            key_start = max(0, start - self.window + 1)
+            outputs.append(
+                nn.functional.scaled_dot_product_attention(
+                    queries,
+                    k[:, :, key_start:end],
+                    v[:, :, key_start:end],
+                    attn_mask=self.attn_bias(queries.size(2), q.device, q.dtype, history=start - key_start),
+                    dropout_p=self.dropout if self.training else 0.0,
+                )
+            )
+        return outputs[0] if len(outputs) == 1 else torch.cat(outputs, dim=2)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # x: B, C, T, H, W
         b, c, t, h, w = x.shape
         z = x.permute(0, 3, 4, 2, 1).reshape(b * h * w, t, c)
         qkv = self.qkv(self.norm1(z)).view(b * h * w, t, 3, self.heads, c // self.heads)
         q, k, v = qkv.permute(2, 0, 3, 1, 4)  # each: N, heads, T, d
-        a = nn.functional.scaled_dot_product_attention(
-            q,
-            k,
-            v,
-            attn_mask=self.attn_bias(t, z.device, q.dtype),
-            dropout_p=self.dropout if self.training else 0.0,
-        )
+        a = self._attend(q, k, v)
         z = z + self.ls1 * self.proj(a.transpose(1, 2).reshape(b * h * w, t, c))
         z = z + self.ls2 * self.mlp(self.norm2(z))
         return z.view(b, h, w, t, c).permute(0, 4, 3, 1, 2).contiguous()
@@ -278,9 +290,17 @@ class ResidualAttentionCore(Core):
             for _ in range(attn_blocks)
         ]
         self.blocks = nn.Sequential(*layers)
-        # Reference to the stem layers for helpers that look for a `features` attribute.
-        self.features = self.stem.features
         self.gamma_input, self.gamma_temporal, self.gamma_in_sparse = gamma_input, gamma_temporal, gamma_in_sparse
+
+    @property
+    def features(self) -> nn.Sequential:
+        return self.stem.features
+
+    def _load_from_state_dict(self, state_dict: dict[str, Any], prefix: str, *args: Any) -> None:
+        # Older checkpoints also registered stem.features under features. Consume only the known duplicate keys.
+        for name in self.features.state_dict():
+            state_dict.pop(f"{prefix}features.{name}", None)
+        super()._load_from_state_dict(state_dict, prefix, *args)
 
     def forward(self, x: torch.Tensor, data_key: str | None = None) -> torch.Tensor:
         return self.blocks(self.stem(x))
