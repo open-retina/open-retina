@@ -44,7 +44,8 @@ The stock first layer followed by inverted residual depthwise blocks and causal 
 (per spatial position, sliding window, learned per-lag bias). The residual blocks follow the DwiseNeuro core of the
 [Sensorium 2023 winning solution](https://github.com/lRomul/sensorium). Train it with
 `configs/hoefling_2024_core_readout_low_res_residual_attention.yaml`, which uses long training chunks and weight EMA
-(`openretina.callbacks.ema.EMACallback`).
+(`lightning.pytorch.callbacks.EMAWeightAveraging`) with a fixed decay of 0.999 per optimizer step.
+To resume training with the raw weights and optimizer state, use a checkpoint saved during fitting.
 
 ::: openretina.modules.core.residual_attention_core.ResidualAttentionCore
     options:

@@ -24,11 +24,11 @@ dependencies = [
     "scipy",
     "tenacity",
     "tensorboard",
-    "torch",
+    "torch>=2.1",
     "torchaudio",
     "torchvision",
     "einops",
-    "lightning>=2.6",
+    "lightning>=2.6",  # provides EMAWeightAveraging
     "wandb",
     "hydra-core",
     "omegaconf",

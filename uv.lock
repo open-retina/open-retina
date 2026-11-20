@@ -4414,7 +4414,7 @@ requires-dist = [
     { name = "standard-imghdr" },
     { name = "tenacity" },
     { name = "tensorboard" },
-    { name = "torch" },
+    { name = "torch", specifier = ">=2.1" },
     { name = "torchaudio" },
     { name = "torchvision" },
     { name = "types-psutil", marker = "extra == 'dev'" },

@@ -15,8 +15,8 @@ class CorrelationLoss3d(nn.Module):
         self.avg = avg
         self.negate = negate
 
-        # Placeholder to store last-computed per-neuron correlations
-        self.register_buffer("_per_neuron_correlations", torch.tensor([]), persistent=False)
+        # This batch metric can change shape between sessions and must stay out of model weight averaging.
+        self._per_neuron_correlations: torch.Tensor | None = None
 
     def forward(self, output, target):
         lag = target.size(1) - output.size(1)
@@ -50,8 +50,8 @@ class CelltypeCorrelationLoss3d(nn.Module):
         self.per_neuron = per_neuron
         self.avg = avg
         self.negate = negate
-        # Placeholder to store last-computed per-neuron correlations
-        self.register_buffer("_per_neuron_correlations", torch.tensor([]), persistent=False)
+        # This batch metric can change shape between sessions and must stay out of model weight averaging.
+        self._per_neuron_correlations: torch.Tensor | None = None
 
     def forward(self, output, target, group_assignment, group_counts):
         lag = target.size(1) - output.size(1)
@@ -86,8 +86,8 @@ class L1CorrelationLoss3d(nn.Module):
         self.avg = avg
         self.gamma_L1 = 0.0002
         self.negate = negate
-        # Placeholder to store last-computed per-neuron correlations
-        self.register_buffer("_per_neuron_correlations", torch.tensor([]), persistent=False)
+        # This batch metric can change shape between sessions and must stay out of model weight averaging.
+        self._per_neuron_correlations: torch.Tensor | None = None
 
     def forward(self, output, target, **kwargs):
         pre_ca = output[1]
@@ -131,8 +131,8 @@ class ScaledCorrelationLoss3d(nn.Module):
         self.per_neuron = per_neuron
         self.avg = avg
         self.negate = negate
-        # Placeholder to store last-computed per-neuron correlations
-        self.register_buffer("_per_neuron_correlations", torch.tensor([]), persistent=False)
+        # This batch metric can change shape between sessions and must stay out of model weight averaging.
+        self._per_neuron_correlations: torch.Tensor | None = None
 
     def forward(self, output, target, **kwargs):
         lag = target.size(1) - output.size(1)
