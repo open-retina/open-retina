@@ -72,6 +72,14 @@ def train_model(cfg: DictConfig) -> float | None:
     # configured with release_movies=true frees each session's source movie as it goes, leaving nothing
     # to read afterwards. Cheap and order-independent, so it costs nothing to do it first.
     data_info = compute_data_info(neuron_data_dict, movies_dict, partial_data_info=cfg.data_io.get("data_info"))
+    # Bias initialization must use the actual training split, not responses that still include held-out validation
+    # clips. All built-in movie datasets expose their split-specific mean response.
+    for session_key, session_loader in dataloaders["train"].items():
+        split_mean_response = getattr(session_loader.dataset, "mean_response", None)
+        if split_mean_response is not None:
+            data_info["mean_activity_dict"][session_key] = torch.as_tensor(
+                split_mean_response, dtype=torch.float32
+            ).detach()
 
     # `_partial_` then a plain Python call, NOT instantiate(cfg.dataloader, **dataloader_kwargs).
     # Passing the data dictionaries through instantiate() hands the builder OmegaConf-rebuilt copies of
