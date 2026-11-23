@@ -1,4 +1,4 @@
 ema:
-  _target_: lightning.pytorch.callbacks.EMAWeightAveraging
+  _target_: openretina.callbacks.ema.RampedEMAWeightAveraging
   decay: 0.999 # EMA weights are used for validation, early stopping, checkpoints and test
   update_every_n_steps: 1

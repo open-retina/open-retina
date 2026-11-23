@@ -43,8 +43,9 @@ A recurrent core using convolutional GRU cells for temporal processing.
 The stock first layer followed by inverted residual depthwise blocks and causal temporal self-attention
 (per spatial position, sliding window, learned per-lag bias). The residual blocks follow the DwiseNeuro core of the
 [Sensorium 2023 winning solution](https://github.com/lRomul/sensorium). Train it with
-`configs/hoefling_2024_core_readout_low_res_residual_attention.yaml`, which uses long training chunks and weight EMA
-(`lightning.pytorch.callbacks.EMAWeightAveraging`) with a fixed decay of 0.999 per optimizer step.
+`configs/hoefling_2024_core_readout_low_res_residual_attention.yaml`, which uses long training chunks and weight EMA.
+`openretina.callbacks.ema.RampedEMAWeightAveraging` uses a decay of `min(0.999, (1 + n) / (10 + n))`,
+where `n` counts completed EMA updates. The decay reaches 0.999 after roughly 9,000 updates.
 To resume training with the raw weights and optimizer state, use a checkpoint saved during fitting.
 
 ::: openretina.modules.core.residual_attention_core.ResidualAttentionCore
