@@ -7,6 +7,7 @@ import hydra
 import lightning.pytorch
 import torch
 import torch.utils.data as data
+from lightning.pytorch.callbacks import EMAWeightAveraging
 from omegaconf import DictConfig, OmegaConf
 
 from openretina.data_io.base import compute_data_info
@@ -147,6 +148,10 @@ def train_model(cfg: DictConfig) -> float | None:
     log.info(f"Instantiating trainer <{cfg.trainer._target_}>")
     trainer: lightning.Trainer = hydra.utils.instantiate(cfg.trainer, logger=logger_array, callbacks=callbacks)
     trainer.fit(model=model, train_dataloaders=train_loader, val_dataloaders=valid_loader)
+
+    # The best checkpoint already contains EMA weights. A live averaging callback restores the raw
+    # training weights when this same Trainer loads the checkpoint for testing.
+    trainer.callbacks = [cb for cb in trainer.callbacks if not isinstance(cb, EMAWeightAveraging)]  # type: ignore[attr-defined]
 
     ### Testing
     log.info("Starting testing!")
