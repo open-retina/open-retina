@@ -101,7 +101,7 @@ def test_greyscale_checkpoint_roundtrip(tmp_path: Path) -> None:
         },
         checkpoint_path,
     )
-    restored = UnifiedCoreReadout.load_from_checkpoint(checkpoint_path, map_location="cpu")
+    restored = UnifiedCoreReadout.load_from_checkpoint(checkpoint_path, map_location="cpu", weights_only=False)
 
     assert isinstance(restored.core, DummyCore)
     assert restored.core.color_squashing_layer is not None
