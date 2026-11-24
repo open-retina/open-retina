@@ -26,9 +26,7 @@ dataloader:
 model:
   in_shape: [2, 150, 18, 16]
   readout:
-    # The model-level default of 1.0 makes the Laplacian penalty ~1e-4 of the Poisson term, i.e.
-    # numerically inert. 3e4 is what the published `hoefling_2024_lnp_low_res` checkpoint was
-    # trained with, and raises trial-averaged test correlation from 0.2503 to 0.2594.
+    # The default of 1.0 leaves the Laplacian penalty inert; 3e4 matches the published checkpoint.
     smooth_weight: 30000.0
 
 data_io:

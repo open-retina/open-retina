@@ -12,8 +12,7 @@ class WeightedChannelSumLayer(nn.Module):
         super().__init__()
 
         # add the channel weights
-        # dtype is explicit: integer weights such as [1, 0] would otherwise make an int64
-        # parameter, which .float()/.half() skip and which cannot carry gradients.
+        # Explicit float32: integer weights such as [1, 0] would give an int64 parameter without gradients.
         self.channel_weights = nn.Parameter(
             torch.tensor(init_channel_weights, dtype=torch.float32), requires_grad=trainable
         )
