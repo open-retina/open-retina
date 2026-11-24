@@ -16,7 +16,7 @@ from omegaconf import OmegaConf
 
 from openretina.models.core_readout import UnifiedCoreReadout
 from openretina.modules.core.base_core import DummyCore
-from openretina.modules.readout.linear_nonlinear_poison import LNPReadout
+from openretina.modules.readout.linear_nonlinear_poison import LNPReadout, SeparableLNPReadout
 
 IN_SHAPE = (2, 150, 18, 16)  # channels time height width; the stimulus is green + UV
 N_NEURONS_DICT = {"session_a": 5}
@@ -150,3 +150,32 @@ def test_shipped_config_builds_the_model_it_describes(config_name: str, expected
     optimizer_config = model.configure_optimizers()
     assert isinstance(optimizer_config["optimizer"], torch.optim.AdamW)
     assert isinstance(optimizer_config["lr_scheduler"]["scheduler"], torch.optim.lr_scheduler.ReduceLROnPlateau)
+
+
+@pytest.mark.parametrize(
+    ("config_name", "expected_channels"),
+    [
+        ("hoefling_2024_core_readout_low_res_lnp_separable_shared_kernel", 2),
+        ("hoefling_2024_core_readout_low_res_lnp_grey_separable", 1),
+    ],
+)
+def test_shipped_separable_config_builds_the_model_it_describes(config_name: str, expected_channels: int) -> None:
+    """The separable configs set the low-res pixel size and drop the same 30 frames as the lag-0 LNP."""
+    with hydra.initialize(config_path="../../configs", version_base="1.3"):
+        cfg = hydra.compose(config_name=config_name)
+
+    assert cfg.data_io.data_info.retina_pixel_size_um == 50  # 4x the high-res default of 12.5
+
+    cfg.model.n_neurons_dict = N_NEURONS_DICT
+    model = UnifiedCoreReadout(data_info={"n_neurons_dict": N_NEURONS_DICT}, **cfg.model)
+
+    readout = model.readout["session_a"]
+    assert isinstance(readout, SeparableLNPReadout)
+    assert readout.in_channels == expected_channels
+    assert readout.spatial_kernel.weight[0].numel() == expected_channels * SPATIAL_WEIGHTS
+    assert readout.smooth_weight == 30000.0
+
+    n_frames = cfg.model.in_shape[1]
+    with torch.no_grad():
+        out = model(torch.zeros(1, *cfg.model.in_shape), data_key="session_a")
+    assert out.shape[1] == n_frames - 30
