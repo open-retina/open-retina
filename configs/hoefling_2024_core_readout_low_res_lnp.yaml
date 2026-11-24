@@ -3,6 +3,8 @@ defaults:
   - quality_checks: hoefling_2024
   - dataloader: hoefling_2024
   - model: linear_nonlinear_poisson # linear_nonlinear_poisson
+  - optimizer: adamw
+  - lr_scheduler: reduce_lr_on_plateau
   - training_callbacks:
       - early_stopping
       - lr_monitor
@@ -23,6 +25,9 @@ dataloader:
 
 model:
   in_shape: [2, 150, 18, 16]
+  readout:
+    # The default of 1.0 leaves the Laplacian penalty inert; 3e4 matches the published checkpoint.
+    smooth_weight: 30000.0
 
 data_io:
   data_info:

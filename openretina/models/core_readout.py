@@ -35,6 +35,12 @@ _MODEL_NAME_TO_REMOTE_LOCATION = {
     "sridhar_2025": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/sridhar_2025.ckpt",
     "goldin_2022_axolotl": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/goldin_2022_axolotl.ckpt",
     "goldin_2022_mouse": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-03-09/goldin_2022_mouse.ckpt",
+    # LNP readouts on a DummyCore (smooth_weight=3e4); the greyscale variant averages green and UV in the core.
+    # 2026-09-07: the 2026-08-25 weights re-saved with retina_pixel_size_um corrected from 12.5 to 50.
+    "hoefling_2024_lnp_low_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-09-07/hoefling_2024_lnp_low_res.ckpt",
+    "hoefling_2024_lnp_low_res_grey_scale": (
+        f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/2026-09-07/hoefling_2024_lnp_low_res_grey_scale.ckpt"
+    ),
     # legacy model used in the first bioarxiv version of the paper
     "hoefling_2024_base_low_res": f"{_HUGGINGFACE_CHECKPOINTS_BASE_PATH}/27-11-2025/hoefling_2024_base_low_res.ckpt",
 }
@@ -433,6 +439,9 @@ class UnifiedCoreReadout(BaseCoreReadout):
         if "in_shape" not in readout:
             in_shape_readout = self.compute_readout_input_shape(in_shape, core_module)
             readout["in_shape"] = (in_shape_readout[0],) + tuple(in_shape_readout[1:])
+            # Log it: the readout channel count is derived from the core, so this is the only
+            # place a stimulus transform inside the core (e.g. color squashing) becomes visible.
+            LOGGER.info(f"Readout input shape derived from the core: {in_shape_readout=}")
 
         # Extract mean_activity_dict from data_info if available
         mean_activity_dict = None if data_info is None else data_info.get("mean_activity_dict")
@@ -487,12 +496,20 @@ class UnifiedCoreReadout(BaseCoreReadout):
             self.learning_rate,
         )
 
+        # `self.trainer` raises RuntimeError rather than AttributeError when the model is not
+        # attached to one, which `getattr(self, "trainer", None)` does not catch - so the optional
+        # trainer (only OneCycleLR needs it) has to be obtained explicitly.
+        try:
+            trainer = self.trainer
+        except RuntimeError:
+            trainer = None
+
         # Instantiate scheduler using utility function
         scheduler_dict = instantiate_scheduler(
             self.lr_scheduler_config,
             optimizer,
             self.learning_rate,
-            trainer=getattr(self, "trainer", None),
+            trainer=trainer,
         )
 
         return {

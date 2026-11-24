@@ -12,13 +12,24 @@ class WeightedChannelSumLayer(nn.Module):
         super().__init__()
 
         # add the channel weights
-        self.channel_weights = nn.Parameter(torch.tensor(init_channel_weights), requires_grad=trainable)
+        # Explicit float32: integer weights such as [1, 0] would give an int64 parameter without gradients.
+        self.channel_weights = nn.Parameter(
+            torch.tensor(init_channel_weights, dtype=torch.float32), requires_grad=trainable
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """If the input is not already single-channel (i.e. greyscale), take a weighted sum over channels ."""
 
         if x.shape[1] == 1:
             return x
+
+        if x.shape[1] != self.channel_weights.numel():
+            # Without this a single weight would broadcast over every channel, silently summing
+            # them all with the same coefficient instead of applying the intended weighting.
+            raise ValueError(
+                f"Got {self.channel_weights.numel()} channel weights for an input with {x.shape[1]} channels; "
+                f"one weight per channel is required. {tuple(x.shape)=}"
+            )
 
         weighted_input = x * (self.channel_weights.view(1, -1, 1, 1, 1))
         squashed = torch.sum(weighted_input, dim=1, keepdim=True)
