@@ -16,12 +16,14 @@ from omegaconf import OmegaConf
 
 from openretina.models.core_readout import UnifiedCoreReadout
 from openretina.models.spatial_contrast import SingleCellSpatialContrast, SpatialContrastCoreReadout
+from openretina.modules.layers.regularizers import TimeLaplaceL23dnorm
+from openretina.modules.losses import PoissonLoss3d
 from openretina.modules.readout.linear_nonlinear_poison import LNPReadout, SeparableLNPReadout
 from openretina.modules.readout.spatial_contrast_model_readout import (
     LearnableFilterSpatialContrastReadout,
     SpatialContrastReadout,
 )
-from openretina.utils.sta_processing import export_lnp_filters_as_stas, gaussian_2d
+from openretina.utils.sta_processing import export_lnp_filters_as_stas, export_mean_sc_filters_as_stas, gaussian_2d
 
 IN_SHAPE = (2, 40, 12, 10)  # channels time height width; the stimulus is green + UV
 HEIGHT, WIDTH = IN_SHAPE[2:]
@@ -476,3 +478,82 @@ def test_random_init_round_trips_through_a_checkpoint(tmp_path: Path) -> None:
     x = torch.rand(2, *IN_SHAPE)
     with torch.no_grad():
         assert torch.equal(loaded(x, SESSION), model(x, SESSION))
+
+
+def test_temporal_penalty_ignores_the_norm_of_the_stored_weights() -> None:
+    torch.manual_seed(0)
+    model = build_random_sc(smooth_weight_temporal=10.0)
+    readout = session_readout(model)
+    assert isinstance(readout, LearnableFilterSpatialContrastReadout)
+    unit_filters = torch.nn.functional.normalize(readout.temporal_weight, dim=-1)
+    expected = 10.0 * TimeLaplaceL23dnorm()(unit_filters[:, None, :, None, None])
+
+    with torch.no_grad():
+        readout.temporal_weight[0] *= 5.0
+    assert torch.allclose(readout.regularizer(), expected)
+    assert torch.equal(session_readout(build_random_sc()).regularizer(), torch.tensor(0.0))
+    # The penalty adds nothing to the state dict, so older checkpoints still load
+    assert set(model.state_dict()) == set(build_random_sc().state_dict())
+
+
+def test_temporal_penalty_has_the_strength_it_has_in_an_lnp() -> None:
+    """Mean loss plus the scaled penalty is the LNP objective, a summed loss plus the penalty, over the elements."""
+    torch.manual_seed(0)
+    model = build_random_sc(smooth_weight_temporal=10.0)
+    x = torch.rand(3, *IN_SHAPE)
+    targets = torch.rand(3, IN_SHAPE[1], len(ROI_IDS))
+    output = model(x, SESSION)
+
+    mean_objective = model.loss(output, targets) + model.readout_regularization(SESSION, output)
+    summed_objective = PoissonLoss3d()(output, targets) + model.readout.regularizer(SESSION)
+
+    assert model.readout.regularizer(SESSION) > 0
+    assert torch.allclose(mean_objective * output.numel(), summed_objective)
+
+
+def test_temporal_penalty_needs_learned_filters(sta_dir: Path) -> None:
+    with pytest.raises(ValueError, match="smooth_weight_temporal"):
+        build_sc(sta_dir, smooth_weight_temporal=1.0)
+
+
+def test_mean_filters_of_identical_models_are_their_filters(tmp_path: Path) -> None:
+    torch.manual_seed(0)
+    model = build_random_sc()
+    take_optimizer_step(model)
+    manifest = export_mean_sc_filters_as_stas([model, model], tmp_path)
+
+    frozen = session_readout(build_sc(tmp_path))
+    spatial, temporal, _ = session_readout(model)._filters()
+
+    assert manifest["fit_success"].all() and manifest["polarity_consistent"].all()
+    assert np.allclose(manifest["temporal_cosine_between_models"], 1.0) and np.allclose(manifest["centre_spread_px"], 0)
+    assert torch.allclose(frozen.spatial_filters, spatial.detach(), atol=1e-3)
+    assert torch.allclose(frozen.temporal_filters, temporal.detach(), atol=1e-5)
+
+
+def test_mean_filters_undo_a_polarity_flipped_through_the_gain(tmp_path: Path) -> None:
+    """A model whose temporal filter and gain nl_b are both negated computes the same and must not cancel out."""
+    torch.manual_seed(0)
+    model = build_random_sc()
+    flipped = build_random_sc()
+    flipped.load_state_dict(model.state_dict())
+    readout = session_readout(flipped)
+    assert isinstance(readout, LearnableFilterSpatialContrastReadout)
+    with torch.no_grad():
+        readout.temporal_weight.neg_()
+        readout.nl_b.neg_()
+    export_mean_sc_filters_as_stas([model, flipped], tmp_path)
+
+    _, temporal, _ = session_readout(model)._filters()
+    assert torch.allclose(session_readout(build_sc(tmp_path)).temporal_filters, temporal.detach(), atol=1e-5)
+
+
+def test_mean_filters_average_the_temporal_filters(tmp_path: Path) -> None:
+    torch.manual_seed(0)
+    first, second = build_random_sc(), build_random_sc()
+    manifest = export_mean_sc_filters_as_stas([first, second], tmp_path)
+
+    temporal = [session_readout(m)._filters()[1].detach() for m in (first, second)]
+    expected = torch.nn.functional.normalize((temporal[0] + temporal[1]) / 2, dim=-1)
+    assert torch.allclose(session_readout(build_sc(tmp_path)).temporal_filters, expected, atol=1e-5)
+    assert np.allclose(manifest["temporal_cosine_between_models"], (temporal[0] * temporal[1]).sum(-1).numpy())
