@@ -15,6 +15,10 @@ from openretina.data_io.base import DatasetStatistics
 log = logging.getLogger(__name__)
 
 
+def _nanmean_column(df: pd.DataFrame, column: str) -> float:
+    return float(np.nanmean(df[column])) if column in df.columns and len(df) else float("nan")
+
+
 @dataclass
 class EvaluationSummary:
     """Summary statistics from model evaluation, suitable for cross-model comparison.
@@ -55,6 +59,10 @@ class EvaluationSummary:
     fev_mean: float
     poisson_loss_mean: float
     jackknife_mean: float
+    # Poisson log-likelihood gain over each neuron's mean response, single trials, bits/frame; and the part of it due
+    # to the Poisson formula not integrating to 1 over continuous responses (see openretina.eval.information_gain)
+    poisson_ll_gain_mean: float = float("nan")
+    poisson_ll_gain_normaliser_bias_mean: float = float("nan")
 
     # Dataset statistics (all default to 0/empty when compute_dataset_statistics is disabled)
     n_sessions: int = 0
@@ -135,6 +143,8 @@ class EvaluationSummary:
             fev_mean=float(np.nanmean(df_filtered["var_ratio"])),
             poisson_loss_mean=float(np.nanmean(df_filtered["poisson_loss_to_average"])),
             jackknife_mean=float(np.nanmean(df_filtered["jackknife"])),
+            poisson_ll_gain_mean=_nanmean_column(df_filtered, "poisson_ll_gain"),
+            poisson_ll_gain_normaliser_bias_mean=_nanmean_column(df_filtered, "poisson_ll_gain_normaliser_bias"),
             n_sessions=dataset_stats.n_sessions,
             unique_train_frames=dataset_stats.unique_train_frames,
             unique_val_frames=dataset_stats.unique_val_frames,
@@ -256,6 +266,9 @@ class EvaluationSummary:
             print(f"  {'Correlation':30s}: {self.corr_by_trial_mean:.3f} (+/-{self.corr_by_trial_std:.3f})")
         if not np.isnan(self.mse_by_trial_mean):
             print(f"  {'MSE':30s}: {self.mse_by_trial_mean:.3f} (+/-{self.mse_by_trial_std:.3f})")
+        if not np.isnan(self.poisson_ll_gain_mean):
+            print(f"  {'Poisson LL gain (bits/frame)':30s}: {self.poisson_ll_gain_mean:.4f}")
+            print(f"  {'  of which normaliser bias':30s}: {self.poisson_ll_gain_normaliser_bias_mean:.4f}")
 
         print("=" * 80)
 

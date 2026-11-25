@@ -15,6 +15,7 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from tqdm.auto import tqdm
 
 from openretina.data_io.base import DatasetStatistics
+from openretina.eval.information_gain import poisson_information_gain, poisson_normaliser_bias
 from openretina.eval.metrics import MSE_numpy, correlation_numpy, explainable_vs_total_var, feve
 from openretina.eval.oracles import oracle_corr_jackknife
 from openretina.models.core_readout import BaseCoreReadout, load_core_readout_model
@@ -332,6 +333,11 @@ def evaluate_split(
             # Cannot compute var_ratio without multiple trials
             var_ratio = np.full(n_neurons_session, np.nan)
 
+        # Poisson log-likelihood gain over each neuron's mean response, on single trials (bits/frame), and the part
+        # of it that comes from the Poisson formula not integrating to 1 over continuous responses
+        poisson_ll_gain = poisson_information_gain(responses_by_trial, model_responses)
+        poisson_ll_gain_bias = poisson_normaliser_bias(responses_by_trial, model_responses)
+
         # Compute per-trial metrics
         n_trials_per_session.append(n_trials)
         corr_by_trial = {}
@@ -373,6 +379,8 @@ def evaluate_split(
                 "feve": float(feve_values[neuron_idx]),
                 "jackknife": float(jackknife[neuron_idx]),
                 "var_ratio": float(var_ratio[neuron_idx]),
+                "poisson_ll_gain": float(poisson_ll_gain[neuron_idx]),
+                "poisson_ll_gain_normaliser_bias": float(poisson_ll_gain_bias[neuron_idx]),
             }
 
             # Add per-trial metrics
