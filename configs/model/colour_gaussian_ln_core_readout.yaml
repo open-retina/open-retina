@@ -1,0 +1,34 @@
+# Multi-cell colour LN model: one learnable Gaussian spatial filter and one temporal filter per colour channel.
+#
+# Uses a DummyCore (pass-through, no colour squashing) with a MultiColourGaussianLNReadout. The colour counterpart
+# of the LN model trained with spatial_contrast_core_readout (learn_contrast_weight=false, learn_filters=true,
+# filter_init=random).
+
+_target_: openretina.models.colour_gaussian_ln.ColourGaussianLNCoreReadout
+_convert_: all
+
+# --- Required: set in the outer config ---
+in_shape: ???          # (channels, time, height, width) of the stimulus; every channel gets its own filters
+n_neurons_dict: ???    # Set dynamically at runtime via data_info
+
+# --- Filters ---
+temporal_filter_length: 31     # frames; the last one weighs the current frame
+cut_first_n_frames: null       # Frames cut by DummyCore (null = no cutting)
+target_model_cut_frames: null  # Alternative to cut_first_n_frames: total frames to cut, temporal filter included
+color_squashing_weights: null  # e.g. [0.5, 0.5]: squash to greyscale first, i.e. the greyscale LN model
+sigma_contour: 1.5             # each Gaussian is masked to this many of its current standard deviations
+sigma_floor: 1.0               # minimum Gaussian width in pixels
+gaussian_init_sigma: 1.5       # initial Gaussian width in pixels; every Gaussian starts at the frame centre
+smooth_weight_temporal: 0.0    # temporal smoothness weight, on the scale of the LNP readouts' weight
+
+# --- Training ---
+init_offset_from_mean_activity: false  # true starts each neuron's a * softplus(c) at its mean activity
+scheduler_metric: correlation  # validation metric the LR schedule follows: correlation or poisson
+scheduler_warmup_epochs: 0     # epochs at the start during which the LR schedule ignores the metric
+learning_rate: 0.01            # nonlinearity parameters
+filter_learning_rate: null     # filter parameters (null = learning_rate)
+
+# --- Nonlinearity initial values ---
+a_init: 4.0
+b_init: 1.0
+c_init: -5.0

@@ -13,6 +13,8 @@ responses:
   _target_: openretina.data_io.hoefling_2024.responses.make_final_responses
   _convert_: object
   response_type: "natural"
+  # Delays the inferred spikes relative to the stimulus, in frames; see make_final_responses
+  response_delay_frames: 0
   data_dict:
     # data dictionary is computed via filtering responses
     _target_: openretina.data_io.hoefling_2024.responses.filter_responses
@@ -40,4 +42,5 @@ data_info:
   response_rate_hz: 30
   stimulus_rate_hz: 30
   stimulus_class: ${data_io.responses.response_type}
+  response_delay_frames: ${data_io.responses.response_delay_frames}
   retina_pixel_size_um: 12.5
