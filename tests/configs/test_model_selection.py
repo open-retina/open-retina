@@ -9,6 +9,7 @@ CONFIG_DIR = str(Path(__file__).parents[2] / "configs")
 CONFIGS = [
     "hoefling_2024_sc_low_res_lnp_grey",
     "hoefling_2024_core_readout_low_res_lnp_grey_separable",
+    "hoefling_2024_core_readout_low_res_lnp_separable",
 ]
 EXPECTED = {
     "val_loss": ("val_loss", "min", "poisson"),
@@ -39,3 +40,13 @@ def test_selection_sets_every_monitor(config_name: str, selection: str | None) -
     assert callbacks.early_stopping.warmup_epochs == 30
     if "scheduler_warmup_epochs" in cfg.model:
         assert cfg.model.scheduler_warmup_epochs == 30
+
+
+def test_colour_lnp_has_a_temporal_kernel_per_channel() -> None:
+    with initialize_config_dir(config_dir=CONFIG_DIR, version_base=None):
+        cfg = compose(config_name="hoefling_2024_core_readout_low_res_lnp_separable")
+
+    assert cfg.model.core.get("color_squashing_weights") is None
+    assert cfg.model.core.cut_first_n_frames + cfg.model.readout.temporal_kernel_size - 1 == 30
+    assert cfg.model.readout.temporal_kernel_per_channel
+    assert cfg.model.readout.smooth_weight_temporal == 1e3
