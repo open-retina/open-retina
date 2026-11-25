@@ -46,6 +46,8 @@ Beyond the losses embedded in each model, `openretina` provides richer evaluatio
 
 * **Leave-One-Out (Jackknife) Oracle**: estimates an upper bound on achievable correlation by averaging all but one repeat of the same stimulus before comparison \[Lurz et al., 2022].
 * **Fraction of Explainable Variance Explained (FEVE)**: measures the proportion of stimulus-driven variance captured by the model \[Cadena et al., 2019].
+* **Poisson information gain**: the single-trial Poisson log-likelihood gain of the model over each neuron's mean response, in bits per frame (`openretina.eval.information_gain`, reported by `openretina eval`). On continuous responses the Poisson formula does not integrate to 1, so the gain contains a model-dependent normaliser term, which `openretina eval` reports next to it.
+* **Bayesian gold standard**: an upper reference for log-likelihood scores, the posterior predictive of a held-out repeat given the others with priors fitted on all data \[Lurz, Bashiri et al., 2023], giving a normalised information gain (`openretina.eval.gold_standard`). It uses a zero-inflated Gamma likelihood, a proper density on continuous responses, and fits each model's noise on held-out data.
 
 These helpers accept the same stimulus/response dictionaries used for training and can be run after `trainer.test` to generate publication-ready scores.
 
